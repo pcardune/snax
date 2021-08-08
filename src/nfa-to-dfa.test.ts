@@ -1,0 +1,125 @@
+import {
+  NFA,
+  NFAData,
+  epsilonClosure,
+  getInputAlphabet,
+  move,
+  multiEpsilonClosure,
+  getDStates,
+  DFA,
+} from './nfa-to-dfa';
+
+// Figure 3.34, Page 155 of dragon book:
+const nfaData: NFAData = [
+  // 0:
+  [
+    ['', 1],
+    ['', 7],
+  ],
+  // 1:
+  [
+    ['', 2],
+    ['', 4],
+  ],
+  // 2:
+  [['a', 3]],
+  // 3:
+  [['', 6]],
+  // 4:
+  [['b', 5]],
+  // 5:
+  [['', 6]],
+  // 6:
+  [
+    ['', 1],
+    ['', 7],
+  ],
+  // 7:
+  [['a', 8]],
+  // 8:
+  [['b', 9]],
+  // 9:
+  [['b', 10]],
+  // 10:
+  [],
+];
+
+describe('(a|b)*abb', () => {
+  const nfa = new NFA(nfaData);
+
+  test('epsilonClosure', () => {
+    let closure0 = epsilonClosure(nfa, 0);
+    [0, 1, 2, 4, 7].forEach((n) => expect(closure0).toContain(n));
+    expect(closure0.size).toBe(5);
+
+    let closure8 = epsilonClosure(nfa, 8);
+    expect(closure8).toContain(8);
+    expect(closure8.size).toBe(1);
+
+    let closure3 = epsilonClosure(nfa, 3);
+    [1, 2, 3, 4, 6, 7].forEach((n) => expect(closure3).toContain(n));
+    expect(closure3.size).toBe(6);
+  });
+
+  test('multiEpsilonClosure', () => {
+    const multi = multiEpsilonClosure(nfa, new Set([3, 8]));
+    [1, 2, 3, 4, 6, 7, 8].forEach((n) => expect(multi).toContain(n));
+    expect(multi.size).toBe(7);
+  });
+
+  test('getInputAlphabet', () => {
+    let alphabet = getInputAlphabet(nfa);
+    ['a', 'b'].forEach((n) => expect(alphabet).toContain(n));
+  });
+
+  test('move', () => {
+    const A = epsilonClosure(nfa, 0);
+    const moved = move(nfa, A, 'a');
+    [3, 8].forEach((n) => expect(moved).toContain(n));
+  });
+
+  test('getDStates', () => {
+    let alpha = Array.from(getInputAlphabet(nfa)).sort();
+    let [_, Dtrans] = getDStates(nfa);
+    let byAlpha: Record<string, string[]> = {};
+    Object.keys(Dtrans).forEach((hash) => {
+      byAlpha[hash] = alpha.map((letter) => Dtrans[hash].edges[letter]);
+    });
+    let A = '0,1,2,4,7';
+    let B = '1,2,3,4,6,7,8';
+    let C = '1,2,4,5,6,7';
+    let D = '1,2,4,5,6,7,9';
+    let E = '1,2,4,5,6,7,10';
+    expect(byAlpha[A]).toEqual([B, C]);
+    expect(byAlpha[B]).toEqual([B, D]);
+    expect(byAlpha[C]).toEqual([B, C]);
+    expect(byAlpha[D]).toEqual([B, E]);
+    expect(byAlpha[E]).toEqual([B, C]);
+
+    // now some debugging...
+    // const DStateNames = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    // let nameMap: { [index: string]: string } = {};
+    // Object.keys(Dtrans).forEach(
+    //   (hash, index) => (nameMap[hash] = DStateNames[index])
+    // );
+    // let table = [['NFA State', 'DFA State', ...alpha]];
+    // Object.keys(Dtrans).forEach((hash) => {
+    //   const D = Dtrans[hash];
+    //   let row = [hash, nameMap[hash]];
+    //   row.push();
+    //   for (const letter of alpha) {
+    //     row.push(nameMap[D[letter]]);
+    //   }
+    //   table.push(row);
+    //   console.log(row);
+    // });
+    // console.log(table);
+  });
+});
+
+describe('DFA', () => {
+  const nfa = new NFA(nfaData);
+  const dfa = DFA.fromNFA(nfa);
+
+  test('match', () => {});
+});

@@ -10,8 +10,8 @@ import { ConstSet, MultiSet, NumberSet } from './sets';
 import { Span } from './transition-graph';
 
 export class NFA {
-  states: NFAState<number>[] = [];
-  startId: number = 0;
+  readonly states: NFAState<number>[] = [];
+  readonly startId: number = 0;
   constructor(states: NFAState<number>[]) {
     for (let i = 0; i < states.length; i++) {
       let state = states[i];
@@ -28,6 +28,13 @@ export class NFA {
     }
   }
 
+  toJSON() {
+    return {
+      startId: this.startId,
+      states: this.states.map((s) => s.toJSON()),
+    };
+  }
+
   private getStateById(stateId: number): NFAState<number> {
     return this.states[stateId];
   }
@@ -37,14 +44,17 @@ export class NFA {
   }
 }
 
-class NFAState<StateId> {
+export class NFAState<StateId> {
   id: StateId;
   edges: Edge<StateId>[];
-  private accepting: boolean;
+  accepting: boolean;
   constructor(id: StateId, edges: Edge<StateId>[], accepting: boolean) {
     this.id = id;
     this.edges = edges;
     this.accepting = accepting;
+  }
+  toJSON() {
+    return { id: this.id, edges: this.edges.map((e) => e.toJSON()) };
   }
   isAccepting() {
     return this.accepting;
@@ -66,6 +76,9 @@ class Edge<StateId> {
     this.label = label;
     this.nextState = nextState;
   }
+  toJSON() {
+    return { label: this.label.toJSON(), nextState: this.nextState };
+  }
   isEpsilon(): boolean {
     return this.label.kind == LabelKind.EPSILON;
   }
@@ -77,30 +90,32 @@ enum LabelKind {
   EPSILON,
   CHAR,
 }
-type EpsilonLabel = {
-  readonly kind: LabelKind.EPSILON;
-  equals(label: Label): boolean;
-};
-type CharLabel = {
-  readonly kind: LabelKind.CHAR;
+class EpsilonLabel {
+  readonly kind: LabelKind.EPSILON = LabelKind.EPSILON;
+  equals(label: Label): boolean {
+    return label instanceof EpsilonLabel;
+  }
+  toJSON() {
+    return { kind: this.kind };
+  }
+}
+class CharLabel {
+  readonly kind: LabelKind.CHAR = LabelKind.CHAR;
   readonly char: string;
-  equals(label: Label): boolean;
-};
-type Label = EpsilonLabel | CharLabel;
-export const EPSILON: EpsilonLabel = {
-  kind: LabelKind.EPSILON,
-  equals(label: Label) {
-    return label.kind == LabelKind.EPSILON;
-  },
-};
+  constructor(char: string) {
+    this.char = char;
+  }
+  equals(label: Label): boolean {
+    return label instanceof CharLabel && label.char == this.char;
+  }
+  toJSON() {
+    return { kind: this.kind, char: this.char };
+  }
+}
+export type Label = EpsilonLabel | CharLabel;
+export const EPSILON: EpsilonLabel = new EpsilonLabel();
 export function label(char: string): CharLabel {
-  return {
-    kind: LabelKind.CHAR,
-    char,
-    equals(label: Label) {
-      return label.kind == LabelKind.CHAR && label.char == char;
-    },
-  };
+  return new CharLabel(char);
 }
 
 /**

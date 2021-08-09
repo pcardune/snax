@@ -1,4 +1,14 @@
-import { NFA, state, edge, EPSILON, Label, NFAState } from './nfa-to-dfa';
+import {
+  NFA,
+  state,
+  edge,
+  EPSILON,
+  Label,
+  label,
+  DFA,
+  matchDFA,
+} from './nfa-to-dfa';
+import { Node, NodeKind, parseRegex } from './parser';
 
 /**
  * ASSUMPTIONS:
@@ -66,4 +76,33 @@ export function starNFA(nfa: NFA): NFA {
   let endState = state(endStateId, true, []);
   states = [startState, ...states, endState];
   return new NFA(states);
+}
+
+function nfaForNode(node: Node): NFA {
+  switch (node.kind) {
+    case NodeKind.OR:
+      return orNFA(nfaForNode(node.left), nfaForNode(node.right));
+    case NodeKind.STAR:
+      return starNFA(nfaForNode(node.child));
+    case NodeKind.CONCAT:
+      return concatNFA(nfaForNode(node.left), nfaForNode(node.right));
+    case NodeKind.PAREN:
+      return nfaForNode(node.child);
+    case NodeKind.CHAR:
+      return labelNFA(label(node.char));
+  }
+}
+
+export class Regex {
+  pattern: string;
+  dfa: DFA;
+  constructor(pattern: string) {
+    this.pattern = pattern;
+    let node = parseRegex(this.pattern);
+    let nfa = nfaForNode(node);
+    this.dfa = DFA.fromNFA(nfa);
+  }
+  match(input: string) {
+    return matchDFA(this.dfa, input);
+  }
 }

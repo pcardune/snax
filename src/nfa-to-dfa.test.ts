@@ -124,8 +124,8 @@ describe('DFA', () => {
     'full match %s',
     (input) => {
       let result = matchDFA(dfa, input);
-      expect(result).not.toBe(false);
-      if (result != false) {
+      expect(result).toBeDefined();
+      if (result != undefined) {
         expect(result.to).toEqual(input.length);
       }
     }
@@ -135,7 +135,16 @@ describe('DFA', () => {
     expect(matchDFA(dfa, 'abbignored')).toEqual({ from: 0, to: 3 });
   });
 
+  describe('greedy', () => {
+    test('partial match abbignored', () => {
+      expect(matchDFA(dfa, 'abbignored', true)).toEqual({ from: 0, to: 3 });
+      expect(matchDFA(dfa, 'abbabb', true)).toEqual({ from: 0, to: 6 });
+      expect(matchDFA(dfa, 'abbignoredabb', true)).toEqual({ from: 0, to: 3 });
+      expect(matchDFA(dfa, 'ababab', true)).not.toBeDefined();
+    });
+  });
+
   test.each(['foo', 'abab', 'bb'])("don't match %s", (input) => {
-    expect(matchDFA(dfa, input)).toBe(false);
+    expect(matchDFA(dfa, input)).toBe(undefined);
   });
 });

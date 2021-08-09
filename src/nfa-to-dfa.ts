@@ -291,18 +291,32 @@ export class DFA {
   }
 }
 
-export function matchDFA(dfa: DFA, input: string): Span | false {
+export function matchDFA(
+  dfa: DFA,
+  input: string,
+  greedy: boolean = false
+): Span | undefined {
   let current = dfa.getStateById(dfa.startId);
   let forward = 0;
 
+  let accepting = [];
+
   while (true) {
-    const char = input[forward];
     if (current.isAccepting) {
-      return { from: 0, to: forward };
+      let span = { from: 0, to: forward };
+      if (greedy) {
+        accepting.push(span);
+      } else {
+        return span;
+      }
     }
+    if (forward == input.length) {
+      return accepting.pop();
+    }
+    const char = input[forward];
     let nextStateId = current.edges[char];
     if (nextStateId == undefined) {
-      return false;
+      return accepting.pop();
     } else {
       forward++;
       current = dfa.getStateById(nextStateId);

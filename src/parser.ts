@@ -1,4 +1,4 @@
-enum NodeKind {
+export enum NodeKind {
   OR = 'OR',
   STAR = 'STAR',
   PAREN = 'PAREN',

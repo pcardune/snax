@@ -1,5 +1,5 @@
 import { DFA, edge, EPSILON, label, matchDFA, NFA, state } from './nfa-to-dfa';
-import { concatNFA, labelNFA, orNFA, reindexed, starNFA } from './regex';
+import { concatNFA, labelNFA, orNFA, Regex, reindexed, starNFA } from './regex';
 
 describe('labelNFA', () => {
   const nfa = labelNFA(label('a'));
@@ -93,8 +93,22 @@ describe('matching', () => {
     'full match %s',
     (input) => {
       let result = matchDFA(dfa, input);
-      expect(result).not.toBe(false);
-      if (result != false) {
+      expect(result).toBeDefined();
+      if (result != undefined) {
+        expect(result.to).toEqual(input.length);
+      }
+    }
+  );
+});
+
+describe('Regex', () => {
+  const re = new Regex('(a|b)*abb');
+  test.each(['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'])(
+    'full match %s',
+    (input) => {
+      let result = re.match(input);
+      expect(result).toBeDefined();
+      if (result != undefined) {
         expect(result.to).toEqual(input.length);
       }
     }

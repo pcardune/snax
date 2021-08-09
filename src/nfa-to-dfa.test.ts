@@ -1,6 +1,5 @@
 import {
   NFA,
-  NFAData,
   EPSILON,
   epsilonClosure,
   getInputAlphabet,
@@ -10,32 +9,35 @@ import {
   DFA,
   matchDFA,
   edge,
+  label,
   state,
 } from './nfa-to-dfa';
 
+const a = label('a');
+const b = label('b');
 // Figure 3.34, Page 155 of dragon book:
 // an NFA for the pattern (a|b)*abb
-const nfaData: NFAData = [
+const nfaData = [
   // 0:
   state(0, false, [edge(EPSILON, 1), edge(EPSILON, 7)]),
   // 1:
   state(1, false, [edge(EPSILON, 2), edge(EPSILON, 4)]),
   // 2:
-  state(2, false, [edge('a', 3)]),
+  state(2, false, [edge(a, 3)]),
   // 3:
   state(3, false, [edge(EPSILON, 6)]),
   // 4:
-  state(4, false, [edge('b', 5)]),
+  state(4, false, [edge(b, 5)]),
   // 5:
   state(5, false, [edge(EPSILON, 6)]),
   // 6:
   state(6, false, [edge(EPSILON, 1), edge(EPSILON, 7)]),
   // 7:
-  state(7, false, [edge('a', 8)]),
+  state(7, false, [edge(a, 8)]),
   // 8:
-  state(8, false, [edge('b', 9)]),
+  state(8, false, [edge(b, 9)]),
   // 9:
-  state(9, false, [edge('b', 10)]),
+  state(9, false, [edge(b, 10)]),
   // 10:
   state(10, true, []),
 ];
@@ -70,7 +72,7 @@ describe('(a|b)*abb', () => {
 
   test('move', () => {
     const A = epsilonClosure(nfa, 0);
-    const moved = move(nfa, A, 'a');
+    const moved = move(nfa, A, label('a'));
     [3, 8].forEach((n) => expect(moved).toContain(n));
   });
 

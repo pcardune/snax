@@ -9,31 +9,10 @@
 import { ConstSet, MultiSet, NumberSet } from './sets';
 import { Span } from './transition-graph';
 
-export type NFAData = NFAState<number>[];
-
-/**
- * A state is a list of edges. If a state has no edges,
- * it is considered "accepting"
- */
-export type StateData = Edge<number>[];
-
-export type EdgeData = [
-  /**
-   * A single character, or the empty string (epsilon)
-   */
-  string,
-
-  /**
-   * Pointer to the next state, which is represented as an
-   * index in the NFA's list of states
-   */
-  number
-];
-
 export class NFA {
   states: NFAState<number>[] = [];
   startId: number = 0;
-  constructor(states: NFAData) {
+  constructor(states: NFAState<number>[]) {
     for (let i = 0; i < states.length; i++) {
       let state = states[i];
       for (let j = 0; j < state.edges.length; j++) {
@@ -81,19 +60,47 @@ export function state<T>(
 }
 
 class Edge<StateId> {
-  label: string;
+  label: Label;
   nextState: StateId;
-  constructor(label: string, nextState: StateId) {
+  constructor(label: Label, nextState: StateId) {
     this.label = label;
     this.nextState = nextState;
   }
   isEpsilon(): boolean {
-    return this.label == EPSILON;
+    return this.label.kind == LabelKind.EPSILON;
   }
 }
-export const EPSILON = '';
-export function edge(label: string, nextState: number): Edge<number> {
+export function edge(label: Label, nextState: number): Edge<number> {
   return new Edge(label, nextState);
+}
+enum LabelKind {
+  EPSILON,
+  CHAR,
+}
+type EpsilonLabel = {
+  readonly kind: LabelKind.EPSILON;
+  equals(label: Label): boolean;
+};
+type CharLabel = {
+  readonly kind: LabelKind.CHAR;
+  readonly char: string;
+  equals(label: Label): boolean;
+};
+type Label = EpsilonLabel | CharLabel;
+export const EPSILON: EpsilonLabel = {
+  kind: LabelKind.EPSILON,
+  equals(label: Label) {
+    return label.kind == LabelKind.EPSILON;
+  },
+};
+export function label(char: string): CharLabel {
+  return {
+    kind: LabelKind.CHAR,
+    char,
+    equals(label: Label) {
+      return label.kind == LabelKind.CHAR && label.char == char;
+    },
+  };
 }
 
 /**
@@ -104,8 +111,9 @@ export function getInputAlphabet(nfa: NFA): Set<string> {
   let set: Set<string> = new Set();
   for (const state of nfa.states) {
     for (const edge of state.edges) {
-      if (!edge.isEpsilon()) {
-        set.add(edge.label);
+      const label = edge.label;
+      if (label.kind != LabelKind.EPSILON) {
+        set.add(label.char);
       }
     }
   }
@@ -177,12 +185,12 @@ export function multiEpsilonClosure(
 export function move(
   nfa: NFA,
   startStates: ConstSet<number>,
-  label: string
+  label: Label
 ): Set<number> {
   let set: Set<number> = new Set();
   for (const stateId of startStates) {
     for (const edge of nfa.edges(stateId)) {
-      if (edge.label == label) {
+      if (edge.label.equals(label)) {
         set.add(edge.nextState);
       }
     }
@@ -209,7 +217,9 @@ export function getDStates(
     notVisited.delete(T);
     visited.add(T);
     for (const symbol of alpha) {
-      const U = new NumberSet(multiEpsilonClosure(nfa, move(nfa, T, symbol)));
+      const U = new NumberSet(
+        multiEpsilonClosure(nfa, move(nfa, T, label(symbol)))
+      );
       if (!visited.has(U) && !notVisited.has(U)) {
         notVisited.add(U);
       }

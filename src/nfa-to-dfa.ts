@@ -7,7 +7,9 @@
  */
 
 import { ConstSet, MultiSet, NumberSet } from './sets';
-import { Span } from './transition-graph';
+
+export type Pos = number;
+export type Span = { from: Pos; to: Pos };
 
 export class NFA {
   readonly states: NFAState<number>[] = [];

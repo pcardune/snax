@@ -85,15 +85,50 @@ export function charNode(char: string) {
 export function parseRegex(input: string): Node {
   let i = 0;
   let last: Node | null = null;
-  while (i < input.length) {
+
+  enum Token {
+    STAR = '*',
+    OR = '|',
+    OPEN_PAREN = '(',
+    CLOSE_PAREN = ')',
+    CHAR = 'char',
+  }
+  const getToken = () => {
     const char = input[i];
+    i++;
     switch (char) {
+      case '\\':
+        i++;
+        return { kind: Token.CHAR, char: input[i - 1] };
+      case '*':
+        return { kind: Token.STAR, char };
+      case '|':
+        return { kind: Token.OR, char };
       case '(':
-        let j = i + 1;
+        return { kind: Token.OPEN_PAREN, char };
+      case ')':
+        return { kind: Token.CLOSE_PAREN, char };
+      default:
+        return { kind: Token.CHAR, char };
+    }
+  };
+
+  while (i < input.length) {
+    const token = getToken();
+    switch (token.kind) {
+      case Token.OPEN_PAREN:
+        let j = i;
         let child: Node | null = null;
-        for (; j < input.length; j++) {
-          if (input[j] == ')') {
-            child = parseRegex(input.slice(i + 1, j));
+        let numToMatch = 1;
+        while (i < input.length) {
+          const t = getToken();
+          if (t.kind == Token.OPEN_PAREN) {
+            numToMatch++;
+          } else if (t.kind == Token.CLOSE_PAREN) {
+            numToMatch--;
+          }
+          if (numToMatch == 0) {
+            child = parseRegex(input.slice(j, i));
             break;
           }
         }
@@ -101,30 +136,27 @@ export function parseRegex(input: string): Node {
           throw new Error('Expected subexpression between ()');
         }
         last = parenNode(child);
-        i = j + 1;
         break;
-      case '|':
+      case Token.OR:
         if (last == null) {
           throw new Error('Expected | operator to follow another expression');
         }
-        let right = parseRegex(input.slice(i + 1));
+        let right = parseRegex(input.slice(i));
         last = orNode(last, right);
         i = input.length;
         break;
-      case '*':
+      case Token.STAR:
         if (last == null) {
           throw new Error('Expected * operator to follow another expression');
         }
         last = starNode(last);
-        i++;
         break;
-      default:
+      case Token.CHAR:
         if (last == null) {
-          last = charNode(char);
+          last = charNode(token.char);
         } else {
-          last = concatNode(last, charNode(char));
+          last = concatNode(last, charNode(token.char));
         }
-        i++;
         break;
     }
   }

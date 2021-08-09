@@ -1,6 +1,7 @@
 import {
   NFA,
   NFAData,
+  EPSILON,
   epsilonClosure,
   getInputAlphabet,
   move,
@@ -8,42 +9,35 @@ import {
   getDStates,
   DFA,
   matchDFA,
+  edge,
+  state,
 } from './nfa-to-dfa';
 
 // Figure 3.34, Page 155 of dragon book:
 // an NFA for the pattern (a|b)*abb
 const nfaData: NFAData = [
   // 0:
-  [
-    ['', 1],
-    ['', 7],
-  ],
+  state(0, false, [edge(EPSILON, 1), edge(EPSILON, 7)]),
   // 1:
-  [
-    ['', 2],
-    ['', 4],
-  ],
+  state(1, false, [edge(EPSILON, 2), edge(EPSILON, 4)]),
   // 2:
-  [['a', 3]],
+  state(2, false, [edge('a', 3)]),
   // 3:
-  [['', 6]],
+  state(3, false, [edge(EPSILON, 6)]),
   // 4:
-  [['b', 5]],
+  state(4, false, [edge('b', 5)]),
   // 5:
-  [['', 6]],
+  state(5, false, [edge(EPSILON, 6)]),
   // 6:
-  [
-    ['', 1],
-    ['', 7],
-  ],
+  state(6, false, [edge(EPSILON, 1), edge(EPSILON, 7)]),
   // 7:
-  [['a', 8]],
+  state(7, false, [edge('a', 8)]),
   // 8:
-  [['b', 9]],
+  state(8, false, [edge('b', 9)]),
   // 9:
-  [['b', 10]],
+  state(9, false, [edge('b', 10)]),
   // 10:
-  [],
+  state(10, true, []),
 ];
 
 describe('(a|b)*abb', () => {

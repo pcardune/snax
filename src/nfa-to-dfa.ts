@@ -9,13 +9,13 @@
 import { ConstSet, MultiSet, NumberSet } from './sets';
 import { Span } from './transition-graph';
 
-export type NFAData = StateData[];
+export type NFAData = NFAState<number>[];
 
 /**
  * A state is a list of edges. If a state has no edges,
  * it is considered "accepting"
  */
-export type StateData = EdgeData[];
+export type StateData = Edge<number>[];
 
 export type EdgeData = [
   /**
@@ -30,26 +30,22 @@ export type EdgeData = [
   number
 ];
 
-// type StateId = number;
-
 export class NFA {
   states: NFAState<number>[] = [];
   startId: number = 0;
-  constructor(data: NFAData) {
-    for (let i = 0; i < data.length; i++) {
-      let edgeData = data[i];
-      let edges: Edge<number>[] = [];
-      for (let j = 0; j < edgeData.length; j++) {
-        let [label, nextState] = edgeData[j];
-        if (nextState >= data.length || nextState < 0) {
+  constructor(states: NFAData) {
+    for (let i = 0; i < states.length; i++) {
+      let state = states[i];
+      for (let j = 0; j < state.edges.length; j++) {
+        const edge = state.edges[j];
+        if (edge.nextState >= states.length || edge.nextState < 0) {
           throw new Error(
-            `State ${i} containing edge ${j} that points to non-existent state: ${nextState}`
+            `State ${i} containing edge ${j} that points to non-existent state: ${edge.nextState}`
           );
         }
-        edges.push(new Edge(label, nextState));
       }
 
-      this.states.push(new NFAState(i, edges));
+      this.states.push(state);
     }
   }
 
@@ -65,13 +61,23 @@ export class NFA {
 class NFAState<StateId> {
   id: StateId;
   edges: Edge<StateId>[];
-  constructor(id: StateId, edges: Edge<StateId>[]) {
+  private accepting: boolean;
+  constructor(id: StateId, edges: Edge<StateId>[], accepting: boolean) {
     this.id = id;
     this.edges = edges;
+    this.accepting = accepting;
   }
   isAccepting() {
-    return this.edges.length == 0;
+    return this.accepting;
   }
+}
+
+export function state<T>(
+  id: T,
+  accepting: boolean,
+  edges: Edge<T>[]
+): NFAState<T> {
+  return new NFAState(id, edges, accepting);
 }
 
 class Edge<StateId> {
@@ -82,8 +88,12 @@ class Edge<StateId> {
     this.nextState = nextState;
   }
   isEpsilon(): boolean {
-    return this.label == '';
+    return this.label == EPSILON;
   }
+}
+export const EPSILON = '';
+export function edge(label: string, nextState: number): Edge<number> {
+  return new Edge(label, nextState);
 }
 
 /**

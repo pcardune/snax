@@ -7,9 +7,11 @@ import {
   multiEpsilonClosure,
   getDStates,
   DFA,
+  matchDFA,
 } from './nfa-to-dfa';
 
 // Figure 3.34, Page 155 of dragon book:
+// an NFA for the pattern (a|b)*abb
 const nfaData: NFAData = [
   // 0:
   [
@@ -121,5 +123,23 @@ describe('DFA', () => {
   const nfa = new NFA(nfaData);
   const dfa = DFA.fromNFA(nfa);
 
-  test('match', () => {});
+  // (a|b)*abb
+  test.each(['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'])(
+    'full match %s',
+    (input) => {
+      let result = matchDFA(dfa, input);
+      expect(result).not.toBe(false);
+      if (result != false) {
+        expect(result.to).toEqual(input.length);
+      }
+    }
+  );
+
+  test('partial match abbignored', () => {
+    expect(matchDFA(dfa, 'abbignored')).toEqual({ from: 0, to: 3 });
+  });
+
+  test.each(['foo', 'abab', 'bb'])("don't match %s", (input) => {
+    expect(matchDFA(dfa, input)).toBe(false);
+  });
 });

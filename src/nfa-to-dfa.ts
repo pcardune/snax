@@ -7,6 +7,7 @@
  */
 
 import { ConstSet, MultiSet, NumberSet } from './sets';
+import { Span } from './transition-graph';
 
 export type NFAData = StateData[];
 
@@ -68,15 +69,8 @@ class NFAState<StateId> {
     this.id = id;
     this.edges = edges;
   }
-  isAccepting() {}
-}
-
-class DFAState<StateId> {
-  id: StateId;
-  edges: Record<string, StateId>;
-  constructor(id: StateId, edges: Record<string, StateId>) {
-    this.id = id;
-    this.edges = edges;
+  isAccepting() {
+    return this.edges.length == 0;
   }
 }
 
@@ -210,7 +204,14 @@ export function getDStates(
         notVisited.add(U);
       }
       if (!Dtrans[THash]) {
-        Dtrans[THash] = new DFAState(THash, {});
+        let isAccepting = false;
+        for (let id of T) {
+          if (nfa.states[id].isAccepting()) {
+            isAccepting = true;
+            break;
+          }
+        }
+        Dtrans[THash] = new DFAState(THash, {}, isAccepting);
       }
       Dtrans[THash].edges[symbol] = U.hash();
     }
@@ -218,9 +219,24 @@ export function getDStates(
   return [startId, Dtrans];
 }
 
+class DFAState<StateId> {
+  readonly id: StateId;
+  readonly edges: Record<string, StateId>;
+  readonly isAccepting: boolean;
+  constructor(
+    id: StateId,
+    edges: Record<string, StateId>,
+    isAccepting: boolean
+  ) {
+    this.id = id;
+    this.edges = edges;
+    this.isAccepting = isAccepting;
+  }
+}
+
 export class DFA {
   startId: string;
-  states: Record<string, DFAState<string>> = {};
+  private states: Record<string, DFAState<string>> = {};
   private constructor(
     startId: string,
     states: Record<string, DFAState<string>>
@@ -231,5 +247,30 @@ export class DFA {
   static fromNFA(nfa: NFA) {
     const [startId, states] = getDStates(nfa);
     return new DFA(startId, states);
+  }
+  getStateById(stateId: string) {
+    return this.states[stateId];
+  }
+  edgesFor(stateId: string) {
+    return this.states[stateId].edges;
+  }
+}
+
+export function matchDFA(dfa: DFA, input: string): Span | false {
+  let current = dfa.getStateById(dfa.startId);
+  let forward = 0;
+
+  while (true) {
+    const char = input[forward];
+    if (current.isAccepting) {
+      return { from: 0, to: forward };
+    }
+    let nextStateId = current.edges[char];
+    if (nextStateId == undefined) {
+      return false;
+    } else {
+      forward++;
+      current = dfa.getStateById(nextStateId);
+    }
   }
 }

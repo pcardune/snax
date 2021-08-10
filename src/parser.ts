@@ -87,11 +87,11 @@ export function parseRegex(input: string): Node {
   let last: Node | null = null;
 
   enum Token {
-    STAR = '*',
-    OR = '|',
-    OPEN_PAREN = '(',
-    CLOSE_PAREN = ')',
-    CHAR = 'char',
+    STAR,
+    OR,
+    OPEN_PAREN,
+    CLOSE_PAREN,
+    CHAR,
   }
   const getToken = () => {
     const char = input[i];

@@ -8,13 +8,10 @@
 
 import { ConstSet, MultiSet, NumberSet } from './sets';
 
-export type Pos = number;
-export type Span = { from: Pos; to: Pos };
-
-export class NFA {
-  readonly states: NFAState<number>[] = [];
+export class NFA<D> {
+  readonly states: NFAState<D>[] = [];
   readonly startId: number = 0;
-  constructor(states: NFAState<number>[]) {
+  constructor(states: NFAState<D>[]) {
     for (let i = 0; i < states.length; i++) {
       let state = states[i];
       for (let j = 0; j < state.edges.length; j++) {
@@ -37,7 +34,7 @@ export class NFA {
     };
   }
 
-  private getStateById(stateId: number): NFAState<number> {
+  private getStateById(stateId: number): NFAState<D> {
     return this.states[stateId];
   }
 
@@ -46,14 +43,21 @@ export class NFA {
   }
 }
 
-export class NFAState<StateId> {
-  id: StateId;
-  edges: Edge<StateId>[];
+export class NFAState<D> {
+  id: number;
+  edges: Edge<number>[];
   accepting: boolean;
-  constructor(id: StateId, edges: Edge<StateId>[], accepting: boolean) {
+
+  /**
+   * Additional metadata that might be stored with the state.
+   */
+  data: D;
+
+  constructor(id: number, edges: Edge<number>[], accepting: boolean, data: D) {
     this.id = id;
     this.edges = edges;
     this.accepting = accepting;
+    this.data = data;
   }
   toJSON() {
     return { id: this.id, edges: this.edges.map((e) => e.toJSON()) };
@@ -63,15 +67,16 @@ export class NFAState<StateId> {
   }
 }
 
-export function state<T>(
-  id: T,
+export function state<D>(
+  id: number,
   accepting: boolean,
-  edges: Edge<T>[]
-): NFAState<T> {
-  return new NFAState(id, edges, accepting);
+  edges: Edge<number>[],
+  data: D
+): NFAState<D> {
+  return new NFAState(id, edges, accepting, data);
 }
 
-class Edge<StateId> {
+export class Edge<StateId> {
   label: Label;
   nextState: StateId;
   constructor(label: Label, nextState: StateId) {
@@ -124,7 +129,7 @@ export function label(char: string): CharLabel {
  * Get the set of all the labels used on all the edges
  * in the NFA graph
  */
-export function getInputAlphabet(nfa: NFA): Set<string> {
+export function getInputAlphabet(nfa: NFA<any>): Set<string> {
   let set: Set<string> = new Set();
   for (const state of nfa.states) {
     for (const edge of state.edges) {
@@ -152,7 +157,7 @@ export function getInputAlphabet(nfa: NFA): Set<string> {
  *
  * @internal
  */
-export function epsilonClosure(nfa: NFA, stateId: number): Set<number> {
+export function epsilonClosure(nfa: NFA<any>, stateId: number): Set<number> {
   let visited: Set<number> = new Set();
   let notVisited: Set<number> = new Set([stateId]);
   while (notVisited.size > 0) {
@@ -178,7 +183,7 @@ export function epsilonClosure(nfa: NFA, stateId: number): Set<number> {
  * in set T on epsilon transitions alone
  */
 export function multiEpsilonClosure(
-  nfa: NFA,
+  nfa: NFA<any>,
   T: ConstSet<number>
 ): Set<number> {
   let closure: Set<number> = new Set();
@@ -200,7 +205,7 @@ export function multiEpsilonClosure(
  * you can get to via an edge with the given label
  */
 export function move(
-  nfa: NFA,
+  nfa: NFA<any>,
   startStates: ConstSet<number>,
   label: Label
 ): Set<number> {
@@ -215,15 +220,15 @@ export function move(
   return set;
 }
 
-export function getDStates(
-  nfa: NFA
-): [string, Record<string, DFAState<string>>] {
+export function getDStates<D>(
+  nfa: NFA<D>
+): [string, Record<string, DFAState<string, D[]>>] {
   let alpha = getInputAlphabet(nfa);
   let visited: MultiSet = new MultiSet();
   let notVisited: MultiSet = new MultiSet([
     new NumberSet(epsilonClosure(nfa, nfa.startId)),
   ]);
-  let Dtrans: Record<string, DFAState<string>> = {};
+  let Dtrans: Record<string, DFAState<string, D[]>> = {};
 
   let startId: string = '';
   for (let T = notVisited.pop(); T != undefined; T = notVisited.pop()) {
@@ -248,7 +253,11 @@ export function getDStates(
             break;
           }
         }
-        Dtrans[THash] = new DFAState(THash, {}, isAccepting);
+        let data: D[] = [];
+        for (const id of T) {
+          data.push(nfa.states[id].data);
+        }
+        Dtrans[THash] = new DFAState(THash, {}, isAccepting, data);
       }
       Dtrans[THash].edges[symbol] = U.hash();
     }
@@ -256,32 +265,35 @@ export function getDStates(
   return [startId, Dtrans];
 }
 
-class DFAState<StateId> {
+class DFAState<StateId, D> {
   readonly id: StateId;
   readonly edges: Record<string, StateId>;
   readonly isAccepting: boolean;
+  data: D;
   constructor(
     id: StateId,
     edges: Record<string, StateId>,
-    isAccepting: boolean
+    isAccepting: boolean,
+    data: D
   ) {
     this.id = id;
     this.edges = edges;
     this.isAccepting = isAccepting;
+    this.data = data;
   }
 }
 
-export class DFA {
+export class DFA<D> {
   startId: string;
-  private states: Record<string, DFAState<string>> = {};
+  private states: Record<string, DFAState<string, D>> = {};
   private constructor(
     startId: string,
-    states: Record<string, DFAState<string>>
+    states: Record<string, DFAState<string, D>>
   ) {
     this.states = states;
     this.startId = startId;
   }
-  static fromNFA(nfa: NFA) {
+  static fromNFA<D>(nfa: NFA<D>): DFA<D[]> {
     const [startId, states] = getDStates(nfa);
     return new DFA(startId, states);
   }
@@ -293,19 +305,23 @@ export class DFA {
   }
 }
 
-export function matchDFA(
-  dfa: DFA,
+export type Pos = number;
+export type Span = { from: Pos; to: Pos };
+export type MatchResult<D> = { span: Span; data: D };
+
+export function matchDFA<D>(
+  dfa: DFA<D>,
   input: string,
   greedy: boolean = false
-): Span | undefined {
+): MatchResult<D> | undefined {
   let current = dfa.getStateById(dfa.startId);
   let forward = 0;
 
-  let accepting = [];
+  let accepting: MatchResult<D>[] = [];
 
   while (true) {
     if (current.isAccepting) {
-      let span = { from: 0, to: forward };
+      let span = { span: { from: 0, to: forward }, data: current.data };
       if (greedy) {
         accepting.push(span);
       } else {

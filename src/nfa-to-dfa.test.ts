@@ -10,8 +10,12 @@ import {
   matchDFA,
   edge,
   label,
-  state,
+  state as nfaState,
+  Edge,
 } from './nfa-to-dfa';
+
+const state = (id: number, accepting: boolean, edges: Edge<number>[]) =>
+  nfaState(id, accepting, edges, undefined);
 
 const a = label('a');
 const b = label('b');
@@ -126,20 +130,26 @@ describe('DFA', () => {
       let result = matchDFA(dfa, input);
       expect(result).toBeDefined();
       if (result != undefined) {
-        expect(result.to).toEqual(input.length);
+        expect(result.span.to).toEqual(input.length);
       }
     }
   );
 
   test('partial match abbignored', () => {
-    expect(matchDFA(dfa, 'abbignored')).toEqual({ from: 0, to: 3 });
+    expect(matchDFA(dfa, 'abbignored')?.span).toEqual({ from: 0, to: 3 });
   });
 
   describe('greedy', () => {
     test('partial match abbignored', () => {
-      expect(matchDFA(dfa, 'abbignored', true)).toEqual({ from: 0, to: 3 });
-      expect(matchDFA(dfa, 'abbabb', true)).toEqual({ from: 0, to: 6 });
-      expect(matchDFA(dfa, 'abbignoredabb', true)).toEqual({ from: 0, to: 3 });
+      expect(matchDFA(dfa, 'abbignored', true)?.span).toEqual({
+        from: 0,
+        to: 3,
+      });
+      expect(matchDFA(dfa, 'abbabb', true)?.span).toEqual({ from: 0, to: 6 });
+      expect(matchDFA(dfa, 'abbignoredabb', true)?.span).toEqual({
+        from: 0,
+        to: 3,
+      });
       expect(matchDFA(dfa, 'ababab', true)).not.toBeDefined();
     });
   });

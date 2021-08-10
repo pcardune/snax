@@ -1,5 +1,17 @@
-import { DFA, edge, EPSILON, label, matchDFA, NFA, state } from './nfa-to-dfa';
+import {
+  DFA,
+  Edge,
+  edge,
+  EPSILON,
+  label,
+  matchDFA,
+  NFA,
+  state as nfaState,
+} from './nfa-to-dfa';
 import { concatNFA, labelNFA, orNFA, Regex, reindexed, starNFA } from './regex';
+
+const state = (id: number, accepting: boolean, edges: Edge<number>[]) =>
+  nfaState(id, accepting, edges, undefined);
 
 describe('labelNFA', () => {
   const nfa = labelNFA(label('a'));
@@ -95,7 +107,7 @@ describe('matching', () => {
       let result = matchDFA(dfa, input);
       expect(result).toBeDefined();
       if (result != undefined) {
-        expect(result.to).toEqual(input.length);
+        expect(result.span.to).toEqual(input.length);
       }
     }
   );
@@ -109,7 +121,7 @@ describe('Regex', () => {
       let result = re.match(input);
       expect(result).toBeDefined();
       if (result != undefined) {
-        expect(result.to).toEqual(input.length);
+        expect(result.span.to).toEqual(input.length);
       }
     }
   );

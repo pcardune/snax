@@ -135,3 +135,11 @@ export class RewindableIterator<T> implements Iterator<T> {
 export function rewindable<T>(iter: Iterator<T>) {
   return new RewindableIterator(iter);
 }
+
+export function iterable<T>(iter: Iterator<T>): Iterable<T> {
+  return {
+    [Symbol.iterator]() {
+      return iter;
+    },
+  };
+}

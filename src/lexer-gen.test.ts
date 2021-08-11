@@ -1,25 +1,23 @@
-import { charCodes } from './iter';
+import { charCodes, iterable } from './iter';
 import {
   MultiPatternMatcher,
   Pattern,
   regexPattern,
   stringPattern,
+  Token,
   Tokenizer,
 } from './lexer-gen';
-import {
-  DFA,
-  edge,
-  Edge,
-  EPSILON,
-  label,
-  matchDFA,
-  NFA,
-  NFAState,
-  Span,
-  state,
-} from './nfa-to-dfa';
 import { parseRegex } from './parser';
-import { concatNFA, labelNFA, nfaForNode, reindexed, starNFA } from './regex';
+import { concatNFA, nfaForNode } from './regex';
+
+export function token<T>(
+  token: T,
+  substr: string,
+  from: number,
+  to: number
+): Token<T> {
+  return { token, substr, span: { from, to } };
+}
 
 describe('lexer-gen', () => {
   enum Token {
@@ -59,20 +57,16 @@ describe('lexer-gen', () => {
 
   describe('Tokenizer', () => {
     test('getNextToken', () => {
-      let tokenizer = new Tokenizer(patterns, charCodes('123+456-78'));
-      let result = tokenizer.getNextToken();
-      let results: typeof result[] = [];
-      while (result != undefined) {
-        results.push(result);
-        result = tokenizer.getNextToken();
-      }
-      let tokens = results.map((r) => r?.token);
+      let tokenizer = iterable(
+        new Tokenizer(patterns, charCodes('123+456-78'))
+      );
+      let tokens = [...tokenizer];
       expect(tokens).toEqual([
-        Token.DIGITS,
-        Token.ADD,
-        Token.DIGITS,
-        Token.SUB,
-        Token.DIGITS,
+        token(Token.DIGITS, '123', 0, 3),
+        token(Token.ADD, '+', 3, 4),
+        token(Token.DIGITS, '456', 4, 7),
+        token(Token.SUB, '-', 7, 8),
+        token(Token.DIGITS, '78', 8, 10),
       ]);
     });
   });

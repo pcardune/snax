@@ -1,3 +1,5 @@
+import { Lexeme, Lexer, Token } from './lexer';
+
 export enum NodeKind {
   OR = 'OR',
   STAR = 'STAR',
@@ -82,58 +84,39 @@ export function charNode(char: string) {
   return new CharNode(char);
 }
 
-export function parseRegex(input: string): Node {
-  let i = 0;
+export function parseRegex(input: string | Iterator<Lexeme>): Node {
   let last: Node | null = null;
 
-  enum Token {
-    STAR,
-    OR,
-    OPEN_PAREN,
-    CLOSE_PAREN,
-    CHAR,
-  }
-  const getToken = () => {
-    const char = input[i];
-    i++;
-    switch (char) {
-      case '\\':
-        i++;
-        return { kind: Token.CHAR, char: input[i - 1] };
-      case '*':
-        return { kind: Token.STAR, char };
-      case '|':
-        return { kind: Token.OR, char };
-      case '(':
-        return { kind: Token.OPEN_PAREN, char };
-      case ')':
-        return { kind: Token.CLOSE_PAREN, char };
-      default:
-        return { kind: Token.CHAR, char };
-    }
-  };
+  let tokens: Iterator<Lexeme, Lexeme> =
+    typeof input == 'string' ? new Lexer(input) : input;
 
-  while (i < input.length) {
-    const token = getToken();
+  while (true) {
+    const { value: token, done } = tokens.next();
+    if (done) {
+      break;
+    }
     switch (token.kind) {
       case Token.OPEN_PAREN:
-        let j = i;
         let child: Node | null = null;
         let numToMatch = 1;
-        while (i < input.length) {
-          const t = getToken();
-          if (t.kind == Token.OPEN_PAREN) {
+
+        let childTokens: Lexeme[] = [];
+        while (true) {
+          const { value: nextToken, done } = tokens.next();
+          if (done) {
+            throw new Error('Reached end of input before finding matching )');
+          }
+          if (nextToken.kind == Token.OPEN_PAREN) {
             numToMatch++;
-          } else if (t.kind == Token.CLOSE_PAREN) {
+          } else if (nextToken.kind == Token.CLOSE_PAREN) {
             numToMatch--;
           }
-          if (numToMatch == 0) {
-            child = parseRegex(input.slice(j, i));
+          if (numToMatch > 0) {
+            childTokens.push(nextToken);
+          } else {
+            child = parseRegex(childTokens[Symbol.iterator]());
             break;
           }
-        }
-        if (child == null) {
-          throw new Error('Expected subexpression between ()');
         }
         last = parenNode(child);
         break;
@@ -141,9 +124,8 @@ export function parseRegex(input: string): Node {
         if (last == null) {
           throw new Error('Expected | operator to follow another expression');
         }
-        let right = parseRegex(input.slice(i));
+        let right = parseRegex(tokens);
         last = orNode(last, right);
-        i = input.length;
         break;
       case Token.STAR:
         if (last == null) {

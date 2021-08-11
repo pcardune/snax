@@ -74,12 +74,12 @@ export type Token<T> = Lexeme<T> & {
   span: Span;
 };
 
-export class Tokenizer<T> implements Iterator<Token<T>> {
-  matcher: MultiPatternMatcher<T>;
-  chars: RewindableIterator<number>;
-  from: number = 0;
-  constructor(patterns: Pattern<T>[], input: Iterator<number>) {
-    this.matcher = new MultiPatternMatcher(patterns);
+export class TokenIterator<T> implements Iterator<Token<T>> {
+  private matcher: MultiPatternMatcher<T>;
+  private chars: RewindableIterator<number>;
+  private from: number = 0;
+  constructor(matcher: MultiPatternMatcher<T>, input: Iterator<number>) {
+    this.matcher = matcher;
     this.chars = rewindable(input);
   }
 
@@ -95,7 +95,21 @@ export class Tokenizer<T> implements Iterator<Token<T>> {
       this.chars.reset(result.substr.length);
       return { done: false, value: token };
     }
+    this.chars.reset(0);
+    if (this.chars.buffered > 0) {
+      throw new Error('Ran out of tokens before reaching end of stream');
+    }
     return { done: true, value: undefined };
+  }
+}
+
+export class Tokenizer<T> {
+  private matcher: MultiPatternMatcher<T>;
+  constructor(patterns: Pattern<T>[]) {
+    this.matcher = new MultiPatternMatcher(patterns);
+  }
+  parse(input: Iterator<number>) {
+    return new TokenIterator(this.matcher, input);
   }
 }
 

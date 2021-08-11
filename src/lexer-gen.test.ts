@@ -1,10 +1,11 @@
-import { charCodes, iterable } from './iter';
+import { charCodes, collect, iterable } from './iter';
 import {
   MultiPatternMatcher,
   Pattern,
   regexPattern,
   stringPattern,
   Token,
+  TokenIterator,
   Tokenizer,
 } from './lexer-gen';
 import { parseRegex } from './parser';
@@ -56,11 +57,10 @@ describe('lexer-gen', () => {
   });
 
   describe('Tokenizer', () => {
-    test('getNextToken', () => {
-      let tokenizer = iterable(
-        new Tokenizer(patterns, charCodes('123+456-78'))
-      );
-      let tokens = [...tokenizer];
+    let tokenizer = new Tokenizer(patterns);
+    test("parse('123+456-78')", () => {
+      let chars = charCodes('123+456-78');
+      let tokens = collect(tokenizer.parse(chars));
       expect(tokens).toEqual([
         token(Token.DIGITS, '123', 0, 3),
         token(Token.ADD, '+', 3, 4),
@@ -68,6 +68,15 @@ describe('lexer-gen', () => {
         token(Token.SUB, '-', 7, 8),
         token(Token.DIGITS, '78', 8, 10),
       ]);
+    });
+    test("parse('123+fdahj')", () => {
+      let chars = charCodes('123+fdahj');
+      let tokens = tokenizer.parse(chars);
+      expect(tokens.next.bind(tokens)).not.toThrow();
+      expect(tokens.next.bind(tokens)).not.toThrow();
+      expect(tokens.next.bind(tokens)).toThrowError(
+        'Ran out of tokens before reaching end of stream'
+      );
     });
   });
 });

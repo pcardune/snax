@@ -130,6 +130,9 @@ export class RewindableIterator<T> implements Iterator<T> {
     this.buffer = this.buffer.slice(n);
     this.index = 0;
   }
+  get buffered() {
+    return this.buffer.length;
+  }
 }
 
 export function rewindable<T>(iter: Iterator<T>) {

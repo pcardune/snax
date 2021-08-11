@@ -3,7 +3,6 @@ import {
   edge,
   Edge,
   EPSILON,
-  label,
   matchDFA,
   NFA,
   NFAState,
@@ -11,7 +10,7 @@ import {
   state,
 } from './nfa-to-dfa';
 import { parseRegex } from './parser';
-import { concatNFA, labelNFA, nfaForNode, reindexed, starNFA } from './regex';
+import { concatNFA, labelNFA, nfaForNode, reindexed, stringNFA } from './regex';
 
 /**
  * Assumptions: each of the nfas
@@ -35,7 +34,7 @@ function combineNFAs<Key>(nfas: [Key, NFA<undefined>][]): NFA<Key | undefined> {
   return new NFA(states);
 }
 
-class MultiPatternMatcher<T> {
+export class MultiPatternMatcher<T> {
   private dfa: DFA<(number | undefined)[]>;
   private tokens: T[];
   constructor(patterns: Pattern<T>[]) {
@@ -49,7 +48,7 @@ class MultiPatternMatcher<T> {
     this.tokens = tokens;
     this.dfa = DFA.fromNFA(nfa);
   }
-  match(input: string): { span: Span; token: T } | undefined {
+  match(input: Iterable<string>): { span: Span; token: T } | undefined {
     let result = matchDFA(this.dfa, input, true);
     if (result != undefined) {
       let earliest = Infinity;
@@ -65,7 +64,7 @@ class MultiPatternMatcher<T> {
   }
 }
 
-class Tokenizer<T> {
+export class Tokenizer<T> {
   matcher: MultiPatternMatcher<T>;
   input: string;
   index: number = 0;
@@ -85,10 +84,10 @@ class Tokenizer<T> {
   }
 }
 
-class Pattern<T> {
+export class Pattern<T> {
   token: T;
   pattern: NFA<undefined>;
-  constructor(token: T, pattern: NFA<undefined> | string) {
+  constructor(token: T, pattern: NFA<undefined>) {
     this.token = token;
     if (typeof pattern == 'string') {
       pattern = nfaForNode(parseRegex(pattern));
@@ -97,81 +96,10 @@ class Pattern<T> {
   }
 }
 
-describe('lexer', () => {
-  test('patterns', () => {
-    const patterns: [string, NFA<undefined>][] = [
-      // a
-      ['a', labelNFA('a')],
-      // abb
-      [
-        'abb',
-        concatNFA(concatNFA(labelNFA('a'), labelNFA('b')), labelNFA('b')),
-      ],
-      // a*bb*
-      [
-        'a*bb',
-        concatNFA(
-          concatNFA(starNFA(labelNFA('a')), labelNFA('b')),
-          starNFA(labelNFA('b'))
-        ),
-      ],
-    ];
-    const combined = combineNFAs(patterns);
-    const dfa = DFA.fromNFA(combined);
-    let result = matchDFA(dfa, 'abb', true);
-  });
+export function stringPattern<T>(token: T, pattern: string): Pattern<T> {
+  return new Pattern(token, stringNFA(pattern));
+}
 
-  enum Token {
-    ADD = 'ADD',
-    SUB = 'SUB',
-    DIGIT = 'DIGIT',
-    DIGITS = 'DIGITS',
-  }
-  const patterns = [
-    new Pattern(Token.ADD, '+'),
-    new Pattern(Token.SUB, '-'),
-    new Pattern(Token.DIGIT, '0|1|2|3|4|5|6|7|8|9'),
-    new Pattern(
-      Token.DIGITS,
-      concatNFA(
-        nfaForNode(parseRegex('0|1|2|3|4|5|6|7|8|9')),
-        nfaForNode(parseRegex('(0|1|2|3|4|5|6|7|8|9)*'))
-      )
-    ),
-  ];
-
-  describe('MultiPatternMatcher', () => {
-    let matcher = new MultiPatternMatcher(patterns);
-    const cases: [string, Token | undefined][] = [
-      ['+', Token.ADD],
-      ['-', Token.SUB],
-      ['0', Token.DIGIT],
-      ['123', Token.DIGITS],
-      ['123+456', Token.DIGITS],
-      ['foo', undefined],
-    ];
-    test.each(cases)('%s', (input, expectedToken) => {
-      expect(matcher.match(input)?.token).toEqual(expectedToken);
-    });
-  });
-
-  describe('Tokenizer', () => {
-    test('getNextToken', () => {
-      let tokenizer = new Tokenizer(patterns, '123+456-78');
-      let result = tokenizer.getNextToken();
-      let results: typeof result[] = [];
-      while (result != undefined) {
-        results.push(result);
-        result = tokenizer.getNextToken();
-      }
-      let tokens = results.map((r) => r?.token);
-      expect(tokens).toEqual([
-        Token.DIGITS,
-        Token.ADD,
-        Token.DIGITS,
-        Token.SUB,
-        Token.DIGITS,
-      ]);
-    });
-  });
-});
+export function regexPattern<T>(token: T, pattern: string): Pattern<T> {
+  return new Pattern(token, nfaForNode(parseRegex(pattern)));
+}

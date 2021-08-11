@@ -311,13 +311,15 @@ export type MatchResult<D> = { span: Span; data: D };
 
 export function matchDFA<D>(
   dfa: DFA<D>,
-  input: string,
+  input: Iterable<string>,
   greedy: boolean = false
 ): MatchResult<D> | undefined {
   let current = dfa.getStateById(dfa.startId);
   let forward = 0;
 
   let accepting: MatchResult<D>[] = [];
+
+  const chars = input[Symbol.iterator]();
 
   while (true) {
     if (current.isAccepting) {
@@ -328,10 +330,10 @@ export function matchDFA<D>(
         return span;
       }
     }
-    if (forward == input.length) {
+    const { value: char, done } = chars.next();
+    if (done) {
       return accepting.pop();
     }
-    const char = input[forward];
     let nextStateId = current.edges[char];
     if (nextStateId == undefined) {
       return accepting.pop();

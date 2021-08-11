@@ -77,6 +77,17 @@ export function concatNFA<D>(left: NFA<D>, right: NFA<D>): NFA<D> {
   return new NFA(states);
 }
 
+/**
+ * Special case of an nfa where you just concat a bunch of labels
+ */
+export function stringNFA<D>(chars: string, data?: D): NFA<D | undefined> {
+  let prev = labelNFA(chars[0], data);
+  for (let i = 1; i < chars.length; i++) {
+    prev = concatNFA(prev, labelNFA(chars[i], data));
+  }
+  return prev;
+}
+
 export function starNFA<D>(
   nfa: NFA<D | undefined>,
   data?: D

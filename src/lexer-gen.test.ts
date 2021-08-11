@@ -1,3 +1,4 @@
+import { charCodes } from './iter';
 import {
   MultiPatternMatcher,
   Pattern,
@@ -51,13 +52,14 @@ describe('lexer-gen', () => {
       ['foo', undefined],
     ];
     test.each(cases)('%s', (input, expectedToken) => {
-      expect(matcher.match(input)?.token).toEqual(expectedToken);
+      let chars = charCodes(input);
+      expect(matcher.match(chars)?.token).toEqual(expectedToken);
     });
   });
 
   describe('Tokenizer', () => {
     test('getNextToken', () => {
-      let tokenizer = new Tokenizer(patterns, '123+456-78');
+      let tokenizer = new Tokenizer(patterns, charCodes('123+456-78'));
       let result = tokenizer.getNextToken();
       let results: typeof result[] = [];
       while (result != undefined) {

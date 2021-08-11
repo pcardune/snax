@@ -107,7 +107,7 @@ describe('matching', () => {
       let result = matchDFA(dfa, input);
       expect(result).toBeDefined();
       if (result != undefined) {
-        expect(result.span.to).toEqual(input.length);
+        expect(result.substr).toEqual(input);
       }
     }
   );
@@ -121,7 +121,7 @@ describe('Regex', () => {
       let result = re.match(input);
       expect(result).toBeDefined();
       if (result != undefined) {
-        expect(result.span.to).toEqual(input.length);
+        expect(result.substr).toEqual(input);
       }
     }
   );

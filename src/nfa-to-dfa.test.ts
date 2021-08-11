@@ -1,3 +1,4 @@
+import { charCodes } from './iter';
 import {
   NFA,
   EPSILON,
@@ -71,7 +72,7 @@ describe('(a|b)*abb', () => {
 
   test('getInputAlphabet', () => {
     let alphabet = getInputAlphabet(nfa);
-    ['a', 'b'].forEach((n) => expect(alphabet).toContain(n));
+    ['a', 'b'].forEach((n) => expect(alphabet).toContain(n.charCodeAt(0)));
   });
 
   test('move', () => {
@@ -130,31 +131,35 @@ describe('DFA', () => {
       let result = matchDFA(dfa, input);
       expect(result).toBeDefined();
       if (result != undefined) {
-        expect(result.span.to).toEqual(input.length);
+        expect(result.substr).toEqual(input);
       }
     }
   );
 
   test('partial match abbignored', () => {
-    expect(matchDFA(dfa, 'abbignored')?.span).toEqual({ from: 0, to: 3 });
+    let chars = charCodes('abbignored');
+
+    expect(matchDFA(dfa, chars)?.substr).toEqual('abb');
+    expect(chars.suffix()).toEqual('ignored');
+  });
+
+  let cases: [string, string][] = [
+    ['foo', 'oo'],
+    ['abab', ''],
+    ['bb', ''],
+  ];
+  test.each(cases)("don't match %p, leave %p remaining", (input, remaining) => {
+    let chars = charCodes(input);
+    expect(matchDFA(dfa, chars)).toBe(undefined);
+    expect(chars.suffix()).toEqual(remaining);
   });
 
   describe('greedy', () => {
     test('partial match abbignored', () => {
-      expect(matchDFA(dfa, 'abbignored', true)?.span).toEqual({
-        from: 0,
-        to: 3,
-      });
-      expect(matchDFA(dfa, 'abbabb', true)?.span).toEqual({ from: 0, to: 6 });
-      expect(matchDFA(dfa, 'abbignoredabb', true)?.span).toEqual({
-        from: 0,
-        to: 3,
-      });
+      expect(matchDFA(dfa, 'abbignored', true)?.substr).toEqual('abb');
+      expect(matchDFA(dfa, 'abbabb', true)?.substr).toEqual('abbabb');
+      expect(matchDFA(dfa, 'abbignoredabb', true)?.substr).toEqual('abb');
       expect(matchDFA(dfa, 'ababab', true)).not.toBeDefined();
     });
-  });
-
-  test.each(['foo', 'abab', 'bb'])("don't match %s", (input) => {
-    expect(matchDFA(dfa, input)).toBe(undefined);
   });
 });

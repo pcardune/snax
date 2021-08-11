@@ -3,8 +3,8 @@ interface PeakableIterator<T> extends Iterator<T> {
 }
 
 class Peakable<T> implements PeakableIterator<T> {
-  iterator: Iterator<T>;
-  buffer: IteratorResult<T> | null;
+  private iterator: Iterator<T>;
+  private buffer: IteratorResult<T> | null;
   constructor(iterator: Iterator<T>) {
     this.iterator = iterator;
     this.buffer = null;
@@ -23,6 +23,22 @@ class Peakable<T> implements PeakableIterator<T> {
   }
 }
 
+class MapIterator<I, O> implements Iterator<O> {
+  private iterator: Iterator<I>;
+  private mapper: (i: I) => O;
+  constructor(iterator: Iterator<I>, mapper: (i: I) => O) {
+    this.iterator = iterator;
+    this.mapper = mapper;
+  }
+  next() {
+    const { value, done } = this.iterator.next();
+    if (done) {
+      return { done, value: undefined };
+    }
+    return { value: this.mapper(value), done };
+  }
+}
+
 export function peakable<T>(it: Iterator<T>) {
   return new Peakable(it);
 }
@@ -37,4 +53,85 @@ export function collect<T>(it: Iterator<T>): T[] {
     }
   } while (result.done == false);
   return values;
+}
+
+export function map<I, O>(it: Iterator<I>, map: (i: I) => O): Iterator<O> {
+  return new MapIterator(it, map);
+}
+
+class CharCodeIterator implements Iterator<number> {
+  private input: string;
+  private index: number = 0;
+  constructor(input: string) {
+    this.input = input;
+  }
+  next(): IteratorResult<number> {
+    if (this.index >= this.input.length) {
+      return { done: true, value: undefined };
+    }
+    return { done: false, value: this.input.charCodeAt(this.index++) };
+  }
+  prefix(): string {
+    return this.input.slice(0, this.index);
+  }
+  suffix(): string {
+    return this.input.slice(this.index);
+  }
+}
+
+export function charCodes(input: string) {
+  return new CharCodeIterator(input);
+}
+
+class ConcatIterator<T> implements Iterator<T> {
+  private iters: Iterator<T, T>[];
+  private index: number = 0;
+  constructor(...iters: Iterator<T>[]) {
+    this.iters = iters;
+  }
+  next(): IteratorResult<T> {
+    if (this.index >= this.iters.length) {
+      return { done: true, value: undefined };
+    }
+    const iter = this.iters[this.index];
+    const { done, value } = iter.next();
+    if (done) {
+      this.index++;
+      return this.next();
+    }
+    return { done, value };
+  }
+}
+
+export function concat<T>(...iters: Iterator<T>[]) {
+  return new ConcatIterator(...iters);
+}
+
+export class RewindableIterator<T> implements Iterator<T> {
+  private iter: Iterator<T, T>;
+  private buffer: T[] = [];
+  private index: number = 0;
+  constructor(iter: Iterator<T>) {
+    this.iter = iter;
+  }
+  next(): IteratorResult<T> {
+    if (this.index < this.buffer.length) {
+      return { done: false, value: this.buffer[this.index++] };
+    }
+    const { value, done } = this.iter.next();
+    if (done) {
+      return { done, value: undefined };
+    }
+    this.buffer.push(value);
+    this.index++;
+    return { done: false, value };
+  }
+  reset(n: number) {
+    this.buffer = this.buffer.slice(n);
+    this.index = 0;
+  }
+}
+
+export function rewindable<T>(iter: Iterator<T>) {
+  return new RewindableIterator(iter);
 }

@@ -1,3 +1,4 @@
+import { rewindable, RewindableIterator } from './iter';
 import {
   DFA,
   edge,
@@ -10,7 +11,7 @@ import {
   state,
 } from './nfa-to-dfa';
 import { parseRegex } from './parser';
-import { concatNFA, labelNFA, nfaForNode, reindexed, stringNFA } from './regex';
+import { nfaForNode, reindexed, stringNFA } from './regex';
 
 /**
  * Assumptions: each of the nfas
@@ -34,6 +35,11 @@ function combineNFAs<Key>(nfas: [Key, NFA<undefined>][]): NFA<Key | undefined> {
   return new NFA(states);
 }
 
+type Lexeme<T> = {
+  token: T;
+  substr: string;
+};
+
 export class MultiPatternMatcher<T> {
   private dfa: DFA<(number | undefined)[]>;
   private tokens: T[];
@@ -48,9 +54,9 @@ export class MultiPatternMatcher<T> {
     this.tokens = tokens;
     this.dfa = DFA.fromNFA(nfa);
   }
-  match(input: Iterable<string>): { span: Span; token: T } | undefined {
+  match(input: Iterator<number>): Lexeme<T> | undefined {
     let result = matchDFA(this.dfa, input, true);
-    if (result != undefined) {
+    if (result) {
       let earliest = Infinity;
       for (const index of result.data) {
         if (index != undefined && index < earliest) {
@@ -58,7 +64,7 @@ export class MultiPatternMatcher<T> {
         }
       }
       if (earliest != Infinity) {
-        return { span: result.span, token: this.tokens[earliest] };
+        return { substr: result.substr, token: this.tokens[earliest] };
       }
     }
   }
@@ -66,21 +72,24 @@ export class MultiPatternMatcher<T> {
 
 export class Tokenizer<T> {
   matcher: MultiPatternMatcher<T>;
-  input: string;
-  index: number = 0;
-  constructor(patterns: Pattern<T>[], input: string) {
+  input: RewindableIterator<number>;
+  from: number = 0;
+  constructor(patterns: Pattern<T>[], input: Iterator<number>) {
     this.matcher = new MultiPatternMatcher(patterns);
-    this.input = input;
+    this.input = rewindable(input);
   }
-  getNextToken(): { span: Span; token: T } | undefined {
-    let result = this.matcher.match(this.input.slice(this.index));
+  getNextToken(): { span: Span; token: T; substr: string } | undefined {
+    let result = this.matcher.match(this.input);
     if (result != undefined) {
-      let length = result.span.to - result.span.from;
-      result.span.from += this.index;
-      result.span.to += this.index;
-      this.index += length;
+      let token = {
+        span: { from: this.from, to: this.from + result.substr.length },
+        token: result.token,
+        substr: result.substr,
+      };
+      this.from += result.substr.length;
+      this.input.reset(result.substr.length);
+      return token;
     }
-    return result;
   }
 }
 

@@ -6,6 +6,7 @@
  *
  */
 
+import { map } from './iter';
 import { ConstSet, MultiSet, NumberSet } from './sets';
 
 export class NFA<D> {
@@ -108,20 +109,20 @@ class EpsilonLabel {
 }
 class CharLabel {
   readonly kind: LabelKind.CHAR = LabelKind.CHAR;
-  readonly char: string;
-  constructor(char: string) {
-    this.char = char;
+  readonly charCode: number;
+  constructor(char: string | number) {
+    this.charCode = typeof char == 'string' ? char.charCodeAt(0) : char;
   }
   equals(label: Label): boolean {
-    return label instanceof CharLabel && label.char == this.char;
+    return label instanceof CharLabel && label.charCode == this.charCode;
   }
   toJSON() {
-    return { kind: this.kind, char: this.char };
+    return { kind: this.kind, char: this.charCode };
   }
 }
 export type Label = EpsilonLabel | CharLabel;
 export const EPSILON: EpsilonLabel = new EpsilonLabel();
-export function label(char: string): CharLabel {
+export function label(char: string | number): CharLabel {
   return new CharLabel(char);
 }
 
@@ -129,13 +130,13 @@ export function label(char: string): CharLabel {
  * Get the set of all the labels used on all the edges
  * in the NFA graph
  */
-export function getInputAlphabet(nfa: NFA<any>): Set<string> {
-  let set: Set<string> = new Set();
+export function getInputAlphabet(nfa: NFA<any>): Set<number> {
+  let set: Set<number> = new Set();
   for (const state of nfa.states) {
     for (const edge of state.edges) {
       const label = edge.label;
       if (label.kind != LabelKind.EPSILON) {
-        set.add(label.char);
+        set.add(label.charCode);
       }
     }
   }
@@ -307,23 +308,30 @@ export class DFA<D> {
 
 export type Pos = number;
 export type Span = { from: Pos; to: Pos };
-export type MatchResult<D> = { span: Span; data: D };
+export type MatchResult<D> = { substr: string; data: D };
 
 export function matchDFA<D>(
   dfa: DFA<D>,
-  input: Iterable<string>,
+  input: string | Iterator<number>,
   greedy: boolean = false
 ): MatchResult<D> | undefined {
   let current = dfa.getStateById(dfa.startId);
   let forward = 0;
 
+  let matchBuffer: number[] = [];
   let accepting: MatchResult<D>[] = [];
 
-  const chars = input[Symbol.iterator]();
+  const chars: Iterator<number, number> =
+    typeof input == 'string'
+      ? map(input[Symbol.iterator](), (s) => s.charCodeAt(0))
+      : input;
 
   while (true) {
     if (current.isAccepting) {
-      let span = { span: { from: 0, to: forward }, data: current.data };
+      let span = {
+        substr: String.fromCharCode(...matchBuffer.slice(0, forward)),
+        data: current.data,
+      };
       if (greedy) {
         accepting.push(span);
       } else {
@@ -334,6 +342,8 @@ export function matchDFA<D>(
     if (done) {
       return accepting.pop();
     }
+    matchBuffer.push(char);
+
     let nextStateId = current.edges[char];
     if (nextStateId == undefined) {
       return accepting.pop();

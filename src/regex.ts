@@ -146,6 +146,6 @@ export class Regex {
     this.dfa = DFA.fromNFA(nfa);
   }
   match(input: string) {
-    return matchDFA(this.dfa, input);
+    return matchDFA(this.dfa, input, true);
   }
 }

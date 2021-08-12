@@ -131,7 +131,11 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
         if (last == null) {
           throw new Error('Expected * operator to follow another expression');
         }
-        last = starNode(last);
+        if (last instanceof ConcatNode) {
+          last = concatNode(last.left, starNode(last.right));
+        } else {
+          last = starNode(last);
+        }
         break;
       case Token.CHAR:
         if (last == null) {

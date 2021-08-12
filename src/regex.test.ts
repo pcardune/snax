@@ -114,10 +114,10 @@ describe('matching', () => {
 });
 
 describe('Regex', () => {
-  const re = new Regex('(a|b)*abb');
   test.each(['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'])(
     'full match %s',
     (input) => {
+      const re = new Regex('(a|b)*abb');
       let result = re.match(input);
       expect(result).toBeDefined();
       if (result != undefined) {
@@ -125,4 +125,13 @@ describe('Regex', () => {
       }
     }
   );
+
+  test.each(['ab', 'abbb'])('%s matches ab*b', (input) => {
+    const abStarB = new Regex('ab*b');
+    let result = abStarB.match(input);
+    expect(result).toBeDefined();
+    if (result != undefined) {
+      expect(result.substr).toEqual(input);
+    }
+  });
 });

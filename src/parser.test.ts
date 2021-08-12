@@ -39,8 +39,7 @@ describe('parseRegex', () => {
     '(a|\\(b)': parenNode(
       orNode(charNode('a'), concatNode(charNode('('), charNode('b')))
     ),
-    // TODO: make * operator take precedence over concat, and make it right associative
-    // 'aa*': concatNode(charNode('a'), starNode(charNode('a'))),
+    'aa*': concatNode(charNode('a'), starNode(charNode('a'))),
   };
   test.each(Object.entries(cases))('%p', (pattern: string, node: Node) => {
     expect(parseRegex(pattern)).toEqual(node);

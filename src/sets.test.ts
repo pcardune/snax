@@ -15,7 +15,7 @@ describe('NumberSet', () => {
   });
 
   test('hash', () => {
-    expect(new NumberSet([6, 2, 7, 3]).hash()).toBe('2,3,6,7');
+    expect(new NumberSet([6, 2, 7, 3]).hash()).toBe('{2,3,6,7}');
   });
 });
 

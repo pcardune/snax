@@ -31,7 +31,7 @@ export class NumberSet implements ConstSet<number> {
   hash(): string {
     let values: number[] = Array.from(this.data.values());
     values.sort((a, b) => a - b);
-    return values.join(',');
+    return `{${values.join(',')}}`;
   }
 }
 

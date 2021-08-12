@@ -88,11 +88,11 @@ describe('(a|b)*abb', () => {
     Object.keys(Dtrans).forEach((hash) => {
       byAlpha[hash] = alpha.map((letter) => Dtrans[hash].edges[letter]);
     });
-    let A = '0,1,2,4,7';
-    let B = '1,2,3,4,6,7,8';
-    let C = '1,2,4,5,6,7';
-    let D = '1,2,4,5,6,7,9';
-    let E = '1,2,4,5,6,7,10';
+    let A = '{0,1,2,4,7}';
+    let B = '{1,2,3,4,6,7,8}';
+    let C = '{1,2,4,5,6,7}';
+    let D = '{1,2,4,5,6,7,9}';
+    let E = '{1,2,4,5,6,7,10}';
     expect(byAlpha[A]).toEqual([B, C]);
     expect(byAlpha[B]).toEqual([B, D]);
     expect(byAlpha[C]).toEqual([B, C]);

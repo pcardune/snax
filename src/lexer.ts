@@ -1,10 +1,18 @@
-import { peakable } from './iter';
+import { charCodes, peakable } from './iter';
+import {
+  nfaPattern,
+  stringPattern,
+  TokenIterator,
+  Tokenizer,
+} from './lexer-gen';
+import { anyCharNFA, concatNFA, labelNFA } from './regex';
 
 export enum Token {
   STAR,
   OR,
   OPEN_PAREN,
   CLOSE_PAREN,
+  ESCAPE,
   CHAR,
   ANY_CHAR,
 }
@@ -14,52 +22,50 @@ export type Lexeme = {
   char: string;
 };
 
-export class Lexer implements Iterator<Lexeme> {
-  charIter: Iterator<string>;
+function makeLexer() {
+  const patterns = [
+    nfaPattern(Token.ESCAPE, concatNFA(labelNFA('\\'), anyCharNFA())),
+    stringPattern(Token.ANY_CHAR, '.'),
+    stringPattern(Token.STAR, '*'),
+    stringPattern(Token.OR, '|'),
+    stringPattern(Token.OPEN_PAREN, '('),
+    stringPattern(Token.CLOSE_PAREN, ')'),
+    nfaPattern(Token.CHAR, anyCharNFA()),
+  ];
+  return new Tokenizer(patterns);
+}
 
-  constructor(input: string | Iterator<string>) {
+export class Lexer implements Iterator<Lexeme> {
+  private charIter: Iterator<number, number>;
+  private static tokenizer?: Tokenizer<Token>;
+  private tokenIter?: TokenIterator<Token>;
+
+  constructor(input: string | Iterator<number>) {
     if (typeof input == 'string') {
-      this.charIter = peakable(input[Symbol.iterator]());
+      this.charIter = peakable(charCodes(input));
     } else {
       this.charIter = peakable(input);
     }
   }
 
+  private get tokens() {
+    if (!Lexer.tokenizer) {
+      Lexer.tokenizer = makeLexer();
+    }
+    if (!this.tokenIter) {
+      this.tokenIter = Lexer.tokenizer.parse(this.charIter);
+    }
+    return this.tokenIter;
+  }
+
   next(): IteratorResult<Lexeme> {
-    let { value: char, done } = this.charIter.next();
-    if (done) {
-      return { done, value: undefined };
+    const nextToken = this.tokens.next();
+    if (nextToken.done) {
+      return { done: true, value: undefined };
     }
-
-    let token: { kind: Token; char: string };
-
-    switch (char) {
-      case '\\':
-        const { value: nextChar, done } = this.charIter.next();
-        if (done) {
-          throw new Error('End of Input');
-        }
-        token = { kind: Token.CHAR, char: nextChar };
-        break;
-      case '*':
-        token = { kind: Token.STAR, char };
-        break;
-      case '|':
-        token = { kind: Token.OR, char };
-        break;
-      case '(':
-        token = { kind: Token.OPEN_PAREN, char };
-        break;
-      case ')':
-        token = { kind: Token.CLOSE_PAREN, char };
-        break;
-      case '.':
-        token = { kind: Token.ANY_CHAR, char };
-        break;
-      default:
-        token = { kind: Token.CHAR, char };
-        break;
-    }
-    return { done: false, value: token };
+    return {
+      done: false,
+      value: { kind: nextToken.value.token, char: nextToken.value.substr },
+    };
   }
 }

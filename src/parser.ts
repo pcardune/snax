@@ -85,7 +85,10 @@ export type Node =
 export function orNode(left: Node, right: Node) {
   return new OrNode(left, right);
 }
-export function concatNode(left: Node, right: Node) {
+export function concatNode(left: Node | null, right: Node) {
+  if (left == null) {
+    return right;
+  }
   return new ConcatNode(left, right);
 }
 export function starNode(child: Node) {
@@ -104,8 +107,13 @@ export function anyCharNode() {
 export function parseRegex(input: string | Iterator<Lexeme>): Node {
   let last: Node | null = null;
 
-  let tokens: Iterator<Lexeme, Lexeme> =
-    typeof input == 'string' ? new Lexer(input) : input;
+  let tokens: Iterator<Lexeme, Lexeme>;
+  if (typeof input == 'string') {
+    tokens = new Lexer(input);
+    // tokens = makeLexer().parse(charCodes(input));
+  } else {
+    tokens = input;
+  }
 
   while (true) {
     const { value: token, done } = tokens.next();
@@ -155,18 +163,14 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
         }
         break;
       case Token.CHAR:
-        if (last == null) {
-          last = charNode(token.char);
-        } else {
-          last = concatNode(last, charNode(token.char));
-        }
+        last = concatNode(last, charNode(token.char));
         break;
       case Token.ANY_CHAR:
-        if (last == null) {
-          last = anyCharNode();
-        } else {
-          last = concatNode(last, anyCharNode());
-        }
+        last = concatNode(last, anyCharNode());
+        break;
+      case Token.ESCAPE:
+        last = concatNode(last, charNode(token.char[1]));
+        break;
     }
   }
   if (last == null) {

@@ -4,7 +4,7 @@ import {
   Pattern,
   regexPattern,
   stringPattern,
-  Token,
+  LexToken,
   TokenIterator,
   Tokenizer,
 } from './lexer-gen';
@@ -16,7 +16,7 @@ export function token<T>(
   substr: string,
   from: number,
   to: number
-): Token<T> {
+): LexToken<T> {
   return { token, substr, span: { from, to } };
 }
 

@@ -70,11 +70,11 @@ export class MultiPatternMatcher<T> {
   }
 }
 
-export type Token<T> = Lexeme<T> & {
+export type LexToken<T> = Lexeme<T> & {
   span: Span;
 };
 
-export class TokenIterator<T> implements Iterator<Token<T>> {
+export class TokenIterator<T> implements Iterator<LexToken<T>> {
   private matcher: MultiPatternMatcher<T>;
   private chars: RewindableIterator<number>;
   private from: number = 0;
@@ -83,7 +83,7 @@ export class TokenIterator<T> implements Iterator<Token<T>> {
     this.chars = rewindable(input);
   }
 
-  next(): IteratorResult<Token<T>> {
+  next(): IteratorResult<LexToken<T>> {
     let result = this.matcher.match(this.chars);
     if (result != undefined) {
       let token = {
@@ -124,7 +124,9 @@ export class Pattern<T> {
     this.pattern = pattern;
   }
 }
-
+export function nfaPattern<T>(token: T, pattern: NFA<undefined>): Pattern<T> {
+  return new Pattern(token, pattern);
+}
 export function stringPattern<T>(token: T, pattern: string): Pattern<T> {
   return new Pattern(token, stringNFA(pattern));
 }

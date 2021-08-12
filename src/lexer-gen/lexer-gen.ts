@@ -1,4 +1,4 @@
-import { rewindable, RewindableIterator } from './iter';
+import { rewindable, RewindableIterator } from '../iter';
 import {
   DFA,
   edge,
@@ -9,11 +9,17 @@ import {
   NFAState,
   Span,
   state,
-} from './nfa-to-dfa';
-import { parseRegex } from './parser';
-import { nfaForNode, reindexed, stringNFA } from './regex';
+} from '../nfa-to-dfa';
+import {
+  nfaForNode,
+  reindexed,
+  stringNFA,
+  parseRegex,
+} from '../regex-compiler';
 
 /**
+ * Combines a list of NFAs cr
+ *
  * Assumptions: each of the nfas
  * has one start node (the first one)
  * and one accepting node (the last one)
@@ -35,11 +41,6 @@ function combineNFAs<Key>(nfas: [Key, NFA<undefined>][]): NFA<Key | undefined> {
   return new NFA(states);
 }
 
-type Lexeme<T> = {
-  token: T;
-  substr: string;
-};
-
 export class MultiPatternMatcher<T> {
   private dfa: DFA<(number | undefined)[]>;
   private tokens: T[];
@@ -54,7 +55,7 @@ export class MultiPatternMatcher<T> {
     this.tokens = tokens;
     this.dfa = DFA.fromNFA(nfa);
   }
-  match(input: Iterator<number>): Lexeme<T> | undefined {
+  match(input: Iterator<number>): { token: T; substr: string } | undefined {
     let result = matchDFA(this.dfa, input, true);
     if (result) {
       let earliest = Infinity;
@@ -70,8 +71,10 @@ export class MultiPatternMatcher<T> {
   }
 }
 
-export type LexToken<T> = Lexeme<T> & {
+export type LexToken<T> = {
+  token: T;
   span: Span;
+  substr: string;
 };
 
 export class TokenIterator<T> implements Iterator<LexToken<T>> {
@@ -103,7 +106,7 @@ export class TokenIterator<T> implements Iterator<LexToken<T>> {
   }
 }
 
-export class Tokenizer<T> {
+export class PatternLexer<T> {
   private matcher: MultiPatternMatcher<T>;
   constructor(patterns: Pattern<T>[]) {
     this.matcher = new MultiPatternMatcher(patterns);

@@ -6,8 +6,8 @@
  *
  */
 
-import { map } from './iter';
-import { ConstSet, MultiSet, NumberSet } from './sets';
+import { map } from '../iter';
+import { ConstSet, MultiSet, NumberSet } from '../sets';
 
 export class NFA<D> {
   readonly states: NFAState<D>[] = [];

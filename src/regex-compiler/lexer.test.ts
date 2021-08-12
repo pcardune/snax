@@ -1,5 +1,5 @@
 import { Lexer, Token } from './lexer';
-import { collect } from './iter';
+import { collect } from '../iter';
 
 describe('lexer', () => {
   const { CHAR, STAR, OPEN_PAREN, CLOSE_PAREN, OR, ANY_CHAR, ESCAPE } = Token;

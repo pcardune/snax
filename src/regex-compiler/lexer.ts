@@ -1,11 +1,11 @@
-import { charCodes, peakable } from './iter';
+import { charCodes, peakable } from '../iter';
 import {
   nfaPattern,
   stringPattern,
   TokenIterator,
-  Tokenizer,
-} from './lexer-gen';
-import { anyCharNFA, concatNFA, labelNFA } from './regex';
+  PatternLexer,
+} from '../lexer-gen';
+import { anyCharNFA, concatNFA, labelNFA } from './regex-compiler';
 
 export enum Token {
   STAR,
@@ -32,12 +32,12 @@ function makeLexer() {
     stringPattern(Token.CLOSE_PAREN, ')'),
     nfaPattern(Token.CHAR, anyCharNFA()),
   ];
-  return new Tokenizer(patterns);
+  return new PatternLexer(patterns);
 }
 
 export class Lexer implements Iterator<Lexeme> {
   private charIter: Iterator<number, number>;
-  private static tokenizer?: Tokenizer<Token>;
+  private static tokenizer?: PatternLexer<Token>;
   private tokenIter?: TokenIterator<Token>;
 
   constructor(input: string | Iterator<number>) {

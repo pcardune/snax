@@ -1,15 +1,13 @@
-import { charCodes, collect, iterable } from './iter';
+import { charCodes, collect } from '../iter';
 import {
   MultiPatternMatcher,
   Pattern,
   regexPattern,
   stringPattern,
   LexToken,
-  TokenIterator,
-  Tokenizer,
+  PatternLexer,
 } from './lexer-gen';
-import { parseRegex } from './parser';
-import { concatNFA, nfaForNode } from './regex';
+import { parseRegex, concatNFA, nfaForNode } from '../regex-compiler';
 
 export function token<T>(
   token: T,
@@ -57,7 +55,7 @@ describe('lexer-gen', () => {
   });
 
   describe('Tokenizer', () => {
-    let tokenizer = new Tokenizer(patterns);
+    let tokenizer = new PatternLexer(patterns);
     test("parse('123+456-78')", () => {
       let chars = charCodes('123+456-78');
       let tokens = collect(tokenizer.parse(chars));

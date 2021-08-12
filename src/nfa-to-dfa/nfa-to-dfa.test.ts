@@ -1,4 +1,4 @@
-import { charCodes } from './iter';
+import { charCodes } from '../iter';
 import {
   NFA,
   EPSILON,

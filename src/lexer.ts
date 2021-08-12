@@ -6,6 +6,7 @@ export enum Token {
   OPEN_PAREN,
   CLOSE_PAREN,
   CHAR,
+  ANY_CHAR,
 }
 
 export type Lexeme = {
@@ -51,6 +52,9 @@ export class Lexer implements Iterator<Lexeme> {
         break;
       case ')':
         token = { kind: Token.CLOSE_PAREN, char };
+        break;
+      case '.':
+        token = { kind: Token.ANY_CHAR, char };
         break;
       default:
         token = { kind: Token.CHAR, char };

@@ -113,25 +113,31 @@ describe('matching', () => {
   );
 });
 
-describe('Regex', () => {
-  test.each(['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'])(
-    'full match %s',
-    (input) => {
-      const re = new Regex('(a|b)*abb');
-      let result = re.match(input);
-      expect(result).toBeDefined();
-      if (result != undefined) {
-        expect(result.substr).toEqual(input);
-      }
-    }
-  );
-
-  test.each(['ab', 'abbb'])('%s matches ab*b', (input) => {
-    const abStarB = new Regex('ab*b');
-    let result = abStarB.match(input);
+const cases: [string, { matches: string[]; fails?: string[] }][] = [
+  ['(a|b)*abb', { matches: ['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'] }],
+  ['ab*b', { matches: ['ab', 'abbb'] }],
+  ['.', { matches: ['c', 'd', '\t'] }],
+  [
+    'a.*b',
+    {
+      matches: ['ab', 'acb', 'a whatever in between followed by a b'],
+      fails: ['ac', 'a whatever with the suffix'],
+    },
+  ],
+];
+describe.each(cases)('%p', (pattern, { matches, fails }) => {
+  const re = new Regex(pattern);
+  test.each(matches)('matches %p', (input) => {
+    let result = re.match(input);
     expect(result).toBeDefined();
     if (result != undefined) {
       expect(result.substr).toEqual(input);
     }
   });
+  if (fails) {
+    test.each(fails)('does not match %p', (input) => {
+      let result = re.match(input);
+      expect(result).not.toBeDefined();
+    });
+  }
 });

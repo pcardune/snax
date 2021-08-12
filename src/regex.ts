@@ -7,6 +7,7 @@ import {
   label,
   DFA,
   matchDFA,
+  Edge,
 } from './nfa-to-dfa';
 import { Node, NodeKind, parseRegex } from './parser';
 
@@ -27,6 +28,17 @@ export function labelNFA<D>(
     state(0, false, [edge(labelOrChar, 1)], data),
     state(1, true, [], data),
   ]);
+}
+
+export function anyCharNFA<D>(data?: D): NFA<D | undefined> {
+  let edges: Edge<number>[] = [];
+  const except = ['\n'.charCodeAt(0), '\r'.charCodeAt(0)];
+  for (let i = 1; i <= 127; i++) {
+    if (except.indexOf(i) == -1) {
+      edges.push(edge(label(i), 1));
+    }
+  }
+  return new NFA([state(0, false, edges, data), state(1, true, [], data)]);
 }
 
 export function reindexed<D>(nfa: NFA<D>, startIndex: number) {
@@ -133,6 +145,8 @@ export function nfaForNode<D>(node: Node, data?: D): NFA<D | undefined> {
       return nfaForNode(node.child, data);
     case NodeKind.CHAR:
       return labelNFA(label(node.char), data);
+    case NodeKind.ANY_CHAR:
+      return anyCharNFA(data);
   }
 }
 

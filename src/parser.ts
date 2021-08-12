@@ -6,6 +6,7 @@ export enum NodeKind {
   PAREN = 'PAREN',
   CHAR = 'CHAR',
   CONCAT = 'CONCAT',
+  ANY_CHAR = 'ANY_CHAR',
 }
 class OrNode {
   kind: NodeKind.OR = NodeKind.OR;
@@ -17,6 +18,13 @@ class OrNode {
   }
   toJSON() {
     return { kind: this.kind, left: this.left, right: this.right };
+  }
+}
+
+class AnyCharNode {
+  kind: NodeKind.ANY_CHAR = NodeKind.ANY_CHAR;
+  toJSON() {
+    return { kind: this.kind };
   }
 }
 
@@ -66,7 +74,13 @@ class CharNode {
   }
 }
 
-export type Node = OrNode | StarNode | ParenNode | CharNode | ConcatNode;
+export type Node =
+  | OrNode
+  | StarNode
+  | ParenNode
+  | CharNode
+  | ConcatNode
+  | AnyCharNode;
 
 export function orNode(left: Node, right: Node) {
   return new OrNode(left, right);
@@ -82,6 +96,9 @@ export function parenNode(child: Node) {
 }
 export function charNode(char: string) {
   return new CharNode(char);
+}
+export function anyCharNode() {
+  return new AnyCharNode();
 }
 
 export function parseRegex(input: string | Iterator<Lexeme>): Node {
@@ -144,6 +161,12 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
           last = concatNode(last, charNode(token.char));
         }
         break;
+      case Token.ANY_CHAR:
+        if (last == null) {
+          last = anyCharNode();
+        } else {
+          last = concatNode(last, anyCharNode());
+        }
     }
   }
   if (last == null) {

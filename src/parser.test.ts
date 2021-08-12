@@ -6,6 +6,7 @@ import {
   starNode,
   Node,
   parenNode,
+  anyCharNode,
 } from './parser';
 
 describe('parseRegex', () => {
@@ -40,6 +41,10 @@ describe('parseRegex', () => {
       orNode(charNode('a'), concatNode(charNode('('), charNode('b')))
     ),
     'aa*': concatNode(charNode('a'), starNode(charNode('a'))),
+    'a.*b': concatNode(
+      concatNode(charNode('a'), starNode(anyCharNode())),
+      charNode('b')
+    ),
   };
   test.each(Object.entries(cases))('%p', (pattern: string, node: Node) => {
     expect(parseRegex(pattern)).toEqual(node);

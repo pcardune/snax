@@ -47,6 +47,49 @@ const nfaData = [
   state(10, true, []),
 ];
 
+// an nfa for ab*b
+const aBStarB = [
+  state(0, false, [edge(a, 1)]),
+  state(1, false, [edge(EPSILON, 2), edge(EPSILON, 4)]),
+  state(2, false, [edge(b, 3)]),
+  state(3, false, [edge(EPSILON, 4), edge(EPSILON, 2)]),
+  state(4, false, [edge(b, 5)]),
+  state(5, true, []),
+];
+
+describe('ab*b', () => {
+  const nfa = new NFA(aBStarB);
+
+  test('getDStates', () => {
+    let alpha = Array.from(getInputAlphabet(nfa)).sort();
+    let [_, Dtrans] = getDStates(nfa);
+    let byAlpha: Record<string, { isAccepting: boolean; edges: string[] }> = {};
+    Object.keys(Dtrans).forEach((hash) => {
+      byAlpha[hash] = {
+        edges: alpha.map((letter) => Dtrans[hash].edges[letter]),
+        isAccepting: Dtrans[hash].isAccepting,
+      };
+    });
+    expect(byAlpha).toEqual({
+      '{0}': { edges: ['{1,2,4}', '{}'], isAccepting: false },
+      '{}': { edges: ['{}', '{}'], isAccepting: false },
+      '{1,2,4}': { edges: ['{}', '{2,3,4,5}'], isAccepting: false },
+      '{2,3,4,5}': { edges: ['{}', '{2,3,4,5}'], isAccepting: true },
+    });
+  });
+
+  describe('matchDFA', () => {
+    const dfa = DFA.fromNFA(nfa);
+    const cases = ['ab', 'abbbbb'];
+    test.each(cases)('matchDFA(%p, greedy=true)', (input) => {
+      const result = matchDFA(dfa, input, true);
+      expect(result).toBeDefined();
+      if (result != undefined) {
+        expect(result.substr).toEqual(input);
+      }
+    });
+  });
+});
 describe('(a|b)*abb', () => {
   const nfa = new NFA(nfaData);
 

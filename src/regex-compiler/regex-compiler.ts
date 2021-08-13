@@ -4,6 +4,7 @@
  * description in Section 3.7.4 of the dragon book (p. 159):
  * "Construction of an NFA from a Regular Expression" in
  */
+import { collect, map, range } from '../iter';
 import {
   NFA,
   state,
@@ -171,20 +172,29 @@ export function starNFA<D>(
 
 export enum CharacterClass {
   DIGIT = 'd',
+  ALPHANUMBERIC = 'w',
 }
 
 function charClassNFA<D>(
   charClass: CharacterClass,
   data?: D
 ): NFA<D | undefined> {
-  if (charClass == CharacterClass.DIGIT) {
-    let labels: NFA<D | undefined>[] = [];
-    for (let i = 0; i < 10; i++) {
-      labels.push(labelNFA('' + i));
-    }
-    return multiOrNFA(labels);
+  const digits = '0123456789';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const upper = lower.toUpperCase();
+  const alphaNumeric = digits + lower + upper + '_';
+
+  let validChars: string;
+
+  switch (charClass) {
+    case CharacterClass.DIGIT:
+      validChars = digits;
+      break;
+    case CharacterClass.ALPHANUMBERIC:
+      validChars = alphaNumeric;
+      break;
   }
-  throw new Error('unrecognized character class \\' + charClass);
+  return multiOrNFA(validChars.split('').map((char) => labelNFA(char, data)));
 }
 
 /**

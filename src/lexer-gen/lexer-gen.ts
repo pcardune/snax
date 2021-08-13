@@ -71,13 +71,21 @@ export class MultiPatternMatcher<T> {
   }
 }
 
-export type LexToken<T> = {
+export class LexToken<T> {
   token: T;
   span: Span;
   substr: string;
-};
+  constructor(token: T, span: Span, substr: string) {
+    this.token = token;
+    this.span = span;
+    this.substr = substr;
+  }
+  toString() {
+    return `<${this.token}>${this.substr}</${this.token}>`;
+  }
+}
 
-export class TokenIterator<T> implements Iterator<LexToken<T>> {
+export class TokenIterator<T> implements IterableIterator<LexToken<T>> {
   private matcher: MultiPatternMatcher<T>;
   private chars: RewindableIterator<number>;
   private from: number = 0;
@@ -86,14 +94,18 @@ export class TokenIterator<T> implements Iterator<LexToken<T>> {
     this.chars = rewindable(input);
   }
 
+  [Symbol.iterator]() {
+    return this;
+  }
+
   next(): IteratorResult<LexToken<T>> {
     let result = this.matcher.match(this.chars);
     if (result != undefined) {
-      let token = {
-        span: { from: this.from, to: this.from + result.substr.length },
-        token: result.token,
-        substr: result.substr,
-      };
+      let token = new LexToken(
+        result.token,
+        { from: this.from, to: this.from + result.substr.length },
+        result.substr
+      );
       this.from += result.substr.length;
       this.chars.reset(result.substr.length);
       return { done: false, value: token };
@@ -136,4 +148,10 @@ export function stringPattern<T>(token: T, pattern: string): Pattern<T> {
 
 export function regexPattern<T>(token: T, pattern: string): Pattern<T> {
   return new Pattern(token, nfaForNode(parseRegex(pattern)));
+}
+
+export function buildLexer<T>(patternSpecs: [T, string][]) {
+  return new PatternLexer(
+    patternSpecs.map(([token, pattern]) => regexPattern(token, pattern))
+  );
 }

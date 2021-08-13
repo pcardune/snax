@@ -46,7 +46,7 @@ export function peakable<T>(it: Iterator<T>) {
   return new Peakable(it);
 }
 
-export function collect<T>(it: Iterator<T>): T[] {
+export function collect<T>(it: Iterator<T, T>): T[] {
   let values: T[] = [];
   let result;
   do {
@@ -152,4 +152,10 @@ export function iterable<T>(it: Iterator<T>): IterableIterator<T> {
     },
   };
   return iterable;
+}
+
+export function* range(start: number, end: number) {
+  for (let i = start; i < end; i++) {
+    yield i;
+  }
 }

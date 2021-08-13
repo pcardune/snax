@@ -82,18 +82,15 @@ describe("removeLeftRecursion", () => {
 });
 
 describe("parse", () => {
-  function node(symbol: GSymbol, children: (ParseNode | string)[]): ParseNode {
-    return new ParseNode(symbol, children);
-  }
-
   describe("simple grammar", () => {
     // Root -> num
     const parser = buildParser({ Root: [["num"]] });
     test("parse", () => {
       expect(parser.parse(["num"]).pretty()).toMatchInlineSnapshot(`
         "
-        |-Root
-        |  |-'num'
+        <Root>
+        |  <num><num>num</num></num>
+        </Root>
         "
       `);
       expect(() => parser.parse(["bad"])).toThrow();
@@ -109,10 +106,11 @@ describe("parse", () => {
       const tokens = ["first", "second", "third"];
       expect(parser.parse(tokens).pretty()).toMatchInlineSnapshot(`
         "
-        |-Root
-        |  |-'first'
-        |  |-'second'
-        |  |-'third'
+        <Root>
+        |  <first><first>first</first></first>
+        |  <second><second>second</second></second>
+        |  <third><third>third</third></third>
+        </Root>
         "
       `);
       expect(() => parser.parse(["second", "third", "first"])).toThrow(
@@ -138,19 +136,23 @@ describe("parse", () => {
       expect(parser.parse(["child-1", "after-child-1"]).pretty())
         .toMatchInlineSnapshot(`
         "
-        |-Root
-        |  |-Child1
-        |  |  |-'child-1'
-        |  |-'after-child-1'
+        <Root>
+        |  <Child1>
+        |  |  <child-1><child-1>child-1</child-1></child-1>
+        |  </Child1>
+        |  <after-child-1><after-child-1>after-child-1</after-child-1></after-child-1>
+        </Root>
         "
       `);
       expect(parser.parse(["child-2", "after-child-2"]).pretty())
         .toMatchInlineSnapshot(`
         "
-        |-Root
-        |  |-Child2
-        |  |  |-'child-2'
-        |  |-'after-child-2'
+        <Root>
+        |  <Child2>
+        |  |  <child-2><child-2>child-2</child-2></child-2>
+        |  </Child2>
+        |  <after-child-2><after-child-2>after-child-2</after-child-2></after-child-2>
+        </Root>
         "
       `);
     });
@@ -169,11 +171,13 @@ describe("parse", () => {
       expect(parser.parse(["before-B", "been", "after-B"]).pretty())
         .toMatchInlineSnapshot(`
         "
-        |-Root
-        |  |-'before-B'
-        |  |-B
-        |  |  |-'been'
-        |  |-'after-B'
+        <Root>
+        |  <before-B><before-B>before-B</before-B></before-B>
+        |  <B>
+        |  |  <been><been>been</been></been>
+        |  </B>
+        |  <after-B><after-B>after-B</after-B></after-B>
+        </Root>
         "
       `);
     });
@@ -189,19 +193,25 @@ describe("parse", () => {
 
     // for the expression 3, we would have the token "num";
     test("num", () => {
-      const tokens = ["num", EOF.key];
+      const tokens = ["num"];
       const result = parser.parse(tokens);
       expect(result.pretty()).toMatchInlineSnapshot(`
         "
-        |-Root
-        |  |-Expr
-        |  |  |-Term
-        |  |  |  |-Factor
-        |  |  |  |  |-'num'
-        |  |  |  |-TermP
-        |  |  |  |  |-ϵ
-        |  |  |-ExprP
-        |  |  |  |-ϵ
+        <Root>
+        |  <Expr>
+        |  |  <Term>
+        |  |  |  <Factor>
+        |  |  |  |  <num><num>num</num></num>
+        |  |  |  </Factor>
+        |  |  |  <TermP>
+        |  |  |  |  <ϵ>undefined</ϵ>
+        |  |  |  </TermP>
+        |  |  </Term>
+        |  |  <ExprP>
+        |  |  |  <ϵ>undefined</ϵ>
+        |  |  </ExprP>
+        |  </Expr>
+        </Root>
         "
       `);
     });

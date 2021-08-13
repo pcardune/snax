@@ -49,15 +49,16 @@ class EpsilonSymbol extends GSymbol<SymbolKind.TERMINAL> {
     return this.key;
   }
 }
-class EOFSymbol extends GSymbol<SymbolKind.TERMINAL> {
-  constructor() {
+export class EOFSymbol extends GSymbol<SymbolKind.TERMINAL> {
+  static readonly singleton: EOFSymbol = new EOFSymbol();
+  private constructor() {
     super(SymbolKind.TERMINAL, 'ⓔⓞⓕ');
   }
   toString() {
     return this.key;
   }
 }
-export const EOF = new EOFSymbol();
+export const EOF = EOFSymbol.singleton;
 export const EPSILON = new EpsilonSymbol();
 
 export class Grammar {

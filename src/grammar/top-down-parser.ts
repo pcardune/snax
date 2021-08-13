@@ -1,3 +1,4 @@
+import { LexToken } from '../lexer-gen/lexer-gen';
 import { HashMap, HashSet } from '../sets';
 import {
   Grammar,
@@ -10,6 +11,7 @@ import {
   NonTerminal,
   GrammarSpec,
   buildGrammar,
+  EOFSymbol,
 } from './grammar';
 
 export function removeDirectLeftRecursion(grammar: Grammar) {
@@ -139,16 +141,17 @@ export function calcFirst(grammar: Grammar) {
   }
   return first;
 }
-export class ParseNode {
+export class ParseNode<T extends LexToken<any>> {
   symbol: GSymbol;
-  parent: ParseNode | null = null;
-  children: (ParseNode | string)[];
+  parent: ParseNode<T> | null = null;
+  children: (ParseNode<T> | string)[];
   tryNext: number = 0;
+  token?: T;
 
   constructor(
     symbol: GSymbol,
-    children: (ParseNode | string)[],
-    parent: ParseNode | null = null
+    children: (ParseNode<T> | string)[],
+    parent: ParseNode<T> | null = null
   ) {
     this.symbol = symbol;
     this.children = children;
@@ -169,7 +172,13 @@ export class ParseNode {
     if (indent == '') {
       out += '\n';
     }
-    out += indent + '|-' + this.symbol.toString() + '\n';
+    if (this.symbol.isTerminal()) {
+      out += `${indent}<${this.symbol.key}>${this.token?.toString()}</${
+        this.symbol.key
+      }>\n`;
+      return out;
+    }
+    out += `${indent}<${this.symbol.toString()}>\n`;
     const childIndent = indent + '|  ';
     if (!this.symbol.isTerminal()) {
       this.children.forEach((child) => {
@@ -180,6 +189,7 @@ export class ParseNode {
         }
       });
     }
+    out += `${indent}</${this.symbol.toString()}>\n`;
     return out;
   }
 
@@ -201,6 +211,15 @@ export class Parser {
     this.start = start;
   }
   parse(tokens: string[]) {
+    return parse(
+      this.grammar,
+      this.start,
+      tokens
+        .map((t) => new LexToken(t, { from: 0, to: 0 }, t))
+        [Symbol.iterator]()
+    );
+  }
+  parseTokens<T>(tokens: Iterable<LexToken<T>>) {
     return parse(this.grammar, this.start, tokens);
   }
 }
@@ -215,26 +234,37 @@ export function buildParser(grammarSpec: GrammarSpec) {
  * Parse a string of tokens according to the specified grammar.
  * Assumes the grammar is not left recursive (otherwise it will infinit loop)
  */
-export function parse(grammar: Grammar, start: GSymbol, tokens: string[]) {
-  let wi = 0;
-  const nextWord = () => {
-    if (wi < tokens.length) {
-      return tokens[wi++];
+export function parse<T extends LexToken<any>>(
+  grammar: Grammar,
+  start: GSymbol,
+  tokens: Iterable<T>
+) {
+  type Word = T | EOFSymbol;
+
+  let tokenIter = tokens[Symbol.iterator]();
+
+  const nextWord = (): Word => {
+    const next = tokenIter.next();
+    if (next.done) {
+      return EOF;
     }
-    return EOF.key;
+    return next.value;
   };
 
-  const root = new ParseNode(start, []);
-  let focus: ParseNode | null = root;
-  let stack: ParseNode[] = [];
-  let word = nextWord();
+  const root: ParseNode<T> = new ParseNode(start, []);
+  let focus: ParseNode<T> | null = root;
+  let stack: ParseNode<T>[] = [];
+  let word: Word = nextWord();
+  function isEOF(word: Word): word is EOFSymbol {
+    return word instanceof EOFSymbol;
+  }
 
   const backtrack = () => {
     // backtrack
     if (focus && focus.parent) {
       // set focus to it's parent and disconnect children
       focus = focus.parent;
-      const disconnectChildren = (node: ParseNode) => {
+      const disconnectChildren = (node: ParseNode<T>) => {
         let numToPop = node.children.length - 1;
         while (node.children.length > 0) {
           const child = node.children[0];
@@ -277,12 +307,13 @@ export function parse(grammar: Grammar, start: GSymbol, tokens: string[]) {
       } else {
         backtrack();
       }
-    } else if (focus?.symbol.key == word) {
+    } else if (!isEOF(word) && focus && focus.symbol.key == word.token) {
+      focus.token = word as T;
       word = nextWord();
       focus = stack.pop() || null;
     } else if (focus?.symbol.equals(EPSILON)) {
       focus = stack.pop() || null;
-    } else if (word == EOF.key && focus == null) {
+    } else if (isEOF(word) && focus == null) {
       return root;
     } else {
       backtrack();

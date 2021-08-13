@@ -187,10 +187,13 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
       case Token.ESCAPE:
         const escapedChar = token.char[1];
         let node: Node;
-        if (escapedChar == CharacterClass.DIGIT) {
-          node = new CharClassNode(escapedChar);
-        } else {
-          node = charNode(escapedChar);
+        switch (escapedChar) {
+          case CharacterClass.DIGIT:
+          case CharacterClass.ALPHANUMBERIC:
+            node = new CharClassNode(escapedChar);
+            break;
+          default:
+            node = charNode(escapedChar);
         }
         last = concatNode(last, node);
         break;

@@ -206,7 +206,9 @@ export class Parser {
 }
 
 export function buildParser(grammarSpec: GrammarSpec) {
-  return new Parser(buildGrammar(grammarSpec), nonTerminal('Root'));
+  const grammar = buildGrammar(grammarSpec);
+  removeDirectLeftRecursion(grammar);
+  return new Parser(grammar, nonTerminal('Root'));
 }
 
 /**

@@ -157,41 +157,28 @@ describe('parse', () => {
   });
 
   describe('complex grammar', () => {
-    const grammar = new Grammar();
-    grammar.addProductions(nonTerminal('Expr'), [
-      [nonTerminal('Expr'), terminal('+'), nonTerminal('Term')],
-      [nonTerminal('Expr'), terminal('-'), nonTerminal('Term')],
-      [nonTerminal('Term')],
-    ]);
-    grammar.addProductions(nonTerminal('Term'), [
-      [nonTerminal('Term'), terminal('*'), nonTerminal('Factor')],
-      [nonTerminal('Term'), terminal('/'), nonTerminal('Factor')],
-      [nonTerminal('Factor')],
-    ]);
-    grammar.addProductions(nonTerminal('Factor'), [
-      [terminal('('), nonTerminal('Expr'), terminal(')')],
-      [terminal('num')],
-      [terminal('name')],
-    ]);
-    removeDirectLeftRecursion(grammar);
+    const parser = buildParser({
+      Root: [['Expr']],
+      Expr: [['Expr', '+', 'Term'], ['Expr', '-', 'Term'], ['Term']],
+      Term: [['Term', '*', 'Factor'], ['Term', '/', 'Factor'], ['Factor']],
+      Factor: [['(', 'Expr', ')'], ['num'], ['name']],
+    });
 
     // for the expression 3, we would have the token "num";
     test('num', () => {
       const tokens = ['num', EOF.key];
-      const expected = node(nonTerminal('Expr'), [
-        node(nonTerminal('Term'), [node(nonTerminal('Factor'), ['num'])]),
-      ]);
-      const result = parse(grammar, nonTerminal('Expr'), tokens);
+      const result = parser.parse(tokens);
       expect(result.pretty()).toMatchInlineSnapshot(`
         "
-        |-Expr
-        |  |-Term
-        |  |  |-Factor
-        |  |  |  |-'num'
-        |  |  |-TermP
+        |-Root
+        |  |-Expr
+        |  |  |-Term
+        |  |  |  |-Factor
+        |  |  |  |  |-'num'
+        |  |  |  |-TermP
+        |  |  |  |  |-ϵ
+        |  |  |-ExprP
         |  |  |  |-ϵ
-        |  |-ExprP
-        |  |  |-ϵ
         "
       `);
     });

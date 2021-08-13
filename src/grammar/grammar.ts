@@ -1,3 +1,5 @@
+import { HashSet } from '../sets';
+
 export enum SymbolKind {
   TERMINAL,
   NONTERMINAL,
@@ -19,16 +21,41 @@ export class Symbol<T extends SymbolKind = SymbolKind> {
     this.kind = kind;
     this.key = key;
   }
+  isTerminal() {
+    return this.kind == SymbolKind.TERMINAL;
+  }
   equals(other: Symbol<SymbolKind>) {
     return this.kind == other.kind && this.key == other.key;
   }
+  hash() {
+    return this.key;
+  }
   toString() {
-    if (this.kind == SymbolKind.TERMINAL) {
+    if (this.isTerminal()) {
       return `'${this.key}'`;
     }
     return this.key;
   }
 }
+
+class EpsilonSymbol extends Symbol<SymbolKind.TERMINAL> {
+  constructor() {
+    super(SymbolKind.TERMINAL, 'ϵ');
+  }
+  toString() {
+    return this.key;
+  }
+}
+class EOFSymbol extends Symbol<SymbolKind.TERMINAL> {
+  constructor() {
+    super(SymbolKind.TERMINAL, 'ⓔⓞⓕ');
+  }
+  toString() {
+    return this.key;
+  }
+}
+export const EOF = new EOFSymbol();
+export const EPSILON = new EpsilonSymbol();
 
 export class Grammar {
   private productions: { [index: string]: Production[] } = {};
@@ -74,6 +101,19 @@ export class Grammar {
       nonTerminals.push(this.productions[key][0].nonTerminal);
     }
     return nonTerminals;
+  }
+  getTerminals(): Readonly<Set<Terminal>> {
+    let terminals: HashSet<Terminal> = new HashSet((t) => t.hash());
+    for (const key in this.productions) {
+      for (const p of this.productions[key]) {
+        for (const s of p.symbols) {
+          if (s.isTerminal()) {
+            terminals.add(s as Terminal);
+          }
+        }
+      }
+    }
+    return terminals;
   }
   toString() {
     let out = '\n';

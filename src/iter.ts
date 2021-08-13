@@ -23,7 +23,7 @@ class Peakable<T> implements PeakableIterator<T> {
   }
 }
 
-class MapIterator<I, O> implements Iterator<O> {
+class MapIterator<I, O> implements IterableIterator<O> {
   private iterator: Iterator<I>;
   private mapper: (i: I) => O;
   constructor(iterator: Iterator<I>, mapper: (i: I) => O) {
@@ -36,6 +36,9 @@ class MapIterator<I, O> implements Iterator<O> {
       return { done, value: undefined };
     }
     return { value: this.mapper(value), done };
+  }
+  [Symbol.iterator]() {
+    return this;
   }
 }
 
@@ -139,10 +142,14 @@ export function rewindable<T>(iter: Iterator<T>) {
   return new RewindableIterator(iter);
 }
 
-export function iterable<T>(iter: Iterator<T>): Iterable<T> {
-  return {
+export function iterable<T>(it: Iterator<T>): IterableIterator<T> {
+  const iterable = {
+    next() {
+      return it.next();
+    },
     [Symbol.iterator]() {
-      return iter;
+      return iterable;
     },
   };
+  return iterable;
 }

@@ -312,7 +312,7 @@ export type MatchResult<D> = { substr: string; data: D };
 
 export function matchDFA<D>(
   dfa: DFA<D>,
-  input: string | Iterator<number>,
+  input: string | Iterator<number, number>,
   greedy: boolean = false
 ): MatchResult<D> | undefined {
   let current = dfa.getStateById(dfa.startId);

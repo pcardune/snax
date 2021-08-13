@@ -4,17 +4,17 @@ export enum SymbolKind {
   TERMINAL,
   NONTERMINAL,
 }
-export type NonTerminal = Symbol<SymbolKind.NONTERMINAL>;
-export type Terminal = Symbol<SymbolKind.TERMINAL>;
+export type NonTerminal = GSymbol<SymbolKind.NONTERMINAL>;
+export type Terminal = GSymbol<SymbolKind.TERMINAL>;
 
 export function terminal(key: string): Terminal {
-  return new Symbol(SymbolKind.TERMINAL, key);
+  return new GSymbol(SymbolKind.TERMINAL, key);
 }
 export function nonTerminal(key: string): NonTerminal {
-  return new Symbol(SymbolKind.NONTERMINAL, key);
+  return new GSymbol(SymbolKind.NONTERMINAL, key);
 }
 
-export class Symbol<T extends SymbolKind = SymbolKind> {
+export class GSymbol<T extends SymbolKind = SymbolKind> {
   readonly kind: T;
   readonly key: string;
   constructor(kind: T, key: string) {
@@ -24,7 +24,7 @@ export class Symbol<T extends SymbolKind = SymbolKind> {
   isTerminal() {
     return this.kind == SymbolKind.TERMINAL;
   }
-  equals(other: Symbol<SymbolKind>) {
+  equals(other: GSymbol<SymbolKind>) {
     return this.kind == other.kind && this.key == other.key;
   }
   hash() {
@@ -36,9 +36,12 @@ export class Symbol<T extends SymbolKind = SymbolKind> {
     }
     return this.key;
   }
+  [Symbol.toStringTag]() {
+    return `GSymbol(${this.toString()})`;
+  }
 }
 
-class EpsilonSymbol extends Symbol<SymbolKind.TERMINAL> {
+class EpsilonSymbol extends GSymbol<SymbolKind.TERMINAL> {
   constructor() {
     super(SymbolKind.TERMINAL, 'ϵ');
   }
@@ -46,7 +49,7 @@ class EpsilonSymbol extends Symbol<SymbolKind.TERMINAL> {
     return this.key;
   }
 }
-class EOFSymbol extends Symbol<SymbolKind.TERMINAL> {
+class EOFSymbol extends GSymbol<SymbolKind.TERMINAL> {
   constructor() {
     super(SymbolKind.TERMINAL, 'ⓔⓞⓕ');
   }
@@ -80,7 +83,7 @@ export class Grammar {
     }
   }
 
-  addProductions(nonTerminal: NonTerminal, derivations: Symbol[][]) {
+  addProductions(nonTerminal: NonTerminal, derivations: GSymbol[][]) {
     for (const derivation of derivations) {
       this.addProduction(new Production(nonTerminal, derivation));
     }
@@ -132,8 +135,8 @@ export class Grammar {
 
 export class Production {
   readonly nonTerminal: NonTerminal;
-  readonly symbols: Readonly<Symbol[]>;
-  constructor(nonTerminal: NonTerminal, symbols: Symbol[]) {
+  readonly symbols: Readonly<GSymbol[]>;
+  constructor(nonTerminal: NonTerminal, symbols: GSymbol[]) {
     this.nonTerminal = nonTerminal;
     this.symbols = symbols;
   }
@@ -162,4 +165,31 @@ export class Production {
       .map((s) => s.toString())
       .join(' ')}`;
   }
+}
+
+export type GrammarSpec = { Root: string[][]; [index: string]: string[][] };
+export function buildGrammar(productions: GrammarSpec) {
+  const grammar = new Grammar();
+  const nonTerminals: { [i: string]: NonTerminal } = {};
+  const terminals: { [i: string]: Terminal } = {};
+  Object.keys(productions).forEach((key) => {
+    nonTerminals[key] = nonTerminal(key);
+  });
+  Object.entries(productions).forEach(([key, value]) => {
+    const nonTerminal = nonTerminals[key];
+    for (const symbolsKeys of value) {
+      const symbols = symbolsKeys.map((s) => {
+        if (nonTerminals[s]) {
+          return nonTerminals[s];
+        } else if (terminals[s]) {
+          return terminals[s];
+        } else {
+          terminals[s] = terminal(s);
+          return terminals[s];
+        }
+      });
+      grammar.addProduction(new Production(nonTerminal, symbols));
+    }
+  });
+  return grammar;
 }

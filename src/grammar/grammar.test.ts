@@ -1,32 +1,32 @@
-import { Grammar, nonTerminal, terminal } from "./grammar";
+import { Grammar, nonTerminal, terminal } from './grammar';
 
-describe("Grammar", () => {
+describe('Grammar', () => {
   const grammar = new Grammar();
-  grammar.addProductions(nonTerminal("Expr"), [
-    [terminal("("), nonTerminal("Expr"), terminal(")")],
-    [nonTerminal("Expr"), nonTerminal("Op"), terminal("name")],
-    [terminal("name")],
+  grammar.addProductions(nonTerminal('Expr'), [
+    [terminal('('), nonTerminal('Expr'), terminal(')')],
+    [nonTerminal('Expr'), nonTerminal('Op'), terminal('name')],
+    [terminal('name')],
   ]);
-  grammar.addProductions(nonTerminal("Op"), [
-    [terminal("+")],
-    [terminal("-")],
-    [terminal("*")],
-    [terminal("/")],
+  grammar.addProductions(nonTerminal('Op'), [
+    [terminal('+')],
+    [terminal('-')],
+    [terminal('*')],
+    [terminal('/')],
   ]);
 
-  test("toString()", () => {
+  test('toString()', () => {
     expect(grammar.toString()).toMatchInlineSnapshot(`
-      "
-      Expr ->
-        | '(' Expr ')'
-        | Expr Op 'name'
-        | 'name'
-      Op ->
-        | '+'
-        | '-'
-        | '*'
-        | '/'
-      "
-    `);
+"
+Expr →
+  | '(' Expr ')'
+  | Expr Op 'name'
+  | 'name'
+Op →
+  | '+'
+  | '-'
+  | '*'
+  | '/'
+"
+`);
   });
 });

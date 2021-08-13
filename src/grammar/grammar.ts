@@ -47,6 +47,9 @@ export class Grammar {
       this.productions[key] = this.productions[key].filter(
         (p) => !p.equals(production)
       );
+      if (this.productions[key].length == 0) {
+        delete this.productions[key];
+      }
     }
   }
 
@@ -62,8 +65,8 @@ export class Grammar {
       }
     }
   }
-  productionsFrom(nonTerminal: NonTerminal): Iterable<Production> {
-    return this.productions[nonTerminal.key];
+  productionsFrom(nonTerminal: NonTerminal): Readonly<Production[]> {
+    return this.productions[nonTerminal.key] || [];
   }
   getNonTerminals(): Readonly<NonTerminal[]> {
     let nonTerminals: NonTerminal[] = [];
@@ -76,7 +79,7 @@ export class Grammar {
     let out = '\n';
     for (const key in this.productions) {
       const productions = this.productions[key];
-      out += `${productions[0].nonTerminal.key} ->\n`;
+      out += `${productions[0].nonTerminal.key} →\n`;
       for (const production of productions) {
         out += '  | ';
         out += production.symbols.map((s) => s.toString()).join(' ');

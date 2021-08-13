@@ -28,46 +28,48 @@ export function removeDirectLeftRecursion(grammar: Grammar) {
     if (isLeftRecursive) {
       const ntPrime = nonTerminal(nt.key + "'");
       for (const p of grammar.productionsFrom(nt)) {
+        let newP: Production;
         if (p.isLeftRecursive()) {
-          grammar.removeProduction(p);
-          grammar.addProduction(
-            new Production(ntPrime, [...p.symbols.slice(1), ntPrime])
-          );
+          newP = new Production(ntPrime, [...p.symbols.slice(1), ntPrime]);
         } else {
-          grammar.removeProduction(p);
-          grammar.addProduction(
-            new Production(p.nonTerminal, [...p.symbols, ntPrime])
-          );
+          newP = new Production(p.nonTerminal, [...p.symbols, ntPrime]);
         }
+        grammar.removeProduction(p);
+        grammar.addProduction(newP);
+      }
+      if (grammar.productionsFrom(nt).length == 0) {
+        grammar.addProduction(new Production(nt, [ntPrime]));
       }
       grammar.addProduction(new Production(ntPrime, [EPSILON]));
     }
   }
 }
 
-export function removeIndirectLeftRecursion(sourceGrammar: Grammar): Grammar {
+/**
+ * Removes left recursion from a grammar.
+ * See p. 103 of "Engineering a Compiler"
+ */
+export function removeLeftRecursion(sourceGrammar: Grammar): Grammar {
   let A = sourceGrammar.getNonTerminals(); // A
-  console.log(
-    'non terminals:',
-    A.map((s) => s.key)
-  );
   for (let i = 0; i < A.length; i++) {
-    for (let j = 0; j < i - 1; j++) {
-      console.log('Processing', A[i].toString());
+    for (let j = 0; j < i; j++) {
       // if there exists a production from A[i] => A[j]y
       for (const Ai of sourceGrammar.productionsFrom(A[i])) {
         if (Ai.symbols[0].key == A[j].key) {
           // then replace it with the expansions of A[j]
-          console.log('replacing', Ai.toString());
           sourceGrammar.removeProduction(Ai);
           for (const Aj of sourceGrammar.productionsFrom(A[j])) {
-            sourceGrammar.addProduction(
-              new Production(A[i], [...Aj.symbols, ...Ai.symbols.slice(1)])
-            );
+            const newAi = new Production(A[i], [
+              ...Aj.symbols,
+              ...Ai.symbols.slice(1),
+            ]);
+            sourceGrammar.addProduction(newAi);
+            console.log('replacing', Ai.toString(), 'with', newAi.toString());
           }
         }
       }
     }
+    removeDirectLeftRecursion(sourceGrammar);
   }
   return sourceGrammar;
 }

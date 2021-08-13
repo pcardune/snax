@@ -1,7 +1,7 @@
 import { Grammar, nonTerminal, terminal } from './grammar';
 import {
   removeDirectLeftRecursion,
-  removeIndirectLeftRecursion,
+  removeLeftRecursion,
 } from './top-down-parser';
 
 describe('removeDirectLeftRecursion', () => {
@@ -24,38 +24,48 @@ describe('removeDirectLeftRecursion', () => {
   test('it works', () => {
     removeDirectLeftRecursion(grammar);
     expect(grammar.toString()).toMatchInlineSnapshot(`
-"
-Expr ->
-  | Term Expr'
-Term ->
-  | Factor Term'
-Factor ->
-  | '(' Expr ')'
-  | 'num'
-  | 'name'
-Expr' ->
-  | '+' Term Expr'
-  | '-' Term Expr'
-  | ϵ
-Term' ->
-  | '*' Factor Term'
-  | '/' Factor Term'
-  | ϵ
-"
-`);
+      "
+      Factor →
+        | '(' Expr ')'
+        | 'num'
+        | 'name'
+      Expr' →
+        | '+' Term Expr'
+        | '-' Term Expr'
+        | ϵ
+      Expr →
+        | Term Expr'
+      Term' →
+        | '*' Factor Term'
+        | '/' Factor Term'
+        | ϵ
+      Term →
+        | Factor Term'
+      "
+    `);
   });
 });
 
-// describe('removeIndirectLeftRecursion', () => {
-//   const grammar = new Grammar();
-//   grammar.addProductions(nonTerminal('A'), [[nonTerminal('B')]]);
-//   grammar.addProductions(nonTerminal('B'), [[nonTerminal('C')]]);
-//   grammar.addProductions(nonTerminal('C'), [[nonTerminal('D')]]);
-//   grammar.addProductions(nonTerminal('D'), [
-//     [nonTerminal('A'), terminal('theend')],
-//   ]);
-//   console.log(grammar.toString());
-//   test('it works', () => {
-//     console.log(removeIndirectLeftRecursion(grammar).toString());
-//   });
-// });
+describe('removeLeftRecursion', () => {
+  const grammar = new Grammar();
+  grammar.addProductions(nonTerminal('A'), [[nonTerminal('B')]]);
+  grammar.addProductions(nonTerminal('B'), [[nonTerminal('C')]]);
+  grammar.addProductions(nonTerminal('C'), [[nonTerminal('A'), terminal('d')]]);
+  console.log(grammar.toString());
+  test('it works', () => {
+    removeLeftRecursion(grammar);
+    expect(grammar.toString()).toMatchInlineSnapshot(`
+      "
+      A →
+        | B
+      B →
+        | C
+      C' →
+        | 'd' C'
+        | ϵ
+      C →
+        | C'
+      "
+    `);
+  });
+});

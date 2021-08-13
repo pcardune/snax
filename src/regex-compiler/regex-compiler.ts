@@ -103,6 +103,14 @@ export function orNFA<D>(
   return new NFA(states);
 }
 
+function multiOrNFA<D>(nfas: NFA<D>[], data?: D): NFA<D | undefined> {
+  let last: NFA<D | undefined> = nfas[0];
+  for (let i = 1; i < nfas.length; i++) {
+    last = orNFA(last, nfas[i]);
+  }
+  return last;
+}
+
 /**
  * Construct an NFA that matches the left nfa followed by the right nfa.
  * This is only guaranteed to work for nfa generated via the
@@ -161,6 +169,24 @@ export function starNFA<D>(
   return new NFA(states);
 }
 
+export enum CharacterClass {
+  DIGIT = 'd',
+}
+
+function charClassNFA<D>(
+  charClass: CharacterClass,
+  data?: D
+): NFA<D | undefined> {
+  if (charClass == CharacterClass.DIGIT) {
+    let labels: NFA<D | undefined>[] = [];
+    for (let i = 0; i < 10; i++) {
+      labels.push(labelNFA('' + i));
+    }
+    return multiOrNFA(labels);
+  }
+  throw new Error('unrecognized character class \\' + charClass);
+}
+
 /**
  * Construct an nfa from a node within a regex parse tree.
  */
@@ -185,5 +211,7 @@ export function nfaForNode<D>(node: Node, data?: D): NFA<D | undefined> {
       return labelNFA(label(node.char), data);
     case NodeKind.ANY_CHAR:
       return anyCharNFA(data);
+    case NodeKind.CHAR_CLASS:
+      return charClassNFA(node.charClass, data);
   }
 }

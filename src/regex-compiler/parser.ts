@@ -1,4 +1,6 @@
+import { NFA } from '../nfa-to-dfa';
 import { Lexeme, Lexer, Token } from './lexer';
+import { CharacterClass } from './regex-compiler';
 
 export enum NodeKind {
   OR = 'OR',
@@ -7,7 +9,9 @@ export enum NodeKind {
   CHAR = 'CHAR',
   CONCAT = 'CONCAT',
   ANY_CHAR = 'ANY_CHAR',
+  CHAR_CLASS = 'CHAR_CLASS',
 }
+
 class OrNode {
   kind: NodeKind.OR = NodeKind.OR;
   left: Node;
@@ -74,13 +78,25 @@ class CharNode {
   }
 }
 
+class CharClassNode {
+  kind: NodeKind.CHAR_CLASS = NodeKind.CHAR_CLASS;
+  charClass: CharacterClass;
+  constructor(charClass: CharacterClass) {
+    this.charClass = charClass;
+  }
+  toJSON() {
+    return { kind: this.kind, charClass: this.charClass };
+  }
+}
+
 export type Node =
   | OrNode
   | StarNode
   | ParenNode
   | CharNode
   | ConcatNode
-  | AnyCharNode;
+  | AnyCharNode
+  | CharClassNode;
 
 export function orNode(left: Node, right: Node) {
   return new OrNode(left, right);
@@ -169,7 +185,14 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
         last = concatNode(last, anyCharNode());
         break;
       case Token.ESCAPE:
-        last = concatNode(last, charNode(token.char[1]));
+        const escapedChar = token.char[1];
+        let node: Node;
+        if (escapedChar == CharacterClass.DIGIT) {
+          node = new CharClassNode(escapedChar);
+        } else {
+          node = charNode(escapedChar);
+        }
+        last = concatNode(last, node);
         break;
     }
   }

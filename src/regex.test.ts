@@ -11,6 +11,7 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
       fails: ['ac', 'a whatever with the suffix'],
     },
   ],
+  ['\\d', { matches: ['1', '2', '3'], fails: ['a', 'b', 'c'] }],
 ];
 describe.each(cases)('%p', (pattern, { matches, fails }) => {
   const re = new Regex(pattern);

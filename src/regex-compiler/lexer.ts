@@ -13,6 +13,8 @@ export enum Token {
   OR,
   OPEN_PAREN,
   CLOSE_PAREN,
+  OPEN_BRACKET,
+  CLOSE_BRACKET,
   ESCAPE,
   CHAR,
   ANY_CHAR,
@@ -32,6 +34,8 @@ function makeLexer() {
     stringPattern(Token.OR, '|'),
     stringPattern(Token.OPEN_PAREN, '('),
     stringPattern(Token.CLOSE_PAREN, ')'),
+    stringPattern(Token.OPEN_BRACKET, '['),
+    stringPattern(Token.CLOSE_BRACKET, ']'),
     nfaPattern(Token.CHAR, anyCharNFA()),
   ];
   return new PatternLexer(patterns);

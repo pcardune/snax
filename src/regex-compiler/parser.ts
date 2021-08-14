@@ -121,95 +121,123 @@ export function anyCharNode() {
   return new AnyCharNode({});
 }
 
-export function parseRegex(input: string | Iterator<Lexeme>): RNode {
-  let last: RNode | null = null;
+class RegexParser {
+  private tokens: Iterator<Lexeme, Lexeme>;
+  private last: RNode | null = null;
 
-  let tokens: Iterator<Lexeme, Lexeme>;
-  if (typeof input == 'string') {
-    tokens = new Lexer(input);
-  } else {
-    tokens = input;
-  }
-
-  while (true) {
-    const { value: token, done } = tokens.next();
-    if (done) {
-      break;
-    }
-    switch (token.kind) {
-      case Token.OPEN_PAREN:
-        let child: RNode | null = null;
-        let numToMatch = 1;
-
-        let childTokens: Lexeme[] = [];
-        while (true) {
-          const { value: nextToken, done } = tokens.next();
-          if (done) {
-            throw new Error('Reached end of input before finding matching )');
-          }
-          if (nextToken.kind == Token.OPEN_PAREN) {
-            numToMatch++;
-          } else if (nextToken.kind == Token.CLOSE_PAREN) {
-            numToMatch--;
-          }
-          if (numToMatch > 0) {
-            childTokens.push(nextToken);
-          } else {
-            child = parseRegex(childTokens[Symbol.iterator]());
-            break;
-          }
-        }
-        last = new ParenNode({ child });
-        break;
-      case Token.OR:
-        if (last == null) {
-          throw new Error('Expected | operator to follow another expression');
-        }
-        let right = parseRegex(tokens);
-        last = new OrNode({ left: last, right });
-        break;
-      case Token.PLUS:
-      case Token.STAR:
-        if (last == null) {
-          throw new Error('Expected * operator to follow another expression');
-        }
-        {
-          let child: RNode =
-            last instanceof ConcatNode ? last.props.right : last;
-          let right =
-            token.kind == Token.STAR
-              ? new StarNode({ child: child })
-              : new OneOrMoreNode({ child: child });
-          if (last instanceof ConcatNode) {
-            last = concatNode(last.props.left, right);
-          } else {
-            last = right;
-          }
-        }
-        break;
-      case Token.CHAR:
-        last = concatNode(last, new CharNode({ char: token.char }));
-        break;
-      case Token.ANY_CHAR:
-        last = concatNode(last, new AnyCharNode({}));
-        break;
-      case Token.ESCAPE:
-        const escapedChar = token.char[1];
-        let node: RNode;
-        switch (escapedChar) {
-          case CharacterClass.DIGIT:
-          case CharacterClass.ALPHANUMBERIC:
-            node = new CharClassNode({ charClass: escapedChar });
-            break;
-          default:
-            node = new CharNode({ char: escapedChar });
-        }
-        last = concatNode(last, node);
-        break;
+  private constructor(input: string | Iterator<Lexeme>) {
+    if (typeof input == 'string') {
+      this.tokens = new Lexer(input);
+    } else {
+      this.tokens = input;
     }
   }
-  if (last == null) {
-    throw new Error("Can't parse an empty regex");
+
+  static parse(input: string | Iterator<Lexeme>): RNode {
+    return new RegexParser(input).parse();
   }
-  return last;
+
+  parse(): RNode {
+    while (true) {
+      const { value: token, done } = this.tokens.next();
+      if (done) {
+        break;
+      }
+      switch (token.kind) {
+        case Token.OPEN_PAREN:
+          this.parseParens();
+          break;
+        case Token.OR:
+          this.parseOr();
+          break;
+        case Token.PLUS:
+        case Token.STAR:
+          this.parseStarPlus(token);
+          break;
+        case Token.CHAR:
+          this.last = concatNode(this.last, new CharNode({ char: token.char }));
+          break;
+        case Token.ANY_CHAR:
+          this.last = concatNode(this.last, new AnyCharNode({}));
+          break;
+        case Token.ESCAPE:
+          this.parseEscape(token);
+          break;
+        default:
+          throw new Error(`Don't know how to parse ${token}`);
+      }
+    }
+    if (this.last == null) {
+      throw new Error("Can't parse an empty regex");
+    }
+    return this.last;
+  }
+
+  private parseEscape(token: Lexeme) {
+    const escapedChar = token.char[1];
+    let node: RNode;
+    switch (escapedChar) {
+      case CharacterClass.DIGIT:
+      case CharacterClass.ALPHANUMBERIC:
+        node = new CharClassNode({ charClass: escapedChar });
+        break;
+      default:
+        node = new CharNode({ char: escapedChar });
+    }
+    this.last = concatNode(this.last, node);
+  }
+
+  private parseStarPlus(token: Lexeme) {
+    if (this.last == null) {
+      throw new Error('Expected * operator to follow another expression');
+    }
+    {
+      let child: RNode =
+        this.last instanceof ConcatNode ? this.last.props.right : this.last;
+      let right =
+        token.kind == Token.STAR
+          ? new StarNode({ child: child })
+          : new OneOrMoreNode({ child: child });
+      if (this.last instanceof ConcatNode) {
+        this.last = concatNode(this.last.props.left, right);
+      } else {
+        this.last = right;
+      }
+    }
+  }
+
+  private parseOr() {
+    if (this.last == null) {
+      throw new Error('Expected | operator to follow another expression');
+    }
+    let right = parseRegex(this.tokens);
+    this.last = new OrNode({ left: this.last, right });
+  }
+
+  private parseParens() {
+    let child: RNode | null = null;
+    let numToMatch = 1;
+
+    let childTokens: Lexeme[] = [];
+    while (true) {
+      const { value: nextToken, done } = this.tokens.next();
+      if (done) {
+        throw new Error('Reached end of input before finding matching )');
+      }
+      if (nextToken.kind == Token.OPEN_PAREN) {
+        numToMatch++;
+      } else if (nextToken.kind == Token.CLOSE_PAREN) {
+        numToMatch--;
+      }
+      if (numToMatch > 0) {
+        childTokens.push(nextToken);
+      } else {
+        child = parseRegex(childTokens[Symbol.iterator]());
+        break;
+      }
+    }
+    this.last = new ParenNode({ child });
+  }
 }
+
+export const parseRegex = RegexParser.parse;

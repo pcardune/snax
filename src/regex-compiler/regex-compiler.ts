@@ -15,7 +15,7 @@ import {
   Edge,
   NFAState,
 } from '../nfa-to-dfa';
-import { Node, NodeKind } from './parser';
+import { RNode, NodeKind, OrNode, StarNode } from './parser';
 
 /**
  * Construct an NFA that matches the specified character.
@@ -175,7 +175,7 @@ export enum CharacterClass {
   ALPHANUMBERIC = 'w',
 }
 
-function charClassNFA<D>(
+export function charClassNFA<D>(
   charClass: CharacterClass,
   data?: D
 ): NFA<D | undefined> {
@@ -200,28 +200,6 @@ function charClassNFA<D>(
 /**
  * Construct an nfa from a node within a regex parse tree.
  */
-export function nfaForNode<D>(node: Node, data?: D): NFA<D | undefined> {
-  switch (node.kind) {
-    case NodeKind.OR:
-      return orNFA(
-        nfaForNode(node.left, data),
-        nfaForNode(node.right, data),
-        data
-      );
-    case NodeKind.STAR:
-      return starNFA(nfaForNode(node.child, data), data);
-    case NodeKind.CONCAT:
-      return concatNFA(
-        nfaForNode(node.left, data),
-        nfaForNode(node.right, data)
-      );
-    case NodeKind.PAREN:
-      return nfaForNode(node.child, data);
-    case NodeKind.CHAR:
-      return labelNFA(label(node.char), data);
-    case NodeKind.ANY_CHAR:
-      return anyCharNFA(data);
-    case NodeKind.CHAR_CLASS:
-      return charClassNFA(node.charClass, data);
-  }
+export function nfaForNode<D>(node: RNode, data?: D): NFA<D | undefined> {
+  return node.nfa(data);
 }

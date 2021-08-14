@@ -1,6 +1,15 @@
-import { NFA } from '../nfa-to-dfa';
+import { label, NFA } from '../nfa-to-dfa';
 import { Lexeme, Lexer, Token } from './lexer';
-import { CharacterClass } from './regex-compiler';
+import {
+  anyCharNFA,
+  CharacterClass,
+  charClassNFA,
+  concatNFA,
+  labelNFA,
+  nfaForNode,
+  orNFA,
+  starNFA,
+} from './regex-compiler';
 
 export enum NodeKind {
   OR = 'OR',
@@ -11,122 +20,102 @@ export enum NodeKind {
   ANY_CHAR = 'ANY_CHAR',
   CHAR_CLASS = 'CHAR_CLASS',
 }
-
-class OrNode {
-  kind: NodeKind.OR = NodeKind.OR;
-  left: Node;
-  right: Node;
-  constructor(left: Node, right: Node) {
-    this.left = left;
-    this.right = right;
+export abstract class RNode<Props = unknown> {
+  abstract kind: NodeKind;
+  props: Props;
+  constructor(props: Props) {
+    this.props = props;
   }
-  toJSON() {
-    return { kind: this.kind, left: this.left, right: this.right };
+  toJSON(): any {
+    return this.props;
+  }
+  abstract nfa<D>(data?: D): NFA<D | undefined>;
+}
+
+export class OrNode extends RNode<{ left: RNode; right: RNode }> {
+  kind = NodeKind.OR;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return orNFA(
+      nfaForNode(this.props.left, data),
+      nfaForNode(this.props.right, data),
+      data
+    );
   }
 }
 
-class AnyCharNode {
-  kind: NodeKind.ANY_CHAR = NodeKind.ANY_CHAR;
-  toJSON() {
-    return { kind: this.kind };
+export class AnyCharNode extends RNode<{}> {
+  kind = NodeKind.ANY_CHAR;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return anyCharNFA(data);
   }
 }
 
-class ConcatNode {
-  kind: NodeKind.CONCAT = NodeKind.CONCAT;
-  left: Node;
-  right: Node;
-  constructor(left: Node, right: Node) {
-    this.left = left;
-    this.right = right;
-  }
-  toJSON() {
-    return { kind: this.kind, left: this.left, right: this.right };
+export class ConcatNode extends RNode<{ left: RNode; right: RNode }> {
+  kind = NodeKind.CONCAT;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return concatNFA(
+      nfaForNode(this.props.left, data),
+      nfaForNode(this.props.right, data)
+    );
   }
 }
 
-class StarNode {
-  kind: NodeKind.STAR = NodeKind.STAR;
-  child: Node;
-  constructor(child: Node) {
-    this.child = child;
-  }
-  toJSON() {
-    return { kind: this.kind, child: this.child };
+export class StarNode extends RNode<{ child: RNode }> {
+  kind = NodeKind.STAR;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return starNFA(nfaForNode(this.props.child, data), data);
   }
 }
 
-class ParenNode {
-  kind: NodeKind.PAREN = NodeKind.PAREN;
-  child: Node;
-  constructor(child: Node) {
-    this.child = child;
-  }
-  toJSON() {
-    return { kind: this.kind, child: this.child };
+export class ParenNode extends RNode<{ child: RNode }> {
+  kind = NodeKind.PAREN;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return this.props.child.nfa(data);
   }
 }
 
-class CharNode {
-  kind: NodeKind.CHAR = NodeKind.CHAR;
-  char: string;
-  constructor(char: string) {
-    this.char = char;
-  }
-  toJSON() {
-    return { kind: this.kind, char: this.char };
+export class CharNode extends RNode<{ char: string }> {
+  kind = NodeKind.CHAR;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return labelNFA(label(this.props.char), data);
   }
 }
 
-class CharClassNode {
-  kind: NodeKind.CHAR_CLASS = NodeKind.CHAR_CLASS;
-  charClass: CharacterClass;
-  constructor(charClass: CharacterClass) {
-    this.charClass = charClass;
-  }
-  toJSON() {
-    return { kind: this.kind, charClass: this.charClass };
+export class CharClassNode extends RNode<{ charClass: CharacterClass }> {
+  kind = NodeKind.CHAR_CLASS;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return charClassNFA(this.props.charClass, data);
   }
 }
 
-export type Node =
-  | OrNode
-  | StarNode
-  | ParenNode
-  | CharNode
-  | ConcatNode
-  | AnyCharNode
-  | CharClassNode;
-
-export function orNode(left: Node, right: Node) {
-  return new OrNode(left, right);
+export function orNode(left: RNode, right: RNode) {
+  return new OrNode({ left, right });
 }
-export function concatNode(left: Node | null, right: Node) {
+export function concatNode(left: RNode | null, right: RNode) {
   if (left == null) {
     return right;
   }
-  return new ConcatNode(left, right);
+  return new ConcatNode({ left, right });
 }
-export function starNode(child: Node) {
-  return new StarNode(child);
+export function starNode(child: RNode) {
+  return new StarNode({ child });
 }
-export function parenNode(child: Node) {
-  return new ParenNode(child);
+export function parenNode(child: RNode) {
+  return new ParenNode({ child });
 }
 export function charNode(char: string) {
-  return new CharNode(char);
+  return new CharNode({ char });
 }
 export function anyCharNode() {
-  return new AnyCharNode();
+  return new AnyCharNode({});
 }
 
-export function parseRegex(input: string | Iterator<Lexeme>): Node {
-  let last: Node | null = null;
+export function parseRegex(input: string | Iterator<Lexeme>): RNode {
+  let last: RNode | null = null;
 
   let tokens: Iterator<Lexeme, Lexeme>;
   if (typeof input == 'string') {
     tokens = new Lexer(input);
-    // tokens = makeLexer().parse(charCodes(input));
   } else {
     tokens = input;
   }
@@ -138,7 +127,7 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
     }
     switch (token.kind) {
       case Token.OPEN_PAREN:
-        let child: Node | null = null;
+        let child: RNode | null = null;
         let numToMatch = 1;
 
         let childTokens: Lexeme[] = [];
@@ -159,41 +148,44 @@ export function parseRegex(input: string | Iterator<Lexeme>): Node {
             break;
           }
         }
-        last = parenNode(child);
+        last = new ParenNode({ child });
         break;
       case Token.OR:
         if (last == null) {
           throw new Error('Expected | operator to follow another expression');
         }
         let right = parseRegex(tokens);
-        last = orNode(last, right);
+        last = new OrNode({ left: last, right });
         break;
       case Token.STAR:
         if (last == null) {
           throw new Error('Expected * operator to follow another expression');
         }
         if (last instanceof ConcatNode) {
-          last = concatNode(last.left, starNode(last.right));
+          last = concatNode(
+            last.props.left,
+            new StarNode({ child: last.props.right })
+          );
         } else {
-          last = starNode(last);
+          last = new StarNode({ child: last });
         }
         break;
       case Token.CHAR:
-        last = concatNode(last, charNode(token.char));
+        last = concatNode(last, new CharNode({ char: token.char }));
         break;
       case Token.ANY_CHAR:
-        last = concatNode(last, anyCharNode());
+        last = concatNode(last, new AnyCharNode({}));
         break;
       case Token.ESCAPE:
         const escapedChar = token.char[1];
-        let node: Node;
+        let node: RNode;
         switch (escapedChar) {
           case CharacterClass.DIGIT:
           case CharacterClass.ALPHANUMBERIC:
-            node = new CharClassNode(escapedChar);
+            node = new CharClassNode({ charClass: escapedChar });
             break;
           default:
-            node = charNode(escapedChar);
+            node = new CharNode({ char: escapedChar });
         }
         last = concatNode(last, node);
         break;

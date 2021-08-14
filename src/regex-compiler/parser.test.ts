@@ -4,13 +4,13 @@ import {
   orNode,
   parseRegex,
   starNode,
-  Node,
+  RNode,
   parenNode,
   anyCharNode,
 } from './parser';
 
 describe('parseRegex', () => {
-  const cases: { [index: string]: Node } = {
+  const cases: { [index: string]: RNode } = {
     a: charNode('a'),
     ab: concatNode(charNode('a'), charNode('b')),
     '\\(a': concatNode(charNode('('), charNode('a')),
@@ -46,7 +46,7 @@ describe('parseRegex', () => {
       charNode('b')
     ),
   };
-  test.each(Object.entries(cases))('%p', (pattern: string, node: Node) => {
+  test.each(Object.entries(cases))('%p', (pattern: string, node: RNode) => {
     expect(parseRegex(pattern)).toEqual(node);
   });
 });

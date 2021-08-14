@@ -102,10 +102,7 @@ type CharClassSpec =
 export class CharClassNode extends RNode<{ charClass: CharClassSpec }> {
   kind = NodeKind.CHAR_CLASS;
 
-  private charClassNFA<D>(
-    charClass: CharacterClass,
-    data?: D
-  ): NFA<D | undefined> {
+  private charClassCodes(charClass: CharacterClass): number[] {
     const digits = '0123456789';
     const lower = 'abcdefghijklmnopqrstuvwxyz';
     const upper = lower.toUpperCase();
@@ -121,51 +118,55 @@ export class CharClassNode extends RNode<{ charClass: CharClassSpec }> {
       default:
         throw new Error(`${charClass} is not a valid character class`);
     }
-    return this.charListNFA(validChars);
+    const validCharCodes = validChars
+      .split('')
+      .map((char) => char.charCodeAt(0));
+    return validCharCodes;
   }
 
-  private charRangeNFA<D>(
-    start: string,
-    end: string,
-    data?: D
-  ): NFA<D | undefined> {
-    return multiOrNFA(
-      collect(
-        map(range(start.charCodeAt(0), end.charCodeAt(0) + 1), (charCode) =>
-          labelNFA(label(charCode), data)
-        )
-      )
-    );
-  }
-
-  private charListNFA<D>(validChars: string, data?: D): NFA<D | undefined> {
-    return multiOrNFA(validChars.split('').map((char) => labelNFA(char, data)));
-  }
-
-  nfa<D>(data?: D): NFA<D | undefined> {
+  getValidCharCodes(): number[] {
     const { charClass } = this.props;
     switch (charClass.kind) {
       case 'charClass':
-        return this.charClassNFA(charClass.class, data);
+        return this.charClassCodes(charClass.class);
       case 'charRange':
-        return this.charRangeNFA(
-          charClass.range.start,
-          charClass.range.end,
-          data
-        );
-      case 'charList':
-        return this.charListNFA(charClass.chars, data);
+        const { start, end } = charClass.range;
+        return [...range(start.charCodeAt(0), end.charCodeAt(0) + 1)];
+      case 'charList': {
+        return charClass.chars.split('').map((char) => char.charCodeAt(0));
+      }
       default:
         throw new Error(
           `Unrecognized CharClassSpec kind ${(charClass as any).kind}`
         );
     }
   }
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return multiOrNFA(
+      this.getValidCharCodes().map((charCode) => labelNFA(label(charCode))),
+      data
+    );
+  }
 }
 
-class MultiCharClassNode extends RNode<{ charClassNodes: CharClassNode[] }> {
+class MultiCharClassNode extends RNode<{
+  charClassNodes: CharClassNode[];
+  negate: boolean;
+}> {
   kind: NodeKind.MULTI_CHAR_CLASS = NodeKind.MULTI_CHAR_CLASS;
   nfa<D>(data?: D): NFA<D | undefined> {
+    if (this.props.negate) {
+      let validCodes = new Set([...range(0, 127)]);
+      for (const charClass of this.props.charClassNodes) {
+        for (const charCode of charClass.getValidCharCodes()) {
+          validCodes.delete(charCode);
+        }
+      }
+      return multiOrNFA(
+        [...map(validCodes.values(), (code) => labelNFA(label(code), data))],
+        data
+      );
+    }
     return multiOrNFA(
       this.props.charClassNodes.map((node) => node.nfa(data)),
       data
@@ -344,9 +345,13 @@ class RegexParser {
     let charClassNodes: CharClassNode[] = [];
     let validChars = '';
     let ti = 0;
+    let negate: boolean = false;
     while (ti < innerTokens.length) {
       const token = innerTokens[ti++];
-      if (
+      if (ti - 1 == 0 && token.substr == '^') {
+        negate = true;
+        continue;
+      } else if (
         token.substr == '-' &&
         validChars.length > 0 &&
         ti < innerTokens.length
@@ -373,6 +378,8 @@ class RegexParser {
         validChars += token.substr;
       }
     }
+
+    // step 3: finish up
     if (validChars.length > 0) {
       charClassNodes.push(
         new CharClassNode({
@@ -383,11 +390,7 @@ class RegexParser {
         })
       );
     }
-    if (charClassNodes.length > 1) {
-      this.last = new MultiCharClassNode({ charClassNodes });
-    } else {
-      this.last = charClassNodes[0];
-    }
+    this.last = new MultiCharClassNode({ charClassNodes, negate });
   }
 }
 

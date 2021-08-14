@@ -47,6 +47,7 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
       fails: ['[', ']', 'g', 'G', '-'],
     },
   ],
+  ['[^ab]', { matches: ['c', 'd', ' ', '\n'], fails: ['a', 'b'] }],
 ];
 describe.each(cases)('%p', (pattern, { matches, fails }) => {
   test(`compiles ${pattern}`, () => {

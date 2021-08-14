@@ -58,7 +58,10 @@ export function collect<T>(it: Iterator<T, T>): T[] {
   return values;
 }
 
-export function map<I, O>(it: Iterator<I>, map: (i: I) => O): Iterator<O> {
+export function map<I, O>(
+  it: Iterator<I>,
+  map: (i: I) => O
+): IterableIterator<O> {
   return new MapIterator(it, map);
 }
 

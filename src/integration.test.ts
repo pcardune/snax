@@ -10,15 +10,20 @@ describe('integration test', () => {
     RPAREN = ')',
     PLUS = '+',
     MINUS = '-',
+    WS = 'WS',
   }
-  let lexer = buildLexer([
-    [MT.NUM, '\\d\\d*'],
-    [MT.ID, '\\w\\w*'],
-    [MT.LPAREN, '\\('],
-    [MT.RPAREN, '\\)'],
-    [MT.PLUS, '\\+'],
-    [MT.MINUS, '-'],
-  ]);
+  let lexer = buildLexer(
+    [
+      [MT.NUM, '\\d\\d*'],
+      [MT.ID, '\\w\\w*'],
+      [MT.LPAREN, '\\('],
+      [MT.RPAREN, '\\)'],
+      [MT.PLUS, '\\+'],
+      [MT.MINUS, '-'],
+      [MT.WS, '( |\t)+'],
+    ],
+    [MT.WS]
+  );
 
   let parser = buildParser({
     Root: [['Expr']],
@@ -27,7 +32,7 @@ describe('integration test', () => {
   });
 
   test('stuff2', () => {
-    let tokens = [...lexer.parse(charCodes('34+5'))];
+    let tokens = [...lexer.parse(charCodes('34 + 5'))];
     expect(tokens.map((t) => t.toString())).toMatchInlineSnapshot(`
       Array [
         "<NUM>34</NUM>",

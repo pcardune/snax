@@ -89,9 +89,15 @@ export class TokenIterator<T> implements IterableIterator<LexToken<T>> {
   private matcher: MultiPatternMatcher<T>;
   private chars: RewindableIterator<number>;
   private from: number = 0;
-  constructor(matcher: MultiPatternMatcher<T>, input: Iterator<number>) {
+  private ignore: T[] = [];
+  constructor(
+    matcher: MultiPatternMatcher<T>,
+    input: Iterator<number>,
+    ignore: T[] = []
+  ) {
     this.matcher = matcher;
     this.chars = rewindable(input);
+    this.ignore = ignore;
   }
 
   [Symbol.iterator]() {
@@ -99,32 +105,43 @@ export class TokenIterator<T> implements IterableIterator<LexToken<T>> {
   }
 
   next(): IteratorResult<LexToken<T>> {
-    let result = this.matcher.match(this.chars);
-    if (result != undefined) {
-      let token = new LexToken(
-        result.token,
-        { from: this.from, to: this.from + result.substr.length },
-        result.substr
-      );
-      this.from += result.substr.length;
-      this.chars.reset(result.substr.length);
-      return { done: false, value: token };
+    let tokenResult: IteratorResult<LexToken<T>> | null = null;
+    while (!tokenResult) {
+      let match = this.matcher.match(this.chars);
+      if (match != undefined) {
+        let token = new LexToken(
+          match.token,
+          { from: this.from, to: this.from + match.substr.length },
+          match.substr
+        );
+        this.from += match.substr.length;
+        this.chars.reset(match.substr.length);
+        if (this.ignore.indexOf(match.token) == -1) {
+          tokenResult = { done: false, value: token };
+        } else {
+          continue;
+        }
+      } else {
+        this.chars.reset(0);
+        if (this.chars.buffered > 0) {
+          throw new Error('Ran out of tokens before reaching end of stream');
+        }
+        tokenResult = { done: true, value: undefined };
+      }
     }
-    this.chars.reset(0);
-    if (this.chars.buffered > 0) {
-      throw new Error('Ran out of tokens before reaching end of stream');
-    }
-    return { done: true, value: undefined };
+    return tokenResult;
   }
 }
 
 export class PatternLexer<T> {
   private matcher: MultiPatternMatcher<T>;
-  constructor(patterns: Pattern<T>[]) {
+  private ignore: T[] = [];
+  constructor(patterns: Pattern<T>[], ignore: T[] = []) {
     this.matcher = new MultiPatternMatcher(patterns);
+    this.ignore = ignore;
   }
   parse(input: Iterator<number>) {
-    return new TokenIterator(this.matcher, input);
+    return new TokenIterator(this.matcher, input, this.ignore);
   }
 }
 
@@ -150,8 +167,9 @@ export function regexPattern<T>(token: T, pattern: string): Pattern<T> {
   return new Pattern(token, nfaForNode(parseRegex(pattern)));
 }
 
-export function buildLexer<T>(patternSpecs: [T, string][]) {
+export function buildLexer<T>(patternSpecs: [T, string][], ignore: T[] = []) {
   return new PatternLexer(
-    patternSpecs.map(([token, pattern]) => regexPattern(token, pattern))
+    patternSpecs.map(([token, pattern]) => regexPattern(token, pattern)),
+    ignore
   );
 }

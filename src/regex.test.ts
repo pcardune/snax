@@ -13,6 +13,8 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
   ],
   ['\\d', { matches: ['1', '2', '3'], fails: ['a', 'b', 'c'] }],
   ['\\w', { matches: ['g', '_', 'A', 'Z', '3'], fails: ['-', ';'] }],
+  ['a+b', { matches: ['ab', 'aaab'], fails: ['b'] }],
+  ['(ab)+', { matches: ['ab', 'abababab'] }],
 ];
 describe.each(cases)('%p', (pattern, { matches, fails }) => {
   const re = new Regex(pattern);

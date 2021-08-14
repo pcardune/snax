@@ -18,6 +18,7 @@ export enum NodeKind {
   CHAR = 'CHAR',
   CONCAT = 'CONCAT',
   ANY_CHAR = 'ANY_CHAR',
+  ONE_OR_MORE = 'ONE_OR_MORE',
   CHAR_CLASS = 'CHAR_CLASS',
 }
 export abstract class RNode<Props = unknown> {
@@ -64,6 +65,16 @@ export class StarNode extends RNode<{ child: RNode }> {
   kind = NodeKind.STAR;
   nfa<D>(data?: D): NFA<D | undefined> {
     return starNFA(nfaForNode(this.props.child, data), data);
+  }
+}
+
+export class OneOrMoreNode extends RNode<{ child: RNode }> {
+  kind = NodeKind.ONE_OR_MORE;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return concatNFA(
+      nfaForNode(this.props.child, data),
+      starNFA(nfaForNode(this.props.child, data), data)
+    );
   }
 }
 
@@ -157,17 +168,23 @@ export function parseRegex(input: string | Iterator<Lexeme>): RNode {
         let right = parseRegex(tokens);
         last = new OrNode({ left: last, right });
         break;
+      case Token.PLUS:
       case Token.STAR:
         if (last == null) {
           throw new Error('Expected * operator to follow another expression');
         }
-        if (last instanceof ConcatNode) {
-          last = concatNode(
-            last.props.left,
-            new StarNode({ child: last.props.right })
-          );
-        } else {
-          last = new StarNode({ child: last });
+        {
+          let child: RNode =
+            last instanceof ConcatNode ? last.props.right : last;
+          let right =
+            token.kind == Token.STAR
+              ? new StarNode({ child: child })
+              : new OneOrMoreNode({ child: child });
+          if (last instanceof ConcatNode) {
+            last = concatNode(last.props.left, right);
+          } else {
+            last = right;
+          }
         }
         break;
       case Token.CHAR:

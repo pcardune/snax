@@ -8,6 +8,7 @@ import {
 import { anyCharNFA, concatNFA, labelNFA } from './regex-compiler';
 
 export enum Token {
+  PLUS,
   STAR,
   OR,
   OPEN_PAREN,
@@ -26,6 +27,7 @@ function makeLexer() {
   const patterns = [
     nfaPattern(Token.ESCAPE, concatNFA(labelNFA('\\'), anyCharNFA())),
     stringPattern(Token.ANY_CHAR, '.'),
+    stringPattern(Token.PLUS, '+'),
     stringPattern(Token.STAR, '*'),
     stringPattern(Token.OR, '|'),
     stringPattern(Token.OPEN_PAREN, '('),

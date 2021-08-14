@@ -1,3 +1,4 @@
+import { collect, map, range } from '../iter';
 import { label, NFA } from '../nfa-to-dfa';
 import { Lexeme, Lexer, Token } from './lexer';
 import {
@@ -6,6 +7,7 @@ import {
   charClassNFA,
   concatNFA,
   labelNFA,
+  multiOrNFA,
   nfaForNode,
   orNFA,
   starNFA,
@@ -20,6 +22,7 @@ export enum NodeKind {
   ANY_CHAR = 'ANY_CHAR',
   ONE_OR_MORE = 'ONE_OR_MORE',
   CHAR_CLASS = 'CHAR_CLASS',
+  MULTI_CHAR_CLASS = 'MULTI_CHARR_CLASS',
 }
 export abstract class RNode<Props = unknown> {
   abstract kind: NodeKind;
@@ -91,11 +94,82 @@ export class CharNode extends RNode<{ char: string }> {
     return labelNFA(label(this.props.char), data);
   }
 }
+type CharClassSpec =
+  | { kind: 'charClass'; class: CharacterClass }
+  | { kind: 'charRange'; range: { start: string; end: string } }
+  | { kind: 'charList'; chars: string };
 
-export class CharClassNode extends RNode<{ charClass: CharacterClass }> {
+export class CharClassNode extends RNode<{ charClass: CharClassSpec }> {
   kind = NodeKind.CHAR_CLASS;
+
+  private charClassNFA<D>(
+    charClass: CharacterClass,
+    data?: D
+  ): NFA<D | undefined> {
+    const digits = '0123456789';
+    const lower = 'abcdefghijklmnopqrstuvwxyz';
+    const upper = lower.toUpperCase();
+    const alphaNumeric = digits + lower + upper + '_';
+    let validChars: string;
+    switch (charClass) {
+      case CharacterClass.DIGIT:
+        validChars = digits;
+        break;
+      case CharacterClass.ALPHANUMBERIC:
+        validChars = alphaNumeric;
+        break;
+      default:
+        throw new Error(`${charClass} is not a valid character class`);
+    }
+    return this.charListNFA(validChars);
+  }
+
+  private charRangeNFA<D>(
+    start: string,
+    end: string,
+    data?: D
+  ): NFA<D | undefined> {
+    return multiOrNFA(
+      collect(
+        map(range(start.charCodeAt(0), end.charCodeAt(0) + 1), (charCode) =>
+          labelNFA(label(charCode), data)
+        )
+      )
+    );
+  }
+
+  private charListNFA<D>(validChars: string, data?: D): NFA<D | undefined> {
+    return multiOrNFA(validChars.split('').map((char) => labelNFA(char, data)));
+  }
+
   nfa<D>(data?: D): NFA<D | undefined> {
-    return charClassNFA(this.props.charClass, data);
+    const { charClass } = this.props;
+    switch (charClass.kind) {
+      case 'charClass':
+        return this.charClassNFA(charClass.class, data);
+      case 'charRange':
+        return this.charRangeNFA(
+          charClass.range.start,
+          charClass.range.end,
+          data
+        );
+      case 'charList':
+        return this.charListNFA(charClass.chars, data);
+      default:
+        throw new Error(
+          `Unrecognized CharClassSpec kind ${(charClass as any).kind}`
+        );
+    }
+  }
+}
+
+class MultiCharClassNode extends RNode<{ charClassNodes: CharClassNode[] }> {
+  kind: NodeKind.MULTI_CHAR_CLASS = NodeKind.MULTI_CHAR_CLASS;
+  nfa<D>(data?: D): NFA<D | undefined> {
+    return multiOrNFA(
+      this.props.charClassNodes.map((node) => node.nfa(data)),
+      data
+    );
   }
 }
 
@@ -147,6 +221,9 @@ class RegexParser {
         case Token.OPEN_PAREN:
           this.parseParens();
           break;
+        case Token.OPEN_BRACKET:
+          this.parseBracket();
+          break;
         case Token.OR:
           this.parseOr();
           break;
@@ -182,7 +259,9 @@ class RegexParser {
     switch (escapedChar) {
       case CharacterClass.DIGIT:
       case CharacterClass.ALPHANUMBERIC:
-        node = new CharClassNode({ charClass: escapedChar });
+        node = new CharClassNode({
+          charClass: { kind: 'charClass', class: escapedChar },
+        });
         break;
       default:
         node = new CharNode({ char: escapedChar });
@@ -240,6 +319,75 @@ class RegexParser {
       }
     }
     this.last = new ParenNode({ child });
+  }
+
+  private parseBracket() {
+    // step 1: collect tokens up until first ]
+    let innerTokens: Lexeme[] = [];
+    outer: while (true) {
+      const nextToken = this.tokens.next();
+      if (nextToken.done) {
+        throw new Error('Reached end of input before finding matching ]');
+      }
+      const token = nextToken.value;
+      switch (token.token) {
+        case Token.CLOSE_BRACKET:
+          break outer;
+        case Token.CHAR:
+          innerTokens.push(token);
+          break;
+        default:
+          throw new Error(`Unexpected token ${token.substr} inside []`);
+      }
+    }
+    // step 2: collect valid char classes, or a range of them.
+    let charClassNodes: CharClassNode[] = [];
+    let validChars = '';
+    let ti = 0;
+    while (ti < innerTokens.length) {
+      const token = innerTokens[ti++];
+      if (
+        token.substr == '-' &&
+        validChars.length > 0 &&
+        ti < innerTokens.length
+      ) {
+        if (validChars.length > 1) {
+          charClassNodes.push(
+            new CharClassNode({
+              charClass: {
+                kind: 'charList',
+                chars: validChars.slice(0, validChars.length - 1),
+              },
+            })
+          );
+        }
+        const start = validChars[validChars.length - 1];
+        const end = innerTokens[ti++].substr;
+        charClassNodes.push(
+          new CharClassNode({
+            charClass: { kind: 'charRange', range: { start, end } },
+          })
+        );
+        validChars = '';
+      } else {
+        validChars += token.substr;
+      }
+    }
+    if (validChars.length > 0) {
+      charClassNodes.push(
+        new CharClassNode({
+          charClass: {
+            kind: 'charList',
+            chars: validChars,
+          },
+        })
+      );
+    }
+    if (charClassNodes.length > 1) {
+      this.last = new MultiCharClassNode({ charClassNodes });
+    } else {
+      this.last = charClassNodes[0];
+    }
   }
 }
 

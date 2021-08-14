@@ -104,7 +104,7 @@ export function orNFA<D>(
   return new NFA(states);
 }
 
-function multiOrNFA<D>(nfas: NFA<D>[], data?: D): NFA<D | undefined> {
+export function multiOrNFA<D>(nfas: NFA<D>[], data?: D): NFA<D | undefined> {
   let last: NFA<D | undefined> = nfas[0];
   for (let i = 1; i < nfas.length; i++) {
     last = orNFA(last, nfas[i]);

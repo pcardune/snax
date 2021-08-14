@@ -143,7 +143,7 @@ class RegexParser {
       if (done) {
         break;
       }
-      switch (token.kind) {
+      switch (token.token) {
         case Token.OPEN_PAREN:
           this.parseParens();
           break;
@@ -155,7 +155,10 @@ class RegexParser {
           this.parseStarPlus(token);
           break;
         case Token.CHAR:
-          this.last = concatNode(this.last, new CharNode({ char: token.char }));
+          this.last = concatNode(
+            this.last,
+            new CharNode({ char: token.substr })
+          );
           break;
         case Token.ANY_CHAR:
           this.last = concatNode(this.last, new AnyCharNode({}));
@@ -174,7 +177,7 @@ class RegexParser {
   }
 
   private parseEscape(token: Lexeme) {
-    const escapedChar = token.char[1];
+    const escapedChar = token.substr[1];
     let node: RNode;
     switch (escapedChar) {
       case CharacterClass.DIGIT:
@@ -195,7 +198,7 @@ class RegexParser {
       let child: RNode =
         this.last instanceof ConcatNode ? this.last.props.right : this.last;
       let right =
-        token.kind == Token.STAR
+        token.token == Token.STAR
           ? new StarNode({ child: child })
           : new OneOrMoreNode({ child: child });
       if (this.last instanceof ConcatNode) {
@@ -224,9 +227,9 @@ class RegexParser {
       if (done) {
         throw new Error('Reached end of input before finding matching )');
       }
-      if (nextToken.kind == Token.OPEN_PAREN) {
+      if (nextToken.token == Token.OPEN_PAREN) {
         numToMatch++;
-      } else if (nextToken.kind == Token.CLOSE_PAREN) {
+      } else if (nextToken.token == Token.CLOSE_PAREN) {
         numToMatch--;
       }
       if (numToMatch > 0) {

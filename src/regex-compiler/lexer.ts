@@ -5,6 +5,7 @@ import {
   TokenIterator,
   PatternLexer,
 } from '../lexer-gen';
+import { LexToken } from '../lexer-gen/lexer-gen';
 import { anyCharNFA, concatNFA, labelNFA } from './regex-compiler';
 
 export enum Token {
@@ -20,10 +21,7 @@ export enum Token {
   ANY_CHAR,
 }
 
-export type Lexeme = {
-  kind: Token;
-  char: string;
-};
+export type Lexeme = LexToken<Token>;
 
 function makeLexer() {
   const patterns = [
@@ -41,7 +39,7 @@ function makeLexer() {
   return new PatternLexer(patterns);
 }
 
-export class Lexer implements Iterator<Lexeme> {
+export class Lexer implements Iterator<Lexeme, Lexeme> {
   private charIter: Iterator<number, number>;
   private static tokenizer?: PatternLexer<Token>;
   private tokenIter?: TokenIterator<Token>;
@@ -64,14 +62,7 @@ export class Lexer implements Iterator<Lexeme> {
     return this.tokenIter;
   }
 
-  next(): IteratorResult<Lexeme> {
-    const nextToken = this.tokens.next();
-    if (nextToken.done) {
-      return { done: true, value: undefined };
-    }
-    return {
-      done: false,
-      value: { kind: nextToken.value.token, char: nextToken.value.substr },
-    };
+  next(): IteratorResult<Lexeme, Lexeme> {
+    return this.tokens.next();
   }
 }

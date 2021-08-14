@@ -10,7 +10,7 @@ describe('lexer', () => {
     ['a.*b', [CHAR, ANY_CHAR, STAR, CHAR]],
   ];
   test.each(cases)('%p lexes to %p', (input, expected) => {
-    let tokens = collect(new Lexer(input)).map((t) => t.kind);
+    let tokens = collect(new Lexer(input)).map((t) => t.token);
     expect(tokens).toEqual(expected);
   });
 });

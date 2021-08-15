@@ -4,7 +4,6 @@
  * description in Section 3.7.4 of the dragon book (p. 159):
  * "Construction of an NFA from a Regular Expression" in
  */
-import { collect, map, range } from '../iter';
 import {
   NFA,
   state,
@@ -15,7 +14,7 @@ import {
   Edge,
   NFAState,
 } from '../nfa-to-dfa';
-import { RNode, NodeKind, OrNode, StarNode } from './parser';
+import { RNode } from './parser';
 
 /**
  * Construct an NFA that matches the specified character.
@@ -35,6 +34,17 @@ export function labelNFA<D>(
     state(0, false, [edge(labelOrChar, 1)], data),
     state(1, true, [], data),
   ]);
+}
+
+/**
+ * Construct an NFA that matches any ASCII character
+ */
+export function allASCIINFA<D>(data?: D): NFA<D | undefined> {
+  let edges: Edge<number>[] = [];
+  for (let i = 1; i <= 127; i++) {
+    edges.push(edge(label(i), 1));
+  }
+  return new NFA([state(0, false, edges, data), state(1, true, [], data)]);
 }
 
 /**

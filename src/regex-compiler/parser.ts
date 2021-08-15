@@ -4,7 +4,6 @@ import { Lexeme, Lexer, Token } from './lexer';
 import {
   anyCharNFA,
   CharacterClass,
-  charClassNFA,
   concatNFA,
   labelNFA,
   multiOrNFA,
@@ -209,7 +208,11 @@ class RegexParser {
   }
 
   static parse(input: string | Iterator<Lexeme>): RNode {
-    return new RegexParser(input).parse();
+    try {
+      return new RegexParser(input).parse();
+    } catch (e) {
+      throw new Error(`Failed parsing regex ${input}: ${e}`);
+    }
   }
 
   parse(): RNode {

@@ -6,7 +6,7 @@ import {
   PatternLexer,
 } from '../lexer-gen';
 import { LexToken } from '../lexer-gen/lexer-gen';
-import { anyCharNFA, concatNFA, labelNFA } from './regex-compiler';
+import { allASCIINFA, anyCharNFA, concatNFA, labelNFA } from './regex-compiler';
 
 export enum Token {
   PLUS,
@@ -34,7 +34,7 @@ function makeLexer() {
     stringPattern(Token.CLOSE_PAREN, ')'),
     stringPattern(Token.OPEN_BRACKET, '['),
     stringPattern(Token.CLOSE_BRACKET, ']'),
-    nfaPattern(Token.CHAR, anyCharNFA()),
+    nfaPattern(Token.CHAR, allASCIINFA()),
   ];
   return new PatternLexer(patterns);
 }

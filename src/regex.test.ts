@@ -1,8 +1,10 @@
 import { Regex } from './regex';
 
 const cases: [string, { matches: string[]; fails?: string[] }][] = [
+  ['\n', { matches: ['\n'] }],
   ['(a|b)*abb', { matches: ['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'] }],
   ['ab*b', { matches: ['ab', 'abbb'] }],
+  // any character
   ['.', { matches: ['c', 'd', '\t'] }],
   [
     'a.*b',
@@ -11,10 +13,13 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
       fails: ['ac', 'a whatever with the suffix'],
     },
   ],
+  // character classes
   ['\\d', { matches: ['1', '2', '3'], fails: ['a', 'b', 'c'] }],
   ['\\w', { matches: ['g', '_', 'A', 'Z', '3'], fails: ['-', ';'] }],
+  // plus operator
   ['a+b', { matches: ['ab', 'aaab'], fails: ['b'] }],
   ['(ab)+', { matches: ['ab', 'abababab'] }],
+
   // character classes
   ['[abc]', { matches: ['a', 'b', 'c'], fails: ['d', 'e', 'f', '[', ']'] }],
   ['[-a]', { matches: ['a', '-'], fails: ['b', '[', ']'] }],

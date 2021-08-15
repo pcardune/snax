@@ -65,7 +65,7 @@ export function map<I, O>(
   return new MapIterator(it, map);
 }
 
-class CharCodeIterator implements Iterator<number> {
+class CharCodeIterator implements IterableIterator<number> {
   private input: string;
   private index: number = 0;
   constructor(input: string) {
@@ -82,6 +82,9 @@ class CharCodeIterator implements Iterator<number> {
   }
   suffix(): string {
     return this.input.slice(this.index);
+  }
+  [Symbol.iterator]() {
+    return this;
   }
 }
 

@@ -1,4 +1,5 @@
-import { toDFA } from './dfa';
+import { charCodes } from '../iter';
+import { DFA, toDFA } from './dfa';
 import { NewNFA } from './nfa';
 
 let nfa: NewNFA;
@@ -38,8 +39,8 @@ beforeAll(() => {
   ];
   edges.forEach((e) => nfa.addEdge(...e));
 });
-test('toDFA()', () => {
-  let dfa = toDFA(nfa, e);
+test('DFA.fromNFA()', () => {
+  let dfa = DFA.fromNFA(nfa, e);
   expect('\n' + dfa.toDebugStr()).toMatchInlineSnapshot(`
 "
      δ    a    b    c
@@ -49,4 +50,17 @@ test('toDFA()', () => {
   *s3:   se  *s2  *s3
 "
 `);
+});
+// a(b|c)*
+const cases = [
+  ['a', 'a'],
+  ['agfh', 'a'],
+  ['acfda', 'ac'],
+  ['abcbccfda', 'abcbcc'],
+  ['foobar', ''],
+  ['', ''],
+];
+test.each(cases)('match %p', (input, expected) => {
+  let dfa = DFA.fromNFA(nfa, e);
+  expect(dfa.match(charCodes(input))).toEqual(expected);
 });

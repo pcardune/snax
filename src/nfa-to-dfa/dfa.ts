@@ -11,7 +11,7 @@ import { ConstNFA, closure, move, NewNFA } from './nfa';
  *                alphabet item that does not consume characters
  * @returns a new DFA, which is just an NFA without ambiguous transitions
  */
-export function toDFA(nfa: ConstNFA, epsilon: number) {
+function toDFA(nfa: ConstNFA, epsilon: number) {
   // Step 1: Perform the subset construction.
   // See page 47 of Engineering a Compiler (Cooper & Torczon)
   // Step 1.1: make a list of labels: the set of alphabet indices
@@ -126,8 +126,57 @@ export function toDFA(nfa: ConstNFA, epsilon: number) {
   return dfa;
 }
 
-export class DFA extends NewNFA {
+type ConstDFA = Omit<ConstNFA, 'getNextStates'> & {
+  getNextState(fromState: number, label: number): number | null;
+  match(charCodes: Iterable<number>): void;
+};
+
+export class DFA extends NewNFA implements ConstDFA {
   static fromNFA(nfa: ConstNFA, epsilon: number): DFA {
     return toDFA(nfa, epsilon);
+  }
+
+  override addEdge(fromState: number, toState: number, alphaIndex: number) {
+    if (this.getNextStates(fromState, alphaIndex).size) {
+      throw new Error(
+        `There is already an edge from ${fromState} to ${toState} via ${String.fromCharCode(
+          this.getAlphabet()[alphaIndex]
+        )}`
+      );
+    }
+    super.addEdge(fromState, toState, alphaIndex);
+  }
+
+  getNextState(fromState: number, label: number): number | null {
+    for (const nextState of this.getNextStates(fromState, label)) {
+      return nextState;
+    }
+    return null;
+  }
+
+  match(input: Iterable<number>) {
+    let currentState = this.getStartState();
+    let matchBuffer: string = '';
+
+    let accepted: string = '';
+
+    for (const charCode of input) {
+      if (this.isAcceptingState(currentState)) {
+        accepted = matchBuffer;
+      }
+      matchBuffer += String.fromCharCode(charCode);
+      const nextState = this.getNextState(
+        currentState,
+        this.getAlphabetIndex(charCode)
+      );
+      if (nextState == null) {
+        return accepted;
+      }
+      currentState = nextState;
+    }
+    if (this.isAcceptingState(currentState)) {
+      return matchBuffer;
+    }
+    return accepted;
   }
 }

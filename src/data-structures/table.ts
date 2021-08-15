@@ -3,7 +3,7 @@ import { IHaveDebugStr } from '../debug';
 export interface ConstTable<D> extends IHaveDebugStr {
   numRows: number;
   numCols: number;
-  getCell(row: number, col: number): D;
+  getCell(row: number, col: number): D | undefined;
 }
 
 export interface MutTable<D> extends ConstTable<D> {
@@ -94,7 +94,7 @@ export class Table<D> implements MutTable<D> {
    * @param col
    * @returns The value of the cell with the given row/col
    */
-  getCell(row: number, col: number): D {
+  getCell(row: number, col: number): D | undefined {
     return this.rows[row][col];
   }
 
@@ -113,11 +113,9 @@ export class Table<D> implements MutTable<D> {
     }
 
     for (let row = 0; row < this.numRows; row++) {
-      let width = 0;
       for (let col = 0; col < this.numCols; col++) {
         let minWidth = minWidths[col];
         let s = `${this.getCell(row, col)}`.padStart(minWidth + 2);
-        width += s.length;
         out += s;
       }
       out += '\n';
@@ -149,5 +147,12 @@ export class DefaultTable<D> extends Table<D> {
   }
   override addCol() {
     super.addCol(this.makeDefault);
+  }
+  override getCell(row: number, col: number): D {
+    const cell = super.getCell(row, col);
+    if (cell == undefined) {
+      return this.makeDefault();
+    }
+    return cell;
   }
 }

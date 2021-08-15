@@ -31,6 +31,12 @@ export interface ConstNFA extends IHaveDebugStr {
   getAlphabet(): Readonly<number[]>;
 
   /**
+   * Get the index within the alphabet where the
+   * given charcode lies.
+   */
+  getAlphabetIndex(charCode: number): number;
+
+  /**
    * Get the number of states
    */
   readonly numStates: number;
@@ -114,6 +120,10 @@ export class NewNFA implements MutNFA {
 
   getAlphabet() {
     return this.alphabet;
+  }
+
+  getAlphabetIndex(charCode: number) {
+    return this.alphabet.indexOf(charCode);
   }
 
   getErrorState() {

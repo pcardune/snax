@@ -7,7 +7,7 @@
 
 import { charCodes } from '../iter';
 import { DFA, DFAFromNFA } from './dfa';
-import { ConstNFA, NewNFA } from './nfa';
+import { ConstNFA, NFA } from './nfa';
 import { toCharCode } from './util';
 
 export interface ConstRegexNFA extends ConstNFA {
@@ -27,7 +27,7 @@ const EPSILON_CHAR_CODE = -1;
  *          alphabet to the indices in the destination
  *          alphabet
  */
-function addAlphabetFrom(source: ConstNFA, dest: NewNFA): number[] {
+function addAlphabetFrom(source: ConstNFA, dest: NFA): number[] {
   const rightAlpha = source.getAlphabet();
   let rightAlphaMap: number[] = [];
   for (let ai = 0; ai < rightAlpha.length; ai++) {
@@ -41,7 +41,7 @@ function addAlphabetFrom(source: ConstNFA, dest: NewNFA): number[] {
  * array mapping the the indexes from the other states
  * to the new states.
  */
-function addStatesFrom(source: ConstNFA, dest: NewNFA): number[] {
+function addStatesFrom(source: ConstNFA, dest: NFA): number[] {
   let rightStateMap: number[] = [];
   for (let si = 0; si < source.numStates; si++) {
     rightStateMap.push(dest.addState());
@@ -61,7 +61,7 @@ function addStatesFrom(source: ConstNFA, dest: NewNFA): number[] {
  */
 function addEdgesFrom(
   source: ConstNFA,
-  dest: NewNFA,
+  dest: NFA,
   sourceStateMap: number[],
   sourceAlphaMap: number[]
 ) {
@@ -81,7 +81,7 @@ function addEdgesFrom(
   }
 }
 
-class RegexNFA extends NewNFA implements ConstRegexNFA {
+class RegexNFA extends NFA implements ConstRegexNFA {
   getOnlyAcceptingState(): number {
     let acceptingState: number | undefined = undefined;
     for (let si = 0; si < this.numStates; si++) {
@@ -287,7 +287,7 @@ export class SingleCharNFA extends RegexNFA implements ConstRegexNFA {
   }
 }
 
-export class CombinedNFA extends NewNFA {
+export class CombinedNFA extends NFA {
   /**
    * Mapping from the index of the source nfa
    * to the accepting state(s) that we got to

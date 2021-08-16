@@ -1,8 +1,8 @@
-import { closure, move, NewNFA } from './nfa';
+import { closure, move, NFA } from './nfa';
 
 describe('NFA', () => {
   test('toDebugStr()', () => {
-    let nfa = new NewNFA();
+    let nfa = new NFA();
     let a = nfa.addAlpha('a');
     let b = nfa.addAlpha('b');
     let s0 = nfa.addState();
@@ -23,7 +23,7 @@ describe('NFA', () => {
   });
 
   describe('traversal functions', () => {
-    let nfa: NewNFA;
+    let nfa: NFA;
     let a: number, b: number, c: number, e: number;
     let s0: number;
     let s1: number;
@@ -32,7 +32,7 @@ describe('NFA', () => {
     let s4: number;
 
     beforeAll(() => {
-      nfa = new NewNFA();
+      nfa = new NFA();
       a = nfa.addAlpha('a');
       b = nfa.addAlpha('b');
       c = nfa.addAlpha('c');

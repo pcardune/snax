@@ -1,7 +1,7 @@
 import { OrderedMap } from '../data-structures/OrderedMap';
 import { charCodes, peakable } from '../iter';
 import { LexToken } from '../lexer-gen/lexer-gen';
-import { NewPatternLexer, NewTokenIterator } from '../lexer-gen/recognizer';
+import { PatternLexer, NewTokenIterator } from '../lexer-gen/recognizer';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { asciiChars, notChars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
 import { memoize } from '../utils';
@@ -34,7 +34,7 @@ const getNewLexer = memoize(() => {
     [Token.CLOSE_BRACKET, new SingleCharNFA(']')],
     [Token.CHAR, asciiChars()],
   ]);
-  return new NewPatternLexer(patterns);
+  return new PatternLexer(patterns);
 });
 
 export class Lexer implements Iterator<Lexeme, Lexeme> {

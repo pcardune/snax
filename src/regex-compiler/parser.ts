@@ -6,7 +6,11 @@ import {
   SingleCharNFA,
 } from '../nfa-to-dfa/regex-nfa';
 import { Lexeme, Lexer, Token } from './lexer';
-import { CharacterClass } from './regex-compiler';
+
+enum CharacterClass {
+  DIGIT = 'd',
+  ALPHANUMBERIC = 'w',
+}
 
 export enum NodeKind {
   OR = 'OR',

@@ -1,5 +1,5 @@
 import { MultiSet, NumberSet } from '../sets';
-import { ConstNFA, closure, move, NewNFA } from './nfa';
+import { ConstNFA, closure, move, NFA } from './nfa';
 
 /**
  * Convert an NFA to a DFA by resolving ambiguity in the paths
@@ -210,7 +210,7 @@ export type ConstDFA = Omit<ConstNFA, 'getNextStates'> & {
   match(charCodes: Iterable<number>): void;
 };
 
-export class DFA extends NewNFA implements ConstDFA {
+export class DFA extends NFA implements ConstDFA {
   static fromNFA(nfa: ConstNFA, epsilon: number): DFAFromNFA {
     return toDFA(nfa, epsilon);
   }

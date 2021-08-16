@@ -75,7 +75,7 @@ export class NewTokenIterator<T> implements IterableIterator<LexToken<T>> {
   }
 }
 
-export class NewPatternLexer<T> {
+export class PatternLexer<T> {
   private matcher: MultiPatternMatcher<T>;
   private ignore: T[] = [];
   constructor(patterns: OrderedMap<T, ConstNFA>, ignore: T[] = []) {

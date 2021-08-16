@@ -1,6 +1,6 @@
 import { charCodes, collect } from '../iter';
 import { buildLexer, LexToken } from './lexer-gen';
-import { MultiPatternMatcher, NewPatternLexer } from './recognizer';
+import { MultiPatternMatcher, PatternLexer } from './recognizer';
 import { OrderedMap } from '../data-structures/OrderedMap';
 import { chars, CombinedNFA, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
 import { parseRegex } from '../regex-compiler';
@@ -45,7 +45,7 @@ describe('lexer-gen', () => {
   });
 
   describe('Tokenizer', () => {
-    let tokenizer = new NewPatternLexer(patterns);
+    let tokenizer = new PatternLexer(patterns);
     test("parse('123+456-78')", () => {
       let chars = charCodes('123+456-78');
       let tokens = collect(tokenizer.parse(chars));
@@ -88,7 +88,7 @@ describe('buildLexer', () => {
     [MT.MINUS, '-'],
     [MT.WS, '( |\t)+'],
   ]);
-  let lexer: NewPatternLexer<MT>;
+  let lexer: PatternLexer<MT>;
   beforeAll(() => {
     lexer = buildLexer(patterns, [MT.WS]);
   });

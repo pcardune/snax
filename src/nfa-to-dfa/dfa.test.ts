@@ -1,8 +1,8 @@
 import { charCodes } from '../iter';
 import { DFA } from './dfa';
-import { NewNFA } from './nfa';
+import { NFA } from './nfa';
 
-let nfa: NewNFA;
+let nfa: NFA;
 let a: number;
 let b: number;
 let c: number;
@@ -12,7 +12,7 @@ beforeAll(() => {
   // Engineering a Compiler (Cooper & Torczon)
   // page 51 and represents the nfa for the
   // regex a(b|c)*
-  nfa = new NewNFA();
+  nfa = new NFA();
   a = nfa.addAlpha('a');
   b = nfa.addAlpha('b');
   c = nfa.addAlpha('c');

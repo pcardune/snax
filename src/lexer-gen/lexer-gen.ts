@@ -1,8 +1,9 @@
 import { OrderedMap } from '../data-structures/OrderedMap';
-import { Span } from '../nfa-to-dfa';
-import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { parseRegex } from '../regex-compiler';
-import { NewPatternLexer } from './recognizer';
+import { PatternLexer } from './recognizer';
+
+type Pos = number;
+type Span = { from: Pos; to: Pos };
 
 export class LexToken<T> {
   token: T;
@@ -23,5 +24,5 @@ export function buildLexer<T>(
   ignore: T[] = []
 ) {
   let patterns = patternSpecs.map((pattern) => parseRegex(pattern).nfa());
-  return new NewPatternLexer(patterns, ignore);
+  return new PatternLexer(patterns, ignore);
 }

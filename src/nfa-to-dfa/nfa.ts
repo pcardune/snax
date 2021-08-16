@@ -86,7 +86,7 @@ export interface MutNFA extends ConstNFA {
   setStartState(state: number): void;
 }
 
-export class NewNFA implements MutNFA {
+export class NFA implements MutNFA {
   /**
    * Index of the error state
    */
@@ -116,7 +116,7 @@ export class NewNFA implements MutNFA {
   );
   private readonly alphabet: number[] = [];
 
-  private startState: number = NewNFA.ERROR_STATE;
+  private startState: number = NFA.ERROR_STATE;
 
   getAlphabet() {
     return this.alphabet;
@@ -127,7 +127,7 @@ export class NewNFA implements MutNFA {
   }
 
   getErrorState() {
-    return NewNFA.ERROR_STATE;
+    return NFA.ERROR_STATE;
   }
   getStartState() {
     return this.startState;
@@ -186,7 +186,7 @@ export class NewNFA implements MutNFA {
       );
     }
     if (
-      toState != NewNFA.ERROR_STATE &&
+      toState != NFA.ERROR_STATE &&
       (toState < 0 || toState >= this.states.numRows)
     ) {
       throw new Error(
@@ -202,7 +202,7 @@ export class NewNFA implements MutNFA {
   }
 
   isErrorState(state: number) {
-    return state == NewNFA.ERROR_STATE;
+    return state == NFA.ERROR_STATE;
   }
 
   isAcceptingState(state: number) {

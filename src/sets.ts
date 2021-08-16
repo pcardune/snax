@@ -109,7 +109,7 @@ export class HashSet<T> implements Set<T> {
 
 export class NumberSet implements ConstSet<number> {
   private data: Set<number>;
-  constructor(items: number[] | Set<number>) {
+  constructor(items: number[] | Set<number> = []) {
     this.data = new Set(items);
   }
   get size(): number {
@@ -118,6 +118,12 @@ export class NumberSet implements ConstSet<number> {
 
   [Symbol.iterator]() {
     return this.data[Symbol.iterator]();
+  }
+
+  first() {
+    for (let item of this) {
+      return item;
+    }
   }
 
   has(a: number): boolean {
@@ -181,5 +187,17 @@ export class MultiSet implements ConstSet<NumberSet> {
     if (!this.has(item)) {
       this.data.push(item);
     }
+  }
+
+  equals(other: MultiSet): boolean {
+    if (other.size != this.size) {
+      return false;
+    }
+    for (const otherSet of other) {
+      if (!this.has(otherSet)) {
+        return false;
+      }
+    }
+    return true;
   }
 }

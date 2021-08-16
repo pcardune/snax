@@ -250,7 +250,7 @@ export class NewNFA implements MutNFA {
         const nextStates = this.getNextStates(si, ai);
         let label = '';
         if (nextStates.size == 0) {
-          label = 'se';
+          label = '_';
         } else {
           label = [...nextStates].map(stateLabel).join(',');
         }

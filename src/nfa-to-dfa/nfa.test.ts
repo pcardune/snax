@@ -13,13 +13,13 @@ describe('NFA', () => {
     nfa.setStartState(s0);
     nfa.setAccepting(s2, true);
     expect(`\n` + nfa.toDebugStr()).toMatchInlineSnapshot(`
-      "
-           δ   a    b
-        >s0:  s1   se
-         s1:  se  *s2
-        *s2:  se   se
-      "
-    `);
+"
+     δ   a    b
+  >s0:  s1    _
+   s1:   _  *s2
+  *s2:   _    _
+"
+`);
   });
 
   describe('traversal functions', () => {

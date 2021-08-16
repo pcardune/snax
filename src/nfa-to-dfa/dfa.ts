@@ -126,6 +126,85 @@ function toDFA(nfa: ConstNFA, epsilon: number) {
   return dfa;
 }
 
+function minimizeDFA(dfa: DFA) {
+  const alphabet = dfa.getAlphabet();
+  function split(S: NumberSet) {
+    for (let ai = 0; ai < alphabet.length; ai++) {
+      let s1Next = undefined;
+      let s1: Set<number> = new Set();
+      let s2: Set<number> = new Set();
+      for (let si of S) {
+        let nextState = dfa.getNextState(si, ai);
+        if (s1Next === undefined) {
+          s1Next = nextState;
+          s1.add(si);
+        } else if (nextState === s1Next) {
+          s1.add(si);
+        } else {
+          s2.add(si);
+        }
+      }
+      if (s2.size > 0) {
+        return [new NumberSet(s1), new NumberSet(s2)];
+      }
+    }
+    return [S];
+  }
+
+  // Step 1: initialize partitions into accepting and non-accepting states
+  let p0: Set<number> = new Set();
+  let p1: Set<number> = new Set();
+  for (let si = 0; si < dfa.numStates; si++) {
+    if (dfa.isAcceptingState(si)) {
+      p0.add(si);
+    } else {
+      p1.add(si);
+    }
+  }
+  let T = new MultiSet([new NumberSet(p0), new NumberSet(p1)]);
+  let P = new MultiSet();
+  while (!P.equals(T)) {
+    P = T;
+    T = new MultiSet();
+    for (const p of P) {
+      for (const partition of split(p)) {
+        T.add(partition);
+      }
+    }
+  }
+
+  let minDFA = new DFA();
+  let Pstates = [...P];
+  for (let i = 0; i < Pstates.length; i++) {
+    minDFA.addState();
+  }
+  for (const c of alphabet) {
+    minDFA.addAlpha(c);
+  }
+  for (let pli = 0; pli < Pstates.length; pli++) {
+    const pl = Pstates[pli];
+    const dj = pl.first();
+    if (!dj) continue;
+    if (dfa.isAcceptingState(dj)) {
+      minDFA.setAccepting(dj, true);
+    }
+    if (pl.has(dfa.getStartState())) {
+      minDFA.setStartState(pli);
+    }
+    for (let c = 0; c < alphabet.length; c++) {
+      for (let pmi = 0; pmi < Pstates.length; pmi++) {
+        const pm = Pstates[pmi];
+        const dk = pm.first();
+        if (!dk) continue;
+        if (dfa.getNextState(dj, c) == dk) {
+          minDFA.addEdge(pli, pmi, c);
+        }
+      }
+    }
+  }
+  return minDFA;
+}
+
 type ConstDFA = Omit<ConstNFA, 'getNextStates'> & {
   getNextState(fromState: number, label: number): number | null;
   match(charCodes: Iterable<number>): void;
@@ -145,6 +224,10 @@ export class DFA extends NewNFA implements ConstDFA {
       );
     }
     super.addEdge(fromState, toState, alphaIndex);
+  }
+
+  minimized(): DFA {
+    return minimizeDFA(this);
   }
 
   getNextState(fromState: number, label: number): number | null {

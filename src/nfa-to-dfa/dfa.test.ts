@@ -44,10 +44,10 @@ test('DFA.fromNFA()', () => {
   expect('\n' + dfa.toDebugStr()).toMatchInlineSnapshot(`
 "
      δ    a    b    c
-  >s0:  *s1   se   se
-  *s1:   se  *s2  *s3
-  *s2:   se  *s2  *s3
-  *s3:   se  *s2  *s3
+  >s0:  *s1    _    _
+  *s1:    _  *s2  *s3
+  *s2:    _  *s2  *s3
+  *s3:    _  *s2  *s3
 "
 `);
 });
@@ -63,4 +63,37 @@ const cases = [
 test.each(cases)('match %p', (input, expected) => {
   let dfa = DFA.fromNFA(nfa, e);
   expect(dfa.match(charCodes(input))).toEqual(expected);
+});
+
+test('DFA.minimized', () => {
+  const dfa = new DFA();
+  let e = dfa.addAlpha('e');
+  let i = dfa.addAlpha('i');
+  let f = dfa.addAlpha('f');
+  let s0 = dfa.addState();
+  let s1 = dfa.addState();
+  let s2 = dfa.addState();
+  let s3 = dfa.addState();
+  let s4 = dfa.addState();
+  let s5 = dfa.addState();
+  dfa.setAccepting(s3, true);
+  dfa.setAccepting(s5, true);
+  dfa.setStartState(s0);
+  dfa.addEdge(s0, s1, f);
+  dfa.addEdge(s1, s2, e);
+  dfa.addEdge(s1, s4, i);
+  dfa.addEdge(s2, s3, e);
+  dfa.addEdge(s4, s5, e);
+  expect('\n' + dfa.toDebugStr()).toMatchInlineSnapshot(`
+"
+     δ    e   i   f
+  >s0:    _   _  s1
+   s1:   s2  s4   _
+   s2:  *s3   _   _
+  *s3:    _   _   _
+   s4:  *s5   _   _
+  *s5:    _   _   _
+"
+`);
+  const minDFA = dfa.minimized();
 });

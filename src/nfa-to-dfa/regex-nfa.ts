@@ -5,8 +5,8 @@
  * "Construction of an NFA from a Regular Expression" in
  */
 
-import { NumberSet } from '../sets';
-import { ConstDFA, DFA, DFAFromNFA } from './dfa';
+import { charCodes } from '../iter';
+import { DFA, DFAFromNFA } from './dfa';
 import { ConstNFA, NewNFA } from './nfa';
 import { toCharCode } from './util';
 
@@ -224,6 +224,42 @@ class RegexNFA extends NewNFA implements ConstRegexNFA {
   }
 }
 
+function chars(validChars: string | Iterable<number>): ConstRegexNFA {
+  if (typeof validChars == 'string') {
+    validChars = charCodes(validChars);
+  }
+  const nfa = new RegexNFA();
+  for (let charCode of validChars) {
+    nfa.addAlpha(charCode);
+  }
+  let startState = nfa.addState();
+  let endState = nfa.addState();
+  nfa.setStartState(startState);
+  nfa.setOnlyAcceptingState(endState);
+  for (let ai = 0; ai < nfa.getAlphabet().length; ai++) {
+    nfa.addEdge(startState, endState, ai);
+  }
+  return nfa;
+}
+
+const ASCII: number[] = [];
+for (let i = 1; i <= 127; i++) {
+  ASCII.push(i);
+}
+export function asciiChars(): ConstRegexNFA {
+  return chars(ASCII);
+}
+
+export function notChars(
+  invalidChars: string | Iterable<number>
+): ConstRegexNFA {
+  if (typeof invalidChars == 'string') {
+    invalidChars = charCodes(invalidChars);
+  }
+  let invalid = [...invalidChars];
+  return chars(ASCII.filter((c) => invalid.indexOf(c) == -1));
+}
+
 export class SingleCharNFA extends RegexNFA implements ConstRegexNFA {
   constructor(char: string | number) {
     super();
@@ -314,7 +350,7 @@ export class CombinedNFA extends NewNFA {
   }
 }
 
-class CombinedDFA {
+export class CombinedDFA {
   private dfa: DFAFromNFA;
   private dfaStateToSourceIndex: Map<number, number[]>;
   constructor(combinedNFA: CombinedNFA) {
@@ -335,6 +371,10 @@ class CombinedDFA {
 
     this.dfa = dfa;
     this.dfaStateToSourceIndex = dfaStateToSourceIndex;
+  }
+
+  static fromNFAs(nfas: ConstNFA[]): CombinedDFA {
+    return new CombinedDFA(new CombinedNFA(nfas));
   }
 
   match(

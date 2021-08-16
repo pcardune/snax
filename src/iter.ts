@@ -116,7 +116,7 @@ export function concat<T>(...iters: Iterator<T>[]) {
   return new ConcatIterator(...iters);
 }
 
-export class RewindableIterator<T> implements Iterator<T> {
+export class RewindableIterator<T> implements IterableIterator<T> {
   private iter: Iterator<T, T>;
   private buffer: T[] = [];
   private index: number = 0;
@@ -138,6 +138,9 @@ export class RewindableIterator<T> implements Iterator<T> {
   reset(n: number) {
     this.buffer = this.buffer.slice(n);
     this.index = 0;
+  }
+  [Symbol.iterator]() {
+    return this;
   }
   get buffered() {
     return this.buffer.length;

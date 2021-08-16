@@ -1,7 +1,1 @@
-export {
-  nfaPattern,
-  stringPattern,
-  buildLexer,
-  TokenIterator,
-  PatternLexer,
-} from './lexer-gen';
+export { buildLexer, TokenIterator, PatternLexer } from './lexer-gen';

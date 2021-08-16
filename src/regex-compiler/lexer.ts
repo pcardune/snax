@@ -1,12 +1,10 @@
+import { OrderedMap } from '../data-structures/OrderedMap';
 import { charCodes, peakable } from '../iter';
-import {
-  nfaPattern,
-  stringPattern,
-  TokenIterator,
-  PatternLexer,
-} from '../lexer-gen';
 import { LexToken } from '../lexer-gen/lexer-gen';
-import { allASCIINFA, anyCharNFA, concatNFA, labelNFA } from './regex-compiler';
+import { NewPatternLexer, NewTokenIterator } from '../lexer-gen/recognizer';
+import { ConstNFA } from '../nfa-to-dfa/nfa';
+import { asciiChars, notChars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
+import { memoize } from '../utils';
 
 export enum Token {
   PLUS,
@@ -23,26 +21,25 @@ export enum Token {
 
 export type Lexeme = LexToken<Token>;
 
-function makeLexer() {
-  const patterns = [
-    nfaPattern(Token.ESCAPE, concatNFA(labelNFA('\\'), anyCharNFA())),
-    stringPattern(Token.ANY_CHAR, '.'),
-    stringPattern(Token.PLUS, '+'),
-    stringPattern(Token.STAR, '*'),
-    stringPattern(Token.OR, '|'),
-    stringPattern(Token.OPEN_PAREN, '('),
-    stringPattern(Token.CLOSE_PAREN, ')'),
-    stringPattern(Token.OPEN_BRACKET, '['),
-    stringPattern(Token.CLOSE_BRACKET, ']'),
-    nfaPattern(Token.CHAR, allASCIINFA()),
-  ];
-  return new PatternLexer(patterns);
-}
+const getNewLexer = memoize(() => {
+  const patterns: OrderedMap<Token, ConstNFA> = new OrderedMap([
+    [Token.ESCAPE, new SingleCharNFA('\\').concat(notChars('\n\r'))],
+    [Token.ANY_CHAR, new SingleCharNFA('.')],
+    [Token.PLUS, new SingleCharNFA('+')],
+    [Token.STAR, new SingleCharNFA('*')],
+    [Token.OR, new SingleCharNFA('|')],
+    [Token.OPEN_PAREN, new SingleCharNFA('(')],
+    [Token.CLOSE_PAREN, new SingleCharNFA(')')],
+    [Token.OPEN_BRACKET, new SingleCharNFA('[')],
+    [Token.CLOSE_BRACKET, new SingleCharNFA(']')],
+    [Token.CHAR, asciiChars()],
+  ]);
+  return new NewPatternLexer(patterns);
+});
 
 export class Lexer implements Iterator<Lexeme, Lexeme> {
   private charIter: Iterator<number, number>;
-  private static tokenizer?: PatternLexer<Token>;
-  private tokenIter?: TokenIterator<Token>;
+  private tokenIter?: NewTokenIterator<Token>;
 
   constructor(input: string | Iterator<number>) {
     if (typeof input == 'string') {
@@ -53,11 +50,8 @@ export class Lexer implements Iterator<Lexeme, Lexeme> {
   }
 
   private get tokens() {
-    if (!Lexer.tokenizer) {
-      Lexer.tokenizer = makeLexer();
-    }
     if (!this.tokenIter) {
-      this.tokenIter = Lexer.tokenizer.parse(this.charIter);
+      this.tokenIter = getNewLexer().parse(this.charIter);
     }
     return this.tokenIter;
   }

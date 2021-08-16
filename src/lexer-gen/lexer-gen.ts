@@ -156,9 +156,6 @@ export class Pattern<T> {
     this.pattern = pattern;
   }
 }
-export function nfaPattern<T>(token: T, pattern: NFA<undefined>): Pattern<T> {
-  return new Pattern(token, pattern);
-}
 export function stringPattern<T>(token: T, pattern: string): Pattern<T> {
   return new Pattern(token, stringNFA(pattern));
 }

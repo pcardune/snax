@@ -1,13 +1,9 @@
 import { charCodes, collect } from '../iter';
-import {
-  MultiPatternMatcher,
-  Pattern,
-  regexPattern,
-  stringPattern,
-  LexToken,
-  PatternLexer,
-} from './lexer-gen';
-import { parseRegex, concatNFA, nfaForNode } from '../regex-compiler';
+import { buildLexer, LexToken } from './lexer-gen';
+import { MultiPatternMatcher, NewPatternLexer } from './recognizer';
+import { OrderedMap } from '../data-structures/OrderedMap';
+import { chars, CombinedNFA, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
+import { parseRegex } from '../regex-compiler';
 
 export function token<T>(
   token: T,
@@ -25,18 +21,12 @@ describe('lexer-gen', () => {
     DIGIT = 'DIGIT',
     DIGITS = 'DIGITS',
   }
-  const patterns = [
-    stringPattern(Token.ADD, '+'),
-    stringPattern(Token.SUB, '-'),
-    regexPattern(Token.DIGIT, '0|1|2|3|4|5|6|7|8|9'),
-    new Pattern(
-      Token.DIGITS,
-      concatNFA(
-        nfaForNode(parseRegex('0|1|2|3|4|5|6|7|8|9')),
-        nfaForNode(parseRegex('(0|1|2|3|4|5|6|7|8|9)*'))
-      )
-    ),
-  ];
+  const patterns = new OrderedMap([
+    [Token.ADD, new SingleCharNFA('+')],
+    [Token.SUB, new SingleCharNFA('-')],
+    [Token.DIGIT, chars('0123456789')],
+    [Token.DIGITS, chars('0123456789').concat(chars('0123456789').star())],
+  ]);
 
   describe('MultiPatternMatcher', () => {
     let matcher = new MultiPatternMatcher(patterns);
@@ -55,7 +45,7 @@ describe('lexer-gen', () => {
   });
 
   describe('Tokenizer', () => {
-    let tokenizer = new PatternLexer(patterns);
+    let tokenizer = new NewPatternLexer(patterns);
     test("parse('123+456-78')", () => {
       let chars = charCodes('123+456-78');
       let tokens = collect(tokenizer.parse(chars));
@@ -76,5 +66,45 @@ describe('lexer-gen', () => {
         'Ran out of tokens before reaching end of stream'
       );
     });
+  });
+});
+
+describe('buildLexer', () => {
+  enum MT {
+    NUM = 'NUM',
+    ID = 'ID',
+    LPAREN = '(',
+    RPAREN = ')',
+    PLUS = '+',
+    MINUS = '-',
+    WS = 'WS',
+  }
+  let patterns = new OrderedMap([
+    [MT.NUM, '\\d\\d*'],
+    [MT.ID, '\\w\\w*'],
+    [MT.LPAREN, '\\('],
+    [MT.RPAREN, '\\)'],
+    [MT.PLUS, '\\+'],
+    [MT.MINUS, '-'],
+    [MT.WS, '( |\t)+'],
+  ]);
+  let lexer: NewPatternLexer<MT>;
+  beforeAll(() => {
+    lexer = buildLexer(patterns, [MT.WS]);
+  });
+  test('should lex the right tokens', () => {
+    let chars = charCodes('34+5-(4 - something)');
+    let tokens = [...lexer.parse(chars)];
+    expect(tokens.map((t) => t.toString()).join('\n')).toMatchInlineSnapshot(`
+      "<NUM>34</NUM>
+      <+>+</+>
+      <NUM>5</NUM>
+      <->-</->
+      <(>(</(>
+      <NUM>4</NUM>
+      <->-</->
+      <ID>something</ID>
+      <)>)</)>"
+    `);
   });
 });

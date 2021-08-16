@@ -14,6 +14,8 @@ export interface ConstRegexNFA extends ConstNFA {
   getOnlyAcceptingState(): number;
 }
 
+export type { RegexNFA };
+
 const EPSILON_CHAR_CODE = -1;
 
 /**
@@ -146,6 +148,16 @@ class RegexNFA extends NewNFA implements ConstRegexNFA {
     addEdgesFrom(right, this, rightStateMap, rightAlphaMap);
   }
 
+  clone(): RegexNFA {
+    let nfa = new RegexNFA();
+    let alphaMap = nfa.addAlphabetFrom(this);
+    let stateMap = nfa.addStatesFrom(this);
+    nfa.addEdgesFrom(this, stateMap, alphaMap);
+    nfa.setStartState(this.getStartState());
+    nfa.setOnlyAcceptingState(this.getOnlyAcceptingState());
+    return nfa;
+  }
+
   or(right: ConstRegexNFA): this {
     // step 0: add epsilon to the alphabet if its not already in there.
     let epsilon = this.addAlpha(EPSILON_CHAR_CODE);
@@ -194,7 +206,11 @@ class RegexNFA extends NewNFA implements ConstRegexNFA {
     // step 4: connect accepting state(s) of left to start state of right
     // via epsilon
     let epsilon = this.addAlpha(EPSILON_CHAR_CODE);
-    this.addEdge(this.getOnlyAcceptingState(), rightStateMap[0], epsilon);
+    this.addEdge(
+      this.getOnlyAcceptingState(),
+      rightStateMap[right.getStartState()],
+      epsilon
+    );
     this.setOnlyAcceptingState(rightStateMap[right.getOnlyAcceptingState()]);
     return this;
   }
@@ -224,7 +240,7 @@ class RegexNFA extends NewNFA implements ConstRegexNFA {
   }
 }
 
-function chars(validChars: string | Iterable<number>): ConstRegexNFA {
+export function chars(validChars: string | Iterable<number>): RegexNFA {
   if (typeof validChars == 'string') {
     validChars = charCodes(validChars);
   }
@@ -246,13 +262,11 @@ const ASCII: number[] = [];
 for (let i = 1; i <= 127; i++) {
   ASCII.push(i);
 }
-export function asciiChars(): ConstRegexNFA {
+export function asciiChars(): RegexNFA {
   return chars(ASCII);
 }
 
-export function notChars(
-  invalidChars: string | Iterable<number>
-): ConstRegexNFA {
+export function notChars(invalidChars: string | Iterable<number>): RegexNFA {
   if (typeof invalidChars == 'string') {
     invalidChars = charCodes(invalidChars);
   }

@@ -1,5 +1,6 @@
+import { OrderedMap } from './data-structures/OrderedMap';
 import { buildParser } from './grammar/top-down-parser';
-import { charCodes, collect } from './iter';
+import { charCodes } from './iter';
 import { buildLexer } from './lexer-gen';
 
 describe('integration test', () => {
@@ -13,7 +14,7 @@ describe('integration test', () => {
     WS = 'WS',
   }
   let lexer = buildLexer(
-    [
+    new OrderedMap([
       [MT.NUM, '\\d\\d*'],
       [MT.ID, '\\w\\w*'],
       [MT.LPAREN, '\\('],
@@ -21,7 +22,7 @@ describe('integration test', () => {
       [MT.PLUS, '\\+'],
       [MT.MINUS, '-'],
       [MT.WS, '( |\t)+'],
-    ],
+    ]),
     [MT.WS]
   );
 
@@ -32,12 +33,15 @@ describe('integration test', () => {
   });
 
   test('stuff2', () => {
-    let tokens = [...lexer.parse(charCodes('34 + 5'))];
+    let chars = charCodes('34 + 5-4');
+    let tokens = [...lexer.parse(chars)];
     expect(tokens.map((t) => t.toString())).toMatchInlineSnapshot(`
       Array [
         "<NUM>34</NUM>",
         "<+>+</+>",
         "<NUM>5</NUM>",
+        "<->-</->",
+        "<NUM>4</NUM>",
       ]
     `);
     let result = parser.parseTokens(tokens);
@@ -54,7 +58,13 @@ describe('integration test', () => {
       |  |  |  |  <NUM><NUM>5</NUM></NUM>
       |  |  |  </Term>
       |  |  |  <ExprP>
-      |  |  |  |  <ϵ>undefined</ϵ>
+      |  |  |  |  <-><->-</-></->
+      |  |  |  |  <Term>
+      |  |  |  |  |  <NUM><NUM>4</NUM></NUM>
+      |  |  |  |  </Term>
+      |  |  |  |  <ExprP>
+      |  |  |  |  |  <ϵ>undefined</ϵ>
+      |  |  |  |  </ExprP>
       |  |  |  </ExprP>
       |  |  </ExprP>
       |  </Expr>

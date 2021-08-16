@@ -14,6 +14,7 @@ import {
   Edge,
   NFAState,
 } from '../nfa-to-dfa';
+import { RegexNFA } from '../nfa-to-dfa/regex-nfa';
 import { RNode } from './parser';
 
 /**
@@ -209,7 +210,8 @@ export function charClassNFA<D>(
 
 /**
  * Construct an nfa from a node within a regex parse tree.
+ * @deprecated
  */
-export function nfaForNode<D>(node: RNode, data?: D): NFA<D | undefined> {
-  return node.nfa(data);
+export function nfaForNode(node: RNode): RegexNFA {
+  return node.nfa();
 }

@@ -4,7 +4,7 @@ import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { CombinedDFA } from '../nfa-to-dfa/regex-nfa';
 import { LexToken } from './lexer-gen';
 
-class MultiPatternMatcher<T> {
+export class MultiPatternMatcher<T> {
   private dfa: CombinedDFA;
   private tokens: T[];
   constructor(patterns: OrderedMap<T, ConstNFA>) {

@@ -1,6 +1,7 @@
 import { Regex } from './regex';
 
 const cases: [string, { matches: string[]; fails?: string[] }][] = [
+  ['a', { matches: ['a'] }],
   ['\n', { matches: ['\n'] }],
   ['(a|b)*abb', { matches: ['abb', 'ababb', 'aaaaabb', 'bbaabaababababb'] }],
   ['ab*b', { matches: ['ab', 'abbb'] }],
@@ -18,7 +19,7 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
   ['\\w', { matches: ['g', '_', 'A', 'Z', '3'], fails: ['-', ';'] }],
   // plus operator
   ['a+b', { matches: ['ab', 'aaab'], fails: ['b'] }],
-  ['(ab)+', { matches: ['ab', 'abababab'] }],
+  ['(ab)+', { matches: ['ab', 'abababab'], fails: [''] }],
 
   // character classes
   ['[abc]', { matches: ['a', 'b', 'c'], fails: ['d', 'e', 'f', '[', ']'] }],
@@ -54,28 +55,27 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
   ],
   ['[^ab]', { matches: ['c', 'd', ' ', '\n'], fails: ['a', 'b'] }],
 ];
-describe.each(cases)('%p', (pattern, { matches, fails }) => {
-  test(`compiles ${pattern}`, () => {
-    expect(() => new Regex(pattern)).not.toThrow();
-  });
 
-  describe('matches', () => {
-    let re: Regex;
-    beforeAll(() => {
-      re = new Regex(pattern);
-    });
-    test.each(matches)('matches %p', (input) => {
-      let result = re.match(input);
-      expect(result).toBeDefined();
-      if (result != undefined) {
-        expect(result.substr).toEqual(input);
-      }
-    });
-    if (fails) {
-      test.each(fails)('should not match %p', (input) => {
-        let result = re.match(input);
-        expect(result).not.toBeDefined();
-      });
+test.each(cases)(`compiles %p`, (pattern) => {
+  expect(() => new Regex(pattern)).not.toThrow();
+});
+
+describe.each(cases)('%p', (pattern, { matches, fails }) => {
+  let re: Regex;
+  beforeAll(() => {
+    re = new Regex(pattern);
+  });
+  test.each(matches)('matches %p', (input) => {
+    let result = re.match(input);
+    expect(result).toBeDefined();
+    if (result != undefined) {
+      expect(result.substr).toEqual(input);
     }
   });
+  if (fails) {
+    test.each(fails)('should not match %p', (input) => {
+      let result = re.match(input);
+      expect(result).toBeNull();
+    });
+  }
 });

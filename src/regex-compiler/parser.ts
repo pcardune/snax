@@ -1,16 +1,12 @@
-import { collect, map, range } from '../iter';
-import { label, NFA } from '../nfa-to-dfa';
-import { Lexeme, Lexer, Token } from './lexer';
+import { range } from '../iter';
 import {
-  anyCharNFA,
-  CharacterClass,
-  concatNFA,
-  labelNFA,
-  multiOrNFA,
-  nfaForNode,
-  orNFA,
-  starNFA,
-} from './regex-compiler';
+  chars,
+  notChars,
+  RegexNFA,
+  SingleCharNFA,
+} from '../nfa-to-dfa/regex-nfa';
+import { Lexeme, Lexer, Token } from './lexer';
+import { CharacterClass } from './regex-compiler';
 
 export enum NodeKind {
   OR = 'OR',
@@ -32,65 +28,56 @@ export abstract class RNode<Props = unknown> {
   toJSON(): any {
     return this.props;
   }
-  abstract nfa<D>(data?: D): NFA<D | undefined>;
+  abstract nfa(): RegexNFA;
 }
 
 export class OrNode extends RNode<{ left: RNode; right: RNode }> {
   kind = NodeKind.OR;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return orNFA(
-      nfaForNode(this.props.left, data),
-      nfaForNode(this.props.right, data),
-      data
-    );
+  nfa() {
+    return this.props.left.nfa().or(this.props.right.nfa());
   }
 }
 
 export class AnyCharNode extends RNode<{}> {
   kind = NodeKind.ANY_CHAR;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return anyCharNFA(data);
+  nfa() {
+    return notChars('\n\r');
   }
 }
 
 export class ConcatNode extends RNode<{ left: RNode; right: RNode }> {
   kind = NodeKind.CONCAT;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return concatNFA(
-      nfaForNode(this.props.left, data),
-      nfaForNode(this.props.right, data)
-    );
+  nfa() {
+    return this.props.left.nfa().concat(this.props.right.nfa());
   }
 }
 
 export class StarNode extends RNode<{ child: RNode }> {
   kind = NodeKind.STAR;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return starNFA(nfaForNode(this.props.child, data), data);
+  nfa() {
+    return this.props.child.nfa().star();
   }
 }
 
 export class OneOrMoreNode extends RNode<{ child: RNode }> {
   kind = NodeKind.ONE_OR_MORE;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return concatNFA(
-      nfaForNode(this.props.child, data),
-      starNFA(nfaForNode(this.props.child, data), data)
-    );
+  nfa() {
+    let child = this.props.child.nfa();
+    return child.concat(child.clone().star());
   }
 }
 
 export class ParenNode extends RNode<{ child: RNode }> {
   kind = NodeKind.PAREN;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return this.props.child.nfa(data);
+  nfa() {
+    return this.props.child.nfa();
   }
 }
 
 export class CharNode extends RNode<{ char: string }> {
   kind = NodeKind.CHAR;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return labelNFA(label(this.props.char), data);
+  nfa() {
+    return new SingleCharNFA(this.props.char);
   }
 }
 type CharClassSpec =
@@ -140,11 +127,8 @@ export class CharClassNode extends RNode<{ charClass: CharClassSpec }> {
         );
     }
   }
-  nfa<D>(data?: D): NFA<D | undefined> {
-    return multiOrNFA(
-      this.getValidCharCodes().map((charCode) => labelNFA(label(charCode))),
-      data
-    );
+  nfa() {
+    return chars(this.getValidCharCodes());
   }
 }
 
@@ -153,23 +137,17 @@ class MultiCharClassNode extends RNode<{
   negate: boolean;
 }> {
   kind: NodeKind.MULTI_CHAR_CLASS = NodeKind.MULTI_CHAR_CLASS;
-  nfa<D>(data?: D): NFA<D | undefined> {
-    if (this.props.negate) {
-      let validCodes = new Set([...range(0, 127)]);
-      for (const charClass of this.props.charClassNodes) {
-        for (const charCode of charClass.getValidCharCodes()) {
-          validCodes.delete(charCode);
-        }
+  nfa() {
+    let charCodes: Set<number> = new Set();
+    for (const charClass of this.props.charClassNodes) {
+      for (const charCode of charClass.getValidCharCodes()) {
+        charCodes.add(charCode);
       }
-      return multiOrNFA(
-        [...map(validCodes.values(), (code) => labelNFA(label(code), data))],
-        data
-      );
     }
-    return multiOrNFA(
-      this.props.charClassNodes.map((node) => node.nfa(data)),
-      data
-    );
+    if (this.props.negate) {
+      return notChars(charCodes);
+    }
+    return chars(charCodes);
   }
 }
 

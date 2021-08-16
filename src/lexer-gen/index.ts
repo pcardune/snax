@@ -1,1 +1,1 @@
-export { buildLexer, TokenIterator, PatternLexer } from './lexer-gen';
+export { buildLexer } from './lexer-gen';

@@ -1,7 +1,7 @@
-import { CombinedNFA, SingleCharNFA } from "./regex-nfa";
+import { CombinedNFA, SingleCharNFA } from './regex-nfa';
 
-test("SingleCharNFA", () => {
-  expect("\n" + new SingleCharNFA("a").toDebugStr()).toMatchInlineSnapshot(`
+test('SingleCharNFA', () => {
+  expect('\n' + new SingleCharNFA('a').toDebugStr()).toMatchInlineSnapshot(`
     "
          δ    a
       >s0:  *s1
@@ -10,12 +10,11 @@ test("SingleCharNFA", () => {
   `);
 });
 
-describe("concat()", () => {
-  let aNFA = new SingleCharNFA("a");
-  let bNFA = new SingleCharNFA("b");
-
-  test("concat(ab)", () => {
-    expect("\n" + aNFA.concat(bNFA).toDebugStr()).toMatchInlineSnapshot(`
+describe('concat()', () => {
+  test('concat(ab)', () => {
+    let aNFA = new SingleCharNFA('a');
+    let bNFA = new SingleCharNFA('b');
+    expect('\n' + aNFA.concat(bNFA).toDebugStr()).toMatchInlineSnapshot(`
       "
            δ   a    b   ϵ
         >s0:  s1    _   _
@@ -25,13 +24,44 @@ describe("concat()", () => {
       "
     `);
   });
+  test('concat(aa*)', () => {
+    let aNFA = new SingleCharNFA('a');
+    expect('\n' + aNFA.toDebugStr()).toMatchInlineSnapshot(`
+      "
+           δ    a
+        >s0:  *s1
+        *s1:    _
+      "
+    `);
+    let bNFA = new SingleCharNFA('a').star();
+    expect('\n' + bNFA.toDebugStr()).toMatchInlineSnapshot(`
+      "
+           δ   a       ϵ
+         s0:  s1       _
+         s1:   _  s0,*s3
+        >s2:   _  s0,*s3
+        *s3:   _       _
+      "
+    `);
+    expect('\n' + aNFA.concat(bNFA).toDebugStr()).toMatchInlineSnapshot(`
+"
+     δ   a       ϵ
+  >s0:  s1       _
+   s1:   _      s4
+   s2:  s3       _
+   s3:   _  s2,*s5
+   s4:   _  s2,*s5
+  *s5:   _       _
+"
+`);
+  });
 });
 
-describe("or()", () => {
-  let aNFA = new SingleCharNFA("a");
-  let bNFA = new SingleCharNFA("b");
-  test("or(ab)", () => {
-    expect("\n" + aNFA.or(bNFA).toDebugStr()).toMatchInlineSnapshot(`
+describe('or()', () => {
+  let aNFA = new SingleCharNFA('a');
+  let bNFA = new SingleCharNFA('b');
+  test('or(ab)', () => {
+    expect('\n' + aNFA.or(bNFA).toDebugStr()).toMatchInlineSnapshot(`
       "
            δ   a      ϵ   b
          s0:  s1      _   _
@@ -45,10 +75,10 @@ describe("or()", () => {
   });
 });
 
-describe("star()", () => {
-  let aNFA = new SingleCharNFA("a");
-  test("star(a)", () => {
-    expect("\n" + aNFA.star().toDebugStr()).toMatchInlineSnapshot(`
+describe('star()', () => {
+  let aNFA = new SingleCharNFA('a');
+  test('star(a)', () => {
+    expect('\n' + aNFA.star().toDebugStr()).toMatchInlineSnapshot(`
       "
            δ   a       ϵ
          s0:  s1       _
@@ -80,11 +110,11 @@ function str(chars: string) {
   return re;
 }
 
-describe("toDFA", () => {
-  let aOrB = charClass("abcd");
-  test("toDFA(a|b|c|d)", () => {
+describe('toDFA', () => {
+  let aOrB = charClass('abcd');
+  test('toDFA(a|b|c|d)', () => {
     const dfa = aOrB.toDFA();
-    expect("\n" + dfa.toDebugStr()).toMatchInlineSnapshot(`
+    expect('\n' + dfa.toDebugStr()).toMatchInlineSnapshot(`
       "
       DFAfromNFA:
            δ    a    b    c    d
@@ -105,12 +135,11 @@ describe("toDFA", () => {
   });
 });
 
-describe("CombinedNFA", () => {
-  const nfas = [str("who"), str("what"), str("where")];
-
-  test("toDebugStr", () => {
+describe('CombinedNFA', () => {
+  test('who,what,where toDebugStr', () => {
+    const nfas = [str('who'), str('what'), str('where')];
     let combined = new CombinedNFA(nfas);
-    expect("\n" + combined.toDebugStr()).toMatchInlineSnapshot(`
+    expect('\n' + combined.toDebugStr()).toMatchInlineSnapshot(`
       "
       CombinedNFA:
             δ    w    h          ￿    o    a     t     e    r
@@ -152,11 +181,11 @@ describe("CombinedNFA", () => {
   });
 });
 
-describe("CombinedDFA", () => {
-  test("toDebugStr", () => {
-    const nfas = [str("who"), str("what"), str("where")];
+describe('CombinedDFA', () => {
+  test('toDebugStr', () => {
+    const nfas = [str('who'), str('what'), str('where')];
     let combined = new CombinedNFA(nfas).toCombinedDFA();
-    expect("\n" + combined.toDebugStr()).toMatchInlineSnapshot(`
+    expect('\n' + combined.toDebugStr()).toMatchInlineSnapshot(`
       "
       CombinedDFA:
       DFAfromNFA:
@@ -190,10 +219,10 @@ describe("CombinedDFA", () => {
     `);
   });
 
-  test("Overlapping NFAs", () => {
-    const nfas = [charClass("ab"), charClass("bc")];
+  test('Overlapping NFAs', () => {
+    const nfas = [charClass('ab'), charClass('bc')];
     let combined = new CombinedNFA(nfas).toCombinedDFA();
-    expect("\n" + combined.toDebugStr()).toMatchInlineSnapshot(`
+    expect('\n' + combined.toDebugStr()).toMatchInlineSnapshot(`
       "
       CombinedDFA:
       DFAfromNFA:

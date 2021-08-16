@@ -42,27 +42,35 @@ beforeAll(() => {
 test('DFA.fromNFA()', () => {
   let dfa = DFA.fromNFA(nfa, e);
   expect('\n' + dfa.toDebugStr()).toMatchInlineSnapshot(`
-"
-     δ    a    b    c
-  >s0:  *s1    _    _
-  *s1:    _  *s2  *s3
-  *s2:    _  *s2  *s3
-  *s3:    _  *s2  *s3
-"
-`);
+    "
+    DFAfromNFA:
+         δ    a    b    c
+      >s0:  *s1    _    _
+      *s1:    _  *s2  *s3
+      *s2:    _  *s2  *s3
+      *s3:    _  *s2  *s3
+
+    Mapping from DFA state to source NFA states:
+    s0: {0}
+    s1: {1,2,3,4,6,9}
+    s2: {3,4,5,6,8,9}
+    s3: {3,4,6,7,8,9}
+    "
+  `);
 });
 // a(b|c)*
-const cases = [
+const cases: [string, string | undefined][] = [
   ['a', 'a'],
   ['agfh', 'a'],
   ['acfda', 'ac'],
   ['abcbccfda', 'abcbcc'],
-  ['foobar', ''],
-  ['', ''],
+  ['foobar', undefined],
+  ['', undefined],
 ];
 test.each(cases)('match %p', (input, expected) => {
   let dfa = DFA.fromNFA(nfa, e);
-  expect(dfa.match(charCodes(input))).toEqual(expected);
+  const match = dfa.match(charCodes(input));
+  expect(match?.substr).toEqual(expected);
 });
 
 test('DFA.minimized', () => {
@@ -85,15 +93,15 @@ test('DFA.minimized', () => {
   dfa.addEdge(s2, s3, e);
   dfa.addEdge(s4, s5, e);
   expect('\n' + dfa.toDebugStr()).toMatchInlineSnapshot(`
-"
-     δ    e   i   f
-  >s0:    _   _  s1
-   s1:   s2  s4   _
-   s2:  *s3   _   _
-  *s3:    _   _   _
-   s4:  *s5   _   _
-  *s5:    _   _   _
-"
-`);
+    "
+         δ    e   i   f
+      >s0:    _   _  s1
+       s1:   s2  s4   _
+       s2:  *s3   _   _
+      *s3:    _   _   _
+       s4:  *s5   _   _
+      *s5:    _   _   _
+    "
+  `);
   const minDFA = dfa.minimized();
 });

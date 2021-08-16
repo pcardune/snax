@@ -11,7 +11,7 @@ import { ConstNFA, closure, move, NewNFA } from './nfa';
  *                alphabet item that does not consume characters
  * @returns a new DFA, which is just an NFA without ambiguous transitions
  */
-function toDFA(nfa: ConstNFA, epsilon: number) {
+function toDFA(nfa: ConstNFA, epsilon: number): DFAFromNFA {
   // Step 1: Perform the subset construction.
   // See page 47 of Engineering a Compiler (Cooper & Torczon)
   // Step 1.1: make a list of labels: the set of alphabet indices
@@ -78,8 +78,9 @@ function toDFA(nfa: ConstNFA, epsilon: number) {
     }
   }
 
+  let dfaStateToNfaConfig = [...nfaConfigurations].filter((q) => q.size > 0);
   // Step 2: Now construct the DFA
-  let dfa = new DFA();
+  let dfa = new DFAFromNFA(dfaStateToNfaConfig);
   // Step 2.1: Copy the alphabet from the nfa to the dfa, ommitting
   // the labels we didn't consider (epsilon)
   for (const label of labels) {
@@ -88,7 +89,6 @@ function toDFA(nfa: ConstNFA, epsilon: number) {
 
   // Step 2.2: Add a state to the dfa for each configuration the nfa
   // could be in
-  let dfaStateToNfaConfig = [...nfaConfigurations].filter((q) => q.size > 0);
   let dfaStateToQstateHash = [];
   for (let qi = 0; qi < dfaStateToNfaConfig.length; qi++) {
     // Add a state to the dfa for every configuration in qi
@@ -205,13 +205,13 @@ function minimizeDFA(dfa: DFA) {
   return minDFA;
 }
 
-type ConstDFA = Omit<ConstNFA, 'getNextStates'> & {
+export type ConstDFA = Omit<ConstNFA, 'getNextStates'> & {
   getNextState(fromState: number, label: number): number | null;
   match(charCodes: Iterable<number>): void;
 };
 
 export class DFA extends NewNFA implements ConstDFA {
-  static fromNFA(nfa: ConstNFA, epsilon: number): DFA {
+  static fromNFA(nfa: ConstNFA, epsilon: number): DFAFromNFA {
     return toDFA(nfa, epsilon);
   }
 
@@ -237,15 +237,15 @@ export class DFA extends NewNFA implements ConstDFA {
     return null;
   }
 
-  match(input: Iterable<number>) {
+  match(input: Iterable<number>): { substr: string; state: number } | null {
     let currentState = this.getStartState();
     let matchBuffer: string = '';
 
-    let accepted: string = '';
+    let accepted: { substr: string; state: number } | null = null;
 
     for (const charCode of input) {
       if (this.isAcceptingState(currentState)) {
-        accepted = matchBuffer;
+        accepted = { substr: matchBuffer, state: currentState };
       }
       matchBuffer += String.fromCharCode(charCode);
       const nextState = this.getNextState(
@@ -258,8 +258,37 @@ export class DFA extends NewNFA implements ConstDFA {
       currentState = nextState;
     }
     if (this.isAcceptingState(currentState)) {
-      return matchBuffer;
+      return { substr: matchBuffer, state: currentState };
     }
     return accepted;
+  }
+}
+
+export class DFAFromNFA extends DFA {
+  nfaStateMap: NumberSet[];
+  constructor(nfaStateMap: NumberSet[]) {
+    super();
+    this.nfaStateMap = nfaStateMap;
+  }
+
+  getStatesForSourceNFAState(sourceNFAState: number): number[] {
+    let states = [];
+    for (const [si, sourceNFAStates] of this.nfaStateMap.entries()) {
+      if (sourceNFAStates.has(sourceNFAState)) {
+        states.push(si);
+      }
+    }
+    return states;
+  }
+
+  override toDebugStr() {
+    let out = 'DFAfromNFA:\n' + super.toDebugStr();
+    out += '\n';
+
+    out += 'Mapping from DFA state to source NFA states:\n';
+    for (const [si, nfaStates] of this.nfaStateMap.entries()) {
+      out += `s${si}: ${nfaStates.hash()}\n`;
+    }
+    return out;
   }
 }

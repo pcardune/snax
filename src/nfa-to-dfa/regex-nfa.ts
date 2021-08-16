@@ -5,6 +5,7 @@
  * "Construction of an NFA from a Regular Expression" in
  */
 
+import { DFA } from './dfa';
 import { ConstNFA, NewNFA } from './nfa';
 import { toCharCode } from './util';
 
@@ -19,6 +20,17 @@ abstract class RegexNFA extends NewNFA implements ConstRegexNFA {
 
   getAcceptingState(): number {
     return this.acceptingState;
+  }
+
+  toDFA(): DFA {
+    return DFA.fromNFA(this, this.getAlphabetIndex(EPSILON_CHAR_CODE));
+  }
+
+  override toDebugStr(): string {
+    return super.toDebugStr({
+      alphaLabel: (charCode) =>
+        charCode == EPSILON_CHAR_CODE ? 'ϵ' : String.fromCharCode(charCode),
+    });
   }
 
   /**

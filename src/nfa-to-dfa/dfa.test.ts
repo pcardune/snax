@@ -1,5 +1,5 @@
 import { charCodes } from '../iter';
-import { DFA, toDFA } from './dfa';
+import { DFA } from './dfa';
 import { NewNFA } from './nfa';
 
 let nfa: NewNFA;

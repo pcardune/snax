@@ -116,7 +116,7 @@ function toDFA(nfa: ConstNFA, epsilon: number) {
     const nfaStates = dfaStateToNfaConfig[qi];
     const key = nfaStates.hash();
     for (let ai = 0; ai < labels.length; ai++) {
-      const nextStates = nextConfigs[key][ai];
+      const nextStates = nextConfigs[key][labels[ai]];
       const nextDFAState = dfaStateToQstateHash.indexOf(nextStates.hash());
       if (nextDFAState != -1) {
         dfa.addEdge(qi, nextDFAState, ai);

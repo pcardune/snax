@@ -217,7 +217,11 @@ export class NewNFA implements MutNFA {
     return this.states.getCell(startState, alphaIndex);
   }
 
-  toDebugStr(): string {
+  toDebugStr(
+    config: { alphaLabel: (charCode: number) => string } = {
+      alphaLabel: String.fromCharCode,
+    }
+  ): string {
     const table: DefaultTable<string> = DefaultTable.init(
       1 + this.numStates,
       1 + this.alphabet.length,
@@ -226,10 +230,7 @@ export class NewNFA implements MutNFA {
     table.setCell(0, 0, 'δ');
 
     for (let ai = 0; ai < this.alphabet.length; ai++) {
-      let alphaLabel = String.fromCharCode(this.alphabet[ai]);
-      // ai == NewNFA.OTHER_ALPHA_INDEX
-      //   ? 'other'
-      //   : String.fromCharCode(this.alphabet[ai]);
+      let alphaLabel = config.alphaLabel(this.alphabet[ai]);
       table.setCell(0, ai + 1, alphaLabel);
     }
     const stateLabel = (s: number) => {

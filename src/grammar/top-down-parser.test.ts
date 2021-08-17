@@ -1,16 +1,6 @@
-import {
-  Grammar,
-  nonTerminal,
-  terminal,
-  GSymbol,
-  EOF,
-  buildGrammar,
-} from './grammar';
+import { Grammar, nonTerminal, terminal } from './grammar';
 import {
   buildParser,
-  parse,
-  ParseNode,
-  Parser,
   removeDirectLeftRecursion,
   removeLeftRecursion,
 } from './top-down-parser';
@@ -86,15 +76,15 @@ describe('parse', () => {
     // Root -> num
     const parser = buildParser({ Root: [['num']] });
     test('parse', () => {
-      expect(parser.parse(['num']).pretty()).toMatchInlineSnapshot(`
+      expect(parser.parseOrThrow(['num']).pretty()).toMatchInlineSnapshot(`
         "
         <Root>
-        |  <num><num>num</num></num>
+        |  <num>num</num>
         </Root>
         "
       `);
-      expect(() => parser.parse(['bad'])).toThrow();
-      expect(() => parser.parse([])).toThrow();
+      expect(() => parser.parseOrThrow(['bad'])).toThrow();
+      expect(() => parser.parseOrThrow([])).toThrow();
     });
   });
 
@@ -104,21 +94,19 @@ describe('parse', () => {
     });
     test('parse', () => {
       const tokens = ['first', 'second', 'third'];
-      expect(parser.parse(tokens).pretty()).toMatchInlineSnapshot(`
+      expect(parser.parseOrThrow(tokens).pretty()).toMatchInlineSnapshot(`
         "
         <Root>
-        |  <first><first>first</first></first>
-        |  <second><second>second</second></second>
-        |  <third><third>third</third></third>
+        |  <first>first</first>
+        |  <second>second</second>
+        |  <third>third</third>
         </Root>
         "
       `);
-      expect(() => parser.parse(['second', 'third', 'first'])).toThrow(
-        'No place to backtrack to'
-      );
-      expect(() => parser.parse(['first', 'second'])).toThrow();
+      expect(() => parser.parseOrThrow(['second', 'third', 'first'])).toThrow();
+      expect(() => parser.parseOrThrow(['first', 'second'])).toThrow();
       expect(() =>
-        parser.parse(['first', 'second', 'third', 'first'])
+        parser.parseOrThrow(['first', 'second', 'third', 'first'])
       ).toThrow();
     });
   });
@@ -133,25 +121,25 @@ describe('parse', () => {
       Child2: [['child-2']],
     });
     test('parse', () => {
-      expect(parser.parse(['child-1', 'after-child-1']).pretty())
+      expect(parser.parseOrThrow(['child-1', 'after-child-1']).pretty())
         .toMatchInlineSnapshot(`
         "
         <Root>
         |  <Child1>
-        |  |  <child-1><child-1>child-1</child-1></child-1>
+        |  |  <child-1>child-1</child-1>
         |  </Child1>
-        |  <after-child-1><after-child-1>after-child-1</after-child-1></after-child-1>
+        |  <after-child-1>after-child-1</after-child-1>
         </Root>
         "
       `);
-      expect(parser.parse(['child-2', 'after-child-2']).pretty())
+      expect(parser.parseOrThrow(['child-2', 'after-child-2']).pretty())
         .toMatchInlineSnapshot(`
         "
         <Root>
         |  <Child2>
-        |  |  <child-2><child-2>child-2</child-2></child-2>
+        |  |  <child-2>child-2</child-2>
         |  </Child2>
-        |  <after-child-2><after-child-2>after-child-2</after-child-2></after-child-2>
+        |  <after-child-2>after-child-2</after-child-2>
         </Root>
         "
       `);
@@ -168,15 +156,15 @@ describe('parse', () => {
       B: [['be'], ['been']],
     });
     test('parses', () => {
-      expect(parser.parse(['before-B', 'been', 'after-B']).pretty())
+      expect(parser.parseOrThrow(['before-B', 'been', 'after-B']).pretty())
         .toMatchInlineSnapshot(`
         "
         <Root>
-        |  <before-B><before-B>before-B</before-B></before-B>
+        |  <before-B>before-B</before-B>
         |  <B>
-        |  |  <been><been>been</been></been>
+        |  |  <been>been</been>
         |  </B>
-        |  <after-B><after-B>after-B</after-B></after-B>
+        |  <after-B>after-B</after-B>
         </Root>
         "
       `);
@@ -194,21 +182,19 @@ describe('parse', () => {
     // for the expression 3, we would have the token "num";
     test('num', () => {
       const tokens = ['num'];
-      const result = parser.parse(tokens);
+      const result = parser.parseOrThrow(tokens);
       expect(result.pretty()).toMatchInlineSnapshot(`
         "
         <Root>
         |  <Expr>
         |  |  <Term>
         |  |  |  <Factor>
-        |  |  |  |  <num><num>num</num></num>
+        |  |  |  |  <num>num</num>
         |  |  |  </Factor>
         |  |  |  <TermP>
-        |  |  |  |  <ϵ>undefined</ϵ>
         |  |  |  </TermP>
         |  |  </Term>
         |  |  <ExprP>
-        |  |  |  <ϵ>undefined</ϵ>
         |  |  </ExprP>
         |  </Expr>
         </Root>
@@ -217,17 +203,17 @@ describe('parse', () => {
     });
     test('num+num', () => {
       const tokens = ['num', '+', 'num'];
-      const result = parser.parse(tokens);
+      const result = parser.parseOrThrow(tokens);
       expect(result.pretty()).toMatchSnapshot();
     });
     test('(num+num)', () => {
       const tokens = ['(', 'num', '+', 'num', ')'];
-      const result = parser.parse(tokens);
+      const result = parser.parseOrThrow(tokens);
       expect(result.pretty()).toMatchSnapshot();
     });
     test('num+num+(num-num)', () => {
       const tokens = ['num', '+', 'num', '+', '(', 'num', '-', 'num', ')'];
-      const result = parser.parse(tokens);
+      const result = parser.parseOrThrow(tokens);
       expect(result.pretty()).toMatchSnapshot();
     });
   });

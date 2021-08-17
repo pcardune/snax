@@ -1,3 +1,4 @@
+import { backtrackable } from '../iter';
 import { LexToken } from '../lexer-gen/lexer-gen';
 import { HashMap, HashSet } from '../sets';
 import {
@@ -13,6 +14,7 @@ import {
   buildGrammar,
   EOFSymbol,
 } from './grammar';
+import * as debug from '../debug';
 
 export function removeDirectLeftRecursion(grammar: Grammar) {
   const NTs = grammar.getNonTerminals();
@@ -144,13 +146,13 @@ export function calcFirst(grammar: Grammar) {
 export class ParseNode<T extends LexToken<any>> {
   symbol: GSymbol;
   parent: ParseNode<T> | null = null;
-  children: (ParseNode<T> | string)[];
+  children: ParseNode<T>[];
   tryNext: number = 0;
   token?: T;
 
   constructor(
     symbol: GSymbol,
-    children: (ParseNode<T> | string)[],
+    children: ParseNode<T>[],
     parent: ParseNode<T> | null = null
   ) {
     this.symbol = symbol;
@@ -173,23 +175,16 @@ export class ParseNode<T extends LexToken<any>> {
       out += '\n';
     }
     if (this.symbol.isTerminal()) {
-      out += `${indent}<${this.symbol.key}>${this.token?.toString()}</${
-        this.symbol.key
-      }>\n`;
+      out += `${indent}${this.token?.toString()}\n`;
       return out;
-    }
-    out += `${indent}<${this.symbol.toString()}>\n`;
-    const childIndent = indent + '|  ';
-    if (!this.symbol.isTerminal()) {
+    } else {
+      out += `${indent}<${this.symbol.toString()}>\n`;
+      const childIndent = indent + '|  ';
       this.children.forEach((child) => {
-        if (typeof child == 'string') {
-          out += childIndent + child + '\n';
-        } else {
-          out += child.pretty(childIndent);
-        }
+        out += child.pretty(childIndent);
       });
+      out += `${indent}</${this.symbol.toString()}>\n`;
     }
-    out += `${indent}</${this.symbol.toString()}>\n`;
     return out;
   }
 
@@ -210,6 +205,13 @@ export class Parser {
     this.grammar = grammar;
     this.start = start;
   }
+  parseOrThrow(tokens: string[]) {
+    let root = this.parse(tokens);
+    if (!root) {
+      throw new Error('Failed to parse');
+    }
+    return root;
+  }
   parse(tokens: string[]) {
     return parse(
       this.grammar,
@@ -219,7 +221,14 @@ export class Parser {
         [Symbol.iterator]()
     );
   }
-  parseTokens<T>(tokens: Iterable<LexToken<T>>) {
+  parseTokensOrThrow<T extends string>(tokens: Iterable<LexToken<T>>) {
+    let root = this.parseTokens(tokens);
+    if (!root) {
+      throw new Error('failed to parse');
+    }
+    return root;
+  }
+  parseTokens<T extends string>(tokens: Iterable<LexToken<T>>) {
     return parse(this.grammar, this.start, tokens);
   }
 }
@@ -230,24 +239,129 @@ export function buildParser(grammarSpec: GrammarSpec) {
   return new Parser(grammar, nonTerminal('Root'));
 }
 
+export function parse<T extends string>(
+  grammar: Grammar,
+  start: GSymbol,
+  tokens: Iterable<LexToken<T>>
+) {
+  type Token = LexToken<T>;
+  let tokenIter = backtrackable(tokens[Symbol.iterator]());
+
+  function parseNode(
+    rootSymbol: GSymbol,
+    depth: number
+  ): ParseNode<Token> | null {
+    const log = (...args: any[]) => {
+      let prefix = '';
+      for (let i = -1; i < depth; i++) {
+        prefix += '  |';
+      }
+      debug.log(prefix, ...args);
+    };
+    log(`parseNode(${rootSymbol.key})`);
+    if (rootSymbol.kind == SymbolKind.NONTERMINAL) {
+      log('trying to expand non-terminal node');
+      const productions = grammar.productionsFrom(rootSymbol as NonTerminal);
+      // try each production from current node to find child nodes
+      let i = -1;
+      for (const rule of productions) {
+        i++;
+        log(`${i}: trying ${rule.toString()}`);
+        const children: ParseNode<Token>[] = [];
+        let success = true;
+        for (const symbol of rule.symbols) {
+          if (symbol.equals(EPSILON)) {
+            continue;
+          }
+          const node = parseNode(symbol, depth + 1);
+          if (node != null) {
+            children.push(node);
+          } else {
+            success = false;
+            break;
+          }
+        }
+        if (success) {
+          log('fulfilled non-terminal:', rule.toString());
+          // we don't need to try any more rules.
+          return new ParseNode(rootSymbol, children);
+        } else {
+          log(
+            'failed',
+            rule.toString(),
+            'Undoing children',
+            children.map((c) => c.toString()).join(', ')
+          );
+
+          function detach(children: ParseNode<Token>[], depth = 0) {
+            // detach from right to left
+            let child: ParseNode<Token> | undefined;
+            while ((child = children.pop()) !== undefined) {
+              detach(child.children, depth + 1);
+              if (child.token) {
+                log(''.padStart(depth), 'pushing back', child.token.toString());
+                tokenIter.pushBack(child.token);
+              }
+            }
+          }
+          detach(children);
+          // now we continue on to the next rule
+        }
+      }
+      // none of the rules worked, so return null
+      log('failed, all rules');
+      return null;
+    } else {
+      log('trying to expand terminal node');
+      // this is a terminal node in the grammar, so try to match
+      // it with the next word in the token list
+      const next = tokenIter.next();
+      if (next.done) {
+        // EOF
+        log('Reached EOF!');
+        return null;
+      } else if (next.value.token == rootSymbol.key) {
+        const node = new ParseNode(rootSymbol, []);
+        node.token = next.value;
+        log('fulfilled terminal:', node.token.toString());
+        return node;
+      } else {
+        log(
+          'could not match terminal:',
+          next.value.toString(),
+          '!=',
+          rootSymbol.key
+        );
+        tokenIter.pushBack(next.value);
+        return null;
+      }
+    }
+  }
+  const root = parseNode(start, 0);
+  if (!tokenIter.next().done) {
+    debug.log('Finished parsing before EOF');
+    return null;
+  }
+  return root;
+}
+
 /**
  * Parse a string of tokens according to the specified grammar.
  * Assumes the grammar is not left recursive (otherwise it will infinit loop)
  */
-export function parse<T extends LexToken<any>>(
+export function parseOld<T extends LexToken<any>>(
   grammar: Grammar,
   start: GSymbol,
   tokens: Iterable<T>
 ) {
   type Word = T | EOFSymbol;
-
-  let tokenIter = tokens[Symbol.iterator]();
-
+  let tokenIter = backtrackable(tokens[Symbol.iterator]());
   const nextWord = (): Word => {
     const next = tokenIter.next();
     if (next.done) {
       return EOF;
     }
+    log('Word is now', next.value.toString());
     return next.value;
   };
 
@@ -258,48 +372,83 @@ export function parse<T extends LexToken<any>>(
   function isEOF(word: Word): word is EOFSymbol {
     return word instanceof EOFSymbol;
   }
+  function log(...args: any[]) {
+    let depth = 0;
+    let n = focus;
+    while (n?.parent) {
+      n = n.parent;
+      depth++;
+    }
+    console.log(''.padStart(depth * 2), ...args);
+  }
 
   const backtrack = () => {
+    // log('Backtracking. Current Tree:', root.pretty());
+    log('Backtracking');
     // backtrack
     if (focus && focus.parent) {
       // set focus to it's parent and disconnect children
       focus = focus.parent;
       const disconnectChildren = (node: ParseNode<T>) => {
-        let numToPop = node.children.length - 1;
-        while (node.children.length > 0) {
-          const child = node.children[0];
-          if (typeof child == 'string') {
-            // console.log('Disconnecting leaf', child);
-          } else {
+        // disconnect children from left to right
+        for (const child of node.children) {
+          if (typeof child !== 'string') {
             disconnectChildren(child);
-            node.children = node.children.slice(1);
           }
         }
-        while (numToPop > 0) {
-          stack.pop();
-          numToPop--;
+        // now pop children from stack from right to left
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          if (stack[stack.length - 1] === node.children[i]) {
+            stack.pop();
+          } else {
+            break;
+          }
+        }
+        if (node.token) {
+          // push the token back onto tokens
+          tokenIter.pushBack(node.token);
         }
       };
       disconnectChildren(focus);
       // point to the next thing to try
       focus.tryNext++;
     } else {
-      throw new Error('No place to backtrack to');
+      throw new Error('No place to backtrack to.');
     }
   };
 
+  function logChain() {
+    let n = focus;
+    let path = [n];
+    while (n?.parent) {
+      n = n.parent;
+      path = [n, ...path];
+    }
+    log(`CHAIN: ${path.map((p) => p?.symbol.toString()).join(' → ')}`);
+  }
+
   while (true) {
+    log('');
+    log(
+      'LOOP',
+      `word=${word.toString()}`,
+      `focus=${focus?.toString()}`,
+      `stack=[${stack.map((s) => s.toString()).join(', ')}]`
+    );
+    logChain();
     // if focus is non terminal
     if (focus?.symbol.kind == SymbolKind.NONTERMINAL) {
       // pick next rule to expand focus (A->B1,B2,...,Bn)
       const productions = grammar.productionsFrom(focus.symbol as NonTerminal);
       const nextRule: Production = productions[focus.tryNext];
       if (nextRule) {
+        log('Trying', nextRule.toString());
         // build nodes for B1,B2,...,Bn
         const nodes = nextRule.symbols.map((s) => new ParseNode(s, [], focus));
         focus.children = nodes;
         // push(Bn,Bn-1,Bn-2,...,B2)
         for (let i = 0; i < nodes.length - 1; i++) {
+          log('Pushing', nodes[nodes.length - 1 - i].toString());
           stack.push(nodes[nodes.length - 1 - i]);
         }
         // focus B1
@@ -309,6 +458,7 @@ export function parse<T extends LexToken<any>>(
       }
     } else if (!isEOF(word) && focus && focus.symbol.key == word.token) {
       focus.token = word as T;
+      log('Found terminal', focus.toString());
       word = nextWord();
       focus = stack.pop() || null;
     } else if (focus?.symbol.equals(EPSILON)) {
@@ -316,7 +466,10 @@ export function parse<T extends LexToken<any>>(
     } else if (isEOF(word) && focus == null) {
       return root;
     } else {
+      debugger;
+      tokenIter.pushBack(word as T);
       backtrack();
+      word = nextWord();
     }
   }
 }

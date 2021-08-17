@@ -147,6 +147,31 @@ export class RewindableIterator<T> implements IterableIterator<T> {
   }
 }
 
+export class BacktrackableIterator<T> implements IterableIterator<T> {
+  private iter: Iterator<T, T>;
+  private buffer: T[] = [];
+  constructor(iter: Iterator<T>) {
+    this.iter = iter;
+  }
+  [Symbol.iterator]() {
+    return this;
+  }
+  next(): IteratorResult<T> {
+    let item = this.buffer.pop();
+    if (item !== undefined) {
+      return { done: false, value: item };
+    }
+    return this.iter.next();
+  }
+  pushBack(item: T) {
+    this.buffer.push(item);
+  }
+}
+
+export function backtrackable<T>(iter: Iterator<T>) {
+  return new BacktrackableIterator(iter);
+}
+
 export function rewindable<T>(iter: Iterator<T>) {
   return new RewindableIterator(iter);
 }

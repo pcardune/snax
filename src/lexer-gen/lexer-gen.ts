@@ -1,6 +1,7 @@
 import { OrderedMap } from '../data-structures/OrderedMap';
 import { parseRegex } from '../regex-compiler';
 import { PatternLexer } from './recognizer';
+import { colors } from '../debug';
 
 type Pos = number;
 type Span = { from: Pos; to: Pos };
@@ -15,7 +16,11 @@ export class LexToken<T> {
     this.substr = substr;
   }
   toString() {
-    return `<${this.token}>${this.substr}</${this.token}>`;
+    return (
+      colors.green(`<${this.token}>`) +
+      this.substr +
+      colors.green(`</${this.token}>`)
+    );
   }
 }
 

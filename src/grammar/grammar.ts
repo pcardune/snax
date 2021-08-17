@@ -1,4 +1,5 @@
 import { HashSet } from '../sets';
+import { colors } from '../debug';
 
 export enum SymbolKind {
   TERMINAL,
@@ -32,9 +33,9 @@ export class GSymbol<T extends SymbolKind = SymbolKind> {
   }
   toString() {
     if (this.isTerminal()) {
-      return `'${this.key}'`;
+      return colors.underline(colors.green(`'${this.key}'`));
     }
-    return this.key;
+    return colors.red(this.key);
   }
   [Symbol.toStringTag]() {
     return `GSymbol(${this.toString()})`;

@@ -6,39 +6,34 @@ exports[`parse complex grammar (num+num) 1`] = `
 |  <Expr>
 |  |  <Term>
 |  |  |  <Factor>
-|  |  |  |  <(><(>(</(></(>
+|  |  |  |  <(>(</(>
 |  |  |  |  <Expr>
 |  |  |  |  |  <Term>
 |  |  |  |  |  |  <Factor>
-|  |  |  |  |  |  |  <num><num>num</num></num>
+|  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  </Factor>
 |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  |  </TermP>
 |  |  |  |  |  </Term>
 |  |  |  |  |  <ExprP>
-|  |  |  |  |  |  <+><+>+</+></+>
+|  |  |  |  |  |  <+>+</+>
 |  |  |  |  |  |  <Term>
 |  |  |  |  |  |  |  <Factor>
-|  |  |  |  |  |  |  |  <num><num>num</num></num>
+|  |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  |  </Factor>
 |  |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  |  |  </TermP>
 |  |  |  |  |  |  </Term>
 |  |  |  |  |  |  <ExprP>
-|  |  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  |  </ExprP>
 |  |  |  |  |  </ExprP>
 |  |  |  |  </Expr>
-|  |  |  |  <)><)>)</)></)>
+|  |  |  |  <)>)</)>
 |  |  |  </Factor>
 |  |  |  <TermP>
-|  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  </TermP>
 |  |  </Term>
 |  |  <ExprP>
-|  |  |  <ϵ>undefined</ϵ>
 |  |  </ExprP>
 |  </Expr>
 </Root>
@@ -51,24 +46,21 @@ exports[`parse complex grammar num+num 1`] = `
 |  <Expr>
 |  |  <Term>
 |  |  |  <Factor>
-|  |  |  |  <num><num>num</num></num>
+|  |  |  |  <num>num</num>
 |  |  |  </Factor>
 |  |  |  <TermP>
-|  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  </TermP>
 |  |  </Term>
 |  |  <ExprP>
-|  |  |  <+><+>+</+></+>
+|  |  |  <+>+</+>
 |  |  |  <Term>
 |  |  |  |  <Factor>
-|  |  |  |  |  <num><num>num</num></num>
+|  |  |  |  |  <num>num</num>
 |  |  |  |  </Factor>
 |  |  |  |  <TermP>
-|  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  </TermP>
 |  |  |  </Term>
 |  |  |  <ExprP>
-|  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  </ExprP>
 |  |  </ExprP>
 |  </Expr>
@@ -82,59 +74,52 @@ exports[`parse complex grammar num+num+(num-num) 1`] = `
 |  <Expr>
 |  |  <Term>
 |  |  |  <Factor>
-|  |  |  |  <num><num>num</num></num>
+|  |  |  |  <num>num</num>
 |  |  |  </Factor>
 |  |  |  <TermP>
-|  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  </TermP>
 |  |  </Term>
 |  |  <ExprP>
-|  |  |  <+><+>+</+></+>
+|  |  |  <+>+</+>
 |  |  |  <Term>
 |  |  |  |  <Factor>
-|  |  |  |  |  <num><num>num</num></num>
+|  |  |  |  |  <num>num</num>
 |  |  |  |  </Factor>
 |  |  |  |  <TermP>
-|  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  </TermP>
 |  |  |  </Term>
 |  |  |  <ExprP>
-|  |  |  |  <+><+>+</+></+>
+|  |  |  |  <+>+</+>
 |  |  |  |  <Term>
 |  |  |  |  |  <Factor>
-|  |  |  |  |  |  <(><(>(</(></(>
+|  |  |  |  |  |  <(>(</(>
 |  |  |  |  |  |  <Expr>
 |  |  |  |  |  |  |  <Term>
 |  |  |  |  |  |  |  |  <Factor>
-|  |  |  |  |  |  |  |  |  <num><num>num</num></num>
+|  |  |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  |  |  </Factor>
 |  |  |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  |  |  |  </TermP>
 |  |  |  |  |  |  |  </Term>
 |  |  |  |  |  |  |  <ExprP>
-|  |  |  |  |  |  |  |  <-><->-</-></->
+|  |  |  |  |  |  |  |  <->-</->
 |  |  |  |  |  |  |  |  <Term>
 |  |  |  |  |  |  |  |  |  <Factor>
-|  |  |  |  |  |  |  |  |  |  <num><num>num</num></num>
+|  |  |  |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  |  |  |  </Factor>
 |  |  |  |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  |  |  |  |  </TermP>
 |  |  |  |  |  |  |  |  </Term>
 |  |  |  |  |  |  |  |  <ExprP>
-|  |  |  |  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  |  |  |  </ExprP>
 |  |  |  |  |  |  |  </ExprP>
 |  |  |  |  |  |  </Expr>
-|  |  |  |  |  |  <)><)>)</)></)>
+|  |  |  |  |  |  <)>)</)>
 |  |  |  |  |  </Factor>
 |  |  |  |  |  <TermP>
-|  |  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  |  </TermP>
 |  |  |  |  </Term>
 |  |  |  |  <ExprP>
-|  |  |  |  |  <ϵ>undefined</ϵ>
 |  |  |  |  </ExprP>
 |  |  |  </ExprP>
 |  |  </ExprP>

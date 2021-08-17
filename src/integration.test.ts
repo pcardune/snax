@@ -29,19 +29,37 @@ describe('integration test', () => {
   let parser = buildParser({
     Root: [['Expr']],
     Expr: [['Expr', MT.PLUS, 'Term'], ['Expr', MT.MINUS, 'Term'], ['Term']],
-    Term: [[MT.NUM], [MT.ID]],
+    Term: [[MT.NUM], [MT.ID], [MT.LPAREN, 'Expr', MT.RPAREN]],
   });
 
   test('stuff2', () => {
-    let chars = charCodes('34 + 5-4');
+    expect(parser.grammar.toString()).toMatchInlineSnapshot(`
+      "
+      Root →
+        | Expr
+      Term →
+        | 'NUM'
+        | 'ID'
+        | '(' Expr ')'
+      ExprP →
+        | '+' Term ExprP
+        | '-' Term ExprP
+        | ϵ
+      Expr →
+        | Term ExprP
+      "
+    `);
+    let chars = charCodes('34 + (5-something)');
     let tokens = [...lexer.parse(chars)];
     expect(tokens.map((t) => t.toString())).toMatchInlineSnapshot(`
       Array [
         "<NUM>34</NUM>",
         "<+>+</+>",
+        "<(>(</(>",
         "<NUM>5</NUM>",
         "<->-</->",
-        "<NUM>4</NUM>",
+        "<ID>something</ID>",
+        "<)>)</)>",
       ]
     `);
     let result = parser.parseTokens(tokens);
@@ -55,16 +73,25 @@ describe('integration test', () => {
       |  |  <ExprP>
       |  |  |  <+><+>+</+></+>
       |  |  |  <Term>
-      |  |  |  |  <NUM><NUM>5</NUM></NUM>
+      |  |  |  |  <(><(>(</(></(>
+      |  |  |  |  <Expr>
+      |  |  |  |  |  <Term>
+      |  |  |  |  |  |  <NUM><NUM>5</NUM></NUM>
+      |  |  |  |  |  </Term>
+      |  |  |  |  |  <ExprP>
+      |  |  |  |  |  |  <-><->-</-></->
+      |  |  |  |  |  |  <Term>
+      |  |  |  |  |  |  |  <ID><ID>something</ID></ID>
+      |  |  |  |  |  |  </Term>
+      |  |  |  |  |  |  <ExprP>
+      |  |  |  |  |  |  |  <ϵ>undefined</ϵ>
+      |  |  |  |  |  |  </ExprP>
+      |  |  |  |  |  </ExprP>
+      |  |  |  |  </Expr>
+      |  |  |  |  <)><)>)</)></)>
       |  |  |  </Term>
       |  |  |  <ExprP>
-      |  |  |  |  <-><->-</-></->
-      |  |  |  |  <Term>
-      |  |  |  |  |  <NUM><NUM>4</NUM></NUM>
-      |  |  |  |  </Term>
-      |  |  |  |  <ExprP>
-      |  |  |  |  |  <ϵ>undefined</ϵ>
-      |  |  |  |  </ExprP>
+      |  |  |  |  <ϵ>undefined</ϵ>
       |  |  |  </ExprP>
       |  |  </ExprP>
       |  </Expr>

@@ -59,18 +59,22 @@ test('DFA.fromNFA()', () => {
   `);
 });
 // a(b|c)*
-const cases: [string, string | undefined][] = [
+const cases: [string, string | null][] = [
   ['a', 'a'],
   ['agfh', 'a'],
   ['acfda', 'ac'],
   ['abcbccfda', 'abcbcc'],
-  ['foobar', undefined],
-  ['', undefined],
+  ['foobar', null],
+  ['', null],
 ];
-test.each(cases)('match %p', (input, expected) => {
+test.each(cases)('dfa match %p', (input, expected) => {
   let dfa = DFA.fromNFA(nfa, e);
   const match = dfa.match(charCodes(input));
-  expect(match?.substr).toEqual(expected);
+  if (expected === null) {
+    expect(match).toBeNull();
+  } else {
+    expect(match?.substr).toBe(expected);
+  }
 });
 
 test('DFA.minimized', () => {

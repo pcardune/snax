@@ -257,7 +257,7 @@ export class DFA extends NFA implements ConstDFA {
       }
       currentState = nextState;
     }
-    if (this.isAcceptingState(currentState)) {
+    if (this.isAcceptingState(currentState) && matchBuffer.length > 0) {
       return { substr: matchBuffer, state: currentState };
     }
     return accepted;

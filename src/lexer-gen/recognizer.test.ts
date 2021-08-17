@@ -2,8 +2,7 @@ import { charCodes, collect } from '../iter';
 import { buildLexer, LexToken } from './lexer-gen';
 import { MultiPatternMatcher, PatternLexer } from './recognizer';
 import { OrderedMap } from '../data-structures/OrderedMap';
-import { chars, CombinedNFA, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
-import { parseRegex } from '../regex-compiler';
+import { chars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
 
 export function token<T>(
   token: T,

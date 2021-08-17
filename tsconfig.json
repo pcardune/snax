@@ -1,11 +1,15 @@
 {
   "compilerOptions": {
-    "noEmit": true,
-    "moduleResolution": "node",
-    "target": "ES2021",
     "esModuleInterop": true,
-    "downlevelIteration": true,
-    "strict": true,
-    "strictNullChecks": true
-  }
+    "outDir": "dist"
+  },
+  "include": [],
+  "references": [
+    { "path": "./projects/grammar" },
+    { "path": "./projects/lexer-gen" },
+    { "path": "./projects/nfa-to-dfa" },
+    { "path": "./projects/playground" },
+    { "path": "./projects/regex-compiler" },
+    { "path": "./projects/utils" }
+  ]
 }

@@ -1,6 +1,6 @@
-import { charCodes } from './iter';
-import { DFA } from './nfa-to-dfa/dfa';
-import { parseRegex } from './regex-compiler';
+import { charCodes } from '../utils/iter';
+import { DFA } from '../nfa-to-dfa/dfa';
+import { parseRegex } from './parser';
 
 export class Regex {
   pattern: string;

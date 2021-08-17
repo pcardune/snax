@@ -1,4 +1,4 @@
-import { MultiSet, NumberSet } from '../sets';
+import { MultiSet, NumberSet } from '../utils/sets';
 import { ConstNFA, closure, move, NFA } from './nfa';
 
 /**

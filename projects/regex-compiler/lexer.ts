@@ -1,10 +1,10 @@
-import { OrderedMap } from '../data-structures/OrderedMap';
-import { charCodes, peakable } from '../iter';
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { charCodes, peakable } from '../utils/iter';
 import { LexToken } from '../lexer-gen/lexer-gen';
 import { PatternLexer, NewTokenIterator } from '../lexer-gen/recognizer';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { asciiChars, notChars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
-import { memoize } from '../utils';
+import { memoize } from '../utils/utils';
 
 export enum Token {
   PLUS,

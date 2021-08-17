@@ -1,4 +1,4 @@
-import { CombinedNFA, SingleCharNFA } from './regex-nfa';
+import { CombinedNFA, SingleCharNFA } from '../regex-nfa';
 
 test('SingleCharNFA', () => {
   expect('\n' + new SingleCharNFA('a').toDebugStr()).toMatchInlineSnapshot(`

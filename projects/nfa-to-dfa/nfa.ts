@@ -1,6 +1,5 @@
-import { Table } from '../data-structures';
-import { DefaultTable } from '../data-structures/table';
-import { IHaveDebugStr } from '../debug';
+import { DefaultTable } from '../utils/data-structures/table';
+import { IHaveDebugStr } from '../utils/debug';
 import { toCharCode } from './util';
 
 export interface ConstNFA extends IHaveDebugStr {

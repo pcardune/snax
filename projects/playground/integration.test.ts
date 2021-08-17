@@ -1,38 +1,39 @@
-import { OrderedMap } from "./data-structures/OrderedMap";
-import { buildParser } from "./grammar/top-down-parser";
-import { charCodes } from "./iter";
-import { buildLexer } from "./lexer-gen";
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { buildParser } from '../grammar/top-down-parser';
+import { charCodes } from '../utils/iter';
+import { buildLexer } from '../lexer-gen';
+import { parseRegex } from '../regex-compiler/parser';
 
-describe("integration test", () => {
+describe('integration test', () => {
   enum MT {
-    NUM = "NUM",
-    ID = "ID",
-    LPAREN = "(",
-    RPAREN = ")",
-    PLUS = "+",
-    MINUS = "-",
-    WS = "WS",
+    NUM = 'NUM',
+    ID = 'ID',
+    LPAREN = '(',
+    RPAREN = ')',
+    PLUS = '+',
+    MINUS = '-',
+    WS = 'WS',
   }
   let lexer = buildLexer(
     new OrderedMap([
-      [MT.NUM, "\\d\\d*"],
-      [MT.ID, "\\w\\w*"],
-      [MT.LPAREN, "\\("],
-      [MT.RPAREN, "\\)"],
-      [MT.PLUS, "\\+"],
-      [MT.MINUS, "-"],
-      [MT.WS, "( |\t)+"],
+      [MT.NUM, parseRegex('\\d\\d*').nfa()],
+      [MT.ID, parseRegex('\\w\\w*').nfa()],
+      [MT.LPAREN, parseRegex('\\(').nfa()],
+      [MT.RPAREN, parseRegex('\\)').nfa()],
+      [MT.PLUS, parseRegex('\\+').nfa()],
+      [MT.MINUS, parseRegex('-').nfa()],
+      [MT.WS, parseRegex('( |\t)+').nfa()],
     ]),
     [MT.WS]
   );
 
   let parser = buildParser({
-    Root: [["Expr"]],
-    Expr: [["Expr", MT.PLUS, "Term"], ["Expr", MT.MINUS, "Term"], ["Term"]],
-    Term: [[MT.NUM], [MT.ID], [MT.LPAREN, "Expr", MT.RPAREN]],
+    Root: [['Expr']],
+    Expr: [['Expr', MT.PLUS, 'Term'], ['Expr', MT.MINUS, 'Term'], ['Term']],
+    Term: [[MT.NUM], [MT.ID], [MT.LPAREN, 'Expr', MT.RPAREN]],
   });
 
-  test("stuff2", () => {
+  test('stuff2', () => {
     expect(parser.grammar.toString()).toMatchInlineSnapshot(`
       "
       Root →
@@ -49,7 +50,7 @@ describe("integration test", () => {
         | Term ExprP
       "
     `);
-    let chars = charCodes("34 + (5-something)");
+    let chars = charCodes('34 + (5-something)');
     let tokens = [...lexer.parse(chars)];
     expect(tokens.map((t) => t.toString())).toMatchInlineSnapshot(`
       Array [

@@ -1,8 +1,8 @@
-import { charCodes, collect } from '../iter';
+import { charCodes, collect } from '../utils/iter';
 import { buildLexer, LexToken } from './lexer-gen';
 import { MultiPatternMatcher, PatternLexer } from './recognizer';
-import { OrderedMap } from '../data-structures/OrderedMap';
-import { chars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { charRange, chars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa';
 
 export function token<T>(
   token: T,
@@ -78,14 +78,18 @@ describe('buildLexer', () => {
     MINUS = '-',
     WS = 'WS',
   }
+  const char = (char: string) => new SingleCharNFA(char);
+  let digit = charRange('0', '9');
+  let word = charRange('a', 'z').or(charRange('A', 'Z').or(digit));
+
   let patterns = new OrderedMap([
-    [MT.NUM, '\\d\\d*'],
-    [MT.ID, '\\w\\w*'],
-    [MT.LPAREN, '\\('],
-    [MT.RPAREN, '\\)'],
-    [MT.PLUS, '\\+'],
-    [MT.MINUS, '-'],
-    [MT.WS, '( |\t)+'],
+    [MT.NUM, digit.clone().concat(digit.clone().star())],
+    [MT.ID, word.clone().concat(word.clone().star())],
+    [MT.LPAREN, char('(')],
+    [MT.RPAREN, char(')')],
+    [MT.PLUS, char('+')],
+    [MT.MINUS, char('-')],
+    [MT.WS, chars(' \t').concat(chars(' \t').star())],
   ]);
   let lexer: PatternLexer<MT>;
   beforeAll(() => {

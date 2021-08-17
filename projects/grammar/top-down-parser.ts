@@ -1,6 +1,6 @@
-import { backtrackable } from '../iter';
+import { backtrackable } from '../utils/iter';
 import { LexToken } from '../lexer-gen/lexer-gen';
-import { HashMap, HashSet } from '../sets';
+import { HashMap, HashSet } from '../utils/sets';
 import {
   Grammar,
   nonTerminal,
@@ -14,7 +14,7 @@ import {
   buildGrammar,
   EOFSymbol,
 } from './grammar';
-import * as debug from '../debug';
+import * as debug from '../utils/debug';
 
 export function removeDirectLeftRecursion(grammar: Grammar) {
   const NTs = grammar.getNonTerminals();

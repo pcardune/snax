@@ -1,4 +1,4 @@
-import { closure, move, NFA } from './nfa';
+import { closure, move, NFA } from '../nfa';
 
 describe('NFA', () => {
   test('toDebugStr()', () => {

@@ -1,5 +1,5 @@
-import { HashSet } from '../sets';
-import { colors } from '../debug';
+import { HashSet } from '../utils/sets';
+import { colors } from '../utils/debug';
 
 export enum SymbolKind {
   TERMINAL,

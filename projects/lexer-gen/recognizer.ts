@@ -1,5 +1,5 @@
-import { OrderedMap } from '../data-structures/OrderedMap';
-import { rewindable, RewindableIterator } from '../iter';
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { rewindable, RewindableIterator } from '../utils/iter';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { CombinedDFA } from '../nfa-to-dfa/regex-nfa';
 import { LexToken } from './lexer-gen';

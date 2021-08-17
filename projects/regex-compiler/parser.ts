@@ -1,4 +1,4 @@
-import { range } from '../iter';
+import { range } from '../utils/iter';
 import {
   chars,
   notChars,

@@ -1,6 +1,6 @@
-import { charCodes } from '../iter';
-import { DFA } from './dfa';
-import { NFA } from './nfa';
+import { charCodes } from '../../utils/iter';
+import { DFA } from '../dfa';
+import { NFA } from '../nfa';
 
 let nfa: NFA;
 let a: number;

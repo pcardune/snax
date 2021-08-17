@@ -5,7 +5,7 @@
  * "Construction of an NFA from a Regular Expression" in
  */
 
-import { charCodes } from '../iter';
+import { charCodes } from '../utils/iter';
 import { DFA, DFAFromNFA } from './dfa';
 import { ConstNFA, NFA } from './nfa';
 import { toCharCode } from './util';
@@ -264,6 +264,19 @@ for (let i = 1; i <= 127; i++) {
 }
 export function asciiChars(): RegexNFA {
   return chars(ASCII);
+}
+
+export function charRange(
+  startChar: string | number,
+  endChar: string | number
+) {
+  startChar = toCharCode(startChar);
+  endChar = toCharCode(endChar);
+  let validChars = [];
+  for (let i = startChar; i <= endChar; i++) {
+    validChars.push(i);
+  }
+  return chars(validChars);
 }
 
 export function notChars(invalidChars: string | Iterable<number>): RegexNFA {

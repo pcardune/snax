@@ -1,57 +1,9 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { buildParser, ParseNode } from '../grammar/top-down-parser';
+import { ParseNode } from '../grammar/top-down-parser';
 import { LexToken } from '../lexer-gen/lexer-gen';
 
-// // The original code for the lexer
-import { buildLexer } from '../lexer-gen';
-import { parseRegex } from '../regex-compiler/parser';
-import { chars, charSeq, notChars } from '../nfa-to-dfa/regex-nfa';
-import { ConstNFA } from '../nfa-to-dfa/nfa';
-const re = (s: string) => parseRegex(s).nfa();
-const string = chars('"')
-  .concat(charSeq('\\"').or(notChars('"')).star())
-  .concat(chars('"'));
-const oldLexer = buildLexer(
-  // prettier-ignore
-  new OrderedMap([
-    ['ID', re('[a-zA-Z_]([a-zA-Z0-9_]*)')],
-    ['EQUALS', charSeq('=')],
-    ['_COMMENT', re("//([^\n]*)")],
-    ['STRING', re("\"(((\\\")|[^\"\n])*)\"")],
-    ['REGEX', re("r\"(((\\\")|[^\"\n])*)\"")],
-    ['_WS', re('( |\t)')],
-    ['_NEWLINE', chars('\n')],
-  ]),
-  ['_WS', '_NEWLINE', '_COMMENT']
-);
-// export { oldLexer as lexer };
-export { lexer } from './dsl.__generated__';
-
-enum Rules {
-  Root = 'Root',
-  Statements = 'Statements',
-  Statement = 'Statement',
-  Literal = 'Literal',
-}
-
-// prettier-ignore
-export const parser = buildParser({
-  [Rules.Root]: [
-    [Rules.Statements]
-  ],
-  [Rules.Statements]: [
-    [Rules.Statement, Rules.Statements],
-    [Rules.Statement],
-    []
-  ],
-  [Rules.Statement]: [
-    ['ID', 'EQUALS', Rules.Literal],
-  ],
-  [Rules.Literal]: [
-    ['REGEX'],
-    ['STRING'],
-  ]
-});
+import { lexer, parser, Token, Rules } from './dsl.__generated__';
+export { lexer, parser, Token, Rules };
 
 function parseNodeToPatterns(root: ParseNode<LexToken<string>>) {
   let patterns = root
@@ -123,6 +75,68 @@ const re = (s: string) => parseRegex(s).nfa();
 import { PatternLexer } from '../lexer-gen/recognizer';
 export const lexer = new PatternLexer(patterns);
 `;
+
+  return out;
+}
+
+export function compileGrammarToTypescript(root: ParseNode<LexToken<string>>) {
+  let symbolTable: { [i: string]: 'Token' | 'Rules' } = {};
+
+  let out = `
+
+import { buildParser, ParseNode } from '../grammar/top-down-parser';
+
+export enum Rules {
+`;
+
+  root
+    .iterTree()
+    .filter((n) => n.symbol.key === Rules.Production)
+    .forEach((node) => {
+      const name = node.children[0].token?.substr as string;
+      symbolTable[name] = 'Rules';
+      out += `  ${name} = "${name}",\n`;
+    });
+
+  out += '}\n\n';
+
+  out += 'export const parser = buildParser({\n';
+
+  root
+    .iterTree()
+    .filter((n) => n.symbol.key === Rules.Production)
+    .forEach((node) => {
+      const name = node.children[0].token?.substr;
+      out += `  [Rules.${name}]:[\n`;
+
+      node
+        .iterTree()
+        .filter((n) => n.symbol.key === Rules.Sequence)
+        .forEach((sequence) => {
+          out += '    [';
+
+          sequence.children[1]
+            .iterTree()
+            .filter((n) => n.symbol.key === Rules.Element)
+            .forEach((element) => {
+              let child = element.children[0];
+              if (child.symbol.key === Token.ID) {
+                const name = child.token?.substr as string;
+                if (symbolTable[name] === 'Rules') {
+                  out += `Rules.${name}, `;
+                } else {
+                  out += `Token.${name}, `;
+                }
+              }
+            });
+
+          out += '],\n';
+        });
+
+      out += `  ],\n`;
+    });
+
+  out += '});';
 
   return out;
 }

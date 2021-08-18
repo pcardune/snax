@@ -6,3 +6,30 @@ STRING = r"\"(((\\\")|[^\"\n])*)\""
 REGEX = r"r\"(((\\\")|[^\"\n])*)\""
 _WS = r"( |\t)"
 _NEWLINE = "\n"
+OPEN_BRACKET = "["
+CLOSE_BRACKET = "]"
+OR = "|"
+
+Root = [StatementList ProductionList]
+StatementList = 
+  | [Statement StatementList]
+  | [Statement]
+  | []
+Statement = [ID EQUALS Literal]
+ProductionList =
+  | [Production ProductionList]
+  | [Production]
+  | []
+Production =
+  | [ID EQUALS Sequence]
+  | [ID EQUALS OR Sequence]
+Sequence =
+  | [OPEN_BRACKET ElementList CLOSE_BRACKET OR Sequence]
+  | [OPEN_BRACKET ElementList CLOSE_BRACKET]
+  | [OPEN_BRACKET CLOSE_BRACKET]
+ElementList =
+  | [Element ElementList]
+  | [Element]
+  | []
+Element = [ID] | [Literal]
+Literal = [REGEX] | [STRING]

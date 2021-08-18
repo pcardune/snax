@@ -14,6 +14,9 @@ export enum Token {
   REGEX="REGEX",
   _WS="_WS",
   _NEWLINE="_NEWLINE",
+  OPEN_BRACKET="OPEN_BRACKET",
+  CLOSE_BRACKET="CLOSE_BRACKET",
+  OR="OR",
 }
 
 const patterns: OrderedMap<Token, {nfa:ConstNFA, ignore:boolean}> = new OrderedMap([
@@ -24,7 +27,66 @@ const patterns: OrderedMap<Token, {nfa:ConstNFA, ignore:boolean}> = new OrderedM
   [Token.REGEX, {nfa: re("r\"(((\\\")|[^\"\n])*)\""), ignore: false}],
   [Token._WS, {nfa: re("( |\t)"), ignore: true}],
   [Token._NEWLINE, {nfa: charSeq("\n"), ignore: true}],
+  [Token.OPEN_BRACKET, {nfa: charSeq("["), ignore: false}],
+  [Token.CLOSE_BRACKET, {nfa: charSeq("]"), ignore: false}],
+  [Token.OR, {nfa: charSeq("|"), ignore: false}],
 ])
 
 import { PatternLexer } from '../lexer-gen/recognizer';
 export const lexer = new PatternLexer(patterns);
+
+
+import { buildParser, ParseNode } from '../grammar/top-down-parser';
+
+export enum Rules {
+  Root = "Root",
+  StatementList = "StatementList",
+  Statement = "Statement",
+  ProductionList = "ProductionList",
+  Production = "Production",
+  Sequence = "Sequence",
+  ElementList = "ElementList",
+  Element = "Element",
+  Literal = "Literal",
+}
+
+export const parser = buildParser({
+  [Rules.Root]:[
+    [Rules.StatementList, Rules.ProductionList, ],
+  ],
+  [Rules.StatementList]:[
+    [Rules.Statement, Rules.StatementList, ],
+    [Rules.Statement, ],
+    [],
+  ],
+  [Rules.Statement]:[
+    [Token.ID, Token.EQUALS, Rules.Literal, ],
+  ],
+  [Rules.ProductionList]:[
+    [Rules.Production, Rules.ProductionList, ],
+    [Rules.Production, ],
+    [],
+  ],
+  [Rules.Production]:[
+    [Token.ID, Token.EQUALS, Rules.Sequence, ],
+    [Token.ID, Token.EQUALS, Token.OR, Rules.Sequence, ],
+  ],
+  [Rules.Sequence]:[
+    [Token.OPEN_BRACKET, Rules.ElementList, Token.CLOSE_BRACKET, Token.OR, Rules.Sequence, ],
+    [Token.OPEN_BRACKET, Rules.ElementList, Token.CLOSE_BRACKET, ],
+    [Token.OPEN_BRACKET, Token.CLOSE_BRACKET, ],
+  ],
+  [Rules.ElementList]:[
+    [Rules.Element, Rules.ElementList, ],
+    [Rules.Element, ],
+    [],
+  ],
+  [Rules.Element]:[
+    [Token.ID, ],
+    [Rules.Literal, ],
+  ],
+  [Rules.Literal]:[
+    [Token.REGEX, ],
+    [Token.STRING, ],
+  ],
+});

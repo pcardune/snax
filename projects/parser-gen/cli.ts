@@ -1,8 +1,15 @@
 import fs from 'fs';
 import path from 'path';
-import { colors } from '../utils/debug';
+import * as debug from '../utils/debug';
 import { charCodes, Iter } from '../utils/iter';
-import { compileLexerToTypescript, lexer, parser } from './dsl';
+import {
+  compileGrammarToTypescript,
+  compileLexerToTypescript,
+  lexer,
+  parser,
+} from './dsl';
+
+const { colors } = debug;
 
 export function compileFile(grammarFilePath: string) {
   const tokens = lexer.parse(
@@ -21,6 +28,12 @@ export function compileFile(grammarFilePath: string) {
   });
   console.log('Compiling to', outPath);
   const output = compileLexerToTypescript(root);
-  fs.writeFileSync(outPath, output);
+  debug.log(colors.yellow(output));
+
+  console.log('Compiling grammar to', outPath);
+  const grammarOut = compileGrammarToTypescript(root);
+  debug.log(colors.yellow(grammarOut));
+
+  fs.writeFileSync(outPath, output + grammarOut);
   console.log(colors.bold(colors.green('✓')), 'Successfully wrote', outPath);
 }

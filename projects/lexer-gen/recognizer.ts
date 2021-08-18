@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { rewindable, RewindableIterator } from '../utils/iter';
+import { Iter, rewindable, RewindableIterator } from '../utils/iter';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { CombinedDFA } from '../nfa-to-dfa/regex-nfa';
 import { LexToken } from './lexer-gen';
@@ -27,7 +27,7 @@ export class MultiPatternMatcher<T> {
   }
 }
 
-export class NewTokenIterator<T> implements IterableIterator<LexToken<T>> {
+export class NewTokenIterator<T> extends Iter<LexToken<T>> {
   private matcher: MultiPatternMatcher<T>;
   private chars: RewindableIterator<number>;
   private from: number = 0;
@@ -37,13 +37,10 @@ export class NewTokenIterator<T> implements IterableIterator<LexToken<T>> {
     input: Iterator<number>,
     ignore: T[] = []
   ) {
+    super();
     this.matcher = matcher;
     this.chars = rewindable(input);
     this.ignore = ignore;
-  }
-
-  [Symbol.iterator]() {
-    return this;
   }
 
   next(): IteratorResult<LexToken<T>> {

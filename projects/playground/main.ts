@@ -1,36 +1,34 @@
-import { buildParser } from '../grammar/top-down-parser';
-import { buildLexer } from '../lexer-gen';
-import { parseRegex } from '../regex-compiler/parser';
-import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { charCodes } from '../utils/iter';
+import { lexer, PestParser } from './pest';
+import { useColors } from '../utils/debug';
+import { PestFile } from './ast';
+useColors();
 
-console.log('Hello World');
-
-enum MT {
-  NUM = 'NUM',
-  ID = 'ID',
-  LPAREN = '(',
-  RPAREN = ')',
-  PLUS = '+',
-  MINUS = '-',
-  WS = 'WS',
+const input = `
+char = { ASCII_ALPHANUMERIC | "." | "_" | "/" }
+name = { char+ }
+value = { char* }
+section = { "[" ~ name ~ "]" }
+property = { name ~ "=" ~ value }
+file = {
+  SOI ~
+  ((section|property)? ~ NEWLINE)* ~
+  // ((section | property)? ~ NEWLINE)* ~
+  EOI
 }
-let lexer = buildLexer(
-  new OrderedMap([
-    [MT.NUM, parseRegex('\\d\\d*').nfa()],
-    [MT.ID, parseRegex('\\w\\w*').nfa()],
-    [MT.LPAREN, parseRegex('\\(').nfa()],
-    [MT.RPAREN, parseRegex('\\)').nfa()],
-    [MT.PLUS, parseRegex('\\+').nfa()],
-    [MT.MINUS, parseRegex('-').nfa()],
-    [MT.WS, parseRegex('( |\t)+').nfa()],
-  ]),
-  [MT.WS]
+`;
+console.log(
+  lexer
+    .parse(charCodes(input))
+    .map((t) => t.token)
+    .join(' ')
 );
+const root = PestParser.parseStr(input);
+if (root) {
+  console.log(root.pretty());
+} else {
+  console.log('failed....');
+}
 
-let parser = buildParser({
-  Root: [['Expr']],
-  Expr: [['Expr', MT.PLUS, 'Term'], ['Expr', MT.MINUS, 'Term'], ['Term']],
-  Term: [[MT.NUM], [MT.ID], [MT.LPAREN, 'Expr', MT.RPAREN]],
-});
-
-console.log(parser.grammar.toString());
+let file = new PestFile(root);
+console.log(file.pretty());

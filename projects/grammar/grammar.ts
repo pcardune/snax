@@ -190,6 +190,10 @@ export function buildGrammar(productions: GrammarSpec) {
           return terminals[s];
         }
       });
+      if (symbols.length === 0) {
+        // this is an empty rule, put epsilon in it
+        symbols.push(EPSILON);
+      }
       grammar.addProduction(new Production(nonTerminal, symbols));
     }
   });

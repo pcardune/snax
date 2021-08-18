@@ -1,3 +1,92 @@
+export abstract class Iter<T> implements IterableIterator<T> {
+  [Symbol.iterator]() {
+    return this;
+  }
+
+  abstract next(): IteratorResult<T>;
+
+  map<O>(mapper: (i: T) => O): Iter<O> {
+    return new MapIter(this, mapper);
+  }
+
+  chain(...iters: Iter<T>[]): Iter<T> {
+    return new ChainIter(...iters);
+  }
+
+  first(): T | undefined {
+    let next = this.next();
+    return next.value;
+  }
+
+  toArray(): T[] {
+    return [...this];
+  }
+
+  join(sep: string): string {
+    let s = '';
+    let next = this.next();
+    if (next.done) {
+      return s;
+    }
+    for (const item of this) {
+      s += sep;
+      s += item;
+    }
+    return s;
+  }
+}
+
+class PlainIter<T> extends Iter<T> {
+  private iterator: Iterator<T>;
+  constructor(iterable: Iterable<T>) {
+    super();
+    this.iterator = iterable[Symbol.iterator]();
+  }
+  next() {
+    return this.iterator.next();
+  }
+}
+
+export function iter<T>(iterable: Iterable<T> = []) {
+  return new PlainIter(iterable);
+}
+
+class ChainIter<T> extends Iter<T> {
+  private iters: Iter<T>[];
+  constructor(...iters: Iter<T>[]) {
+    super();
+    this.iters = iters;
+  }
+  next(): IteratorResult<T, undefined> {
+    while (this.iters.length > 0) {
+      const next = this.iters[0].next();
+      if (next.done) {
+        this.iters.shift();
+      } else {
+        return next;
+      }
+    }
+    return { done: true, value: undefined };
+  }
+}
+
+class MapIter<I, O> extends Iter<O> {
+  private iterator: Iterator<I>;
+  private mapper: (i: I) => O;
+  constructor(iterable: Iterable<I>, mapper: (i: I) => O) {
+    super();
+    this.iterator = iterable[Symbol.iterator]();
+    this.mapper = mapper;
+  }
+  next(): IteratorResult<O> {
+    const { value, done } = this.iterator.next();
+    if (done) {
+      return { done, value: undefined };
+    }
+    return { value: this.mapper(value), done: false };
+  }
+}
+
 interface PeakableIterator<T> extends Iterator<T> {
   peek(): IteratorResult<T>;
 }
@@ -23,25 +112,6 @@ class Peakable<T> implements PeakableIterator<T> {
   }
 }
 
-class MapIterator<I, O> implements IterableIterator<O> {
-  private iterator: Iterator<I>;
-  private mapper: (i: I) => O;
-  constructor(iterator: Iterator<I>, mapper: (i: I) => O) {
-    this.iterator = iterator;
-    this.mapper = mapper;
-  }
-  next() {
-    const { value, done } = this.iterator.next();
-    if (done) {
-      return { done, value: undefined };
-    }
-    return { value: this.mapper(value), done };
-  }
-  [Symbol.iterator]() {
-    return this;
-  }
-}
-
 export function peakable<T>(it: Iterator<T>) {
   return new Peakable(it);
 }
@@ -59,10 +129,10 @@ export function collect<T>(it: Iterator<T, T>): T[] {
 }
 
 export function map<I, O>(
-  it: Iterator<I>,
+  it: Iterable<I>,
   map: (i: I) => O
 ): IterableIterator<O> {
-  return new MapIterator(it, map);
+  return new MapIter(it, map);
 }
 
 class CharCodeIterator implements IterableIterator<number> {

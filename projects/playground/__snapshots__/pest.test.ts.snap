@@ -1,0 +1,25 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`pest parser simple 1`] = `
+"
+<Root>
+|  <Rules>
+|  |  <Rule>
+|  |  |  <ID>foo</ID>
+|  |  |  <=>=</=>
+|  |  |  <{>{</{>
+|  |  |  <Expr>
+|  |  |  |  <Unary>
+|  |  |  |  |  <Term>
+|  |  |  |  |  |  <STRING>\\"foo\\"</STRING>
+|  |  |  |  |  </Term>
+|  |  |  |  </Unary>
+|  |  |  </Expr>
+|  |  |  <}>}</}>
+|  |  </Rule>
+|  |  <Rules>
+|  |  </Rules>
+|  </Rules>
+</Root>
+"
+`;

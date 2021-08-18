@@ -24,9 +24,17 @@ export class LexToken<T> {
   }
 }
 
+/**
+ * @deprecated use {@link PatternLexer} directly
+ */
 export function buildLexer<T>(
   patterns: OrderedMap<T, ConstNFA>,
-  ignore: T[] = []
+  ignoreTokens: T[] = []
 ) {
-  return new PatternLexer(patterns, ignore);
+  return new PatternLexer(
+    patterns.map((nfa, index, key) => ({
+      nfa,
+      ignore: ignoreTokens.indexOf(key) >= 0,
+    }))
+  );
 }

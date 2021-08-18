@@ -15,6 +15,20 @@
       "port": 9229
     },
     {
+      "name": "Playground DEBUG",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": [
+        "--inspect-brk",
+        "${workspaceRoot}/node_modules/.bin/ts-node",
+        "projects/playground/main.ts"
+      ],
+      "env": { "DEBUG": "true" },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "port": 9229
+    },
+    {
       "name": "Debug Jest Tests",
       "type": "node",
       "request": "launch",

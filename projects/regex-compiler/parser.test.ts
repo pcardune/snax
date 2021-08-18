@@ -65,6 +65,7 @@ describe('parseRegex', () => {
         )
       )
     ),
+    '[\\"]': multiCharClassNode([charListNode('\\"')]),
     'a[b-z]': concatNode(
       charNode('a'),
       multiCharClassNode([charRangeNode('b', 'z')])

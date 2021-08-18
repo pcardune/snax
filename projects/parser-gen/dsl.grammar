@@ -1,8 +1,8 @@
   
 ID = r"[a-zA-Z_]([a-zA-Z0-9_]*)"
 EQUALS = "="
-COMMENT = r"//([^\n]*)"
-STRING = r"\"(((\\\")|[^\\\"])*)\""
-REGEX = r"r\"(((\\\")|[^\\\"])*)\""
-WS = r"( |\t)"
-NEWLINE = "\n"
+_COMMENT = r"//([^\n]*)"
+STRING = r"\"(((\\\")|[^\"\n])*)\""
+REGEX = r"r\"(((\\\")|[^\"\n])*)\""
+_WS = r"( |\t)"
+_NEWLINE = "\n"

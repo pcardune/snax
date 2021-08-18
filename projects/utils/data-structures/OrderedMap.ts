@@ -53,10 +53,10 @@ export class OrderedMap<K, V> {
     );
   }
 
-  map<W>(f: (value: V) => W): OrderedMap<K, W> {
+  map<W>(f: (value: V, index: number, key: K) => W): OrderedMap<K, W> {
     const map: OrderedMap<K, W> = new OrderedMap();
     for (const [i, k, v] of this.entries()) {
-      map.push(k, f(v));
+      map.push(k, f(v, i, k));
     }
     return map;
   }

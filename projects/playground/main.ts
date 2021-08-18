@@ -1,6 +1,6 @@
 import { charCodes, iter } from '../utils/iter';
 import { lexer, PestParser } from './pest';
-import { useColors } from '../utils/debug';
+import { useColors, colors } from '../utils/debug';
 import { ASTNode, PestFile } from './ast';
 import fs from 'fs';
 import path from 'path';
@@ -98,4 +98,5 @@ function doParserGen() {
   // console.log(compileLexerToTypescript(root));
 }
 
+console.log(colors.underline(colors.bold('Welcome to the Playground')));
 doParserGen();

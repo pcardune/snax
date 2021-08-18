@@ -1,6 +1,6 @@
 import { Grammar } from '../grammar/grammar';
 import { ParseNode } from '../grammar/top-down-parser';
-import { LexToken } from '../lexer-gen/lexer-gen';
+import { buildLexer, LexToken } from '../lexer-gen/lexer-gen';
 import { PatternLexer } from '../lexer-gen/recognizer';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { charRange, chars, charSeq } from '../nfa-to-dfa/regex-nfa';
@@ -211,6 +211,6 @@ export class PestFile extends ASTNode {
       }
     }
     patterns.push('WHITESPACE', chars(' '));
-    return new PatternLexer(patterns, ['WHITESPACE']);
+    return buildLexer(patterns, ['WHITESPACE']);
   }
 }

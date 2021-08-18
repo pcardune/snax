@@ -292,7 +292,11 @@ export function parse<T extends string>(
           }
         }
         if (success) {
-          log('fulfilled non-terminal:', rule.toString());
+          log(
+            debug.colors.green('✓'),
+            'fulfilled non-terminal:',
+            rule.toString()
+          );
           // we don't need to try any more rules.
           return new ParseNode(rootSymbol, children);
         } else {

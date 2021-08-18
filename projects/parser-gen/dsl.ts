@@ -1,30 +1,31 @@
-import { buildLexer } from '../lexer-gen';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { parseRegex } from '../regex-compiler/parser';
 import { buildParser, ParseNode } from '../grammar/top-down-parser';
-import { chars, charSeq, notChars } from '../nfa-to-dfa/regex-nfa';
 import { LexToken } from '../lexer-gen/lexer-gen';
+
+// // The original code for the lexer
+import { buildLexer } from '../lexer-gen';
+import { parseRegex } from '../regex-compiler/parser';
+import { chars, charSeq, notChars } from '../nfa-to-dfa/regex-nfa';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
-
 const re = (s: string) => parseRegex(s).nfa();
-
 const string = chars('"')
   .concat(charSeq('\\"').or(notChars('"')).star())
   .concat(chars('"'));
-
-export const lexer = buildLexer(
+const oldLexer = buildLexer(
   // prettier-ignore
   new OrderedMap([
     ['ID', re('[a-zA-Z_]([a-zA-Z0-9_]*)')],
-    ['=', chars('=')],
-    ['COMMENT', chars('/').concat(chars('/')).concat(notChars('\n').star())],
-    ['STRING', string.clone()],
-    ['REGEX', chars('r').concat(string)],
-    ['WS', re('( |\t)')],
-    ['NEWLINE', chars('\n')],
+    ['EQUALS', charSeq('=')],
+    ['_COMMENT', re("//([^\n]*)")],
+    ['STRING', re("\"(((\\\")|[^\"\n])*)\"")],
+    ['REGEX', re("r\"(((\\\")|[^\"\n])*)\"")],
+    ['_WS', re('( |\t)')],
+    ['_NEWLINE', chars('\n')],
   ]),
-  ['WS', 'NEWLINE', 'COMMENT']
+  ['_WS', '_NEWLINE', '_COMMENT']
 );
+// export { oldLexer as lexer };
+export { lexer } from './dsl.__generated__';
 
 enum Rules {
   Root = 'Root',
@@ -44,11 +45,11 @@ export const parser = buildParser({
     []
   ],
   [Rules.Statement]: [
-    ['ID', '=', Rules.Literal],
+    ['ID', 'EQUALS', Rules.Literal],
   ],
   [Rules.Literal]: [
-    ['STRING'],
     ['REGEX'],
+    ['STRING'],
   ]
 });
 
@@ -98,25 +99,29 @@ const re = (s: string) => parseRegex(s).nfa();
 
   out += `export enum Token {\n`;
   patterns.keys().forEach((name) => {
-    out += '  ' + name + ',\n';
+    out += `  ${name}=${JSON.stringify(name)},\n`;
   });
   out += '}\n\n';
 
-  out += 'const patterns: OrderedMap<Token, ConstNFA> = new OrderedMap([\n';
+  out +=
+    'const patterns: OrderedMap<Token, {nfa:ConstNFA, ignore:boolean}> = new OrderedMap([\n';
   patterns.entries().forEach(([i, name, nfa]) => {
     out += `  [Token.${name}, `;
+
+    let nfaStr: string;
     if (nfa.kind === 'STRING') {
-      out += 'charSeq(' + JSON.stringify(nfa.content) + ')';
+      nfaStr = 'charSeq(' + JSON.stringify(nfa.content) + ')';
     } else {
-      out += 're(' + JSON.stringify(nfa.content) + ')';
+      nfaStr = 're(' + JSON.stringify(nfa.content) + ')';
     }
+    out += `{nfa: ${nfaStr}, ignore: ${name.startsWith('_')}}`;
     out += '],\n';
   });
   out += '])\n';
 
   out += `
-import { buildLexer } from '../lexer-gen';
-export const lexer = buildLexer(patterns);
+import { PatternLexer } from '../lexer-gen/recognizer';
+export const lexer = new PatternLexer(patterns);
 `;
 
   return out;

@@ -6,6 +6,7 @@ import {
   SingleCharNFA,
 } from '../nfa-to-dfa/regex-nfa';
 import { Lexeme, Lexer, Token } from './lexer';
+import { LexToken } from '../lexer-gen/lexer-gen';
 
 enum CharacterClass {
   DIGIT = 'd',
@@ -341,6 +342,24 @@ class RegexParser {
           break outer;
         case Token.CHAR:
           innerTokens.push(token);
+          break;
+        case Token.ESCAPE:
+          // convert ESCAPE tokens to two CHAR tokens
+          // so they get treated like chars
+          innerTokens.push(
+            new LexToken(
+              Token.CHAR,
+              { from: token.span.from, to: token.span.to - 1 },
+              token.substr[0]
+            )
+          );
+          innerTokens.push(
+            new LexToken(
+              Token.CHAR,
+              { from: token.span.from + 1, to: token.span.to },
+              token.substr[1]
+            )
+          );
           break;
         default:
           throw new Error(`Unexpected token ${token.substr} inside []`);

@@ -78,9 +78,13 @@ export class NewTokenIterator<T> extends Iter<LexToken<T>> {
 export class PatternLexer<T> {
   private matcher: MultiPatternMatcher<T>;
   private ignore: T[] = [];
-  constructor(patterns: OrderedMap<T, ConstNFA>, ignore: T[] = []) {
-    this.matcher = new MultiPatternMatcher(patterns);
-    this.ignore = ignore;
+  constructor(patterns: OrderedMap<T, { nfa: ConstNFA; ignore: boolean }>) {
+    this.matcher = new MultiPatternMatcher(patterns.map((v) => v.nfa));
+    this.ignore = patterns
+      .entries()
+      .filter(([_i, _k, v]) => v.ignore)
+      .map(([_i, k]) => k)
+      .toArray();
   }
   parse(input: Iterator<number>) {
     return new NewTokenIterator(this.matcher, input, this.ignore);

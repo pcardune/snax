@@ -6,18 +6,18 @@ import {
 } from './top-down-parser';
 
 describe('removeDirectLeftRecursion', () => {
-  const grammar = new Grammar();
-  grammar.addProductions(nonTerminal('Expr'), [
+  const grammar: Grammar<string> = new Grammar();
+  grammar.addProductions('Expr', nonTerminal('Expr'), [
     [nonTerminal('Expr'), terminal('+'), nonTerminal('Term')],
     [nonTerminal('Expr'), terminal('-'), nonTerminal('Term')],
     [nonTerminal('Term')],
   ]);
-  grammar.addProductions(nonTerminal('Term'), [
+  grammar.addProductions('Term', nonTerminal('Term'), [
     [nonTerminal('Term'), terminal('*'), nonTerminal('Factor')],
     [nonTerminal('Term'), terminal('/'), nonTerminal('Factor')],
     [nonTerminal('Factor')],
   ]);
-  grammar.addProductions(nonTerminal('Factor'), [
+  grammar.addProductions('Factor', nonTerminal('Factor'), [
     [terminal('('), nonTerminal('Expr'), terminal(')')],
     [terminal('num')],
     [terminal('name')],
@@ -48,10 +48,12 @@ describe('removeDirectLeftRecursion', () => {
 });
 
 describe('removeLeftRecursion', () => {
-  const grammar = new Grammar();
-  grammar.addProductions(nonTerminal('A'), [[nonTerminal('B')]]);
-  grammar.addProductions(nonTerminal('B'), [[nonTerminal('C')]]);
-  grammar.addProductions(nonTerminal('C'), [[nonTerminal('A'), terminal('d')]]);
+  const grammar: Grammar<string> = new Grammar();
+  grammar.addProductions('A', nonTerminal('A'), [[nonTerminal('B')]]);
+  grammar.addProductions('B', nonTerminal('B'), [[nonTerminal('C')]]);
+  grammar.addProductions('C', nonTerminal('C'), [
+    [nonTerminal('A'), terminal('d')],
+  ]);
   // console.log(grammar.toString());
   test('it works', () => {
     removeLeftRecursion(grammar);

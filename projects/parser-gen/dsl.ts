@@ -5,10 +5,10 @@ import { LexToken } from '../lexer-gen/lexer-gen';
 import { lexer, parser, Token, Rules } from './dsl.__generated__';
 export { lexer, parser, Token, Rules };
 
-function parseNodeToPatterns(root: ParseNode<LexToken<string>>) {
+function parseNodeToPatterns(root: ParseNode<Rules, LexToken<string>>) {
   let patterns = root
     .iterTree()
-    .filter((node) => node.symbol.key == Rules.Statement)
+    .filter((node) => node.rule == Rules.Statement)
     .map((node) => {
       const tokenName = node.children[0].token?.substr;
       const tokenLiteral = node.children[2].children[0];
@@ -35,7 +35,9 @@ function parseNodeToPatterns(root: ParseNode<LexToken<string>>) {
   return new OrderedMap(patterns);
 }
 
-export function compileLexerToTypescript(root: ParseNode<LexToken<string>>) {
+export function compileLexerToTypescript(
+  root: ParseNode<Rules, LexToken<string>>
+) {
   let patterns = parseNodeToPatterns(root);
   let out = '';
 
@@ -79,7 +81,9 @@ export const lexer = new PatternLexer(patterns);
   return out;
 }
 
-export function compileGrammarToTypescript(root: ParseNode<LexToken<string>>) {
+export function compileGrammarToTypescript(
+  root: ParseNode<Rules, LexToken<string>>
+) {
   let symbolTable: { [i: string]: 'Token' | 'Rules' } = {};
 
   let out = `
@@ -91,7 +95,7 @@ export enum Rules {
 
   root
     .iterTree()
-    .filter((n) => n.symbol.key === Rules.Production)
+    .filter((n) => n.rule === Rules.Production)
     .forEach((node) => {
       const name = node.children[0].token?.substr as string;
       symbolTable[name] = 'Rules';
@@ -104,20 +108,20 @@ export enum Rules {
 
   root
     .iterTree()
-    .filter((n) => n.symbol.key === Rules.Production)
+    .filter((n) => n.rule === Rules.Production)
     .forEach((node) => {
       const name = node.children[0].token?.substr;
       out += `  [Rules.${name}]:[\n`;
 
       node
         .iterTree()
-        .filter((n) => n.symbol.key === Rules.Sequence)
+        .filter((n) => n.rule === Rules.Sequence)
         .forEach((sequence) => {
           out += '    [';
 
           sequence.children[1]
             .iterTree()
-            .filter((n) => n.symbol.key === Rules.Element)
+            .filter((n) => n.rule === Rules.Element)
             .forEach((element) => {
               let child = element.children[0];
               if (child.symbol.key === Token.ID) {

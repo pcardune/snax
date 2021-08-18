@@ -62,10 +62,10 @@ export class EOFSymbol extends GSymbol<SymbolKind.TERMINAL> {
 export const EOF = EOFSymbol.singleton;
 export const EPSILON = new EpsilonSymbol();
 
-export class Grammar {
-  private productions: { [index: string]: Production[] } = {};
+export class Grammar<R> {
+  private productions: { [index: string]: Production<R>[] } = {};
 
-  addProduction(production: Production) {
+  addProduction(production: Production<R>) {
     const key = production.nonTerminal.key;
     if (!this.productions[key]) {
       this.productions[key] = [];
@@ -73,7 +73,7 @@ export class Grammar {
     this.productions[key].push(production);
   }
 
-  removeProduction(production: Production) {
+  removeProduction(production: Production<R>) {
     const key = production.nonTerminal.key;
     if (this.productions[key]) {
       this.productions[key] = this.productions[key].filter(
@@ -85,9 +85,9 @@ export class Grammar {
     }
   }
 
-  addProductions(nonTerminal: NonTerminal, derivations: GSymbol[][]) {
+  addProductions(rule: R, nonTerminal: NonTerminal, derivations: GSymbol[][]) {
     for (const derivation of derivations) {
-      this.addProduction(new Production(nonTerminal, derivation));
+      this.addProduction(new Production(rule, nonTerminal, derivation));
     }
   }
   *productionsIter() {
@@ -97,7 +97,7 @@ export class Grammar {
       }
     }
   }
-  productionsFrom(nonTerminal: NonTerminal): Readonly<Production[]> {
+  productionsFrom(nonTerminal: NonTerminal): Readonly<Production<R>[]> {
     return this.productions[nonTerminal.key] || [];
   }
   getNonTerminals(): Readonly<NonTerminal[]> {
@@ -135,10 +135,12 @@ export class Grammar {
   }
 }
 
-export class Production {
+export class Production<R> {
+  readonly rule: R;
   readonly nonTerminal: NonTerminal;
   readonly symbols: Readonly<GSymbol[]>;
-  constructor(nonTerminal: NonTerminal, symbols: GSymbol[]) {
+  constructor(rule: R, nonTerminal: NonTerminal, symbols: GSymbol[]) {
+    this.rule = rule;
     this.nonTerminal = nonTerminal;
     this.symbols = symbols;
   }
@@ -147,7 +149,7 @@ export class Production {
     return this.symbols[0].equals(this.nonTerminal);
   }
 
-  equals(other: Production): boolean {
+  equals(other: Production<R>): boolean {
     if (!this.nonTerminal.equals(other.nonTerminal)) {
       return false;
     }
@@ -170,8 +172,8 @@ export class Production {
 }
 
 export type GrammarSpec = { Root: string[][]; [index: string]: string[][] };
-export function buildGrammar(productions: GrammarSpec) {
-  const grammar = new Grammar();
+export function buildGrammar<R extends GrammarSpec>(productions: R) {
+  const grammar: Grammar<keyof R> = new Grammar();
   const nonTerminals: { [i: string]: NonTerminal } = {};
   const terminals: { [i: string]: Terminal } = {};
   Object.keys(productions).forEach((key) => {
@@ -194,7 +196,7 @@ export function buildGrammar(productions: GrammarSpec) {
         // this is an empty rule, put epsilon in it
         symbols.push(EPSILON);
       }
-      grammar.addProduction(new Production(nonTerminal, symbols));
+      grammar.addProduction(new Production(key, nonTerminal, symbols));
     }
   });
   return grammar;

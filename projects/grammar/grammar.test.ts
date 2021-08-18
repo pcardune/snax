@@ -1,13 +1,13 @@
 import { Grammar, nonTerminal, terminal } from './grammar';
 
 describe('Grammar', () => {
-  const grammar = new Grammar();
-  grammar.addProductions(nonTerminal('Expr'), [
+  const grammar: Grammar<string> = new Grammar();
+  grammar.addProductions('Expr', nonTerminal('Expr'), [
     [terminal('('), nonTerminal('Expr'), terminal(')')],
     [nonTerminal('Expr'), nonTerminal('Op'), terminal('name')],
     [terminal('name')],
   ]);
-  grammar.addProductions(nonTerminal('Op'), [
+  grammar.addProductions('Expr', nonTerminal('Op'), [
     [terminal('+')],
     [terminal('-')],
     [terminal('*')],

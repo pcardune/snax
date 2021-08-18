@@ -16,7 +16,7 @@ import {
 } from './grammar';
 import * as debug from '../utils/debug';
 
-export function removeDirectLeftRecursion(grammar: Grammar) {
+export function removeDirectLeftRecursion(grammar: Grammar<any>) {
   const NTs = grammar.getNonTerminals();
   for (const nt of NTs) {
     let isLeftRecursive = false;
@@ -28,19 +28,25 @@ export function removeDirectLeftRecursion(grammar: Grammar) {
     if (isLeftRecursive) {
       const ntPrime = nonTerminal(nt.key + 'P');
       for (const p of grammar.productionsFrom(nt)) {
-        let newP: Production;
+        let newP: Production<string>;
         if (p.isLeftRecursive()) {
-          newP = new Production(ntPrime, [...p.symbols.slice(1), ntPrime]);
+          newP = new Production(ntPrime.key, ntPrime, [
+            ...p.symbols.slice(1),
+            ntPrime,
+          ]);
         } else {
-          newP = new Production(p.nonTerminal, [...p.symbols, ntPrime]);
+          newP = new Production(p.nonTerminal.key, p.nonTerminal, [
+            ...p.symbols,
+            ntPrime,
+          ]);
         }
         grammar.removeProduction(p);
         grammar.addProduction(newP);
       }
       if (grammar.productionsFrom(nt).length == 0) {
-        grammar.addProduction(new Production(nt, [ntPrime]));
+        grammar.addProduction(new Production(nt.key, nt, [ntPrime]));
       }
-      grammar.addProduction(new Production(ntPrime, [EPSILON]));
+      grammar.addProduction(new Production(ntPrime.key, ntPrime, [EPSILON]));
     }
   }
 }
@@ -49,7 +55,7 @@ export function removeDirectLeftRecursion(grammar: Grammar) {
  * Removes left recursion from a grammar.
  * See p. 103 of "Engineering a Compiler"
  */
-export function removeLeftRecursion(sourceGrammar: Grammar): Grammar {
+export function removeLeftRecursion<R>(sourceGrammar: Grammar<R>): Grammar<R> {
   let A = sourceGrammar.getNonTerminals(); // A
   for (let i = 0; i < A.length; i++) {
     for (let j = 0; j < i; j++) {
@@ -59,11 +65,11 @@ export function removeLeftRecursion(sourceGrammar: Grammar): Grammar {
           // then replace it with the expansions of A[j]
           sourceGrammar.removeProduction(Ai);
           for (const Aj of sourceGrammar.productionsFrom(A[j])) {
-            const newAi = new Production(A[i], [
+            const newAi = new Production(A[i].key, A[i], [
               ...Aj.symbols,
               ...Ai.symbols.slice(1),
             ]);
-            sourceGrammar.addProduction(newAi);
+            sourceGrammar.addProduction(newAi as unknown as Production<R>);
             // console.log('replacing', Ai.toString(), 'with', newAi.toString());
           }
         }
@@ -93,7 +99,7 @@ class DefaultHashMap<K, V> extends HashMap<K, V> {
  * TODO: this needs to be finished
  * p. 104 of Engineering a Compiler
  */
-export function calcFirst(grammar: Grammar) {
+export function calcFirst(grammar: Grammar<unknown>) {
   let hasher = (s: GSymbol) => s.hash();
   const set = (items?: GSymbol[]) => new HashSet(hasher, items);
   let first: DefaultHashMap<GSymbol, HashSet<GSymbol>> = new DefaultHashMap(
@@ -144,18 +150,21 @@ export function calcFirst(grammar: Grammar) {
   return first;
 }
 
-export class ParseNode<T extends LexToken<any>> {
+export class ParseNode<R, T extends LexToken<any>> {
   symbol: GSymbol;
-  parent: ParseNode<T> | null = null;
-  children: ParseNode<T>[];
+  rule: R | null;
+  parent: ParseNode<R, T> | null = null;
+  children: ParseNode<R, T>[];
   tryNext: number = 0;
   token?: T;
 
   constructor(
+    rule: R | null,
     symbol: GSymbol,
-    children: ParseNode<T>[],
-    parent: ParseNode<T> | null = null
+    children: ParseNode<R, T>[],
+    parent: ParseNode<R, T> | null = null
   ) {
+    this.rule = rule;
     this.symbol = symbol;
     this.children = children;
     this.parent = parent;
@@ -164,8 +173,8 @@ export class ParseNode<T extends LexToken<any>> {
   /**
    * Iterator over every node in the parse tree
    */
-  iterTree(): Iter<ParseNode<T>> {
-    return iter([this as ParseNode<T>]).chain(
+  iterTree(): Iter<ParseNode<R, T>> {
+    return iter([this as ParseNode<R, T>]).chain(
       ...this.children.map((c) => c.iterTree())
     );
   }
@@ -208,10 +217,10 @@ export class ParseNode<T extends LexToken<any>> {
   }
 }
 
-export class Parser {
-  grammar: Grammar;
+export class Parser<R> {
+  grammar: Grammar<R>;
   start: GSymbol<SymbolKind>;
-  constructor(grammar: Grammar, start: GSymbol) {
+  constructor(grammar: Grammar<R>, start: GSymbol) {
     this.grammar = grammar;
     this.start = start;
   }
@@ -243,24 +252,24 @@ export class Parser {
   }
 }
 
-export function buildParser(grammarSpec: GrammarSpec) {
+export function buildParser<R extends GrammarSpec>(grammarSpec: R) {
   const grammar = buildGrammar(grammarSpec);
   removeDirectLeftRecursion(grammar);
   return new Parser(grammar, nonTerminal('Root'));
 }
 
-export function parse<T extends string>(
-  grammar: Grammar,
+export function parse<T extends string, R>(
+  grammar: Grammar<R>,
   start: GSymbol,
   tokens: Iterable<LexToken<T>>
-) {
+): ParseNode<R, LexToken<T>> | null {
   type Token = LexToken<T>;
   let tokenIter = backtrackable(tokens[Symbol.iterator]());
 
   function parseNode(
     rootSymbol: GSymbol,
     depth: number
-  ): ParseNode<Token> | null {
+  ): ParseNode<R, Token> | null {
     const log = (...args: any[]) => {
       let prefix = '';
       for (let i = -1; i < depth; i++) {
@@ -277,7 +286,7 @@ export function parse<T extends string>(
       for (const rule of productions) {
         i++;
         log(`${i}: trying ${rule.toString()}`);
-        const children: ParseNode<Token>[] = [];
+        const children: ParseNode<R, Token>[] = [];
         let success = true;
         for (const symbol of rule.symbols) {
           if (symbol.equals(EPSILON)) {
@@ -298,7 +307,7 @@ export function parse<T extends string>(
             rule.toString()
           );
           // we don't need to try any more rules.
-          return new ParseNode(rootSymbol, children);
+          return new ParseNode(rule.rule, rootSymbol, children);
         } else {
           log(
             'failed',
@@ -307,9 +316,9 @@ export function parse<T extends string>(
             children.map((c) => c.toString()).join(', ')
           );
 
-          function detach(children: ParseNode<Token>[], depth = 0) {
+          function detach(children: ParseNode<R, Token>[], depth = 0) {
             // detach from right to left
-            let child: ParseNode<Token> | undefined;
+            let child: ParseNode<R, Token> | undefined;
             while ((child = children.pop()) !== undefined) {
               detach(child.children, depth + 1);
               if (child.token) {
@@ -335,7 +344,7 @@ export function parse<T extends string>(
         log('Reached EOF!');
         return null;
       } else if (next.value.token == rootSymbol.key) {
-        const node = new ParseNode(rootSymbol, []);
+        const node = new ParseNode(null as R | null, rootSymbol, []);
         node.token = next.value;
         log('fulfilled terminal:', node.token.toString());
         return node;
@@ -363,8 +372,8 @@ export function parse<T extends string>(
  * Parse a string of tokens according to the specified grammar.
  * Assumes the grammar is not left recursive (otherwise it will infinit loop)
  */
-export function parseOld<T extends LexToken<any>>(
-  grammar: Grammar,
+export function parseOld<R, T extends LexToken<any>>(
+  grammar: Grammar<R>,
   start: GSymbol,
   tokens: Iterable<T>
 ) {
@@ -379,9 +388,9 @@ export function parseOld<T extends LexToken<any>>(
     return next.value;
   };
 
-  const root: ParseNode<T> = new ParseNode(start, []);
-  let focus: ParseNode<T> | null = root;
-  let stack: ParseNode<T>[] = [];
+  const root: ParseNode<R, T> = new ParseNode(null as R | null, start, []);
+  let focus: ParseNode<R, T> | null = root;
+  let stack: ParseNode<R, T>[] = [];
   let word: Word = nextWord();
   function isEOF(word: Word): word is EOFSymbol {
     return word instanceof EOFSymbol;
@@ -403,7 +412,7 @@ export function parseOld<T extends LexToken<any>>(
     if (focus && focus.parent) {
       // set focus to it's parent and disconnect children
       focus = focus.parent;
-      const disconnectChildren = (node: ParseNode<T>) => {
+      const disconnectChildren = (node: ParseNode<R, T>) => {
         // disconnect children from left to right
         for (const child of node.children) {
           if (typeof child !== 'string') {
@@ -454,11 +463,13 @@ export function parseOld<T extends LexToken<any>>(
     if (focus?.symbol.kind == SymbolKind.NONTERMINAL) {
       // pick next rule to expand focus (A->B1,B2,...,Bn)
       const productions = grammar.productionsFrom(focus.symbol as NonTerminal);
-      const nextRule: Production = productions[focus.tryNext];
+      const nextRule: Production<unknown> = productions[focus.tryNext];
       if (nextRule) {
         log('Trying', nextRule.toString());
         // build nodes for B1,B2,...,Bn
-        const nodes = nextRule.symbols.map((s) => new ParseNode(s, [], focus));
+        const nodes = nextRule.symbols.map(
+          (s) => new ParseNode(null as R | null, s, [], focus)
+        );
         focus.children = nodes;
         // push(Bn,Bn-1,Bn-2,...,B2)
         for (let i = 0; i < nodes.length - 1; i++) {

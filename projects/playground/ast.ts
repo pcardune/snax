@@ -7,7 +7,7 @@ import { charRange, chars, charSeq } from '../nfa-to-dfa/regex-nfa';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { iter, Iter } from '../utils/iter';
 
-type PestParseNode = ParseNode<LexToken<string>>;
+type PestParseNode = ParseNode<unknown, LexToken<string>>;
 
 function filterNodes(
   node: PestParseNode,

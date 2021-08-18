@@ -8,9 +8,12 @@ export abstract class Iter<T> implements IterableIterator<T> {
   map<O>(mapper: (i: T) => O): Iter<O> {
     return new MapIter(this, mapper);
   }
+  filter(predicate: (i: T) => boolean): Iter<T> {
+    return new FilterIter(this, predicate);
+  }
 
   chain(...iters: Iter<T>[]): Iter<T> {
-    return new ChainIter(...iters);
+    return new ChainIter(this, ...iters);
   }
 
   first(): T | undefined {
@@ -47,8 +50,28 @@ class PlainIter<T> extends Iter<T> {
   }
 }
 
-export function iter<T>(iterable: Iterable<T> = []) {
+export function iter<T>(iterable: Iterable<T> = []): Iter<T> {
   return new PlainIter(iterable);
+}
+
+class FilterIter<T> extends Iter<T> {
+  private iterator: Iterator<T>;
+  private predicate: (item: T) => boolean;
+  constructor(iterable: Iterable<T>, predicate: (item: T) => boolean) {
+    super();
+    this.iterator = iterable[Symbol.iterator]();
+    this.predicate = predicate;
+  }
+  next() {
+    let next = this.iterator.next();
+    while (!next.done) {
+      if (this.predicate(next.value)) {
+        return next;
+      }
+      next = this.iterator.next();
+    }
+    return next;
+  }
 }
 
 class ChainIter<T> extends Iter<T> {

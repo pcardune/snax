@@ -10,6 +10,14 @@ export class OrderedMap<K, V> {
     }
   }
 
+  set(key: K, value: V) {
+    if (this.keyMap.get(key) === undefined) {
+      this.push(key, value);
+    } else {
+      this.keyMap.set(key, value);
+    }
+  }
+
   get(key: K) {
     return this.keyMap.get(key);
   }

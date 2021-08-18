@@ -258,6 +258,22 @@ export function chars(validChars: string | Iterable<number>): RegexNFA {
   return nfa;
 }
 
+export function charSeq(seq: string | Iterable<number>): RegexNFA {
+  if (typeof seq == 'string') {
+    seq = charCodes(seq);
+  }
+  let nfa: RegexNFA | undefined;
+  for (const char of seq) {
+    if (nfa === undefined) {
+      nfa = new SingleCharNFA(char);
+    } else {
+      nfa.concat(new SingleCharNFA(char));
+    }
+  }
+  if (nfa === undefined) throw new Error('charSeq called with empty string');
+  return nfa;
+}
+
 const ASCII: number[] = [];
 for (let i = 1; i <= 127; i++) {
   ASCII.push(i);

@@ -7,6 +7,9 @@ import {
   RNode,
   parenNode,
   anyCharNode,
+  multiCharClassNode,
+  charRangeNode,
+  charListNode,
 } from './parser';
 
 describe('parseRegex', () => {
@@ -44,6 +47,27 @@ describe('parseRegex', () => {
     'a.*b': concatNode(
       concatNode(charNode('a'), starNode(anyCharNode())),
       charNode('b')
+    ),
+    '[a-zA-Z_]([a-zA-Z0-9_]*)': concatNode(
+      multiCharClassNode([
+        charRangeNode('a', 'z'),
+        charRangeNode('A', 'Z'),
+        charListNode('_'),
+      ]),
+      parenNode(
+        starNode(
+          multiCharClassNode([
+            charRangeNode('a', 'z'),
+            charRangeNode('A', 'Z'),
+            charRangeNode('0', '9'),
+            charListNode('_'),
+          ])
+        )
+      )
+    ),
+    'a[b-z]': concatNode(
+      charNode('a'),
+      multiCharClassNode([charRangeNode('b', 'z')])
     ),
   };
   test.each(Object.entries(cases))('%p', (pattern: string, node: RNode) => {

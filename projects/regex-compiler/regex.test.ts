@@ -54,6 +54,7 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
     },
   ],
   ['[^ab]', { matches: ['c', 'd', ' ', '\n'], fails: ['a', 'b'] }],
+  ['[a-zA-Z_]([a-zA-Z0-9_]*)', { matches: ['foo', '_FooBar32'], fails: ['.'] }],
 ];
 
 test.each(cases)(`compiles %p`, (pattern) => {

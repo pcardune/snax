@@ -176,6 +176,21 @@ export function charNode(char: string) {
 export function anyCharNode() {
   return new AnyCharNode({});
 }
+export function charRangeNode(start: string, end: string) {
+  return charClassNode({ kind: 'charRange', range: { start, end } });
+}
+export function charListNode(chars: string) {
+  return charClassNode({ kind: 'charList', chars });
+}
+export function charClassNode(charClass: CharClassSpec) {
+  return new CharClassNode({ charClass });
+}
+export function multiCharClassNode(
+  charClasses: CharClassNode[],
+  negate = false
+) {
+  return new MultiCharClassNode({ charClassNodes: charClasses, negate });
+}
 
 class RegexParser {
   private tokens: Iterator<Lexeme, Lexeme>;
@@ -304,7 +319,12 @@ class RegexParser {
         break;
       }
     }
-    this.last = new ParenNode({ child });
+    const parenNode = new ParenNode({ child });
+    if (this.last != null) {
+      this.last = new ConcatNode({ left: this.last, right: parenNode });
+    } else {
+      this.last = parenNode;
+    }
   }
 
   private parseBracket() {
@@ -375,7 +395,12 @@ class RegexParser {
         })
       );
     }
-    this.last = new MultiCharClassNode({ charClassNodes, negate });
+    const charClassNode = new MultiCharClassNode({ charClassNodes, negate });
+    if (this.last) {
+      this.last = new ConcatNode({ left: this.last, right: charClassNode });
+    } else {
+      this.last = charClassNode;
+    }
   }
 }
 

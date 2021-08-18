@@ -1,4 +1,4 @@
-import { backtrackable } from '../utils/iter';
+import { backtrackable, iter, Iter } from '../utils/iter';
 import { LexToken } from '../lexer-gen/lexer-gen';
 import { HashMap, HashSet } from '../utils/sets';
 import {
@@ -143,6 +143,7 @@ export function calcFirst(grammar: Grammar) {
   }
   return first;
 }
+
 export class ParseNode<T extends LexToken<any>> {
   symbol: GSymbol;
   parent: ParseNode<T> | null = null;
@@ -158,6 +159,15 @@ export class ParseNode<T extends LexToken<any>> {
     this.symbol = symbol;
     this.children = children;
     this.parent = parent;
+  }
+
+  /**
+   * Iterator over every node in the parse tree
+   */
+  iterTree(): Iter<ParseNode<T>> {
+    return iter([this as ParseNode<T>]).chain(
+      ...this.children.map((c) => c.iterTree())
+    );
   }
 
   toJSON(): any {

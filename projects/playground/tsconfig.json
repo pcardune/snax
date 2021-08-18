@@ -8,6 +8,7 @@
     { "path": "../grammar" },
     { "path": "../utils" },
     { "path": "../lexer-gen" },
-    { "path": "../regex-compiler" }
+    { "path": "../regex-compiler" },
+    { "path": "../parser-gen" }
   ]
 }

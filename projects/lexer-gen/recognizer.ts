@@ -63,7 +63,10 @@ export class NewTokenIterator<T> extends Iter<LexToken<T>> {
       } else {
         this.chars.reset(0);
         if (this.chars.buffered > 0) {
-          throw new Error('Ran out of tokens before reaching end of stream');
+          throw new Error(
+            'Could not match token starting with ' +
+              this.chars.buffer.map((c) => String.fromCharCode(c)).join('')
+          );
         }
         tokenResult = { done: true, value: undefined };
       }

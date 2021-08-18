@@ -1,3 +1,5 @@
+import { iter } from '../iter';
+
 export class OrderedMap<K, V> {
   private keyMap: Map<K, V>;
   private keyList: K[];
@@ -35,7 +37,7 @@ export class OrderedMap<K, V> {
   }
 
   keys() {
-    return this.keyList[Symbol.iterator]();
+    return iter(this.keyList);
   }
 
   *values() {
@@ -44,10 +46,11 @@ export class OrderedMap<K, V> {
     }
   }
 
-  *entries() {
-    for (const [i, key] of this.keyList.entries()) {
-      yield [i, key, this.get(key) as V] as [number, K, V];
-    }
+  entries() {
+    let i = 0;
+    return this.keys().map(
+      (key) => [i++, key, this.get(key) as V] as [number, K, V]
+    );
   }
 
   map<W>(f: (value: V) => W): OrderedMap<K, W> {

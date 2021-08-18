@@ -2,9 +2,12 @@ import { charCodes, iter } from '../utils/iter';
 import { lexer, PestParser } from './pest';
 import { useColors } from '../utils/debug';
 import { ASTNode, PestFile } from './ast';
+import fs from 'fs';
+import path from 'path';
 useColors();
 
-const input = `
+function doINIGrammar() {
+  const iniGrammar = `
 char = { ASCII_ALPHANUMERIC | "." | "_" | "/" }
 name = { char+ }
 value = { char* }
@@ -16,31 +19,31 @@ file = {
   EOI
 }
 `;
-for (const token of lexer.parse(charCodes(input))) {
-  console.log(token);
-}
-const root = PestParser.parseStr(input);
-if (root) {
-  console.log(root.pretty());
-} else {
-  console.log('failed....');
-}
+  for (const token of lexer.parse(charCodes(iniGrammar))) {
+    console.log(token);
+  }
+  const root = PestParser.parseStr(iniGrammar);
+  if (root) {
+    console.log(root.pretty());
+  } else {
+    console.log('failed....');
+  }
 
-let file = new PestFile(root);
-console.log(file.pretty());
+  let file = new PestFile(root);
+  console.log(file.pretty());
 
-for (const node of file.iterNodes()) {
-  let astNode = node as ASTNode;
-  console.log(astNode.node.symbol.toString());
-}
+  for (const node of file.iterNodes()) {
+    let astNode = node as ASTNode;
+    console.log(astNode.node.symbol.toString());
+  }
 
-console.log(
-  iter([1])
-    .chain(iter([2, 3]), iter([4, 5]).chain(iter([6, 7])))
-    .toArray()
-);
+  console.log(
+    iter([1])
+      .chain(iter([2, 3]), iter([4, 5]).chain(iter([6, 7])))
+      .toArray()
+  );
 
-const iniText = `
+  const iniText = `
 username = noha
 password = plain_text
 salt = NaCl
@@ -57,8 +60,42 @@ document_root=/var/www/example.com
 ip=
 interface=eth1
 `;
-const iniStream = charCodes(iniText);
-const iniLexer = file.buildLexer();
-for (const token of iniLexer.parse(iniStream)) {
-  console.log(token);
+  const iniStream = charCodes(iniText);
+  const iniLexer = file.buildLexer();
+  for (const token of iniLexer.parse(iniStream)) {
+    console.log(token);
+  }
 }
+
+import {
+  compileLexerToTypescript,
+  lexer as parserGenLexer,
+  parser as parserGenParser,
+} from '../parser-gen/dsl';
+import { compileFile } from '../parser-gen/cli';
+
+function doParserGen() {
+  compileFile('projects/parser-gen/dsl.grammar');
+
+  // const example = `
+  // ID = r"[a-zA-Z_]([a-zA-Z0-9_]*)"
+  // STRING = r"\\"([^\\"])*\\""
+  // WHITESPACE = r"( |\\t)"
+  // EQUALS = "="
+  // `;
+
+  // console.log('TOKENS:');
+  // parserGenLexer.parse(charCodes(example)).forEach((t) => console.log(t));
+  // console.log('PARSE TREE:');
+  // const root = parserGenParser.parseTokens(
+  //   parserGenLexer.parse(charCodes(example))
+  // );
+  // if (!root) {
+  //   console.log("Couldn't parse");
+  //   return;
+  // }
+  // console.log(root.pretty());
+  // console.log(compileLexerToTypescript(root));
+}
+
+doParserGen();

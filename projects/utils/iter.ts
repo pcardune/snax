@@ -25,6 +25,13 @@ export abstract class Iter<T> implements IterableIterator<T> {
     return [...this];
   }
 
+  forEach(f: (item: T, index: number) => void): void {
+    let index = 0;
+    for (const item of this) {
+      f(item, index++);
+    }
+  }
+
   join(sep: string): string {
     let s = '';
     let next = this.next();
@@ -211,32 +218,35 @@ export function concat<T>(...iters: Iterator<T>[]) {
 
 export class RewindableIterator<T> implements IterableIterator<T> {
   private iter: Iterator<T, T>;
-  private buffer: T[] = [];
+  private _buffer: T[] = [];
   private index: number = 0;
   constructor(iter: Iterator<T>) {
     this.iter = iter;
   }
   next(): IteratorResult<T> {
-    if (this.index < this.buffer.length) {
-      return { done: false, value: this.buffer[this.index++] };
+    if (this.index < this._buffer.length) {
+      return { done: false, value: this._buffer[this.index++] };
     }
     const { value, done } = this.iter.next();
     if (done) {
       return { done, value: undefined };
     }
-    this.buffer.push(value);
+    this._buffer.push(value);
     this.index++;
     return { done: false, value };
   }
   reset(n: number) {
-    this.buffer = this.buffer.slice(n);
+    this._buffer = this._buffer.slice(n);
     this.index = 0;
   }
   [Symbol.iterator]() {
     return this;
   }
+  get buffer(): Readonly<T[]> {
+    return this._buffer;
+  }
   get buffered() {
-    return this.buffer.length;
+    return this._buffer.length;
   }
 }
 

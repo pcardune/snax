@@ -9,13 +9,12 @@ export interface IHaveDebugStr {
   toDebugStr(): string;
 }
 
-import fs from 'fs';
-
 let debugFile: any = undefined;
 export function log(...args: any[]) {
   if (process.env.DEBUG) {
     console.log(...args);
   } else if (process.env.DEBUG_FILE) {
+    const fs = require('fs');
     if (!debugFile) {
       debugFile = fs.openSync(process.env.DEBUG_FILE, 'w');
     }

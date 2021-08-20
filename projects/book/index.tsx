@@ -2,6 +2,8 @@ import cytoscape from 'cytoscape';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 export { parseRegex } from '../regex-compiler/parser';
 export { NFA } from '../nfa-to-dfa/nfa';
+import ReactDOM from 'react-dom';
+import NFATable from './components/NFATable';
 
 export function getElementsForNFA(nfa: ConstNFA) {
   let elements = [];
@@ -87,7 +89,7 @@ export function renderNFA(
     ...config,
   };
   const container = document.getElementById(containerId);
-  const cy = cytoscape({
+  cytoscape({
     container,
     elements: getElementsForNFA(nfa) as any,
     style: style as any,
@@ -95,36 +97,19 @@ export function renderNFA(
   });
 }
 
-export function renderNFATable(containerId: string, nfa: ConstNFA) {
-  let html = '<table>';
-
-  html += '<thead><tr><th></th>';
-  for (let ai = 0; ai < nfa.getAlphabet().length; ai++) {
-    html += `<th>${String.fromCharCode(nfa.getAlphabet()[ai])}</th>`;
-  }
-  html += '</tr></thead>';
-
-  for (let si = 0; si < nfa.numStates; si++) {
-    html += '<tr>';
-    html += `<td>${nfa.getStartState() == si ? '>' : ''}${si}${
-      nfa.isAcceptingState(si) ? '*' : ''
-    }</td>`;
-
-    for (let ai = 0; ai < nfa.getAlphabet().length; ai++) {
-      const next = nfa.getNextStates(si, ai);
-      let cell = next.size > 0 ? `{${[...next].join(',')}}` : '-';
-      html += `<td align="center">${cell}</td>`;
+function getContainerEl(container: string | HTMLElement) {
+  if (typeof container == 'string') {
+    const el = document.getElementById(container);
+    if (!el) {
+      throw new Error(`did not find element with id ${container}`);
     }
+    return el;
+  }
+  return container;
+}
 
-    html += '</tr>';
-  }
-  html += '</table>';
-  const container = document.getElementById(containerId);
-  if (container) {
-    container.innerHTML = html;
-  } else {
-    throw new Error(`did not find element with id ${containerId}`);
-  }
+export function renderNFATable(container: string | HTMLElement, nfa: ConstNFA) {
+  ReactDOM.render(<NFATable nfa={nfa} />, getContainerEl(container));
 }
 
 // const reInput = document.getElementById('re');

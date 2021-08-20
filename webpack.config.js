@@ -2,7 +2,7 @@ const path = require('path');
 const webpack = require('webpack');
 
 module.exports = {
-  entry: './projects/book/index.ts',
+  entry: './projects/book/index.tsx',
   devtool: 'inline-source-map',
   mode: 'development',
   output: {

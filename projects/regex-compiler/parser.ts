@@ -205,12 +205,16 @@ class RegexParser {
     }
   }
 
-  static parse(input: string | Iterator<Lexeme>): RNode {
+  static parse(input: string | Iterator<Lexeme>): RNode | null {
     try {
       return new RegexParser(input).parse();
     } catch (e) {
-      throw new Error(`Failed parsing regex ${input}: ${e}`);
+      return null;
     }
+  }
+
+  static parseOrThrow(input: string | Iterator<Lexeme>): RNode {
+    return new RegexParser(input).parse();
   }
 
   parse(): RNode {
@@ -294,7 +298,7 @@ class RegexParser {
     if (this.last == null) {
       throw new Error('Expected | operator to follow another expression');
     }
-    let right = parseRegex(this.tokens);
+    let right = RegexParser.parseOrThrow(this.tokens);
     this.last = new OrNode({ left: this.last, right });
   }
 
@@ -316,7 +320,7 @@ class RegexParser {
       if (numToMatch > 0) {
         childTokens.push(nextToken);
       } else {
-        child = parseRegex(childTokens[Symbol.iterator]());
+        child = RegexParser.parseOrThrow(childTokens[Symbol.iterator]());
         break;
       }
     }

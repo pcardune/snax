@@ -1,10 +1,4 @@
 <script src="/main.js"></script>
-<style>
-  .nfa {
-    border: 2px solid #ddd;
-    margin: auto;
-  }
-</style>
 
 # Finite Automata
 
@@ -21,7 +15,7 @@ A nondeterministic finite automaton (or NFA) consists of the following:
 
 An NFA can be represented visually as a graph:
 
-<div id="example-1" class="nfa" style="height: 100px; width: 300px;"></div>
+<div id="example-1" class="nfa"></div>
 
 In this visualization, the set of states is {0,1,2,3}, with the start state 0
 indicated by a diamond shaped node, and the accepting state 3 indicated by a double
@@ -47,7 +41,7 @@ nfa.addEdge(s1,s2,o);
 nfa.addEdge(s2,s3,o);
 nfa.setAccepting(s3, true);
 nfa.setStartState(s0);
-nfaExplore.renderNFA('example-1', nfa);
+nfaExplore.renderNFAGraph('example-1', {nfa, height: 150, width: 300});
 nfaExplore.renderNFATable('example-1-table', nfa)
 }
 </script>
@@ -59,17 +53,16 @@ with a \*.
 Here is a more complex example of an NFA with multiple accepting states,
 edges that loop back to the state they started from, etc.
 
-<div id="example-2" class="nfa" style="height: 250px; width: 300px;"></div>
+<div id="example-2" class="nfa"></div>
 
 and it's corresponding table:
 
 <div id="example-2-table"></div>
 <script>
   let nfa = nfaExplore.parseRegex('a*b*').nfa();
-  nfaExplore.renderNFA(
+  nfaExplore.renderNFAGraph(
     'example-2',
-    nfa,
-    {layout:{name: 'cose', animate: false, randomize: false}}
+    {nfa, layout:'cose', width: 400, height: 250},
   );
   nfaExplore.renderNFATable('example-2-table', nfa)
 </script>

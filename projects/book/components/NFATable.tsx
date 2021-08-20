@@ -23,20 +23,22 @@ export default function NFATable({ nfa }: { nfa: ConstNFA }) {
         <tr>
           <th></th>
           {alphabet.map((a) => (
-            <th>{a}</th>
+            <th key={a}>{a}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {states.map((si) => (
-          <tr>
+          <tr key={si}>
             <td>
               {nfa.getStartState() == si && '>'}
               {si}
               {nfa.isAcceptingState(si) && '*'}
             </td>
             {alphabet.map((char, ai) => (
-              <td align="center">{setToString(nfa.getNextStates(si, ai))}</td>
+              <td align="center" key={ai}>
+                {setToString(nfa.getNextStates(si, ai))}
+              </td>
             ))}
           </tr>
         ))}

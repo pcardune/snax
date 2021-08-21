@@ -10,6 +10,7 @@ import {
   multiCharClassNode,
   charRangeNode,
   charListNode,
+  charClassNode,
 } from './parser';
 
 describe('parseRegex', () => {
@@ -18,6 +19,7 @@ describe('parseRegex', () => {
     ab: concatNode(charNode('a'), charNode('b')),
     '\\(a': concatNode(charNode('('), charNode('a')),
     '\\*a': concatNode(charNode('*'), charNode('a')),
+    '\\+a': concatNode(charNode('+'), charNode('a')),
     'a|b': orNode(charNode('a'), charNode('b')),
     'a*': starNode(charNode('a')),
     '(a)': parenNode(charNode('a')),
@@ -69,6 +71,24 @@ describe('parseRegex', () => {
     'a[b-z]': concatNode(
       charNode('a'),
       multiCharClassNode([charRangeNode('b', 'z')])
+    ),
+    '\\"': concatNode(charNode('\\'), charNode('"')),
+    '(\\")': parenNode(concatNode(charNode('\\'), charNode('"'))),
+    '"(((\\")|[^"\n])*)"': concatNode(
+      concatNode(
+        charNode('"'),
+        parenNode(
+          starNode(
+            parenNode(
+              orNode(
+                parenNode(concatNode(charNode('\\'), charNode('"'))),
+                multiCharClassNode([charListNode('"\n')], true)
+              )
+            )
+          )
+        )
+      ),
+      charNode('"')
     ),
   };
   test.each(Object.entries(cases))('%p', (pattern: string, node: RNode) => {

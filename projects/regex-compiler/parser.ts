@@ -7,6 +7,7 @@ import {
 } from '../nfa-to-dfa/regex-nfa';
 import { Lexeme, Lexer, Token } from './lexer';
 import { LexToken } from '../lexer-gen/lexer-gen';
+import { err, ok, Result } from 'neverthrow';
 
 enum CharacterClass {
   DIGIT = 'd',
@@ -168,6 +169,9 @@ export function concatNode(left: RNode | null, right: RNode) {
 export function starNode(child: RNode) {
   return new StarNode({ child });
 }
+export function plusNode(child: RNode) {
+  return new OneOrMoreNode({ child });
+}
 export function parenNode(child: RNode) {
   return new ParenNode({ child });
 }
@@ -193,7 +197,7 @@ export function multiCharClassNode(
   return new MultiCharClassNode({ charClassNodes: charClasses, negate });
 }
 
-class RegexParser {
+export class RegexParser {
   private tokens: Iterator<Lexeme, Lexeme>;
   private last: RNode | null = null;
 
@@ -206,15 +210,21 @@ class RegexParser {
   }
 
   static parse(input: string | Iterator<Lexeme>): RNode | null {
-    try {
-      return new RegexParser(input).parse();
-    } catch (e) {
-      return null;
-    }
+    return (
+      RegexParser.parseResult(input) as Result<RNode | null, any>
+    ).unwrapOr(null);
   }
 
   static parseOrThrow(input: string | Iterator<Lexeme>): RNode {
     return new RegexParser(input).parse();
+  }
+
+  static parseResult(input: string | Iterator<Lexeme>): Result<RNode, any> {
+    try {
+      return ok(new RegexParser(input).parse());
+    } catch (e) {
+      return err(e);
+    }
   }
 
   parse(): RNode {
@@ -269,8 +279,14 @@ class RegexParser {
           charClass: { kind: 'charClass', class: escapedChar },
         });
         break;
+      case '(':
+      case '[':
+      case '+':
+      case '*':
+        node = charNode(escapedChar);
+        break;
       default:
-        node = new CharNode({ char: escapedChar });
+        node = concatNode(charNode('\\'), charNode(escapedChar));
     }
     this.last = concatNode(this.last, node);
   }

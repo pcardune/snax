@@ -11,6 +11,9 @@ export interface IHaveDebugStr {
 
 let debugFile: any = undefined;
 export function log(...args: any[]) {
+  if (!global.process) {
+    return;
+  }
   if (process.env.DEBUG) {
     console.log(...args);
   } else if (process.env.DEBUG_FILE) {

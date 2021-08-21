@@ -1,6 +1,7 @@
 import { Grammar, nonTerminal, terminal } from './grammar';
 import {
   buildParser,
+  ParseErrorType,
   removeDirectLeftRecursion,
   removeLeftRecursion,
 } from './top-down-parser';
@@ -217,6 +218,24 @@ describe('parse', () => {
       const tokens = ['num', '+', 'num', '+', '(', 'num', '-', 'num', ')'];
       const result = parser.parseOrThrow(tokens);
       expect(result.pretty()).toMatchSnapshot();
+    });
+    describe('error handling', () => {
+      test('+ should not parse', () => {
+        const tokens = ['+'];
+        const result = parser.parse(tokens);
+        if (result.isOk()) {
+          fail();
+        }
+        expect(result.error.type).toBe(ParseErrorType.TOKENS_REMAIN);
+      });
+      test('num+ should not parse', () => {
+        const tokens = ['num', '+'];
+        const result = parser.parse(tokens);
+        if (result.isOk()) {
+          fail();
+        }
+        expect(result.error.type).toBe(ParseErrorType.TOKENS_REMAIN);
+      });
     });
   });
 });

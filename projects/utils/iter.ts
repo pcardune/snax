@@ -1,3 +1,5 @@
+import { err, ok, Result } from 'neverthrow';
+
 export abstract class Iter<T> implements IterableIterator<T> {
   [Symbol.iterator]() {
     return this;
@@ -14,6 +16,10 @@ export abstract class Iter<T> implements IterableIterator<T> {
 
   chain(...iters: Iter<T>[]): Iter<T> {
     return new ChainIter(this, ...iters);
+  }
+
+  catch(): CatchIter<T> {
+    return new CatchIter(this);
   }
 
   first(): T | undefined {
@@ -78,6 +84,31 @@ class FilterIter<T> extends Iter<T> {
       next = this.iterator.next();
     }
     return next;
+  }
+}
+
+class CatchIter<T> extends Iter<Result<T, any>> {
+  private iterator: Iterator<T>;
+  private error: any;
+
+  constructor(iterable: Iterable<T>) {
+    super();
+    this.iterator = iterable[Symbol.iterator]();
+  }
+  next(): IteratorResult<Result<T, any>> {
+    if (this.error !== undefined) {
+      return { done: true, value: undefined };
+    }
+    try {
+      let next = this.iterator.next();
+      if (next.done) {
+        return next;
+      }
+      return { done: false, value: ok(next.value) };
+    } catch (e) {
+      this.error = e;
+      return { done: false, value: err(e) };
+    }
   }
 }
 

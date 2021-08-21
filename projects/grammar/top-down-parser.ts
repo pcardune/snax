@@ -15,6 +15,7 @@ import {
   EOFSymbol,
 } from './grammar';
 import * as debug from '../utils/debug';
+import { ok, err, Result } from 'neverthrow';
 
 export function removeDirectLeftRecursion(grammar: Grammar<any>) {
   const NTs = grammar.getNonTerminals();
@@ -225,11 +226,11 @@ export class Parser<R> {
     this.start = start;
   }
   parseOrThrow(tokens: string[]) {
-    let root = this.parse(tokens);
-    if (!root) {
-      throw new Error('Failed to parse');
+    const result = this.parse(tokens);
+    if (result.isErr()) {
+      throw result.error;
     }
-    return root;
+    return result.value;
   }
   parse(tokens: string[]) {
     return parse(
@@ -241,11 +242,11 @@ export class Parser<R> {
     );
   }
   parseTokensOrThrow<T extends string>(tokens: Iterable<LexToken<T>>) {
-    let root = this.parseTokens(tokens);
-    if (!root) {
-      throw new Error('failed to parse');
+    const result = this.parseTokens(tokens);
+    if (result.isErr()) {
+      throw result.error;
     }
-    return root;
+    return result.value;
   }
   parseTokens<T extends string>(tokens: Iterable<LexToken<T>>) {
     return parse(this.grammar, this.start, tokens);
@@ -258,18 +259,39 @@ export function buildParser<R extends GrammarSpec>(grammarSpec: R) {
   return new Parser(grammar, nonTerminal('Root'));
 }
 
+export enum ParseErrorType {
+  EOF = 'Reached end of file',
+  UNMATCHED_TERMINAL = 'Unmatched Terminal',
+  NO_MORE_RULES = 'failed all rules',
+  TOKENS_REMAIN = 'tokens remaining after completing parse',
+}
+
+type ParseErrorContext<T> = { tokenIter: Iterable<LexToken<T>> };
+
+class ParseError<T> extends Error {
+  context: ParseErrorContext<T>;
+  type: ParseErrorType;
+  constructor(type: ParseErrorType, context: ParseErrorContext<T>) {
+    super();
+    this.type = type;
+    this.context = context;
+  }
+  get message() {
+    return 'ParseError';
+  }
+}
+
 export function parse<T extends string, R>(
   grammar: Grammar<R>,
   start: GSymbol,
   tokens: Iterable<LexToken<T>>
-): ParseNode<R, LexToken<T>> | null {
+): Result<ParseNode<R, LexToken<T>>, ParseError<T>> {
   type Token = LexToken<T>;
+  type ParseResult = Result<ParseNode<R, Token>, ParseError<T>>;
+
   let tokenIter = backtrackable(tokens[Symbol.iterator]());
 
-  function parseNode(
-    rootSymbol: GSymbol,
-    depth: number
-  ): ParseNode<R, Token> | null {
+  function parseNode(rootSymbol: GSymbol, depth: number): ParseResult {
     const log = (...args: any[]) => {
       let prefix = '';
       for (let i = -1; i < depth; i++) {
@@ -287,27 +309,26 @@ export function parse<T extends string, R>(
         i++;
         log(`${i}: trying ${rule.toString()}`);
         const children: ParseNode<R, Token>[] = [];
-        let success = true;
+        let result;
         for (const symbol of rule.symbols) {
           if (symbol.equals(EPSILON)) {
             continue;
           }
-          const node = parseNode(symbol, depth + 1);
-          if (node != null) {
-            children.push(node);
+          result = parseNode(symbol, depth + 1);
+          if (result.isOk()) {
+            children.push(result.value);
           } else {
-            success = false;
             break;
           }
         }
-        if (success) {
+        if (!result || result.isOk()) {
           log(
             debug.colors.green('✓'),
             'fulfilled non-terminal:',
             rule.toString()
           );
           // we don't need to try any more rules.
-          return new ParseNode(rule.rule, rootSymbol, children);
+          return ok(new ParseNode(rule.rule, rootSymbol, children));
         } else {
           log(
             'failed',
@@ -333,7 +354,7 @@ export function parse<T extends string, R>(
       }
       // none of the rules worked, so return null
       log('failed, all rules');
-      return null;
+      return err(new ParseError(ParseErrorType.NO_MORE_RULES, { tokenIter }));
     } else {
       log('trying to expand terminal node');
       // this is a terminal node in the grammar, so try to match
@@ -342,12 +363,12 @@ export function parse<T extends string, R>(
       if (next.done) {
         // EOF
         log('Reached EOF!');
-        return null;
+        return err(new ParseError(ParseErrorType.EOF, { tokenIter }));
       } else if (next.value.token == rootSymbol.key) {
         const node = new ParseNode(null as R | null, rootSymbol, []);
         node.token = next.value;
         log('fulfilled terminal:', node.token.toString());
-        return node;
+        return ok(node);
       } else {
         log(
           'could not match terminal:',
@@ -356,14 +377,16 @@ export function parse<T extends string, R>(
           rootSymbol.key
         );
         tokenIter.pushBack(next.value);
-        return null;
+        return err(
+          new ParseError(ParseErrorType.UNMATCHED_TERMINAL, { tokenIter })
+        );
       }
     }
   }
   const root = parseNode(start, 0);
   if (!tokenIter.next().done) {
     debug.log('Finished parsing before EOF');
-    return null;
+    return err(new ParseError(ParseErrorType.TOKENS_REMAIN, { tokenIter }));
   }
   return root;
 }
@@ -491,7 +514,6 @@ export function parseOld<R, T extends LexToken<any>>(
     } else if (isEOF(word) && focus == null) {
       return root;
     } else {
-      debugger;
       tokenIter.pushBack(word as T);
       backtrack();
       word = nextWord();

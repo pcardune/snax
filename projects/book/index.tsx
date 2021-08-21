@@ -6,6 +6,7 @@ import NFATable from './components/NFATable';
 import NFAGraph from './components/NFAGraph';
 import React from 'react';
 import { RegexNFA } from './components/RegexNFA';
+import { GrammarPlayground } from './components/GrammarPlayground';
 
 function getContainerEl(container: string | HTMLElement) {
   if (typeof container == 'string') {
@@ -53,59 +54,7 @@ function wrap(Component: any) {
 }
 
 export const renderRegexNFA = wrap(RegexNFA);
-
-// const reInput = document.getElementById('re');
-// reInput.value = '[ab]c*d';
-// const cy = cytoscape({
-//   container: document.getElementById('cy'),
-//   elements: getElementsForRegex(reInput.value),
-//   style: [
-//     // the stylesheet for the graph
-//     {
-//       selector: 'node',
-//       style: {
-//         'background-color': '#666',
-//         label: 'data(id)',
-//         'text-valign': 'center',
-//         'text-halign': 'center',
-//         color: 'white',
-//       },
-//     },
-//     {
-//       selector: 'node[?start]',
-//       style: { 'background-color': '#00f' },
-//     },
-//     {
-//       selector: 'node[?accepting]',
-//       style: { 'background-color': '#0a0' },
-//     },
-//     {
-//       selector: 'edge',
-//       style: {
-//         width: 3,
-//         label: 'data(label)',
-//         'line-color': '#ccc',
-//         'target-arrow-color': '#ccc',
-//         'target-arrow-shape': 'triangle',
-//         'text-valign': 'top',
-//         'curve-style': 'bezier',
-//       },
-//     },
-//   ],
-
-//   layout: {
-//     name: 'grid',
-//     rows: 1,
-//   },
-// });
-// cy.layout({ name: 'cose', animate: false }).run();
-// reInput.addEventListener('keyup', (e) => {
-//   if (e.target.value) {
-//     const elements = getElementsForRegex(e.target.value);
-//     cy.remove('node');
-//     cy.add(elements);
-//     cy.layout({ name: 'cose', animate: false }).run();
-//   }
-// });
-
-// window.cy = cy;
+export const render = {
+  RegexNFA: wrap(RegexNFA),
+  GrammarPlayground: wrap(GrammarPlayground),
+};

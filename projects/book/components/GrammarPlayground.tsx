@@ -1,7 +1,8 @@
-import { ok, Result } from 'neverthrow';
+import { combine, ok, Result } from 'neverthrow';
 import { ParseNode } from '../../grammar/top-down-parser';
 import { LexToken } from '../../lexer-gen/lexer-gen';
 import {
+  compileGrammarToParser,
   compileLexer,
   compileLexerToTypescript,
   lexer,
@@ -56,13 +57,6 @@ export function GrammarPlayground(props: {
   ];
 
   const tokens = lexer.parse(charCodes(props.initialGrammar)).toArray();
-
-  // segments.push(
-  //   <div>
-  //     <TokenList tokens={tokens.map(ok)} />
-  //   </div>
-  // );
-
   const parseTreeResult = parser.parseTokens(tokens);
   if (parseTreeResult.isOk()) {
     const root = parseTreeResult.value;
@@ -74,6 +68,25 @@ export function GrammarPlayground(props: {
         .catch()
         .toArray();
       segments.push(<TokenList tokens={parsedTokens} />);
+
+      const maybeParser = compileGrammarToParser(root);
+      if (maybeParser.isOk()) {
+        const parser = maybeParser.value;
+        const maybeParseTree = parser.parseTokens(
+          combine(parsedTokens).unwrapOr([])
+        );
+        if (maybeParseTree.isOk()) {
+          segments.push(<ParseTree root={maybeParseTree.value} />);
+        } else {
+          segments.push(
+            <div>Failed parsing expression {'' + maybeParseTree.error}</div>
+          );
+        }
+      } else {
+        segments.push(
+          <div>Failed compiling parser: {'' + maybeParser.error}</div>
+        );
+      }
     } else {
       segments.push(<div>Failed compiling lexer: {'' + maybeLexer.error}</div>);
     }

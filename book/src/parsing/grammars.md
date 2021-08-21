@@ -11,7 +11,7 @@ precedence works.
     `NUM = r"[0-9]+"
 NAME = r"[a-zA-Z_][a-zA-Z_0-9]"
 
-Goal = [Expr]
+Root = [Expr]
 Expr = [Expr "+" Term]
      | [Expr "-" Term]
      | [Term]

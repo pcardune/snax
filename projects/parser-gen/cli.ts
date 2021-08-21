@@ -28,12 +28,20 @@ export function compileFile(grammarFilePath: string) {
   });
   console.log('Compiling to', outPath);
   const output = compileLexerToTypescript(root);
-  debug.log(colors.yellow(output));
+  if (output.isErr()) {
+    debug.log(colors.red('Failed compiling lexer: ' + output.error));
+    return;
+  }
+  debug.log(colors.yellow(output.value));
 
   console.log('Compiling grammar to', outPath);
   const grammarOut = compileGrammarToTypescript(root);
-  debug.log(colors.yellow(grammarOut));
+  if (grammarOut.isErr()) {
+    debug.log(colors.red('Failed compiling grammar: ' + grammarOut.error));
+    return;
+  }
+  debug.log(colors.yellow(grammarOut.value));
 
-  fs.writeFileSync(outPath, output + grammarOut);
+  fs.writeFileSync(outPath, output.value + grammarOut.value);
   console.log(colors.bold(colors.green('✓')), 'Successfully wrote', outPath);
 }

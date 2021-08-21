@@ -443,4 +443,4 @@ export class RegexParser {
   }
 }
 
-export const parseRegex = RegexParser.parse;
+export const parseRegex = RegexParser.parseOrThrow;

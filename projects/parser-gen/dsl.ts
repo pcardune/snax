@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { ParseNode } from '../grammar/top-down-parser';
+import { buildParser, ParseNode } from '../grammar/top-down-parser';
 import { LexToken } from '../lexer-gen/lexer-gen';
 
 import { lexer, parser, Token, Rules } from './dsl.__generated__';
@@ -10,6 +10,7 @@ import { err, ok, Result } from 'neverthrow';
 import { HashMap } from '../utils/sets';
 import { flatten } from '../utils/result';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
+import { GrammarSpec } from '../grammar/grammar';
 export { lexer, parser, Token, Rules };
 
 class Literal {
@@ -50,6 +51,8 @@ class Literal {
   }
 }
 
+const tokenNameForLiteral = (literal: Literal) => '$<' + literal.content + '>';
+
 function mapLiteralsToNames(
   root: ParseNode<Rules, LexToken<string>>
 ): Result<OrderedMap<string, Literal>, any> {
@@ -78,7 +81,7 @@ function mapLiteralsToNames(
     }
     if (!tokenLiterals.get(maybeLiteral.value)) {
       const literal = maybeLiteral.value;
-      const tokenName = '$<' + literal.content + '>';
+      const tokenName = tokenNameForLiteral(literal);
       tokenLiterals.set(literal, tokenName);
       patterns.push(tokenName, literal);
     }
@@ -115,6 +118,50 @@ export function compileLexer(
       return ok(new PatternLexer(patterns));
     })
   );
+}
+
+export function compileGrammarToParser(
+  root: ParseNode<Rules, LexToken<string>>
+) {
+  let grammarSpec: GrammarSpec = { Root: [] };
+  const productionIter = root
+    .iterTree()
+    .filter((n) => n.rule === Rules.Production);
+
+  for (const node of productionIter) {
+    const productionName = node.children[0].token?.substr as string;
+    grammarSpec[productionName] = [];
+
+    const sequenceIter = node
+      .iterTree()
+      .filter((n) => n.rule === Rules.Sequence);
+
+    for (const sequence of sequenceIter) {
+      const elementIter = sequence.children[1]
+        .iterTree()
+        .filter((n) => n.rule === Rules.Element);
+
+      let elementNames: string[] = [];
+      for (const element of elementIter) {
+        let child = element.children[0];
+
+        if (child.symbol.key === Token.ID) {
+          const name = child.token?.substr as string;
+          elementNames.push(name);
+        } else {
+          const maybeLiteral = Literal.fromNode(child);
+          if (maybeLiteral.isOk()) {
+            elementNames.push(tokenNameForLiteral(maybeLiteral.value));
+          } else {
+            return err(maybeLiteral.error);
+          }
+        }
+      }
+      grammarSpec[productionName].push(elementNames);
+    }
+  }
+
+  return ok(buildParser(grammarSpec));
 }
 
 export function compileLexerToTypescript(
@@ -166,7 +213,7 @@ export const lexer = new PatternLexer(patterns);
 
 export function compileGrammarToTypescript(
   root: ParseNode<Rules, LexToken<string>>
-) {
+): Result<string, any> {
   let symbolTable: { [i: string]: 'Token' | 'Rules' } = {};
 
   let out = `
@@ -225,5 +272,5 @@ export enum Rules {
 
   out += '});';
 
-  return out;
+  return ok(out);
 }

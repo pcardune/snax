@@ -1,13 +1,13 @@
 import { charCodes } from '../utils/iter';
 import { DFA } from '../nfa-to-dfa/dfa';
-import { parseRegex } from './parser';
+import { parseRegex, RegexParser } from './parser';
 
 export class Regex {
   pattern: string;
   private dfa: DFA;
   constructor(pattern: string) {
     this.pattern = pattern;
-    let node = parseRegex(this.pattern);
+    let node = RegexParser.parseOrThrow(this.pattern);
     let nfa = node.nfa();
     this.dfa = nfa.toDFA();
   }

@@ -34,7 +34,7 @@ file = {
 
   for (const node of file.iterNodes()) {
     let astNode = node as ASTNode;
-    console.log(astNode.node.symbol.toString());
+    console.log(astNode.node.rule);
   }
 
   console.log(

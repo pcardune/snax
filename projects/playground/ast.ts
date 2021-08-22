@@ -7,7 +7,7 @@ import { charRange, chars, charSeq } from '../nfa-to-dfa/regex-nfa';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { iter, Iter } from '../utils/iter';
 
-type PestParseNode = ParseNode<unknown, LexToken<string>>;
+type PestParseNode = ParseNode<unknown, LexToken<unknown>>;
 
 function filterNodes(
   node: PestParseNode,
@@ -41,14 +41,14 @@ export type { ASTNode };
 
 class Term extends ASTNode {
   get expr(): Expr | null {
-    if (this.node.children[0].symbol.key === '(') {
+    if (this.node.children[0].rule === '(') {
       return new Expr(this.node.children[1]);
     }
     return null;
   }
 
   get stringLiteral(): string | null {
-    if (this.node.children[0].symbol.key === 'STRING') {
+    if (this.node.children[0].rule === 'STRING') {
       let lexeme = this.node.children[0].token?.substr;
       if (lexeme) {
         return lexeme.slice(1, lexeme.length - 1);
@@ -58,7 +58,7 @@ class Term extends ASTNode {
   }
 
   get ruleName(): string | null {
-    if (this.node.children[0].symbol.key === 'ID') {
+    if (this.node.children[0].rule === 'ID') {
       return this.node.children[0].token?.substr || null;
     }
     return null;
@@ -81,7 +81,7 @@ class Term extends ASTNode {
 
 class Choice extends ASTNode {
   get terms(): Iter<Term> {
-    return filterNodes(this.node, (n) => n.symbol.key === 'Term').map(
+    return filterNodes(this.node, (n) => n.rule === 'Term').map(
       (n) => new Term(n)
     );
   }
@@ -100,7 +100,7 @@ class Choice extends ASTNode {
 
 class Sequence extends ASTNode {
   get terms(): Iter<UnaryOp> {
-    return filterNodes(this.node, (n) => n.symbol.key === 'Unary').map(
+    return filterNodes(this.node, (n) => n.rule === 'Unary').map(
       (n) => new UnaryOp(n)
     );
   }
@@ -123,7 +123,7 @@ class UnaryOp extends ASTNode {
     if (this.node.children.length == 1) {
       return null;
     }
-    const key = this.node.children[1].symbol.key;
+    const key = this.node.children[1].rule;
     switch (key) {
       case '*':
       case '+':
@@ -145,7 +145,7 @@ class Expr extends ASTNode {
     if (this.node.children.length == 1) {
       return new UnaryOp(this.node.children[0]);
     }
-    switch (this.node.children[1].symbol.key) {
+    switch (this.node.children[1].rule) {
       case '~':
         return new Sequence(this.node);
       case '|':
@@ -178,7 +178,7 @@ class Rule extends ASTNode {
 
 export class PestFile extends ASTNode {
   get rules(): Iter<Rule> {
-    const nodes = filterNodes(this.node, (n) => n.symbol.key === 'Rule');
+    const nodes = filterNodes(this.node, (n) => n.rule === 'Rule');
     return iter(nodes).map((n) => new Rule(n));
   }
   iterChildren() {

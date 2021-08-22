@@ -1,18 +1,31 @@
-import { Grammar, nonTerminal, terminal } from './grammar';
+import { Grammar } from './grammar';
 
 describe('Grammar', () => {
   const grammar: Grammar<string> = new Grammar();
-  grammar.addProductions('Expr', nonTerminal('Expr'), [
-    [terminal('('), nonTerminal('Expr'), terminal(')')],
-    [nonTerminal('Expr'), nonTerminal('Op'), terminal('name')],
-    [terminal('name')],
+  grammar.addProductions('Expr', [
+    ['(', 'Expr', ')'],
+    ['Expr', 'Op', 'name'],
+    ['name'],
   ]);
-  grammar.addProductions('Expr', nonTerminal('Op'), [
-    [terminal('+')],
-    [terminal('-')],
-    [terminal('*')],
-    [terminal('/')],
-  ]);
+  grammar.addProductions('Op', [['+'], ['-'], ['*'], ['/']]);
+
+  test('getTerminals()', () => {
+    const terminals = grammar.getTerminals();
+    expect([...terminals].sort()).toEqual([
+      '(',
+      ')',
+      '*',
+      '+',
+      '-',
+      '/',
+      'name',
+    ]);
+  });
+
+  test('getNonTerminals()', () => {
+    const nonTerminals = grammar.getNonTerminals();
+    expect([...nonTerminals].sort()).toEqual(['Expr', 'Op']);
+  });
 
   test('toString()', () => {
     expect(grammar.toString()).toMatchInlineSnapshot(`

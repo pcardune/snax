@@ -1,4 +1,4 @@
-import { Grammar, nonTerminal, terminal } from './grammar';
+import { Grammar } from './grammar';
 import {
   buildParser,
   ParseErrorType,
@@ -8,21 +8,17 @@ import {
 
 describe('removeDirectLeftRecursion', () => {
   const grammar: Grammar<string> = new Grammar();
-  grammar.addProductions('Expr', nonTerminal('Expr'), [
-    [nonTerminal('Expr'), terminal('+'), nonTerminal('Term')],
-    [nonTerminal('Expr'), terminal('-'), nonTerminal('Term')],
-    [nonTerminal('Term')],
+  grammar.addProductions('Expr', [
+    ['Expr', '+', 'Term'],
+    ['Expr', '-', 'Term'],
+    ['Term'],
   ]);
-  grammar.addProductions('Term', nonTerminal('Term'), [
-    [nonTerminal('Term'), terminal('*'), nonTerminal('Factor')],
-    [nonTerminal('Term'), terminal('/'), nonTerminal('Factor')],
-    [nonTerminal('Factor')],
+  grammar.addProductions('Term', [
+    ['Term', '*', 'Factor'],
+    ['Term', '/', 'Factor'],
+    ['Factor'],
   ]);
-  grammar.addProductions('Factor', nonTerminal('Factor'), [
-    [terminal('('), nonTerminal('Expr'), terminal(')')],
-    [terminal('num')],
-    [terminal('name')],
-  ]);
+  grammar.addProductions('Factor', [['(', 'Expr', ')'], ['num'], ['name']]);
   test('it works', () => {
     removeDirectLeftRecursion(grammar);
     expect(grammar.toString()).toMatchInlineSnapshot(`
@@ -50,11 +46,9 @@ Term →
 
 describe('removeLeftRecursion', () => {
   const grammar: Grammar<string> = new Grammar();
-  grammar.addProductions('A', nonTerminal('A'), [[nonTerminal('B')]]);
-  grammar.addProductions('B', nonTerminal('B'), [[nonTerminal('C')]]);
-  grammar.addProductions('C', nonTerminal('C'), [
-    [nonTerminal('A'), terminal('d')],
-  ]);
+  grammar.addProductions('A', [['B']]);
+  grammar.addProductions('B', [['C']]);
+  grammar.addProductions('C', [['A', 'd']]);
   // console.log(grammar.toString());
   test('it works', () => {
     removeLeftRecursion(grammar);

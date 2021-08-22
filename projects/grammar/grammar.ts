@@ -1,84 +1,12 @@
-import { HashSet } from '../utils/sets';
-import { colors } from '../utils/debug';
-import { ParseNode } from './top-down-parser';
-import { LexToken } from '../lexer-gen/lexer-gen';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
-export enum SymbolKind {
-  TERMINAL,
-  NONTERMINAL,
-}
+export const EPSILON = Symbol('ϵ');
 
-export function terminal<K>(key: K): Terminal<K> {
-  return new Terminal(key);
-}
-export function nonTerminal<K>(key: K): NonTerminal<K> {
-  return new NonTerminal(key);
-}
-interface GSymbol<K> {
-  readonly key: K;
-  hash(): string;
-  equals(other: GSymbol<any>): boolean;
-  toString(): string;
-}
-export type BaseSymbol<K> = Terminal<K> | NonTerminal<K>;
-export class Terminal<K> implements GSymbol<K> {
-  readonly key: K;
-  constructor(key: K) {
-    this.key = key;
-  }
-  hash(): string {
-    return '' + this.key;
-  }
-  equals(other: GSymbol<any>): boolean {
-    return other instanceof Terminal && this.key === other.key;
-  }
-  toString(): string {
-    return colors.underline(colors.green(`'${this.key}'`));
-  }
-}
-
-export class NonTerminal<K> implements GSymbol<K> {
-  readonly key: K;
-  constructor(key: K) {
-    this.key = key;
-  }
-  hash(): string {
-    return '' + this.key;
-  }
-  equals(other: GSymbol<any>): boolean {
-    return other instanceof NonTerminal && this.key === other.key;
-  }
-  toString() {
-    return colors.red('' + this.key);
-  }
-}
-
-class EpsilonSymbol extends Terminal<'ϵ'> {
-  constructor() {
-    super('ϵ');
-  }
-  toString() {
-    return this.key;
-  }
-}
-export class EOFSymbol extends Terminal<'ⓔⓞⓕ'> {
-  static readonly singleton: EOFSymbol = new EOFSymbol();
-  private constructor() {
-    super('ⓔⓞⓕ');
-  }
-  toString() {
-    return this.key;
-  }
-}
-export const EOF = EOFSymbol.singleton;
-export const EPSILON = new EpsilonSymbol();
-
-export interface ConstGrammar<R> {
-  productionsIter(): Generator<Production<R>>;
-  productionsFrom(rule: R | GSymbol<R>): Readonly<Production<R>[]>;
-  getNonTerminals(): Readonly<NonTerminal<R>[]>;
-  getTerminals(): Readonly<Set<Terminal<R>>>;
+export interface ConstGrammar<Symbol> {
+  productionsIter(): Generator<Production<Symbol>>;
+  productionsFrom(rule: Symbol): Readonly<Production<Symbol>[]>;
+  getNonTerminals(): Readonly<Symbol[]>;
+  getTerminals(): Readonly<Set<Symbol>>;
   toString(): string;
 }
 
@@ -86,7 +14,7 @@ export class Grammar<R> implements ConstGrammar<R> {
   private productions: OrderedMap<R, Production<R>[]> = new OrderedMap();
 
   addProduction(production: Production<R>) {
-    const key = production.nonTerminal.key;
+    const key = production.rule;
     if (!this.productions.get(key)) {
       this.productions.set(key, []);
     }
@@ -94,7 +22,7 @@ export class Grammar<R> implements ConstGrammar<R> {
   }
 
   removeProduction(production: Production<R>) {
-    const key = production.nonTerminal.key;
+    const key = production.rule;
     const prods = this.productions.get(key);
     if (prods) {
       this.productions.set(
@@ -107,13 +35,9 @@ export class Grammar<R> implements ConstGrammar<R> {
     }
   }
 
-  addProductions(
-    rule: R,
-    nonTerminal: NonTerminal<R>,
-    derivations: GSymbol<R>[][]
-  ) {
+  addProductions(rule: R, derivations: R[][]) {
     for (const derivation of derivations) {
-      this.addProduction(new Production(rule, nonTerminal, derivation));
+      this.addProduction(new Production(rule, derivation));
     }
   }
   *productionsIter() {
@@ -123,25 +47,18 @@ export class Grammar<R> implements ConstGrammar<R> {
       }
     }
   }
-  productionsFrom(rule: R | GSymbol<R>): Readonly<Production<R>[]> {
-    if (rule instanceof NonTerminal || rule instanceof Terminal) {
-      rule = rule.key;
-    }
+  productionsFrom(rule: R): Readonly<Production<R>[]> {
     return this.productions.get(rule as R) || [];
   }
-  getNonTerminals(): Readonly<NonTerminal<R>[]> {
-    let nonTerminals: NonTerminal<R>[] = [];
-    for (const value of this.productions.values()) {
-      nonTerminals.push(value[0].nonTerminal);
-    }
-    return nonTerminals;
+  getNonTerminals(): Readonly<R[]> {
+    return [...this.productions.keys()];
   }
-  getTerminals(): Readonly<Set<Terminal<R>>> {
-    let terminals: HashSet<Terminal<R>> = new HashSet((t) => t.hash());
+  getTerminals(): Readonly<Set<R>> {
+    let terminals: Set<R> = new Set();
     for (const value of this.productions.values()) {
       for (const p of value) {
         for (const s of p.symbols) {
-          if (s instanceof Terminal) {
+          if (!this.productions.get(s)) {
             terminals.add(s);
           }
         }
@@ -151,11 +68,19 @@ export class Grammar<R> implements ConstGrammar<R> {
   }
   toString() {
     let out = '\n';
+    let terminals = this.getTerminals();
     for (const productions of this.productions.values()) {
-      out += `${productions[0].nonTerminal.key} →\n`;
+      out += `${productions[0].rule} →\n`;
       for (const production of productions) {
         out += '  | ';
-        out += production.symbols.map((s) => s.toString()).join(' ');
+        out += production.symbols
+          .map((s) => {
+            if ((s as any) === EPSILON) {
+              return 'ϵ';
+            }
+            return terminals.has(s) ? `'${s}'` : s;
+          })
+          .join(' ');
         out += '\n';
       }
     }
@@ -163,30 +88,39 @@ export class Grammar<R> implements ConstGrammar<R> {
   }
 }
 
-export class Production<R> {
-  readonly rule: R;
-  readonly nonTerminal: NonTerminal<R>;
-  readonly symbols: Readonly<GSymbol<R>[]>;
-  action?: (node: ParseNode<R, LexToken<unknown>>) => void;
-  constructor(rule: R, nonTerminal: NonTerminal<R>, symbols: GSymbol<R>[]) {
+export class Production<LeftHandSymbol extends { toString(): string }> {
+  /**
+   * The left hand symbol. So the production:
+   *   Expr -> Term Op Term
+   * the `rule` would be `Expr`
+   */
+  readonly rule: LeftHandSymbol;
+
+  /**
+   * The right hand side of a production. So for the production:
+   *   Expr -> Term Op Term
+   * the `symbols` would be `[Term, Op, Term]`
+   */
+  readonly symbols: Readonly<LeftHandSymbol[]>;
+
+  constructor(rule: LeftHandSymbol, symbols: LeftHandSymbol[]) {
     this.rule = rule;
-    this.nonTerminal = nonTerminal;
     this.symbols = symbols;
   }
 
   isLeftRecursive(): boolean {
-    return this.symbols[0].equals(this.nonTerminal);
+    return (this.symbols[0] as any) === this.rule;
   }
 
-  equals(other: Production<R>): boolean {
-    if (!this.nonTerminal.equals(other.nonTerminal)) {
+  equals(other: Production<any>): boolean {
+    if (this.rule != other.rule) {
       return false;
     }
     if (this.symbols.length != other.symbols.length) {
       return false;
     }
     for (let i = 0; i < this.symbols.length; i++) {
-      if (!this.symbols[i].equals(other.symbols[i])) {
+      if (!this.symbols[i] === other.symbols[i]) {
         return false;
       }
     }
@@ -194,47 +128,31 @@ export class Production<R> {
   }
 
   toString(): string {
-    return `${this.nonTerminal.toString()} -> ${this.symbols
-      .map((s) => s.toString())
-      .join(' ')}`;
+    return `${this.rule} -> ${this.symbols.map((s) => s.toString()).join(' ')}`;
   }
 }
 
 export type GrammarSpec<R> = { Root: R[][]; [index: string]: R[][] };
-export function buildGrammar<R>(productions: GrammarSpec<R>) {
-  type Rule = R;
-  const grammar: Grammar<Rule | typeof EPSILON.key> = new Grammar();
-  const nonTerminals: Map<Rule, NonTerminal<Rule>> = new Map();
-  const terminals: Map<Rule, Terminal<Rule>> = new Map();
+export function buildGrammar<Symbol>(productions: GrammarSpec<Symbol>) {
+  type GrammarSymbol = Symbol | typeof EPSILON;
+
+  const grammar: Grammar<GrammarSymbol> = new Grammar();
+  const nonTerminals: Set<Symbol> = new Set();
   Object.keys(productions).forEach((key) => {
-    nonTerminals.set(key as unknown as R, nonTerminal(key as unknown as R));
+    nonTerminals.add(key as unknown as Symbol);
   });
   Object.entries(productions).forEach(([key, value]) => {
-    const nonTerminal = nonTerminals.get(
-      key as unknown as R
-    ) as NonTerminal<Rule>;
-    for (const symbolsKeys of value) {
-      const symbols: (BaseSymbol<R> | typeof EPSILON)[] = symbolsKeys.map(
-        (s) => {
-          let result = nonTerminals.get(s) || terminals.get(s);
-          if (!result) {
-            result = terminal(s);
-            terminals.set(s, result);
-          }
-          return result;
-        }
-      );
-      if (symbols.length === 0) {
+    for (const specSymbols of value) {
+      if (specSymbols.length === 0) {
         // this is an empty rule, put epsilon in it
-        symbols.push(EPSILON);
+        grammar.addProduction(
+          new Production(key as unknown as GrammarSymbol, [EPSILON])
+        );
+      } else {
+        grammar.addProduction(
+          new Production(key as unknown as GrammarSymbol, [...specSymbols])
+        );
       }
-      grammar.addProduction(
-        new Production(
-          key as unknown as R | typeof EPSILON.key,
-          nonTerminal,
-          symbols
-        )
-      );
     }
   });
   return grammar;

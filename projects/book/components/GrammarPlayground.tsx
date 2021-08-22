@@ -9,7 +9,7 @@ import {
   parser,
 } from '../../parser-gen/dsl';
 import { charCodes } from '../../utils/iter';
-import { flatten } from '../../utils/result';
+import { ParseNodeGraph } from './ParseNodeGraph';
 
 function TokenList(props: { tokens: Result<LexToken<any>, any>[] }) {
   return (
@@ -77,6 +77,7 @@ export function GrammarPlayground(props: {
         );
         if (maybeParseTree.isOk()) {
           segments.push(<ParseTree root={maybeParseTree.value} />);
+          segments.push(<ParseNodeGraph root={maybeParseTree.value} />);
         } else {
           segments.push(
             <div>Failed parsing expression {'' + maybeParseTree.error}</div>

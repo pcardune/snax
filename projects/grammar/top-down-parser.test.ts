@@ -26,25 +26,25 @@ describe('removeDirectLeftRecursion', () => {
   test('it works', () => {
     removeDirectLeftRecursion(grammar);
     expect(grammar.toString()).toMatchInlineSnapshot(`
-      "
-      Factor →
-        | '(' Expr ')'
-        | 'num'
-        | 'name'
-      ExprP →
-        | '+' Term ExprP
-        | '-' Term ExprP
-        | ϵ
-      Expr →
-        | Term ExprP
-      TermP →
-        | '*' Factor TermP
-        | '/' Factor TermP
-        | ϵ
-      Term →
-        | Factor TermP
-      "
-    `);
+"
+Factor →
+  | '(' Expr ')'
+  | 'num'
+  | 'name'
+ExprP →
+  | '+' Term ExprP
+  | '-' Term ExprP
+  | ϵ
+Expr →
+  | Term ExprP
+TermP →
+  | '*' Factor TermP
+  | '/' Factor TermP
+  | ϵ
+Term →
+  | Factor TermP
+"
+`);
   });
 });
 
@@ -59,18 +59,18 @@ describe('removeLeftRecursion', () => {
   test('it works', () => {
     removeLeftRecursion(grammar);
     expect(grammar.toString()).toMatchInlineSnapshot(`
-      "
-      A →
-        | B
-      B →
-        | C
-      CP →
-        | 'd' CP
-        | ϵ
-      C →
-        | CP
-      "
-    `);
+"
+A →
+  | B
+B →
+  | C
+CP →
+  | 'd' CP
+  | ϵ
+C →
+  | CP
+"
+`);
   });
 });
 

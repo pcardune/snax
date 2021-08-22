@@ -7,13 +7,13 @@ import { ConstNFA } from '../../nfa-to-dfa/nfa';
 const re = (s: string) => RegexParser.parseOrThrow(s).nfa();
 
 export enum Token {
-  ZERO="ZERO",
-  ONE="ONE",
+  IMPLICIT_0="0",
+  IMPLICIT_1="1",
 }
 
 const patterns: OrderedMap<Token, {nfa:ConstNFA, ignore:boolean}> = new OrderedMap([
-  [Token.ZERO, {nfa: charSeq("0"), ignore: false}],
-  [Token.ONE, {nfa: charSeq("1"), ignore: false}],
+  [Token.IMPLICIT_0, {nfa: charSeq("0"), ignore: false}],
+  [Token.IMPLICIT_1, {nfa: charSeq("1"), ignore: false}],
 ])
 
 import { PatternLexer } from '../../lexer-gen/recognizer';
@@ -21,20 +21,25 @@ export const lexer = new PatternLexer(patterns);
 
 
 import { buildParser, ParseNode } from '../../grammar/top-down-parser';
-
+import { GrammarSpec } from '../../grammar/grammar';
 export enum Rules {
   Root = "Root",
-  Digits = "Digits",
+  List = "List",
+  Bit = "Bit",
 }
 
-export const parser = buildParser({
+const grammarSpec: GrammarSpec<Rules|Token> = {
   [Rules.Root]:[
-    [Token.ZERO, ],
-    [Token.ONE, Rules.Digits, ],
+    [Rules.List, ],
   ],
-  [Rules.Digits]:[
-    [Token.ZERO, Rules.Digits, ],
-    [Token.ONE, Rules.Digits, ],
+  [Rules.List]:[
+    [Rules.Bit, Rules.List, ],
+    [Rules.Bit, ],
     [],
   ],
-});
+  [Rules.Bit]:[
+    [Token.IMPLICIT_0, ],
+    [Token.IMPLICIT_1, ],
+  ],
+};
+export const parser = buildParser(grammarSpec);

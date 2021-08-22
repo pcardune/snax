@@ -3,6 +3,7 @@ import { buildParser } from '../grammar/top-down-parser';
 import { charCodes } from '../utils/iter';
 import { buildLexer } from '../lexer-gen';
 import { parseRegex } from '../regex-compiler/parser';
+import { charSeq } from '../nfa-to-dfa/regex-nfa';
 
 describe('integration test', () => {
   enum MT {
@@ -18,10 +19,10 @@ describe('integration test', () => {
     new OrderedMap([
       [MT.NUM, parseRegex('\\d\\d*').nfa()],
       [MT.ID, parseRegex('\\w\\w*').nfa()],
-      [MT.LPAREN, parseRegex('\\(').nfa()],
-      [MT.RPAREN, parseRegex('\\)').nfa()],
-      [MT.PLUS, parseRegex('\\+').nfa()],
-      [MT.MINUS, parseRegex('-').nfa()],
+      [MT.LPAREN, charSeq('(')],
+      [MT.RPAREN, charSeq(')')],
+      [MT.PLUS, charSeq('+')],
+      [MT.MINUS, charSeq('-')],
       [MT.WS, parseRegex('( |\t)+').nfa()],
     ]),
     [MT.WS]
@@ -35,21 +36,21 @@ describe('integration test', () => {
 
   test('stuff2', () => {
     expect(parser.grammar.toString()).toMatchInlineSnapshot(`
-      "
-      Root →
-        | Expr
-      Term →
-        | 'NUM'
-        | 'ID'
-        | '(' Expr ')'
-      ExprP →
-        | '+' Term ExprP
-        | '-' Term ExprP
-        | ϵ
-      Expr →
-        | Term ExprP
-      "
-    `);
+"
+Root →
+  | Expr
+Term →
+  | 'NUM'
+  | 'ID'
+  | '(' Expr ')'
+ExprP →
+  | '+' Term ExprP
+  | '-' Term ExprP
+  | ϵ
+Expr →
+  | Term ExprP
+"
+`);
     let chars = charCodes('34 + (5-something)');
     let tokens = [...lexer.parse(chars)];
     expect(tokens.map((t) => t.toString())).toMatchInlineSnapshot(`

@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`dsl compileLexerToTypescript 1`] = `
+"
+import { OrderedMap } from '/importRoot/utils/data-structures/OrderedMap';
+import { RegexParser } from '/importRoot/regex-compiler/parser';
+import { charSeq } from '/importRoot/nfa-to-dfa/regex-nfa';
+import { ConstNFA } from '/importRoot/nfa-to-dfa/nfa';
+
+const re = (s: string) => RegexParser.parseOrThrow(s).nfa();
+
+export enum Token {
+  TOKEN_A=\\"a\\",
+  TOKEN_B=\\"b\\",
+  IMPLICIT_2=\\"some string\\",
+}
+
+const patterns: OrderedMap<Token, {nfa:ConstNFA, ignore:boolean}> = new OrderedMap([
+  [Token.TOKEN_A, {nfa: charSeq(\\"a\\"), ignore: false}],
+  [Token.TOKEN_B, {nfa: charSeq(\\"b\\"), ignore: false}],
+  [Token.IMPLICIT_2, {nfa: charSeq(\\"some string\\"), ignore: false}],
+])
+
+import { PatternLexer } from '/importRoot/lexer-gen/recognizer';
+export const lexer = new PatternLexer(patterns);
+"
+`;
+
+exports[`dsl compileParserToTypescript 1`] = `
+"
+
+import { buildParser, ParseNode } from '/importRoot/grammar/top-down-parser';
+import { GrammarSpec } from '/importRoot/grammar/grammar';
+export enum Rules {
+  Root = \\"Root\\",
+  Rule = \\"Rule\\",
+}
+
+const grammarSpec: GrammarSpec<Rules|Token> = {
+  [Rules.Root]:[
+    [Token.TOKEN_A, ],
+    [Token.TOKEN_B, Rules.Rule, ],
+  ],
+  [Rules.Rule]:[
+    [Token.TOKEN_A, Rules.Rule, Token.IMPLICIT_2, ],
+    [],
+  ],
+};
+export const parser = buildParser(grammarSpec);"
+`;

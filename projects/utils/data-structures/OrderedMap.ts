@@ -12,12 +12,21 @@ export class OrderedMap<K, V> {
     }
   }
 
+  get length() {
+    return this.keyList.length;
+  }
+
   set(key: K, value: V) {
     if (this.keyMap.get(key) === undefined) {
       this.push(key, value);
     } else {
       this.keyMap.set(key, value);
     }
+  }
+
+  delete(key: K) {
+    this.keyMap.delete(key);
+    this.keyList.splice(this.keyList.indexOf(key), 1);
   }
 
   get(key: K) {

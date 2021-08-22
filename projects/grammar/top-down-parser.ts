@@ -6,13 +6,13 @@ import {
   nonTerminal,
   Production,
   EPSILON,
-  GSymbol,
+  BaseSymbol,
   EOF,
-  SymbolKind,
-  NonTerminal,
   GrammarSpec,
   buildGrammar,
   EOFSymbol,
+  Terminal,
+  NonTerminal,
 } from './grammar';
 import * as debug from '../utils/debug';
 import { ok, err, Result } from 'neverthrow';
@@ -61,11 +61,11 @@ export function removeLeftRecursion<R>(sourceGrammar: Grammar<R>): Grammar<R> {
   for (let i = 0; i < A.length; i++) {
     for (let j = 0; j < i; j++) {
       // if there exists a production from A[i] => A[j]y
-      for (const Ai of sourceGrammar.productionsFrom(A[i])) {
+      for (const Ai of sourceGrammar.productionsFrom(A[i].key)) {
         if (Ai.symbols[0].key == A[j].key) {
           // then replace it with the expansions of A[j]
           sourceGrammar.removeProduction(Ai);
-          for (const Aj of sourceGrammar.productionsFrom(A[j])) {
+          for (const Aj of sourceGrammar.productionsFrom(A[j].key)) {
             const newAi = new Production(A[i].key, A[i], [
               ...Aj.symbols,
               ...Ai.symbols.slice(1),
@@ -100,72 +100,79 @@ class DefaultHashMap<K, V> extends HashMap<K, V> {
  * TODO: this needs to be finished
  * p. 104 of Engineering a Compiler
  */
-export function calcFirst(grammar: Grammar<unknown>) {
-  let hasher = (s: GSymbol) => s.hash();
-  const set = (items?: GSymbol[]) => new HashSet(hasher, items);
-  let first: DefaultHashMap<GSymbol, HashSet<GSymbol>> = new DefaultHashMap(
-    hasher,
-    set
-  );
+// export function calcFirst(grammar: Grammar<unknown>) {
+//   let hasher = (s: GSymbol) => s.hash();
+//   const set = (items?: GSymbol[]) => new HashSet(hasher, items);
+//   let first: DefaultHashMap<GSymbol, HashSet<GSymbol>> = new DefaultHashMap(
+//     hasher,
+//     set
+//   );
 
-  // step 1: add terminals and ϵ and EOF
-  for (const symbol of grammar.getTerminals()) {
-    first.set(symbol, set([symbol as GSymbol]));
-  }
-  first.set(EOF, set([EOF as GSymbol]));
-  first.set(EPSILON, set([EPSILON as GSymbol]));
+//   // step 1: add terminals and ϵ and EOF
+//   for (const symbol of grammar.getTerminals()) {
+//     first.set(symbol, set([symbol as GSymbol]));
+//   }
+//   first.set(EOF, set([EOF as GSymbol]));
+//   first.set(EPSILON, set([EPSILON as GSymbol]));
 
-  // step 2: initialize non-terminals with empty set
-  for (const symbol of grammar.getNonTerminals()) {
-    first.set(symbol, set());
-  }
+//   // step 2: initialize non-terminals with empty set
+//   for (const symbol of grammar.getNonTerminals()) {
+//     first.set(symbol, set());
+//   }
 
-  // step 3:
-  let needsWork = true;
-  while (needsWork) {
-    needsWork = false;
-    for (const A of grammar.productionsIter()) {
-      const B = A.symbols;
-      if (B.length > 0) {
-        let rhs = set([...first.get(B[0]).values()]);
-        rhs.delete(EPSILON);
-        let i = 0;
-        while (first.get(B[i]).has(EPSILON) && i < B.length - 1) {
-          let temp = first.get(B[i + 1]);
-          temp.delete(EPSILON);
-          for (const value of temp) {
-            rhs.add(value);
-          }
-          i++;
-        }
-        if (i == B.length - 1 && first.get(B[B.length - 1]).has(EPSILON)) {
-          rhs.add(EPSILON);
-        }
-        let firstA = first.get(A.nonTerminal);
-        for (const rh of rhs) {
-          firstA.add(rh);
-        }
-      }
-    }
-  }
-  return first;
-}
+//   // step 3:
+//   let needsWork = true;
+//   while (needsWork) {
+//     needsWork = false;
+//     for (const A of grammar.productionsIter()) {
+//       const B = A.symbols;
+//       if (B.length > 0) {
+//         let rhs = set([...first.get(B[0]).values()]);
+//         rhs.delete(EPSILON);
+//         let i = 0;
+//         while (first.get(B[i]).has(EPSILON) && i < B.length - 1) {
+//           let temp = first.get(B[i + 1]);
+//           temp.delete(EPSILON);
+//           for (const value of temp) {
+//             rhs.add(value);
+//           }
+//           i++;
+//         }
+//         if (i == B.length - 1 && first.get(B[B.length - 1]).has(EPSILON)) {
+//           rhs.add(EPSILON);
+//         }
+//         let firstA = first.get(A.nonTerminal);
+//         for (const rh of rhs) {
+//           firstA.add(rh);
+//         }
+//       }
+//     }
+//   }
+//   return first;
+// }
 
 export class ParseNode<R, T extends LexToken<any>> {
-  symbol: GSymbol;
+  symbol: BaseSymbol<R>;
   rule: R | null;
   parent: ParseNode<R, T> | null = null;
   children: ParseNode<R, T>[];
   tryNext: number = 0;
   token?: T;
 
+  variantIndex: number;
+
+  // used for attribute grammar to store arbitrary data
+  data?: any;
+
   constructor(
     rule: R | null,
-    symbol: GSymbol,
+    variantIndex: number,
+    symbol: BaseSymbol<R>,
     children: ParseNode<R, T>[],
     parent: ParseNode<R, T> | null = null
   ) {
     this.rule = rule;
+    this.variantIndex = variantIndex;
     this.symbol = symbol;
     this.children = children;
     this.parent = parent;
@@ -194,7 +201,7 @@ export class ParseNode<R, T extends LexToken<any>> {
     if (indent == '') {
       out += '\n';
     }
-    if (this.symbol.isTerminal()) {
+    if (this.symbol instanceof Terminal) {
       out += `${indent}${this.token?.toString()}\n`;
       return out;
     } else {
@@ -209,7 +216,7 @@ export class ParseNode<R, T extends LexToken<any>> {
   }
 
   toString(): string {
-    if (this.symbol.isTerminal()) {
+    if (this.symbol instanceof Terminal) {
       return this.symbol.toString();
     }
     return `${this.symbol.toString()}[${this.children
@@ -219,9 +226,9 @@ export class ParseNode<R, T extends LexToken<any>> {
 }
 
 export class Parser<R> {
-  grammar: Grammar<R>;
-  start: GSymbol<SymbolKind>;
-  constructor(grammar: Grammar<R>, start: GSymbol) {
+  readonly grammar: Grammar<R>;
+  readonly start: BaseSymbol<R>;
+  constructor(grammar: Grammar<R>, start: BaseSymbol<R>) {
     this.grammar = grammar;
     this.start = start;
   }
@@ -252,11 +259,12 @@ export class Parser<R> {
     return parse(this.grammar, this.start, tokens);
   }
 }
+export type SymbolsOf<T> = T extends Parser<infer Symbols> ? Symbols : never;
 
-export function buildParser<R extends GrammarSpec>(grammarSpec: R) {
+export function buildParser<R>(grammarSpec: GrammarSpec<R>) {
   const grammar = buildGrammar(grammarSpec);
   removeDirectLeftRecursion(grammar);
-  return new Parser(grammar, nonTerminal('Root'));
+  return new Parser(grammar, nonTerminal('Root' as unknown as R));
 }
 
 export enum ParseErrorType {
@@ -283,7 +291,7 @@ class ParseError<T> extends Error {
 
 export function parse<T extends string, R>(
   grammar: Grammar<R>,
-  start: GSymbol,
+  start: BaseSymbol<R>,
   tokens: Iterable<LexToken<T>>
 ): Result<ParseNode<R, LexToken<T>>, ParseError<T>> {
   type Token = LexToken<T>;
@@ -291,7 +299,7 @@ export function parse<T extends string, R>(
 
   let tokenIter = backtrackable(tokens[Symbol.iterator]());
 
-  function parseNode(rootSymbol: GSymbol, depth: number): ParseResult {
+  function parseNode(rootSymbol: BaseSymbol<R>, depth: number): ParseResult {
     const log = (...args: any[]) => {
       let prefix = '';
       for (let i = -1; i < depth; i++) {
@@ -300,9 +308,9 @@ export function parse<T extends string, R>(
       debug.log(prefix, ...args);
     };
     log(`parseNode(${rootSymbol.key})`);
-    if (rootSymbol.kind == SymbolKind.NONTERMINAL) {
+    if (rootSymbol instanceof NonTerminal) {
       log('trying to expand non-terminal node');
-      const productions = grammar.productionsFrom(rootSymbol as NonTerminal);
+      const productions = grammar.productionsFrom(rootSymbol.key);
       // try each production from current node to find child nodes
       let i = -1;
       for (const rule of productions) {
@@ -328,7 +336,7 @@ export function parse<T extends string, R>(
             rule.toString()
           );
           // we don't need to try any more rules.
-          return ok(new ParseNode(rule.rule, rootSymbol, children));
+          return ok(new ParseNode(rule.rule, i, rootSymbol, children));
         } else {
           log(
             'failed',
@@ -364,8 +372,8 @@ export function parse<T extends string, R>(
         // EOF
         log('Reached EOF!');
         return err(new ParseError(ParseErrorType.EOF, { tokenIter }));
-      } else if (next.value.token == rootSymbol.key) {
-        const node = new ParseNode(null as R | null, rootSymbol, []);
+      } else if ((next.value.token as any) == rootSymbol.key) {
+        const node = new ParseNode(null as R | null, 0, rootSymbol, []);
         node.token = next.value;
         log('fulfilled terminal:', node.token.toString());
         return ok(node);
@@ -397,7 +405,7 @@ export function parse<T extends string, R>(
  */
 export function parseOld<R, T extends LexToken<any>>(
   grammar: Grammar<R>,
-  start: GSymbol,
+  start: BaseSymbol<R>,
   tokens: Iterable<T>
 ) {
   type Word = T | EOFSymbol;
@@ -411,7 +419,7 @@ export function parseOld<R, T extends LexToken<any>>(
     return next.value;
   };
 
-  const root: ParseNode<R, T> = new ParseNode(null as R | null, start, []);
+  const root: ParseNode<R, T> = new ParseNode(null as R | null, 0, start, []);
   let focus: ParseNode<R, T> | null = root;
   let stack: ParseNode<R, T>[] = [];
   let word: Word = nextWord();
@@ -483,24 +491,25 @@ export function parseOld<R, T extends LexToken<any>>(
     );
     logChain();
     // if focus is non terminal
-    if (focus?.symbol.kind == SymbolKind.NONTERMINAL) {
+    if (focus?.symbol instanceof NonTerminal) {
       // pick next rule to expand focus (A->B1,B2,...,Bn)
-      const productions = grammar.productionsFrom(focus.symbol as NonTerminal);
-      const nextRule: Production<unknown> = productions[focus.tryNext];
+      const productions = grammar.productionsFrom(focus.symbol.key);
+      const nextRule: Production<R> = productions[focus.tryNext];
       if (nextRule) {
         log('Trying', nextRule.toString());
         // build nodes for B1,B2,...,Bn
         const nodes = nextRule.symbols.map(
-          (s) => new ParseNode(null as R | null, s, [], focus)
+          (s) =>
+            new ParseNode(null as R | null, focus?.tryNext || 0, s, [], focus)
         );
-        focus.children = nodes;
-        // push(Bn,Bn-1,Bn-2,...,B2)
-        for (let i = 0; i < nodes.length - 1; i++) {
-          log('Pushing', nodes[nodes.length - 1 - i].toString());
-          stack.push(nodes[nodes.length - 1 - i]);
-        }
-        // focus B1
-        focus = nodes[0];
+        // focus.children = nodes;
+        // // push(Bn,Bn-1,Bn-2,...,B2)
+        // for (let i = 0; i < nodes.length - 1; i++) {
+        //   log('Pushing', nodes[nodes.length - 1 - i].toString());
+        //   stack.push(nodes[nodes.length - 1 - i]);
+        // }
+        // // focus B1
+        // focus = nodes[0];
       } else {
         backtrack();
       }

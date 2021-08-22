@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { Iter, rewindable, RewindableIterator } from '../utils/iter';
+import { charCodes, Iter, rewindable, RewindableIterator } from '../utils/iter';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { CombinedDFA } from '../nfa-to-dfa/regex-nfa';
 import { LexToken } from './lexer-gen';
@@ -88,7 +88,10 @@ export class PatternLexer<T> {
       .map(([_i, k]) => k)
       .toArray();
   }
-  parse(input: Iterator<number>) {
+  parse(input: Iterator<number> | string) {
+    if (typeof input === 'string') {
+      input = charCodes(input);
+    }
     return new NewTokenIterator(this.matcher, input, this.ignore);
   }
 }

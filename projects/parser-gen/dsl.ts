@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { buildParser, ParseNode } from '../grammar/top-down-parser';
+import { buildParser, ParseNode, SymbolsOf } from '../grammar/top-down-parser';
 import { LexToken } from '../lexer-gen/lexer-gen';
 
 import { lexer, parser, Token, Rules } from './dsl.__generated__';
@@ -11,7 +11,9 @@ import { HashMap } from '../utils/sets';
 import { flatten } from '../utils/result';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
 import { GrammarSpec } from '../grammar/grammar';
-export { lexer, parser, Token, Rules };
+export { lexer, parser, Token };
+
+export type Symbol = SymbolsOf<typeof parser>;
 
 class Literal {
   kind: Token.STRING | Token.REGEX;
@@ -24,10 +26,13 @@ class Literal {
     return `${this.kind}:${this.content}`;
   }
   static fromNode(
-    tokenLiteral: ParseNode<Rules, LexToken<string>>
+    tokenLiteral: ParseNode<Symbol, LexToken<string>>
   ): Result<Literal, any> {
     if (tokenLiteral.rule !== Rules.Literal) {
-      return err('not a literal');
+      throw new Error(
+        'fromNode() called with something other than a literal: ' +
+          tokenLiteral.rule
+      );
     }
     tokenLiteral = tokenLiteral.children[0];
     const content = tokenLiteral.token?.substr as string;
@@ -51,10 +56,10 @@ class Literal {
   }
 }
 
-const tokenNameForLiteral = (literal: Literal) => '$<' + literal.content + '>';
+const enumValueForLiteral = (literal: Literal) => '$<' + literal.content + '>';
 
 function mapLiteralsToNames(
-  root: ParseNode<Rules, LexToken<string>>
+  root: ParseNode<Symbol, LexToken<string>>
 ): Result<OrderedMap<string, Literal>, any> {
   let tokenLiterals: HashMap<Literal, string> = new HashMap(
     (literal) => literal.hash
@@ -63,13 +68,14 @@ function mapLiteralsToNames(
   for (const node of root
     .iterTree()
     .filter((node) => node.rule == Rules.Statement)) {
-    const tokenName = node.children[0].token?.substr as string;
-    const literal = Literal.fromNode(node.children[2]);
-    if (literal.isErr()) {
-      return err(literal.error);
+    const enumName = node.children[0].token?.substr as string;
+    const maybeLiteral = Literal.fromNode(node.children[2]);
+    if (maybeLiteral.isErr()) {
+      return err(maybeLiteral.error);
     }
-    tokenLiterals.set(literal.value, tokenName);
-    patterns.push(tokenName, literal.value);
+    const literal = maybeLiteral.value;
+    tokenLiterals.set(literal, enumName);
+    patterns.push(enumName, literal);
   }
 
   for (const node of root
@@ -81,9 +87,10 @@ function mapLiteralsToNames(
     }
     if (!tokenLiterals.get(maybeLiteral.value)) {
       const literal = maybeLiteral.value;
-      const tokenName = tokenNameForLiteral(literal);
-      tokenLiterals.set(literal, tokenName);
-      patterns.push(tokenName, literal);
+      const enumValue = enumValueForLiteral(literal);
+      const enumName = 'IMPLICIT_' + patterns.length;
+      tokenLiterals.set(literal, enumValue);
+      patterns.push(enumName, literal);
     }
   }
 
@@ -91,7 +98,7 @@ function mapLiteralsToNames(
 }
 
 export function compileLexer(
-  root: ParseNode<Rules, LexToken<string>>
+  root: ParseNode<Symbol, LexToken<string>>
 ): Result<PatternLexer<string>, any> {
   return flatten(
     mapLiteralsToNames(root).map((names) => {
@@ -121,9 +128,9 @@ export function compileLexer(
 }
 
 export function compileGrammarToParser(
-  root: ParseNode<Rules, LexToken<string>>
+  root: ParseNode<Symbol, LexToken<string>>
 ) {
-  let grammarSpec: GrammarSpec = { Root: [] };
+  let grammarSpec: GrammarSpec<Symbol> = { Root: [] };
   const productionIter = root
     .iterTree()
     .filter((n) => n.rule === Rules.Production);
@@ -141,17 +148,19 @@ export function compileGrammarToParser(
         .iterTree()
         .filter((n) => n.rule === Rules.Element);
 
-      let elementNames: string[] = [];
+      let elementNames: Symbol[] = [];
       for (const element of elementIter) {
         let child = element.children[0];
 
         if (child.symbol.key === Token.ID) {
           const name = child.token?.substr as string;
-          elementNames.push(name);
+          elementNames.push(name as unknown as Symbol);
         } else {
           const maybeLiteral = Literal.fromNode(child);
           if (maybeLiteral.isOk()) {
-            elementNames.push(tokenNameForLiteral(maybeLiteral.value));
+            elementNames.push(
+              enumValueForLiteral(maybeLiteral.value) as unknown as Symbol
+            );
           } else {
             return err(maybeLiteral.error);
           }
@@ -165,7 +174,7 @@ export function compileGrammarToParser(
 }
 
 export function compileLexerToTypescript(
-  parseTree: ParseNode<Rules, LexToken<string>>,
+  parseTree: ParseNode<Symbol, LexToken<string>>,
   importRoot: string
 ): Result<string, any> {
   return mapLiteralsToNames(parseTree).map((patterns) => {
@@ -182,9 +191,12 @@ const re = (s: string) => RegexParser.parseOrThrow(s).nfa();
 `;
 
     out += `export enum Token {\n`;
-    patterns.keys().forEach((name) => {
-      out += `  ${name}=${JSON.stringify(name)},\n`;
-    });
+    for (const [index, name, literal] of patterns.entries()) {
+      out += `  ${name}=${JSON.stringify(literal.content)},\n`;
+    }
+    // patterns.keys().forEach((name) => {
+    //   out += `  ${name}=${JSON.stringify(name)},\n`;
+    // });
     out += '}\n\n';
 
     out +=
@@ -213,15 +225,20 @@ export const lexer = new PatternLexer(patterns);
 }
 
 export function compileGrammarToTypescript(
-  parseTree: ParseNode<Rules, LexToken<string>>,
+  parseTree: ParseNode<Symbol, LexToken<string>>,
   importRoot: string
 ): Result<string, any> {
+  const maybeEnumNames = mapLiteralsToNames(parseTree);
+  if (maybeEnumNames.isErr()) {
+    return err(maybeEnumNames.error);
+  }
+  const enumNames = maybeEnumNames.value;
   let symbolTable: { [i: string]: 'Token' | 'Rules' } = {};
 
   let out = `
 
 import { buildParser, ParseNode } from '${importRoot}/grammar/top-down-parser';
-
+import { GrammarSpec } from '${importRoot}/grammar/grammar';
 export enum Rules {
 `;
 
@@ -236,7 +253,7 @@ export enum Rules {
 
   out += '}\n\n';
 
-  out += 'export const parser = buildParser({\n';
+  out += 'const grammarSpec: GrammarSpec<Rules|Token> = {\n';
 
   parseTree
     .iterTree()
@@ -263,6 +280,24 @@ export enum Rules {
                 } else {
                   out += `Token.${name}, `;
                 }
+              } else if (child.symbol.key === Rules.Literal) {
+                const maybeLiteral = Literal.fromNode(child);
+                if (maybeLiteral.isOk()) {
+                  const literal = maybeLiteral.value;
+                  for (const [
+                    i,
+                    enumName,
+                    otherLiteral,
+                  ] of enumNames.entries()) {
+                    if (literal.hash == otherLiteral.hash) {
+                      out += `Token.${enumName}, `;
+                    }
+                  }
+                }
+              } else {
+                throw new Error(
+                  'Unrecognized child of Element: ' + child.symbol.key
+                );
               }
             });
 
@@ -272,7 +307,9 @@ export enum Rules {
       out += `  ],\n`;
     });
 
-  out += '});';
+  out += '};\n';
+
+  out += 'export const parser = buildParser(grammarSpec);';
 
   return ok(out);
 }

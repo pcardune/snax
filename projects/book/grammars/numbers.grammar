@@ -1,0 +1,11 @@
+ZERO = "0"
+ONE = "1"
+
+Root =
+  | [ZERO]
+  | [ONE Digits]
+
+Digits = 
+  | [ZERO Digits]
+  | [ONE Digits]
+  | []

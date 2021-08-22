@@ -58,3 +58,8 @@ export const render = {
   RegexNFA: wrap(RegexNFA),
   GrammarPlayground: wrap(GrammarPlayground),
 };
+
+export const grammars = {
+  numbers: require('./grammars/numbers.grammar'),
+  expressions: require('./grammars/expressions.grammar'),
+};

@@ -23,3 +23,11 @@ Development:
    npx webpack serve
    ```
 1. go to http://localhost:8080
+
+## Scripts
+
+Compile a grammar to typescript
+
+```bash
+./bin/snax-parser-gen --grammar=<path/to/grammar>
+```

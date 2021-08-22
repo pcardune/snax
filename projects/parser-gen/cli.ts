@@ -11,7 +11,10 @@ import {
 
 const { colors } = debug;
 
-export function compileFile(grammarFilePath: string) {
+export function compileFile(
+  grammarFilePath: string,
+  importRoot: string = './projects'
+) {
   const tokens = lexer.parse(
     charCodes(fs.readFileSync(grammarFilePath, { encoding: 'utf-8' }))
   );
@@ -21,13 +24,15 @@ export function compileFile(grammarFilePath: string) {
     return;
   }
   const inPath = path.parse(grammarFilePath);
+
   const outPath = path.format({
     dir: inPath.dir,
     name: inPath.name + '.__generated__',
     ext: '.ts',
   });
   console.log('Compiling to', outPath);
-  const output = compileLexerToTypescript(root);
+  const importPath = path.relative(inPath.dir, importRoot);
+  const output = compileLexerToTypescript(root, importPath);
   if (output.isErr()) {
     debug.log(colors.red('Failed compiling lexer: ' + output.error));
     return;
@@ -35,7 +40,7 @@ export function compileFile(grammarFilePath: string) {
   debug.log(colors.yellow(output.value));
 
   console.log('Compiling grammar to', outPath);
-  const grammarOut = compileGrammarToTypescript(root);
+  const grammarOut = compileGrammarToTypescript(root, importPath);
   if (grammarOut.isErr()) {
     debug.log(colors.red('Failed compiling grammar: ' + grammarOut.error));
     return;

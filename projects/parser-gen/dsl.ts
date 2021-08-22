@@ -165,16 +165,17 @@ export function compileGrammarToParser(
 }
 
 export function compileLexerToTypescript(
-  root: ParseNode<Rules, LexToken<string>>
+  parseTree: ParseNode<Rules, LexToken<string>>,
+  importRoot: string
 ): Result<string, any> {
-  return mapLiteralsToNames(root).map((patterns) => {
+  return mapLiteralsToNames(parseTree).map((patterns) => {
     let out = '';
 
     out += `
-import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { RegexParser } from '../regex-compiler/parser';
-import { charSeq } from '../nfa-to-dfa/regex-nfa';
-import { ConstNFA } from '../nfa-to-dfa/nfa';
+import { OrderedMap } from '${importRoot}/utils/data-structures/OrderedMap';
+import { RegexParser } from '${importRoot}/regex-compiler/parser';
+import { charSeq } from '${importRoot}/nfa-to-dfa/regex-nfa';
+import { ConstNFA } from '${importRoot}/nfa-to-dfa/nfa';
 
 const re = (s: string) => RegexParser.parseOrThrow(s).nfa();
 
@@ -203,7 +204,7 @@ const re = (s: string) => RegexParser.parseOrThrow(s).nfa();
     out += '])\n';
 
     out += `
-import { PatternLexer } from '../lexer-gen/recognizer';
+import { PatternLexer } from '${importRoot}/lexer-gen/recognizer';
 export const lexer = new PatternLexer(patterns);
 `;
 
@@ -212,18 +213,19 @@ export const lexer = new PatternLexer(patterns);
 }
 
 export function compileGrammarToTypescript(
-  root: ParseNode<Rules, LexToken<string>>
+  parseTree: ParseNode<Rules, LexToken<string>>,
+  importRoot: string
 ): Result<string, any> {
   let symbolTable: { [i: string]: 'Token' | 'Rules' } = {};
 
   let out = `
 
-import { buildParser, ParseNode } from '../grammar/top-down-parser';
+import { buildParser, ParseNode } from '${importRoot}/grammar/top-down-parser';
 
 export enum Rules {
 `;
 
-  root
+  parseTree
     .iterTree()
     .filter((n) => n.rule === Rules.Production)
     .forEach((node) => {
@@ -236,7 +238,7 @@ export enum Rules {
 
   out += 'export const parser = buildParser({\n';
 
-  root
+  parseTree
     .iterTree()
     .filter((n) => n.rule === Rules.Production)
     .forEach((node) => {

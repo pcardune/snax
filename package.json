@@ -1,9 +1,12 @@
 {
-  "name": "@pcardune/compilers",
+  "name": "@pcardune/snax",
   "version": "0.0.1",
   "description": "",
   "main": "index.js",
   "private": true,
+  "bin": {
+    "snax-parser-gen": "./bin/snax-parser-gen.js"
+  },
   "scripts": {
     "build": "tsc --build",
     "test": "jest"

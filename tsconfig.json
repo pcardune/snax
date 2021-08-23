@@ -12,6 +12,7 @@
     { "path": "./projects/nfa-to-dfa" },
     { "path": "./projects/playground" },
     { "path": "./projects/regex-compiler" },
+    { "path": "./projects/snax" },
     { "path": "./projects/utils" }
   ]
 }

@@ -62,14 +62,10 @@ describe('attribute grammar', () => {
     );
 
     const tokens = lexer.parse('100101').toArray();
-    const result = parseFlow(grammar, Rules.Root, tokens);
-    const oldResult = parse(grammar, Rules.Root, tokens);
-    if (result.isOk()) {
-      const node = result.value;
-      if (oldResult.isOk()) {
-        expect(node.pretty()).toEqual(oldResult.value.pretty());
-      }
-      expect(node.pretty()).toMatchInlineSnapshot(`
+    const node = parseFlow(grammar, Rules.Root, tokens)._unsafeUnwrap();
+    const oldResult = parse(grammar, Rules.Root, tokens)._unsafeUnwrap();
+    expect(node.pretty()).toEqual(oldResult.pretty());
+    expect(node.pretty()).toMatchInlineSnapshot(`
         "
         <Root>
         |  <List>
@@ -107,6 +103,5 @@ describe('attribute grammar', () => {
         </Root>
         "
       `);
-    }
   });
 });

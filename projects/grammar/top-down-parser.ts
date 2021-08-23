@@ -277,7 +277,11 @@ class ParseError<T> extends Error {
     this.context = context;
   }
   get message() {
-    return 'ParseError';
+    const nextToken = iter(this.context.tokenIter).next();
+
+    return `ParseError: "${this.type}" next token: ${
+      nextToken.done ? '<EOF>' : nextToken.value.toString()
+    }`;
   }
 }
 
@@ -398,7 +402,8 @@ export function parseFlow<Symbol, ActionValue>(
   tokens: Iterable<LexToken<Symbol>>
 ): Result<ActionValue | undefined, ParseError<Symbol>> {
   type Token = LexToken<Symbol>;
-  type State = { value: ActionValue | undefined; tokens: Token[] };
+  type TokenTree = (Token | TokenTree)[];
+  type State = { value: ActionValue | undefined; tokens: TokenTree };
   type ParseResult = Result<State, ParseError<Symbol>>;
 
   let tokenIter = backtrackable(tokens[Symbol.iterator]());
@@ -441,14 +446,19 @@ export function parseFlow<Symbol, ActionValue>(
             rule.toString()
           );
           // we don't need to try any more rules.
-          const tokens = childStates.map((state) => state.tokens).flat();
+          const tokens = childStates.map((state) => state.tokens);
+
+          const actionTokens: Token[] = tokens.map((tree) => {
+            if (tree instanceof Array) {
+              return tree[0] as Token;
+            }
+            return tree as Token;
+          });
           const state: State = {
-            value: rule.action
-              ? rule.action(
-                  childStates.map((state) => state.value),
-                  tokens
-                )
-              : undefined,
+            value: rule.action(
+              childStates.map((state) => state.value) as ActionValue[],
+              actionTokens
+            ),
             tokens,
           };
           return ok(state);
@@ -459,7 +469,11 @@ export function parseFlow<Symbol, ActionValue>(
             'Undoing children',
             childStates.map((c) => c).join(', ')
           );
-          for (const token of childStates.map((state) => state.tokens).flat()) {
+          const tokens = childStates
+            .map((state) => state.tokens)
+            .flat(Infinity)
+            .reverse();
+          for (const token of tokens) {
             tokenIter.pushBack(token);
           }
           // now we continue on to the next rule

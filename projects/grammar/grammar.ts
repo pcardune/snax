@@ -11,11 +11,13 @@ export interface ConstGrammar<Symbol, ActionValue = void> {
   toString(): string;
 }
 
-type ActionFunction<ActionValue> = (
-  childValues: (ActionValue | undefined)[],
+export type ActionFunction<ActionValue> = (
+  childValues: ActionValue[],
   tokens: LexToken<unknown>[]
 ) => ActionValue;
 
+// TODO: make specific generic type for terminal
+// and non terminal symbols
 export class Grammar<Symbol, ActionValue = any>
   implements ConstGrammar<Symbol, ActionValue>
 {
@@ -124,7 +126,7 @@ export class Production<
    */
   readonly symbols: Readonly<Symbol[]>;
 
-  readonly action?: ActionFunction<ActionValue>;
+  readonly action: ActionFunction<ActionValue>;
 
   constructor(
     rule: Symbol,
@@ -133,7 +135,11 @@ export class Production<
   ) {
     this.rule = rule;
     this.symbols = symbols;
-    this.action = action;
+    this.action = action
+      ? action
+      : () => {
+          throw new Error('No action for production ' + this.toString());
+        };
   }
 
   isLeftRecursive(): boolean {

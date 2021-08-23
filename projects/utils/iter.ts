@@ -27,6 +27,10 @@ export abstract class Iter<T> implements IterableIterator<T> {
     return next.value;
   }
 
+  peekable(): PeakableIterator<T> {
+    return new Peakable(this);
+  }
+
   toArray(): T[] {
     return [...this];
   }
@@ -148,14 +152,15 @@ class MapIter<I, O> extends Iter<O> {
   }
 }
 
-interface PeakableIterator<T> extends Iterator<T> {
+interface PeakableIterator<T> extends Iter<T> {
   peek(): IteratorResult<T>;
 }
 
-class Peakable<T> implements PeakableIterator<T> {
+class Peakable<T> extends Iter<T> implements PeakableIterator<T> {
   private iterator: Iterator<T>;
   private buffer: IteratorResult<T> | null;
   constructor(iterator: Iterator<T>) {
+    super();
     this.iterator = iterator;
     this.buffer = null;
   }

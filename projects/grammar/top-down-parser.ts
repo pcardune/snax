@@ -154,21 +154,23 @@ export class ParseNode<R, T extends LexToken<any>> {
   tryNext: number = 0;
   token?: T;
 
-  variantIndex: number;
-
   // used for attribute grammar to store arbitrary data
   data?: any;
 
   constructor(
     rule: R | null,
-    variantIndex: number,
     children: ParseNode<R, T>[],
     parent: ParseNode<R, T> | null = null
   ) {
     this.rule = rule;
-    this.variantIndex = variantIndex;
     this.children = children;
     this.parent = parent;
+  }
+
+  static forToken<T extends LexToken<any>>(token: T) {
+    const node = new ParseNode(null, []);
+    node.token = token;
+    return node;
   }
 
   /**
@@ -327,7 +329,7 @@ export function parse<Symbol>(
             rule.toString()
           );
           // we don't need to try any more rules.
-          return ok(new ParseNode(rule.rule as Symbol, i, children));
+          return ok(new ParseNode(rule.rule as Symbol, children));
         } else {
           log(
             'failed',
@@ -364,7 +366,7 @@ export function parse<Symbol>(
         log('Reached EOF!');
         return err(new ParseError(ParseErrorType.EOF, { tokenIter }));
       } else if ((next.value.token as any) == rootSymbol) {
-        const node = new ParseNode(null as Symbol | null, 0, []);
+        const node = new ParseNode(null as Symbol | null, []);
         node.token = next.value;
         log('fulfilled terminal:', node.token.toString());
         return ok(node);
@@ -439,11 +441,15 @@ export function parseFlow<Symbol, ActionValue>(
             rule.toString()
           );
           // we don't need to try any more rules.
+          const tokens = childStates.map((state) => state.tokens).flat();
           const state: State = {
             value: rule.action
-              ? rule.action(...childStates.map((state) => state.value))
+              ? rule.action(
+                  childStates.map((state) => state.value),
+                  tokens
+                )
               : undefined,
-            tokens: childStates.map((state) => state.tokens).flat(),
+            tokens,
           };
           return ok(state);
         } else {

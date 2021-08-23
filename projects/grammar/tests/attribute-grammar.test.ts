@@ -1,27 +1,20 @@
-import { lexer, parser, Rules, Token } from './numbers.__generated__';
-import { parseFlow, ParseNode, SymbolsOf } from '../top-down-parser';
-import { LexToken } from '../../lexer-gen/lexer-gen';
-import { OrderedMap } from '../../utils/data-structures/OrderedMap';
+import { lexer, Rules, Token } from './numbers.__generated__';
+import { parse, parseFlow, ParseNode } from '../top-down-parser';
 import { Grammar } from '../grammar';
-
-type Symbols = SymbolsOf<typeof parser>;
-type AttributeMap = OrderedMap<
-  Symbols,
-  ((node: ParseNode<Symbols, any>) => void)[]
->;
+import { LexToken } from '../../lexer-gen/lexer-gen';
 
 describe('attribute grammar', () => {
   test('other stuff', () => {
     type Symbol = Rules | Token;
     const grammar: Grammar<Symbol, number> = new Grammar();
 
-    grammar.createProduction(Rules.Root, [Rules.List], (list: number) => list);
+    grammar.createProduction(Rules.Root, [Rules.List], ([list]) => list);
     grammar.createProduction(
       Rules.List,
       [Rules.Bit, Rules.List],
-      (bit: number, list: number) => bit + list * 2
+      ([bit, list]) => bit + list * 2
     );
-    grammar.createProduction(Rules.List, [Rules.Bit], (n: number) => n);
+    grammar.createProduction(Rules.List, [Rules.Bit], ([n]) => n);
     grammar.createProduction(Rules.List, [], () => 0);
     grammar.createProduction(Rules.Bit, [Token.IMPLICIT_0], () => 0);
     grammar.createProduction(Rules.Bit, [Token.IMPLICIT_1], () => 1);
@@ -31,75 +24,89 @@ describe('attribute grammar', () => {
     expect(result._unsafeUnwrap()).toEqual(41);
   });
 
-  test('processAttributes', () => {
-    const attributes: AttributeMap = new OrderedMap([
-      [
-        Rules.Root,
-        [
-          (node) => {
-            node.data = node.children[0].data;
-          },
-        ],
-      ],
-      [
-        Rules.List,
-        [
-          (node) => {
-            node.data = node.children[0].data + node.children[1].data * 2;
-          },
-          (node) => {
-            node.data = node.children[0].data;
-          },
-          (node) => {
-            node.data = 0;
-          },
-        ],
-      ],
-      [
-        Rules.Bit,
-        [
-          (node) => {
-            node.data = 0;
-          },
-          (node) => {
-            node.data = 1;
-          },
-        ],
-      ],
-    ]);
+  test('parse tree attributes', () => {
+    type Symbol = Rules | Token;
+    const grammar: Grammar<
+      Symbol,
+      ParseNode<Symbol, LexToken<any>>
+    > = new Grammar();
+    grammar.createProduction(
+      Rules.Root,
+      [Rules.List],
+      (children) => new ParseNode(Rules.Root, children)
+    );
+    grammar.createProduction(
+      Rules.List,
+      [Rules.Bit, Rules.List],
+      (children) => new ParseNode(Rules.List, children)
+    );
+    grammar.createProduction(
+      Rules.List,
+      [Rules.Bit],
+      (children) => new ParseNode(Rules.List, children)
+    );
+    grammar.createProduction(
+      Rules.List,
+      [],
+      () => new ParseNode(Rules.List, [])
+    );
+    grammar.createProduction(
+      Rules.Bit,
+      [Token.IMPLICIT_0],
+      (_, tokens) => new ParseNode(Rules.Bit, [ParseNode.forToken(tokens[0])])
+    );
+    grammar.createProduction(
+      Rules.Bit,
+      [Token.IMPLICIT_1],
+      (_, tokens) => new ParseNode(Rules.Bit, [ParseNode.forToken(tokens[0])])
+    );
 
     const tokens = lexer.parse('100101').toArray();
-    expect(tokens.map((t) => t.toString())).toMatchInlineSnapshot(`
-      Array [
-        "<1>1</1>",
-        "<0>0</0>",
-        "<0>0</0>",
-        "<1>1</1>",
-        "<0>0</0>",
-        "<1>1</1>",
-      ]
-    `);
-    const root = parser.parseTokensOrThrow(tokens);
-    processAttributes(root, attributes);
-    // expect(root.toString()).toMatchInlineSnapshot(
-    //   `"Root[List[Bit['1'], List[Bit['0'], List[Bit['0'], List[Bit['1'], List[Bit['0'], List[Bit['1'], List[]]]]]]]]"`
-    // );
-    expect(root.data).toEqual(41);
+    const result = parseFlow(grammar, Rules.Root, tokens);
+    const oldResult = parse(grammar, Rules.Root, tokens);
+    if (result.isOk()) {
+      const node = result.value;
+      if (oldResult.isOk()) {
+        expect(node.pretty()).toEqual(oldResult.value.pretty());
+      }
+      expect(node.pretty()).toMatchInlineSnapshot(`
+        "
+        <Root>
+        |  <List>
+        |  |  <Bit>
+        |  |  |  <1>1</1>
+        |  |  </Bit>
+        |  |  <List>
+        |  |  |  <Bit>
+        |  |  |  |  <0>0</0>
+        |  |  |  </Bit>
+        |  |  |  <List>
+        |  |  |  |  <Bit>
+        |  |  |  |  |  <0>0</0>
+        |  |  |  |  </Bit>
+        |  |  |  |  <List>
+        |  |  |  |  |  <Bit>
+        |  |  |  |  |  |  <1>1</1>
+        |  |  |  |  |  </Bit>
+        |  |  |  |  |  <List>
+        |  |  |  |  |  |  <Bit>
+        |  |  |  |  |  |  |  <0>0</0>
+        |  |  |  |  |  |  </Bit>
+        |  |  |  |  |  |  <List>
+        |  |  |  |  |  |  |  <Bit>
+        |  |  |  |  |  |  |  |  <1>1</1>
+        |  |  |  |  |  |  |  </Bit>
+        |  |  |  |  |  |  |  <List>
+        |  |  |  |  |  |  |  </List>
+        |  |  |  |  |  |  </List>
+        |  |  |  |  |  </List>
+        |  |  |  |  </List>
+        |  |  |  </List>
+        |  |  </List>
+        |  </List>
+        </Root>
+        "
+      `);
+    }
   });
 });
-
-function processAttributes(
-  root: ParseNode<Symbols, LexToken<unknown>>,
-  attributes: AttributeMap
-) {
-  for (const child of root.children) {
-    processAttributes(child, attributes);
-  }
-  const attributesForRule = attributes.get(root.rule);
-  if (attributesForRule) {
-    const func = attributesForRule[root.variantIndex];
-    if (func) {
-      func(root);
-    }
-  }
-}

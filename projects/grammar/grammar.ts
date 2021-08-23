@@ -1,3 +1,4 @@
+import { LexToken } from '../lexer-gen/lexer-gen';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
 export const EPSILON = Symbol('ϵ');
@@ -11,10 +12,11 @@ export interface ConstGrammar<Symbol, ActionValue = void> {
 }
 
 type ActionFunction<ActionValue> = (
-  ...args: (ActionValue | undefined)[]
+  childValues: (ActionValue | undefined)[],
+  tokens: LexToken<unknown>[]
 ) => ActionValue;
 
-export class Grammar<Symbol, ActionValue = void>
+export class Grammar<Symbol, ActionValue = any>
   implements ConstGrammar<Symbol, ActionValue>
 {
   private productions: OrderedMap<Symbol, Production<Symbol, ActionValue>[]> =

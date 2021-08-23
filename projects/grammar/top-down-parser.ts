@@ -390,6 +390,113 @@ export function parse<Symbol>(
   return root;
 }
 
+export function parseFlow<Symbol, ActionValue>(
+  grammar: Grammar<Symbol | typeof EPSILON, ActionValue>,
+  start: Symbol,
+  tokens: Iterable<LexToken<Symbol>>
+): Result<ActionValue | undefined, ParseError<Symbol>> {
+  type Token = LexToken<Symbol>;
+  type State = { value: ActionValue | undefined; tokens: Token[] };
+  type ParseResult = Result<State, ParseError<Symbol>>;
+
+  let tokenIter = backtrackable(tokens[Symbol.iterator]());
+  const nonTerminals = new Set(grammar.getNonTerminals());
+
+  function parseNode(rootSymbol: Symbol, depth: number): ParseResult {
+    const log = (...args: any[]) => {
+      let prefix = '';
+      for (let i = -1; i < depth; i++) {
+        prefix += '  |';
+      }
+      debug.log(prefix, ...args);
+    };
+    log(`parseNode(${rootSymbol})`);
+    if (nonTerminals.has(rootSymbol)) {
+      log('trying to expand non-terminal node');
+      const productions = grammar.productionsFrom(rootSymbol);
+      // try each production from current node to find child nodes
+      let i = -1;
+      for (const rule of productions) {
+        i++;
+        log(`${i}: trying ${rule.toString()}`);
+        const childStates: State[] = [];
+        let result;
+        for (const symbol of rule.symbols) {
+          if (symbol === EPSILON) {
+            continue;
+          }
+          result = parseNode(symbol, depth + 1);
+          if (result.isOk()) {
+            childStates.push(result.value);
+          } else {
+            break;
+          }
+        }
+        if (!result || result.isOk()) {
+          log(
+            debug.colors.green('✓'),
+            'fulfilled non-terminal:',
+            rule.toString()
+          );
+          // we don't need to try any more rules.
+          const state: State = {
+            value: rule.action
+              ? rule.action(...childStates.map((state) => state.value))
+              : undefined,
+            tokens: childStates.map((state) => state.tokens).flat(),
+          };
+          return ok(state);
+        } else {
+          log(
+            'failed',
+            rule.toString(),
+            'Undoing children',
+            childStates.map((c) => c).join(', ')
+          );
+          for (const token of childStates.map((state) => state.tokens).flat()) {
+            tokenIter.pushBack(token);
+          }
+          // now we continue on to the next rule
+        }
+      }
+      // none of the rules worked, so return null
+      log('failed, all rules');
+      return err(new ParseError(ParseErrorType.NO_MORE_RULES, { tokenIter }));
+    } else {
+      log('trying to expand terminal node');
+      // this is a terminal node in the grammar, so try to match
+      // it with the next word in the token list
+      const next = tokenIter.next();
+      if (next.done) {
+        // EOF
+        log('Reached EOF!');
+        return err(new ParseError(ParseErrorType.EOF, { tokenIter }));
+      } else if ((next.value.token as any) == rootSymbol) {
+        log('fulfilled terminal:', next.value.toString());
+        const state: State = { tokens: [next.value], value: undefined };
+        return ok(state);
+      } else {
+        log(
+          'could not match terminal:',
+          next.value.toString(),
+          '!=',
+          rootSymbol
+        );
+        tokenIter.pushBack(next.value);
+        return err(
+          new ParseError(ParseErrorType.UNMATCHED_TERMINAL, { tokenIter })
+        );
+      }
+    }
+  }
+  const root = parseNode(start, 0);
+  if (!tokenIter.next().done) {
+    debug.log('Finished parsing before EOF');
+    return err(new ParseError(ParseErrorType.TOKENS_REMAIN, { tokenIter }));
+  }
+  return root.map((state) => state.value);
+}
+
 // /**
 //  * Parse a string of tokens according to the specified grammar.
 //  * Assumes the grammar is not left recursive (otherwise it will infinit loop)

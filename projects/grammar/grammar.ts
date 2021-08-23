@@ -2,18 +2,34 @@ import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
 export const EPSILON = Symbol('ϵ');
 
-export interface ConstGrammar<Symbol> {
-  productionsIter(): Generator<Production<Symbol>>;
-  productionsFrom(rule: Symbol): Readonly<Production<Symbol>[]>;
+export interface ConstGrammar<Symbol, ActionValue = void> {
+  productionsIter(): Generator<Production<Symbol, ActionValue>>;
+  productionsFrom(rule: Symbol): Readonly<Production<Symbol, ActionValue>[]>;
   getNonTerminals(): Readonly<Symbol[]>;
   getTerminals(): Readonly<Set<Symbol>>;
   toString(): string;
 }
 
-export class Grammar<R> implements ConstGrammar<R> {
-  private productions: OrderedMap<R, Production<R>[]> = new OrderedMap();
+type ActionFunction<ActionValue> = (
+  ...args: (ActionValue | undefined)[]
+) => ActionValue;
 
-  addProduction(production: Production<R>) {
+export class Grammar<Symbol, ActionValue = void>
+  implements ConstGrammar<Symbol, ActionValue>
+{
+  private productions: OrderedMap<Symbol, Production<Symbol, ActionValue>[]> =
+    new OrderedMap();
+
+  createProduction(
+    rule: Symbol,
+    symbols: Symbol[],
+    action?: ActionFunction<ActionValue>
+  ) {
+    const production = new Production(rule, symbols, action);
+    this.addProduction(production);
+    return production;
+  }
+  addProduction(production: Production<Symbol, ActionValue>) {
     const key = production.rule;
     if (!this.productions.get(key)) {
       this.productions.set(key, []);
@@ -21,7 +37,7 @@ export class Grammar<R> implements ConstGrammar<R> {
     this.productions.get(key)?.push(production);
   }
 
-  removeProduction(production: Production<R>) {
+  removeProduction(production: Production<Symbol>) {
     const key = production.rule;
     const prods = this.productions.get(key);
     if (prods) {
@@ -35,7 +51,7 @@ export class Grammar<R> implements ConstGrammar<R> {
     }
   }
 
-  addProductions(rule: R, derivations: R[][]) {
+  addProductions(rule: Symbol, derivations: Symbol[][]) {
     for (const derivation of derivations) {
       this.addProduction(new Production(rule, derivation));
     }
@@ -47,14 +63,14 @@ export class Grammar<R> implements ConstGrammar<R> {
       }
     }
   }
-  productionsFrom(rule: R): Readonly<Production<R>[]> {
-    return this.productions.get(rule as R) || [];
+  productionsFrom(rule: Symbol): Readonly<Production<Symbol, ActionValue>[]> {
+    return this.productions.get(rule as Symbol) || [];
   }
-  getNonTerminals(): Readonly<R[]> {
+  getNonTerminals(): Readonly<Symbol[]> {
     return [...this.productions.keys()];
   }
-  getTerminals(): Readonly<Set<R>> {
-    let terminals: Set<R> = new Set();
+  getTerminals(): Readonly<Set<Symbol>> {
+    let terminals: Set<Symbol> = new Set();
     for (const value of this.productions.values()) {
       for (const p of value) {
         for (const s of p.symbols) {
@@ -88,24 +104,34 @@ export class Grammar<R> implements ConstGrammar<R> {
   }
 }
 
-export class Production<LeftHandSymbol extends { toString(): string }> {
+export class Production<
+  Symbol extends { toString(): string },
+  ActionValue = void
+> {
   /**
    * The left hand symbol. So the production:
    *   Expr -> Term Op Term
    * the `rule` would be `Expr`
    */
-  readonly rule: LeftHandSymbol;
+  readonly rule: Symbol;
 
   /**
    * The right hand side of a production. So for the production:
    *   Expr -> Term Op Term
    * the `symbols` would be `[Term, Op, Term]`
    */
-  readonly symbols: Readonly<LeftHandSymbol[]>;
+  readonly symbols: Readonly<Symbol[]>;
 
-  constructor(rule: LeftHandSymbol, symbols: LeftHandSymbol[]) {
+  readonly action?: ActionFunction<ActionValue>;
+
+  constructor(
+    rule: Symbol,
+    symbols: Symbol[],
+    action?: ActionFunction<ActionValue>
+  ) {
     this.rule = rule;
     this.symbols = symbols;
+    this.action = action;
   }
 
   isLeftRecursive(): boolean {

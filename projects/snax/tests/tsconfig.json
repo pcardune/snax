@@ -1,7 +1,7 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS"
+    "lib": ["ES2021", "DOM"]
   },
   "include": ["**/*"],
   "references": [{ "path": "../" }]

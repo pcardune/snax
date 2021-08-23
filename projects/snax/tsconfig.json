@@ -1,9 +1,6 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": {
-    "module": "CommonJS"
-  },
-  "include": ["**/*"],
+  "include": ["*.ts"],
   "references": [
     { "path": "../grammar" },
     { "path": "../utils" },

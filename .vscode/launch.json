@@ -2,6 +2,14 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "snax",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": ["${workspaceRoot}/bin/snax", "${file}"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
       "name": "Playground",
       "type": "node",
       "request": "launch",

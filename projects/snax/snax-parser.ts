@@ -59,7 +59,7 @@ let lexer: PatternLexer<T>;
       p(T.EQUALS, '='),
       p(T.SEMI, ';'),
       re(T.ID, '[_a-zA-Z][_a-zA-Z0-9]*'),
-      re(T.WHITESPACE, '[ \t]+', true),
+      re(T.WHITESPACE, '[ \t\n]+', true),
     ])
   );
 }

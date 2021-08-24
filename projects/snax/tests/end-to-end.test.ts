@@ -1,8 +1,7 @@
 import { SNAXParser } from '../snax-parser';
 import * as AST from '../snax-ast';
-import { compileInstructions } from '../wat-compiler';
+import { compileAST } from '../wat-compiler';
 import loadWabt from 'wabt';
-import { Block, Expression } from '../snax-ast';
 
 type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
@@ -17,7 +16,7 @@ function compileToWAT(input: string) {
   if (!(ast instanceof AST.Block)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a block`);
   }
-  return compileInstructions(ast);
+  return compileAST(ast);
 }
 
 async function compileToWasmModule(input: string) {

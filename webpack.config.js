@@ -1,5 +1,6 @@
 const path = require('path');
 const webpack = require('webpack');
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
 
 module.exports = {
   entry: './projects/book/index.tsx',
@@ -16,7 +17,10 @@ module.exports = {
       directory: './book/book',
     },
   },
-  plugins: [new webpack.IgnorePlugin({ resourceRegExp: /fs/ })],
+  plugins: [
+    new NodePolyfillPlugin(),
+    new webpack.IgnorePlugin({ resourceRegExp: /fs/ }),
+  ],
   module: {
     rules: [
       {

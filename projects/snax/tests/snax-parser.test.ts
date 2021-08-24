@@ -149,7 +149,7 @@ describe('SNAX Parser', () => {
       });
       it('should ignore whitespace', () => {
         expect(
-          SNAXParser.parseStrOrThrow('123 + 456 * \t789', Rule.Expr)
+          SNAXParser.parseStrOrThrow('123 + \n456 * \t789', Rule.Expr)
         ).toEqual(SNAXParser.parseStrOrThrow('123+456*789', Rule.Expr));
       });
       it('should allow symbols', () => {

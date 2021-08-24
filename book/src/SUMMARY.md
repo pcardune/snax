@@ -7,3 +7,4 @@
   - [Regex to NFA](./regex/regex_to_nfa.md)
 - [Parsing](./parsing/index.md)
   - [Grammars](./parsing/grammars.md)
+- [Snax](./snax/index.md)

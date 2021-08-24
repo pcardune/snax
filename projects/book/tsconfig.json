@@ -1,5 +1,9 @@
 {
   "extends": "../tsconfig.base.json",
   "include": ["*.ts"],
-  "references": [{ "path": "../nfa-to-dfa" }, { "path": "../regex-compiler" }]
+  "references": [
+    { "path": "../nfa-to-dfa" },
+    { "path": "../regex-compiler" },
+    { "path": "../snax" }
+  ]
 }

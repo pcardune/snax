@@ -7,6 +7,7 @@ import NFAGraph from './components/NFAGraph';
 import React from 'react';
 import { RegexNFA } from './components/RegexNFA';
 import { GrammarPlayground } from './components/GrammarPlayground';
+import { SnaxEditor } from './components/SnaxEditor';
 
 function getContainerEl(container: string | HTMLElement) {
   if (typeof container == 'string') {
@@ -57,6 +58,7 @@ export const renderRegexNFA = wrap(RegexNFA);
 export const render = {
   RegexNFA: wrap(RegexNFA),
   GrammarPlayground: wrap(GrammarPlayground),
+  SnaxEditor: wrap(SnaxEditor),
 };
 
 export const grammars = {

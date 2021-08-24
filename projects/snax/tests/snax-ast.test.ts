@@ -1,5 +1,5 @@
 import { BinaryOp, Expression, NumberLiteral } from '../snax-ast';
-import { Add, PushConst, Type } from '../stack-ir';
+import { Add, PushConst, ValueType } from '../stack-ir';
 
 describe('snax-ast', () => {
   describe('NumberLiterl', () => {
@@ -10,7 +10,7 @@ describe('snax-ast', () => {
 
     test('toStackIR() returns a PushConst instruction', () => {
       expect(literal.toStackIR()).toEqual([
-        new PushConst(Type.i32, literal.value),
+        new PushConst(ValueType.i32, literal.value),
       ]);
     });
   });
@@ -23,7 +23,7 @@ describe('snax-ast', () => {
       expect(expr.toStackIR()).toEqual([
         ...twenty.toStackIR(),
         ...thirty.toStackIR(),
-        new Add(Type.i32),
+        new Add(ValueType.i32),
       ]);
     });
   });

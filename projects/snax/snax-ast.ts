@@ -1,4 +1,4 @@
-import { Add, HasStackIR, Instruction, PushConst, Type } from './stack-ir';
+import { Add, HasStackIR, Instruction, PushConst, ValueType } from './stack-ir';
 import * as StackIR from './stack-ir';
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
@@ -35,7 +35,12 @@ export class NumberLiteral extends BaseNode implements HasStackIR {
   }
 
   toStackIR(): Instruction[] {
-    return [new PushConst(Type.i32, this.value)];
+    switch (this.numberType) {
+      case NumberType.Integer:
+        return [new PushConst(ValueType.i32, this.value)];
+      case NumberType.Float:
+        return [new PushConst(ValueType.f32, this.value)];
+    }
   }
 }
 
@@ -152,7 +157,7 @@ export enum BinaryOp {
 
 const stackInstructionForBinaryOp = (
   op: BinaryOp,
-  valueType: StackIR.Type = Type.i32
+  valueType: StackIR.ValueType = ValueType.i32
 ) => {
   switch (op) {
     case BinaryOp.ADD:

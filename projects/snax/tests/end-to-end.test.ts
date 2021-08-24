@@ -10,12 +10,30 @@ beforeAll(async () => {
   wabt = await loadWabt();
 });
 
+async function compileToWasmModule(input: string) {
+  const ast = SNAXParser.parseStrOrThrow(input);
+  if (!ast.hasStackIR()) {
+    throw new Error(
+      `parsed to an ast node ${ast}, which doesn't have toStackIR()`
+    );
+  }
+  const wat = compileInstructions(ast.toStackIR());
+  const wasmModule = wabt.parseWat('', wat);
+  wasmModule.validate();
+  const result = wasmModule.toBinary({ write_debug_names: true });
+  const module = await WebAssembly.instantiate(result.buffer);
+  const exports = module.instance.exports;
+  return { exports: exports as any, wasmModule };
+}
+
 describe('end-to-end test', () => {
+  test('it compiles integers', async () => {
+    const { exports } = await compileToWasmModule('123');
+    expect(exports.main()).toEqual(123);
+  });
+
   test('it compiles expressions', async () => {
-    const ast = SNAXParser.parseStrOrThrow('3+5*2-10/10') as Expression;
-    const wat = compileInstructions(ast.toStackIR());
-    const wasmModule = wabt.parseWat('', wat);
-    wasmModule.validate();
+    const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10');
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module
         (func (;0;) (result i32)
@@ -32,18 +50,13 @@ describe('end-to-end test', () => {
         (type (;0;) (func (result i32))))
       "
     `);
-    const result = wasmModule.toBinary({ write_debug_names: true });
-    const module = await WebAssembly.instantiate(result.buffer);
-    const returnValue = (module.instance.exports as any).main();
-    expect(returnValue).toEqual(12);
+    expect(exports.main()).toEqual(12);
   });
 
   it('compiles blocks', async () => {
-    const ast = SNAXParser.parseStrOrThrow('let x = 3; let y = x+4;') as Block;
-    expect(ast).toBeInstanceOf(Block);
-    const ir = ast.toStackIR();
-    const wat = compileInstructions(ir);
-    const wasmModule = wabt.parseWat('', wat);
+    const { exports, wasmModule } = await compileToWasmModule(
+      'let x = 3; let y = x+4;'
+    );
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module
         (func (;0;) (result i32)
@@ -59,6 +72,5 @@ describe('end-to-end test', () => {
         (type (;0;) (func (result i32))))
       "
     `);
-    wasmModule.validate();
   });
 });

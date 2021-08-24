@@ -63,9 +63,11 @@ export class NewTokenIterator<T> extends Iter<LexToken<T>> {
       } else {
         this.chars.reset(0);
         if (this.chars.buffered > 0) {
+          const nextSubstring = this.chars.buffer
+            .map((c) => String.fromCharCode(c))
+            .join('');
           throw new Error(
-            'Could not match token starting with ' +
-              this.chars.buffer.map((c) => String.fromCharCode(c)).join('')
+            `Could not match token at ${this.from} starting with "${nextSubstring}"`
           );
         }
         tokenResult = { done: true, value: undefined };

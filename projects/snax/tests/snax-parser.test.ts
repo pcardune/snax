@@ -5,6 +5,7 @@ import {
   Expression,
   LetStatement,
   NumberLiteral,
+  NumberType,
   SymbolRef,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
@@ -45,6 +46,7 @@ describe('SNAX grammar', () => {
         | 'T_ID'
       R_NumberLiteral →
         | 'T_NUMBER'
+        | 'T_FLOAT_NUMBER'
       "
     `);
   });
@@ -58,11 +60,14 @@ describe('SNAX Parser', () => {
         expect(node).toEqual(new Block([]));
       });
     });
-    describe('number', () => {
+    describe('numbers', () => {
       it('should parse a string with a number into a NumberLiteral', () => {
         const literal = SNAXParser.parseStrOrThrow('123') as NumberLiteral;
-        expect(literal).toBeInstanceOf(NumberLiteral);
-        expect(literal.value).toEqual(123);
+        expect(literal).toEqual(new NumberLiteral(123, NumberType.Integer));
+      });
+      it('should parse a string with a floating point number into a NumberLiteral', () => {
+        const literal = SNAXParser.parseStrOrThrow('1.23') as NumberLiteral;
+        expect(literal).toEqual(new NumberLiteral(1.23, NumberType.Float));
       });
     });
     describe('expression', () => {

@@ -9,6 +9,7 @@ import {
   Expression,
   LetStatement,
   NumberLiteral,
+  NumberType,
   SymbolRef,
 } from './snax-ast';
 import { parseRegex } from '../regex-compiler';
@@ -19,6 +20,7 @@ import { LexToken } from '../lexer-gen/lexer-gen';
 
 enum T {
   NUMBER = 'T_NUMBER',
+  FLOAT_NUMBER = 'T_FLOAT_NUMBER',
   PLUS = '+',
   MINUS = '-',
   TIMES = '*',
@@ -44,6 +46,7 @@ let lexer: PatternLexer<T>;
   }
   lexer = new PatternLexer(
     new OrderedMap([
+      re(T.FLOAT_NUMBER, '[0-9]+\\.[0-9]+'),
       re(T.NUMBER, '[0-9]+'),
       p(T.OPEN_PAREN, '('),
       p(T.CLOSE_PAREN, ')'),
@@ -141,7 +144,11 @@ grammar.createProduction(
 // Number Literal
 grammar.createProduction(R.NumberLiteral, [T.NUMBER], (_, [token]) => {
   const value = parseInt((token as LexToken<unknown>).substr);
-  return new NumberLiteral(value);
+  return new NumberLiteral(value, NumberType.Integer);
+});
+grammar.createProduction(R.NumberLiteral, [T.FLOAT_NUMBER], (_, [token]) => {
+  const value = parseFloat((token as LexToken<unknown>).substr);
+  return new NumberLiteral(value, NumberType.Float);
 });
 
 export class SNAXParser {

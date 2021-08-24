@@ -21,11 +21,17 @@ abstract class BaseNode {
   }
 }
 
+export enum NumberType {
+  Integer,
+  Float,
+}
 export class NumberLiteral extends BaseNode implements HasStackIR {
   readonly value: number;
-  constructor(value: number) {
+  readonly numberType: NumberType;
+  constructor(value: number, numberType: NumberType = NumberType.Integer) {
     super([]);
     this.value = value;
+    this.numberType = numberType;
   }
 
   toStackIR(): Instruction[] {

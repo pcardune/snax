@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { parseRegex, RNode } from '../../regex-compiler/parser';
+import { RegexParser, RNode } from '../../regex-compiler/parser';
 import NFAGraph from './NFAGraph';
 
 function useRegex(
   regex: string
 ): [{ rnode: RNode | null; parses: boolean }, (regex: string) => void] {
-  const [rnode, setRNode] = useState(parseRegex(regex));
+  const [rnode, setRNode] = useState(RegexParser.parse(regex));
   const [parses, setParses] = useState(!!rnode);
   const updateRegex = (newRegex: string) => {
-    const newNode = parseRegex(newRegex);
+    if (newRegex.length === 0) return;
+    const newNode = RegexParser.parse(newRegex);
     if (newNode) {
       setRNode(newNode);
       setParses(true);
@@ -42,7 +43,7 @@ export function RegexNFA(props: { initialRegex: string }) {
           borderColor: regexNode.parses ? '#ddd' : 'red',
         }}
       />
-      {nfa && <NFAGraph layout="cose" nfa={nfa} width={300} height={300} />}
+      {nfa && <NFAGraph layout="cose" nfa={nfa} width="100%" height={300} />}
     </div>
   );
 }

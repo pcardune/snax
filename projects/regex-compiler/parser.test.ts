@@ -20,6 +20,7 @@ describe('parseRegex', () => {
     '\\(a': concatNode(charNode('('), charNode('a')),
     '\\*a': concatNode(charNode('*'), charNode('a')),
     '\\+a': concatNode(charNode('+'), charNode('a')),
+    '\\.a': concatNode(charNode('.'), charNode('a')),
     'a|b': orNode(charNode('a'), charNode('b')),
     'a*': starNode(charNode('a')),
     '(a)': parenNode(charNode('a')),

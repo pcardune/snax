@@ -54,7 +54,10 @@ const cases: [string, { matches: string[]; fails?: string[] }][] = [
     },
   ],
   ['[^ab]', { matches: ['c', 'd', ' ', '\n'], fails: ['a', 'b'] }],
+  // identifiers
   ['[a-zA-Z_]([a-zA-Z0-9_]*)', { matches: ['foo', '_FooBar32'], fails: ['.'] }],
+  // floats
+  ['[0-9]+\\.[0-9]+', { matches: ['1.23'], fails: ['123'] }],
 ];
 
 test.each(cases)(`compiles %p`, (pattern) => {

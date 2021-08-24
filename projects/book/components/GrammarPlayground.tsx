@@ -1,16 +1,15 @@
-import { combine, ok, Result } from 'neverthrow';
+import { combine, Result } from 'neverthrow';
 import { ParseNode } from '../../grammar/top-down-parser';
 import { LexToken } from '../../lexer-gen/lexer-gen';
 import {
   compileGrammarToParser,
   compileLexer,
-  compileLexerToTypescript,
   lexer,
   parser,
 } from '../../parser-gen/dsl';
 import { charCodes } from '../../utils/iter';
 import { ParseNodeGraph } from './ParseNodeGraph';
-
+type $TSFixMe = any;
 function TokenList(props: { tokens: Result<LexToken<any>, any>[] }) {
   return (
     <ul>
@@ -73,7 +72,7 @@ export function GrammarPlayground(props: {
       if (maybeParser.isOk()) {
         const parser = maybeParser.value;
         const maybeParseTree = parser.parseTokens(
-          combine(parsedTokens).unwrapOr([])
+          combine(parsedTokens).unwrapOr([]) as $TSFixMe
         );
         if (maybeParseTree.isOk()) {
           segments.push(<ParseTree root={maybeParseTree.value} />);

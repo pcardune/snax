@@ -283,6 +283,7 @@ export class RegexParser {
       case '[':
       case '+':
       case '*':
+      case '.':
         node = charNode(escapedChar);
         break;
       default:

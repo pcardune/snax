@@ -48,7 +48,34 @@ export class Div extends BinaryOp implements HasWAT {
   }
 }
 
-export type Instruction = PushConst | Add | Sub;
+export class LocalGet implements HasWAT {
+  offset: number;
+  constructor(offset: number) {
+    this.offset = offset;
+  }
+  toWAT(): string {
+    return `local.get ${this.offset}`;
+  }
+}
+
+export class LocalSet implements HasWAT {
+  offset: number;
+  constructor(offset: number) {
+    this.offset = offset;
+  }
+  toWAT(): string {
+    return `local.set ${this.offset}`;
+  }
+}
+
+export type Instruction =
+  | PushConst
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | LocalGet
+  | LocalSet;
 
 export interface HasStackIR {
   toStackIR(): Instruction[];

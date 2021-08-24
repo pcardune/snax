@@ -1,6 +1,13 @@
 import { LexToken } from '../../lexer-gen/lexer-gen';
-import { BinaryOp, Expression, NumberLiteral } from '../snax-ast';
-import { grammar, lexer, SNAXParser, Token } from '../snax-parser';
+import {
+  BinaryOp,
+  Block,
+  Expression,
+  LetStatement,
+  NumberLiteral,
+  SymbolRef,
+} from '../snax-ast';
+import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
 describe('SNAX lexer', () => {
   it('should lex numbers into NUMBER tokens', () => {
@@ -13,24 +20,33 @@ describe('SNAX lexer', () => {
 describe('SNAX grammar', () => {
   it('should look like', () => {
     expect(grammar.toString()).toMatchInlineSnapshot(`
-"
-R_Root →
-  | R_Expr
-R_Expr →
-  | R_Term '+' R_Expr
-  | R_Term '-' R_Expr
-  | R_Term
-R_Term →
-  | R_Factor '*' R_Term
-  | R_Factor '/' R_Term
-  | R_Factor
-R_Factor →
-  | '(' R_Expr ')'
-  | R_NumberLiteral
-R_NumberLiteral →
-  | 'T_NUMBER'
-"
-`);
+      "
+      R_Root →
+        | R_Expr
+        | R_StatementList
+      R_StatementList →
+        | R_Statement R_StatementList
+        | 
+      R_Statement →
+        | R_LetStatement
+      R_LetStatement →
+        | 'let' 'T_ID' '=' R_Expr ';'
+      R_Expr →
+        | R_Term '+' R_Expr
+        | R_Term '-' R_Expr
+        | R_Term
+      R_Term →
+        | R_Factor '*' R_Term
+        | R_Factor '/' R_Term
+        | R_Factor
+      R_Factor →
+        | '(' R_Expr ')'
+        | R_NumberLiteral
+        | 'T_ID'
+      R_NumberLiteral →
+        | 'T_NUMBER'
+      "
+    `);
   });
 });
 
@@ -38,7 +54,8 @@ describe('SNAX Parser', () => {
   describe('parseStr', () => {
     describe('empty string', () => {
       it('should return an error result', () => {
-        expect(SNAXParser.parseStr('').isErr()).toBe(true);
+        const node = SNAXParser.parseStrOrThrow('');
+        expect(node).toEqual(new Block([]));
       });
     });
     describe('number', () => {
@@ -102,6 +119,38 @@ describe('SNAX Parser', () => {
             ),
             new NumberLiteral(789)
           )
+        );
+      });
+      it('should ignore whitespace', () => {
+        expect(SNAXParser.parseStrOrThrow('123 + 456 * \t789')).toEqual(
+          SNAXParser.parseStrOrThrow('123+456*789')
+        );
+      });
+      it('should allow symbols', () => {
+        expect(SNAXParser.parseStrOrThrow('3+x')).toEqual(
+          new Expression(BinaryOp.ADD, new NumberLiteral(3), new SymbolRef('x'))
+        );
+      });
+    });
+
+    describe('let statements', () => {
+      it('should parse', () => {
+        const letNode = SNAXParser.parseStrOrThrow(
+          'let x = 3;',
+          Rule.LetStatement
+        ) as LetStatement;
+        expect(letNode).toEqual(new LetStatement('x', new NumberLiteral(3)));
+      });
+    });
+
+    describe('block', () => {
+      it('should parse a series of statements', () => {
+        const block = SNAXParser.parseStrOrThrow('let x = 3; let y = 7;');
+        expect(block).toEqual(
+          new Block([
+            new LetStatement('x', new NumberLiteral(3)),
+            new LetStatement('y', new NumberLiteral(7)),
+          ])
         );
       });
     });

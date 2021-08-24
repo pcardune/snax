@@ -2,7 +2,15 @@ import { ActionFunction, Grammar } from '../grammar/grammar';
 import { parseFlow } from '../grammar/top-down-parser';
 import { PatternLexer } from '../lexer-gen/recognizer';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { ASTNode, BinaryOp, Expression, NumberLiteral } from './snax-ast';
+import {
+  ASTNode,
+  BinaryOp,
+  Block,
+  Expression,
+  LetStatement,
+  NumberLiteral,
+  SymbolRef,
+} from './snax-ast';
 import { parseRegex } from '../regex-compiler';
 import { err, ok, Result } from 'neverthrow';
 import { charSeq } from '../nfa-to-dfa/regex-nfa';
@@ -17,16 +25,22 @@ enum T {
   DIVIDE = '/',
   OPEN_PAREN = '(',
   CLOSE_PAREN = ')',
+  WHITESPACE = 'T_WHITESPACE',
+  ID = 'T_ID',
+  LET = 'let',
+  EQUALS = '=',
+  SEMI = ';',
 }
 export { T as Token };
 
 let lexer: PatternLexer<T>;
 {
-  function p(token: T, chars: string) {
-    return [token, { nfa: charSeq(chars) }] as [T, { nfa: ConstNFA }];
+  type Entry = [T, { nfa: ConstNFA; ignore: boolean }];
+  function p(token: T, chars: string, ignore: boolean = false) {
+    return [token, { nfa: charSeq(chars), ignore }] as Entry;
   }
-  function re(token: T, regex: string) {
-    return [token, { nfa: parseRegex(regex).nfa() }] as [T, { nfa: ConstNFA }];
+  function re(token: T, regex: string, ignore: boolean = false) {
+    return [token, { nfa: parseRegex(regex).nfa(), ignore }] as Entry;
   }
   lexer = new PatternLexer(
     new OrderedMap([
@@ -37,6 +51,11 @@ let lexer: PatternLexer<T>;
       p(T.MINUS, '-'),
       p(T.TIMES, '*'),
       p(T.DIVIDE, '/'),
+      p(T.LET, 'let'),
+      p(T.EQUALS, '='),
+      p(T.SEMI, ';'),
+      re(T.ID, '[_a-zA-Z][_a-zA-Z0-9]*'),
+      re(T.WHITESPACE, '[ \t]+', true),
     ])
   );
 }
@@ -49,6 +68,9 @@ enum R {
   Term = 'R_Term',
   Factor = 'R_Factor',
   BinaryOp = 'R_BinaryOp',
+  LetStatement = 'R_LetStatement',
+  Statement = 'R_Statement',
+  StatementList = 'R_StatementList',
 }
 export { R as Rule };
 export type Symbol = T | R;
@@ -56,6 +78,27 @@ export type Symbol = T | R;
 export const grammar: Grammar<Symbol, ASTNode> = new Grammar();
 // Root
 grammar.createProduction(R.Root, [R.Expr], ([child]) => child);
+grammar.createProduction(R.Root, [R.StatementList], ([child]) => child);
+
+// StatementList
+grammar.createProduction(
+  R.StatementList,
+  [R.Statement, R.StatementList],
+  ([statement, rest]) => new Block([statement, ...(rest as Block).statements])
+);
+grammar.createProduction(R.StatementList, [], () => new Block([]));
+
+// Statement
+grammar.createProduction(R.Statement, [R.LetStatement], ([child]) => child);
+
+// LetStatement
+grammar.createProduction(
+  R.LetStatement,
+  [T.LET, T.ID, T.EQUALS, R.Expr, T.SEMI],
+  ([_0, _1, _2, expr], [_let, id]) => {
+    return new LetStatement(id.substr, expr);
+  }
+);
 
 // Expr
 const opForToken = (token: LexToken<unknown>) => {
@@ -89,6 +132,11 @@ grammar.createProduction(
   ([_, expr]) => expr
 );
 grammar.createProduction(R.Factor, [R.NumberLiteral], ([literal]) => literal);
+grammar.createProduction(
+  R.Factor,
+  [T.ID],
+  (_, [id]) => new SymbolRef(id.substr)
+);
 
 // Number Literal
 grammar.createProduction(R.NumberLiteral, [T.NUMBER], (_, [token]) => {
@@ -97,9 +145,9 @@ grammar.createProduction(R.NumberLiteral, [T.NUMBER], (_, [token]) => {
 });
 
 export class SNAXParser {
-  static parseStr(input: string): Result<ASTNode, any> {
+  static parseStr(input: string, start: R = R.Root): Result<ASTNode, any> {
     const tokens = lexer.parse(input);
-    const result = parseFlow(grammar, R.Root, tokens);
+    const result = parseFlow(grammar, start, tokens);
     if (result.isOk()) {
       if (!result.value) {
         return err('Nothing to parse');
@@ -109,8 +157,8 @@ export class SNAXParser {
     return err(result.error);
   }
 
-  static parseStrOrThrow(input: string): ASTNode {
-    const result = SNAXParser.parseStr(input);
+  static parseStrOrThrow(input: string, start: R = R.Root): ASTNode {
+    const result = SNAXParser.parseStr(input, start);
     if (result.isErr()) {
       throw result.error;
     }

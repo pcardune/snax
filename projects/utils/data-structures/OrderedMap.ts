@@ -24,6 +24,10 @@ export class OrderedMap<K, V> {
     }
   }
 
+  has(key: K) {
+    return this.keyMap.has(key);
+  }
+
   delete(key: K) {
     this.keyMap.delete(key);
     this.keyList.splice(this.keyList.indexOf(key), 1);
@@ -31,6 +35,10 @@ export class OrderedMap<K, V> {
 
   get(key: K) {
     return this.keyMap.get(key);
+  }
+
+  getAt(index: number): V | undefined {
+    return this.keyMap.get(this.keyList[index]);
   }
 
   indexOf(key: K) {

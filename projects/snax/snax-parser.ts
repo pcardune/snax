@@ -9,9 +9,10 @@ import {
   Expression,
   LetStatement,
   NumberLiteral,
-  NumberType,
+  ASTValueType,
   SymbolRef,
 } from './snax-ast';
+import * as AST from './snax-ast';
 import { parseRegex } from '../regex-compiler';
 import { err, ok, Result } from 'neverthrow';
 import { charSeq } from '../nfa-to-dfa/regex-nfa';
@@ -72,6 +73,7 @@ enum R {
   Factor = 'R_Factor',
   BinaryOp = 'R_BinaryOp',
   LetStatement = 'R_LetStatement',
+  ExprStatement = 'R_ExprStatement',
   Statement = 'R_Statement',
   StatementList = 'R_StatementList',
 }
@@ -80,7 +82,6 @@ export type Symbol = T | R;
 
 export const grammar: Grammar<Symbol, ASTNode> = new Grammar();
 // Root
-grammar.createProduction(R.Root, [R.Expr], ([child]) => child);
 grammar.createProduction(R.Root, [R.StatementList], ([child]) => child);
 
 // StatementList
@@ -93,6 +94,7 @@ grammar.createProduction(R.StatementList, [], () => new Block([]));
 
 // Statement
 grammar.createProduction(R.Statement, [R.LetStatement], ([child]) => child);
+grammar.createProduction(R.Statement, [R.ExprStatement], ([child]) => child);
 
 // LetStatement
 grammar.createProduction(
@@ -102,6 +104,11 @@ grammar.createProduction(
     return new LetStatement(id.substr, expr);
   }
 );
+
+// ExprStatement
+grammar.createProduction(R.ExprStatement, [R.Expr, T.SEMI], ([expr]) => {
+  return new AST.ExprStatement(expr);
+});
 
 // Expr
 const opForToken = (token: LexToken<unknown>) => {
@@ -144,11 +151,11 @@ grammar.createProduction(
 // Number Literal
 grammar.createProduction(R.NumberLiteral, [T.NUMBER], (_, [token]) => {
   const value = parseInt((token as LexToken<unknown>).substr);
-  return new NumberLiteral(value, NumberType.Integer);
+  return new NumberLiteral(value, ASTValueType.Integer);
 });
 grammar.createProduction(R.NumberLiteral, [T.FLOAT_NUMBER], (_, [token]) => {
   const value = parseFloat((token as LexToken<unknown>).substr);
-  return new NumberLiteral(value, NumberType.Float);
+  return new NumberLiteral(value, ASTValueType.Float);
 });
 
 export class SNAXParser {

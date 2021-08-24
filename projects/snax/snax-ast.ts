@@ -3,6 +3,12 @@ import * as StackIR from './stack-ir';
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
+export enum ASTValueType {
+  Integer = 'int',
+  Float = 'float',
+  Void = 'void',
+}
+
 abstract class BaseNode {
   children: BaseNode[];
   constructor(children: BaseNode[]) {
@@ -19,27 +25,33 @@ abstract class BaseNode {
       iter([this as BaseNode])
     );
   }
+
+  abstract resolveType(): ASTValueType;
 }
 
-export enum NumberType {
-  Integer,
-  Float,
-}
 export class NumberLiteral extends BaseNode implements HasStackIR {
   readonly value: number;
-  readonly numberType: NumberType;
-  constructor(value: number, numberType: NumberType = NumberType.Integer) {
+  readonly numberType: ASTValueType;
+  constructor(value: number, numberType: ASTValueType = ASTValueType.Integer) {
     super([]);
     this.value = value;
     this.numberType = numberType;
   }
 
+  resolveType(): ASTValueType {
+    return this.numberType;
+  }
+
   toStackIR(): Instruction[] {
     switch (this.numberType) {
-      case NumberType.Integer:
+      case ASTValueType.Integer:
         return [new PushConst(ValueType.i32, this.value)];
-      case NumberType.Float:
+      case ASTValueType.Float:
         return [new PushConst(ValueType.f32, this.value)];
+      case ASTValueType.Void:
+        throw new Error(
+          `Unrecognized value type ${this.numberType} for NumberLiteral`
+        );
     }
   }
 }
@@ -50,16 +62,44 @@ export class SymbolRef extends BaseNode {
     super([]);
     this.symbol = symbol;
   }
+  resolveType(): ASTValueType {
+    throw new Error("Can't resolve type on an unresolved symbol");
+  }
 }
 
 export class ResolvedSymbolRef extends BaseNode implements HasStackIR {
   offset: number;
-  constructor(offset: number) {
+  valueType: ASTValueType;
+  constructor(offset: number, valueType: ASTValueType) {
     super([]);
     this.offset = offset;
+    this.valueType = valueType;
   }
+
   toStackIR(): Instruction[] {
     return [new StackIR.LocalGet(this.offset)];
+  }
+  resolveType(): ASTValueType {
+    return this.valueType;
+  }
+}
+
+export class ExprStatement extends BaseNode {
+  constructor(expr: ASTNode) {
+    super([expr]);
+  }
+  get expr() {
+    return this.children[0];
+  }
+  resolveType() {
+    return this.expr.resolveType();
+  }
+
+  toStackIR(): Instruction[] {
+    if (this.expr.hasStackIR()) {
+      return this.expr.toStackIR();
+    }
+    throw new Error("Can't generate stack IR for this yet...");
   }
 }
 
@@ -72,6 +112,9 @@ export class LetStatement extends BaseNode {
   get expr() {
     return this.children[0];
   }
+  resolveType() {
+    return this.expr.resolveType();
+  }
 }
 
 export class ResolvedLetStatement extends BaseNode implements HasStackIR {
@@ -83,6 +126,9 @@ export class ResolvedLetStatement extends BaseNode implements HasStackIR {
   get expr() {
     return this.children[0];
   }
+  resolveType() {
+    return ASTValueType.Void;
+  }
   toStackIR(): Instruction[] {
     if (this.expr.hasStackIR()) {
       return [...this.expr.toStackIR(), new StackIR.LocalSet(this.offset)];
@@ -90,17 +136,21 @@ export class ResolvedLetStatement extends BaseNode implements HasStackIR {
     throw new Error("Can't generate stack IR for this yet...");
   }
 }
+type SymbolRecord = { offset: number; valueType: ASTValueType };
+type SymbolTable = OrderedMap<string, SymbolRecord>;
 
-type SymbolTable = OrderedMap<string, number>;
+function resolveSymbol(table: SymbolTable, child: SymbolRef) {
+  const symbol = table.get(child.symbol);
+  if (!symbol) {
+    throw new Error(`Reference to undeclared symbol ${child.symbol}`);
+  }
+  return new ResolvedSymbolRef(symbol.offset, symbol.valueType);
+}
 
 function resolveSymbols(table: SymbolTable, node: BaseNode) {
   for (const [i, child] of node.children.entries()) {
     if (child instanceof SymbolRef) {
-      if (!table.has(child.symbol)) {
-        throw new Error(`Reference to undeclared symbol ${child.symbol}`);
-      }
-      const offset = table.get(child.symbol) as number;
-      node.children[i] = new ResolvedSymbolRef(offset);
+      node.children[i] = resolveSymbol(table, child);
     } else {
       resolveSymbols(table, child);
     }
@@ -108,31 +158,49 @@ function resolveSymbols(table: SymbolTable, node: BaseNode) {
 }
 
 export class Block extends BaseNode implements HasStackIR {
+  constructor(children: BaseNode[]) {
+    super(children);
+  }
   get statements() {
     return this.children;
+  }
+
+  resolveType() {
+    if (this.statements.length > 0) {
+      return this.statements[this.statements.length - 1].resolveType();
+    }
+    return ASTValueType.Void;
   }
 
   toStackIR(): Instruction[] {
     const table: SymbolTable = new OrderedMap();
     let offset = 0;
     let stackIR: Instruction[] = [];
-    for (const [i, letStatement] of this.statements.entries()) {
-      if (letStatement instanceof LetStatement) {
-        if (table.has(letStatement.symbol)) {
+    for (let [i, astNode] of this.statements.entries()) {
+      resolveSymbols(table, astNode);
+      if (astNode instanceof LetStatement) {
+        if (table.has(astNode.symbol)) {
           throw new Error(
-            `Redeclaration of symbol ${letStatement.symbol} in the same scope`
+            `Redeclaration of symbol ${astNode.symbol} in the same scope`
           );
         }
 
-        resolveSymbols(table, letStatement);
-        const resolved = new ResolvedLetStatement(letStatement, offset);
-        table.set(letStatement.symbol, offset++);
+        const resolved = new ResolvedLetStatement(astNode, offset);
+        table.set(astNode.symbol, {
+          offset: offset++,
+          valueType: resolved.expr.resolveType(),
+        });
         this.statements[i] = resolved;
-        stackIR.push(...resolved.toStackIR());
+        astNode = resolved;
       }
-    }
-    if (table.length > 0) {
-      stackIR.push(new StackIR.LocalGet(table.length - 1));
+
+      if (astNode.hasStackIR()) {
+        stackIR.push(...astNode.toStackIR());
+      } else {
+        throw new Error(
+          `Can't create stack ir for block: ${astNode} doesn't have stack ir`
+        );
+      }
     }
     return stackIR;
   }
@@ -171,6 +239,35 @@ const stackInstructionForBinaryOp = (
   }
 };
 
+const getASTValueTypeForBinaryOp = (
+  op: BinaryOp,
+  leftType: ASTValueType,
+  rightType: ASTValueType
+): ASTValueType => {
+  let { Integer, Float } = ASTValueType;
+  switch (leftType) {
+    case Integer:
+      switch (rightType) {
+        case Integer:
+          return Integer;
+        case Float:
+          return Float;
+        default:
+          throw new Error(`Can't perform ${leftType}${op}${rightType}`);
+      }
+    case Float:
+      switch (rightType) {
+        case Integer:
+        case Float:
+          return Float;
+        default:
+          throw new Error(`Can't perform ${leftType}${op}${rightType}`);
+      }
+    default:
+      throw new Error(`Can't perform ${leftType}${op}${rightType}`);
+  }
+};
+
 export class Expression extends BaseNode implements HasStackIR {
   readonly op: BinaryOp;
   constructor(op: BinaryOp, left: ASTNode, right: ASTNode) {
@@ -188,13 +285,22 @@ export class Expression extends BaseNode implements HasStackIR {
     return this.left.hasStackIR() && this.right.hasStackIR();
   }
 
+  resolveType(): ASTValueType {
+    return getASTValueTypeForBinaryOp(
+      this.op,
+      this.left.resolveType(),
+      this.right.resolveType()
+    );
+  }
+
   toStackIR(): Instruction[] {
     if (this.left.hasStackIR() && this.right.hasStackIR()) {
-      return [
+      const instructions = [
         ...this.left.toStackIR(),
         ...this.right.toStackIR(),
-        stackInstructionForBinaryOp(this.op),
       ];
+      instructions.push(stackInstructionForBinaryOp(this.op));
+      return instructions;
     }
     throw new Error("can't generate stack IR for this j0nx");
   }
@@ -205,6 +311,7 @@ export type ASTNode =
   | SymbolRef
   | Expression
   | LetStatement
+  | ExprStatement
   | Block
   | ResolvedSymbolRef
   | ResolvedLetStatement;

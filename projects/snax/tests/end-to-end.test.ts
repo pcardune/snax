@@ -1,4 +1,5 @@
 import { SNAXParser } from '../snax-parser';
+import * as AST from '../snax-ast';
 import { compileInstructions } from '../wat-compiler';
 import loadWabt from 'wabt';
 import { Block, Expression } from '../snax-ast';
@@ -10,14 +11,17 @@ beforeAll(async () => {
   wabt = await loadWabt();
 });
 
-async function compileToWasmModule(input: string) {
+function compileToWAT(input: string) {
   const ast = SNAXParser.parseStrOrThrow(input);
-  if (!ast.hasStackIR()) {
-    throw new Error(
-      `parsed to an ast node ${ast}, which doesn't have toStackIR()`
-    );
+
+  if (!(ast instanceof AST.Block)) {
+    throw new Error(`parsed to an ast node ${ast}, which isn't a block`);
   }
-  const wat = compileInstructions(ast.toStackIR());
+  return compileInstructions(ast);
+}
+
+async function compileToWasmModule(input: string) {
+  const wat = compileToWAT(input);
   const wasmModule = wabt.parseWat('', wat);
   wasmModule.validate();
   const result = wasmModule.toBinary({ write_debug_names: true });
@@ -27,13 +31,18 @@ async function compileToWasmModule(input: string) {
 }
 
 describe('end-to-end test', () => {
-  test('it compiles integers', async () => {
-    const { exports } = await compileToWasmModule('123');
+  it('compiles integers', async () => {
+    const { exports } = await compileToWasmModule('123;');
     expect(exports.main()).toEqual(123);
   });
 
-  test('it compiles expressions', async () => {
-    const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10');
+  it('compiles floats', async () => {
+    const { exports } = await compileToWasmModule('1.23;');
+    expect(exports.main()).toBeCloseTo(1.23, 4);
+  });
+
+  it('compiles expressions', async () => {
+    const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10;');
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module
         (func (;0;) (result i32)
@@ -53,24 +62,30 @@ describe('end-to-end test', () => {
     expect(exports.main()).toEqual(12);
   });
 
+  xit('converts between ints and floats', async () => {
+    const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
+    expect(exports.main()).toBeCloseTo(8.2);
+  });
+
   it('compiles blocks', async () => {
     const { exports, wasmModule } = await compileToWasmModule(
-      'let x = 3; let y = x+4;'
+      'let x = 3; let y = x+4; y;'
     );
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
-      "(module
-        (func (;0;) (result i32)
-          (local i32 i32)
-          i32.const 3
-          local.set 0
-          local.get 0
-          i32.const 4
-          i32.add
-          local.set 1
-          local.get 1)
-        (export \\"main\\" (func 0))
-        (type (;0;) (func (result i32))))
-      "
-    `);
+"(module
+  (func (;0;) (result i32)
+    (local i32 i32)
+    i32.const 3
+    local.set 0
+    local.get 0
+    i32.const 4
+    i32.add
+    local.set 1
+    local.get 1)
+  (export \\"main\\" (func 0))
+  (type (;0;) (func (result i32))))
+"
+`);
+    expect(exports.main()).toBe(7);
   });
 });

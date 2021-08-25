@@ -33,6 +33,7 @@ enum T {
   LET = 'let',
   EQUALS = '=',
   SEMI = ';',
+  COLON = ':',
 }
 export { T as Token };
 
@@ -58,6 +59,7 @@ let lexer: PatternLexer<T>;
       p(T.LET, 'let'),
       p(T.EQUALS, '='),
       p(T.SEMI, ';'),
+      p(T.COLON, ':'),
       re(T.ID, '[_a-zA-Z][_a-zA-Z0-9]*'),
       re(T.WHITESPACE, '[ \t\n]+', true),
     ])
@@ -99,9 +101,20 @@ grammar.createProduction(R.Statement, [R.ExprStatement], ([child]) => child);
 // LetStatement
 grammar.createProduction(
   R.LetStatement,
+  [T.LET, T.ID, T.COLON, T.ID, T.EQUALS, R.Expr, T.SEMI],
+  ([_0, _1, _2, _3, _4, expr], [_let, id, _colon, typeId]) => {
+    return new LetStatement(
+      id.substr,
+      new AST.TypeExpr(new AST.TypeRef(typeId.substr)),
+      expr
+    );
+  }
+);
+grammar.createProduction(
+  R.LetStatement,
   [T.LET, T.ID, T.EQUALS, R.Expr, T.SEMI],
   ([_0, _1, _2, expr], [_let, id]) => {
-    return new LetStatement(id.substr, expr);
+    return new LetStatement(id.substr, null, expr);
   }
 );
 

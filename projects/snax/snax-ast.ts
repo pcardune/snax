@@ -7,6 +7,7 @@ export enum ASTValueType {
   Integer = 'int',
   Float = 'float',
   Void = 'void',
+  Unknown = 'unknown',
 }
 
 abstract class BaseNode {
@@ -48,7 +49,7 @@ export class NumberLiteral extends BaseNode implements HasStackIR {
         return [new PushConst(ValueType.i32, this.value)];
       case ASTValueType.Float:
         return [new PushConst(ValueType.f32, this.value)];
-      case ASTValueType.Void:
+      default:
         throw new Error(
           `Unrecognized value type ${this.numberType} for NumberLiteral`
         );
@@ -64,6 +65,49 @@ export class SymbolRef extends BaseNode {
   }
   resolveType(): ASTValueType {
     throw new Error("Can't resolve type on an unresolved symbol");
+  }
+}
+
+export class TypeRef extends BaseNode {
+  readonly symbol: string;
+  constructor(symbol: string) {
+    super([]);
+    this.symbol = symbol;
+  }
+  resolveType(): ASTValueType {
+    switch (this.symbol) {
+      case 'i32':
+        return ASTValueType.Integer;
+      case 'f32':
+        return ASTValueType.Float;
+      case 'unknown':
+        return ASTValueType.Unknown;
+    }
+    throw new Error(`Can't resolve type ${this.symbol}`);
+  }
+}
+
+export class TypeExpr extends BaseNode {
+  /**
+   * The placeholder type
+   */
+  static placeholder = new TypeExpr(new TypeRef('unknown'));
+
+  constructor(symbol: ASTNode) {
+    super([symbol]);
+  }
+  get symbol() {
+    return this.children[0];
+  }
+  resolveType(): ASTValueType {
+    throw new Error('Method not implemented.');
+  }
+  /**
+   * Evaluate the type expression to make all
+   * types concrete.
+   */
+  evaluate(): ASTValueType {
+    return this.symbol.resolveType();
   }
 }
 
@@ -105,15 +149,29 @@ export class ExprStatement extends BaseNode {
 
 export class LetStatement extends BaseNode {
   readonly symbol: string;
-  constructor(symbol: string, expr: ASTNode) {
-    super([expr]);
+  constructor(symbol: string, typeExpr: TypeExpr | null, expr: ASTNode) {
+    if (!typeExpr) {
+      typeExpr = TypeExpr.placeholder;
+    }
+    super([typeExpr, expr]);
     this.symbol = symbol;
   }
+  get typeExpr(): TypeExpr {
+    return this.children[0] as TypeExpr;
+  }
   get expr() {
-    return this.children[0];
+    return this.children[1];
   }
   resolveType() {
-    return this.expr.resolveType();
+    let explicitType = this.typeExpr.evaluate();
+    let exprType = this.expr.resolveType();
+    if (explicitType === ASTValueType.Unknown) {
+      return exprType;
+    }
+    if (explicitType === exprType) {
+      return explicitType;
+    }
+    throw new Error(`type ${exprType} can't be assigned to an ${explicitType}`);
   }
 }
 
@@ -157,6 +215,15 @@ function resolveSymbols(table: SymbolTable, node: BaseNode) {
   }
 }
 
+type TypeTable = OrderedMap<string, ASTValueType>;
+function resolveTypes(table: TypeTable, node: BaseNode) {
+  for (const [i, child] of node.children.entries()) {
+    if (child instanceof TypeExpr) {
+      child.evaluate();
+    }
+  }
+}
+
 export class Block extends BaseNode implements HasStackIR {
   constructor(children: BaseNode[]) {
     super(children);
@@ -172,32 +239,31 @@ export class Block extends BaseNode implements HasStackIR {
     return ASTValueType.Void;
   }
 
-  private table: SymbolTable | null = null;
+  private symbolTable: SymbolTable | null = null;
 
   resolveSymbols(): SymbolTable {
-    if (this.table) {
-      return this.table;
+    if (this.symbolTable) {
+      return this.symbolTable;
     }
-    this.table = new OrderedMap();
+    this.symbolTable = new OrderedMap();
     let offset = 0;
     for (let [i, astNode] of this.statements.entries()) {
-      resolveSymbols(this.table, astNode);
+      resolveSymbols(this.symbolTable, astNode);
       if (astNode instanceof LetStatement) {
-        if (this.table.has(astNode.symbol)) {
+        if (this.symbolTable.has(astNode.symbol)) {
           throw new Error(
             `Redeclaration of symbol ${astNode.symbol} in the same scope`
           );
         }
-
         const resolved = new ResolvedLetStatement(astNode, offset);
-        this.table.set(astNode.symbol, {
+        this.symbolTable.set(astNode.symbol, {
           offset: offset++,
           valueType: resolved.expr.resolveType(),
         });
         this.statements[i] = resolved;
       }
     }
-    return this.table;
+    return this.symbolTable;
   }
 
   toStackIR(): Instruction[] {
@@ -299,18 +365,20 @@ export class Expression extends BaseNode implements HasStackIR {
         ...this.left.toStackIR(),
         ...this.right.toStackIR(),
       ];
-      let typeMapping = {
-        [ASTValueType.Float]: ValueType.f32,
-        [ASTValueType.Integer]: ValueType.i32,
-        [ASTValueType.Void]: null,
-      };
-
-      instructions.push(
-        stackInstructionForBinaryOp(
-          this.op,
-          typeMapping[this.resolveType()] as ValueType
-        )
-      );
+      let valueType: ValueType;
+      switch (this.resolveType()) {
+        case ASTValueType.Float:
+          valueType = ValueType.f32;
+          break;
+        case ASTValueType.Integer:
+          valueType = ValueType.i32;
+          break;
+        default:
+          throw new Error(
+            `No representation for type ${this.resolveType()} in stackIR`
+          );
+      }
+      instructions.push(stackInstructionForBinaryOp(this.op, valueType));
       return instructions;
     }
     throw new Error("can't generate stack IR for this j0nx");

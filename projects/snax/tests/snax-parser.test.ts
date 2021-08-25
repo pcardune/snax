@@ -8,6 +8,8 @@ import {
   ASTValueType,
   SymbolRef,
   ExprStatement,
+  TypeExpr,
+  TypeRef,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -32,6 +34,7 @@ describe('SNAX grammar', () => {
         | R_LetStatement
         | R_ExprStatement
       R_LetStatement →
+        | 'let' 'T_ID' ':' 'T_ID' '=' R_Expr ';'
         | 'let' 'T_ID' '=' R_Expr ';'
       R_ExprStatement →
         | R_Expr ';'
@@ -160,12 +163,27 @@ describe('SNAX Parser', () => {
     });
 
     describe('let statements', () => {
-      it('should parse', () => {
+      it('should parse untyped let statements', () => {
         const letNode = SNAXParser.parseStrOrThrow(
           'let x = 3;',
           Rule.LetStatement
         ) as LetStatement;
-        expect(letNode).toEqual(new LetStatement('x', new NumberLiteral(3)));
+        expect(letNode).toEqual(
+          new LetStatement('x', null, new NumberLiteral(3))
+        );
+      });
+      it('should parse typed let statements', () => {
+        const letNode = SNAXParser.parseStrOrThrow(
+          'let x:i32 = 3;',
+          Rule.LetStatement
+        ) as LetStatement;
+        expect(letNode).toEqual(
+          new LetStatement(
+            'x',
+            new TypeExpr(new TypeRef('i32')),
+            new NumberLiteral(3)
+          )
+        );
       });
     });
 
@@ -174,8 +192,8 @@ describe('SNAX Parser', () => {
         const block = SNAXParser.parseStrOrThrow('let x = 3; let y = 7;');
         expect(block).toEqual(
           new Block([
-            new LetStatement('x', new NumberLiteral(3)),
-            new LetStatement('y', new NumberLiteral(7)),
+            new LetStatement('x', null, new NumberLiteral(3)),
+            new LetStatement('y', null, new NumberLiteral(7)),
           ])
         );
       });
@@ -183,7 +201,7 @@ describe('SNAX Parser', () => {
         const block = SNAXParser.parseStrOrThrow('let x = 3; 3+x; 8;');
         expect(block).toEqual(
           new Block([
-            new LetStatement('x', new NumberLiteral(3)),
+            new LetStatement('x', null, new NumberLiteral(3)),
             new ExprStatement(
               new Expression(
                 BinaryOp.ADD,

@@ -1,10 +1,11 @@
-import { Grammar } from './grammar';
+import { buildGrammar, Grammar } from '../grammar';
 import {
   buildParser,
   ParseErrorType,
+  Parser,
   removeDirectLeftRecursion,
   removeLeftRecursion,
-} from './top-down-parser';
+} from '../top-down-parser';
 
 describe('removeDirectLeftRecursion', () => {
   const grammar: Grammar<string> = new Grammar();
@@ -49,7 +50,6 @@ describe('removeLeftRecursion', () => {
   grammar.addProductions('A', [['B']]);
   grammar.addProductions('B', [['C']]);
   grammar.addProductions('C', [['A', 'd']]);
-  // console.log(grammar.toString());
   test('it works', () => {
     removeLeftRecursion(grammar);
     expect(grammar.toString()).toMatchInlineSnapshot(`
@@ -71,9 +71,11 @@ C →
 describe('parse', () => {
   describe('simple grammar', () => {
     // Root -> num
-    const parser = buildParser({ Root: [['num']] });
+    const grammar = buildGrammar({ Root: [['num']] });
+    const parser = new Parser(grammar, 'Root');
     test('parse', () => {
-      expect(parser.parseOrThrow(['num']).pretty()).toMatchInlineSnapshot(`
+      const tree = parser.parseOrThrow(['num']);
+      expect(tree.pretty()).toMatchInlineSnapshot(`
         "
         <Root>
         |  <num>num</num>
@@ -188,11 +190,11 @@ describe('parse', () => {
         |  |  |  <Factor>
         |  |  |  |  <num>num</num>
         |  |  |  </Factor>
-        |  |  |  <TermP>
-        |  |  |  </TermP>
+        |  |  |  <Term>
+        |  |  |  </Term>
         |  |  </Term>
-        |  |  <ExprP>
-        |  |  </ExprP>
+        |  |  <Expr>
+        |  |  </Expr>
         |  </Expr>
         </Root>
         "

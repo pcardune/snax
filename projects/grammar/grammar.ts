@@ -1,5 +1,6 @@
 import { LexToken } from '../lexer-gen/lexer-gen';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { ParseNode } from './top-down-parser';
 
 export const EPSILON = Symbol('ϵ');
 
@@ -170,21 +171,39 @@ export type GrammarSpec<R> = { Root: R[][]; [index: string]: R[][] };
 export function buildGrammar<Symbol>(productions: GrammarSpec<Symbol>) {
   type GrammarSymbol = Symbol | typeof EPSILON;
 
-  const grammar: Grammar<GrammarSymbol> = new Grammar();
+  const grammar: Grammar<
+    GrammarSymbol,
+    ParseNode<GrammarSymbol | null, LexToken<any>>
+  > = new Grammar();
   const nonTerminals: Set<Symbol> = new Set();
   Object.keys(productions).forEach((key) => {
     nonTerminals.add(key as unknown as Symbol);
   });
   Object.entries(productions).forEach(([key, value]) => {
+    const symbol = key as unknown as GrammarSymbol;
     for (const specSymbols of value) {
       if (specSymbols.length === 0) {
         // this is an empty rule, put epsilon in it
-        grammar.addProduction(
-          new Production(key as unknown as GrammarSymbol, [EPSILON])
+        grammar.createProduction(
+          symbol,
+          [EPSILON],
+          () => new ParseNode(symbol, [])
         );
       } else {
-        grammar.addProduction(
-          new Production(key as unknown as GrammarSymbol, [...specSymbols])
+        grammar.createProduction(
+          symbol,
+          [...specSymbols],
+          (children, tokens) => {
+            let spliced: ParseNode<GrammarSymbol | null, LexToken<any>>[] = [];
+            for (let [i, child] of children.entries()) {
+              if (child) {
+                spliced.push(child);
+              } else {
+                spliced.push(ParseNode.forToken(tokens[i]));
+              }
+            }
+            return new ParseNode(symbol, spliced);
+          }
         );
       }
     }

@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://goo.gl/fbAQL
 
 exports[`parse complex grammar (num+num) 1`] = `
 "
@@ -12,29 +12,29 @@ exports[`parse complex grammar (num+num) 1`] = `
 |  |  |  |  |  |  <Factor>
 |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  </Factor>
-|  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  </TermP>
+|  |  |  |  |  |  <Term>
+|  |  |  |  |  |  </Term>
 |  |  |  |  |  </Term>
-|  |  |  |  |  <ExprP>
+|  |  |  |  |  <Expr>
 |  |  |  |  |  |  <+>+</+>
 |  |  |  |  |  |  <Term>
 |  |  |  |  |  |  |  <Factor>
 |  |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  |  </Factor>
-|  |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  </TermP>
+|  |  |  |  |  |  |  <Term>
+|  |  |  |  |  |  |  </Term>
 |  |  |  |  |  |  </Term>
-|  |  |  |  |  |  <ExprP>
-|  |  |  |  |  |  </ExprP>
-|  |  |  |  |  </ExprP>
+|  |  |  |  |  |  <Expr>
+|  |  |  |  |  |  </Expr>
+|  |  |  |  |  </Expr>
 |  |  |  |  </Expr>
 |  |  |  |  <)>)</)>
 |  |  |  </Factor>
-|  |  |  <TermP>
-|  |  |  </TermP>
+|  |  |  <Term>
+|  |  |  </Term>
 |  |  </Term>
-|  |  <ExprP>
-|  |  </ExprP>
+|  |  <Expr>
+|  |  </Expr>
 |  </Expr>
 </Root>
 "
@@ -48,21 +48,21 @@ exports[`parse complex grammar num+num 1`] = `
 |  |  |  <Factor>
 |  |  |  |  <num>num</num>
 |  |  |  </Factor>
-|  |  |  <TermP>
-|  |  |  </TermP>
+|  |  |  <Term>
+|  |  |  </Term>
 |  |  </Term>
-|  |  <ExprP>
+|  |  <Expr>
 |  |  |  <+>+</+>
 |  |  |  <Term>
 |  |  |  |  <Factor>
 |  |  |  |  |  <num>num</num>
 |  |  |  |  </Factor>
-|  |  |  |  <TermP>
-|  |  |  |  </TermP>
+|  |  |  |  <Term>
+|  |  |  |  </Term>
 |  |  |  </Term>
-|  |  |  <ExprP>
-|  |  |  </ExprP>
-|  |  </ExprP>
+|  |  |  <Expr>
+|  |  |  </Expr>
+|  |  </Expr>
 |  </Expr>
 </Root>
 "
@@ -76,19 +76,19 @@ exports[`parse complex grammar num+num+(num-num) 1`] = `
 |  |  |  <Factor>
 |  |  |  |  <num>num</num>
 |  |  |  </Factor>
-|  |  |  <TermP>
-|  |  |  </TermP>
+|  |  |  <Term>
+|  |  |  </Term>
 |  |  </Term>
-|  |  <ExprP>
+|  |  <Expr>
 |  |  |  <+>+</+>
 |  |  |  <Term>
 |  |  |  |  <Factor>
 |  |  |  |  |  <num>num</num>
 |  |  |  |  </Factor>
-|  |  |  |  <TermP>
-|  |  |  |  </TermP>
+|  |  |  |  <Term>
+|  |  |  |  </Term>
 |  |  |  </Term>
-|  |  |  <ExprP>
+|  |  |  <Expr>
 |  |  |  |  <+>+</+>
 |  |  |  |  <Term>
 |  |  |  |  |  <Factor>
@@ -98,31 +98,31 @@ exports[`parse complex grammar num+num+(num-num) 1`] = `
 |  |  |  |  |  |  |  |  <Factor>
 |  |  |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  |  |  </Factor>
-|  |  |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  |  </TermP>
+|  |  |  |  |  |  |  |  <Term>
+|  |  |  |  |  |  |  |  </Term>
 |  |  |  |  |  |  |  </Term>
-|  |  |  |  |  |  |  <ExprP>
+|  |  |  |  |  |  |  <Expr>
 |  |  |  |  |  |  |  |  <->-</->
 |  |  |  |  |  |  |  |  <Term>
 |  |  |  |  |  |  |  |  |  <Factor>
 |  |  |  |  |  |  |  |  |  |  <num>num</num>
 |  |  |  |  |  |  |  |  |  </Factor>
-|  |  |  |  |  |  |  |  |  <TermP>
-|  |  |  |  |  |  |  |  |  </TermP>
+|  |  |  |  |  |  |  |  |  <Term>
+|  |  |  |  |  |  |  |  |  </Term>
 |  |  |  |  |  |  |  |  </Term>
-|  |  |  |  |  |  |  |  <ExprP>
-|  |  |  |  |  |  |  |  </ExprP>
-|  |  |  |  |  |  |  </ExprP>
+|  |  |  |  |  |  |  |  <Expr>
+|  |  |  |  |  |  |  |  </Expr>
+|  |  |  |  |  |  |  </Expr>
 |  |  |  |  |  |  </Expr>
 |  |  |  |  |  |  <)>)</)>
 |  |  |  |  |  </Factor>
-|  |  |  |  |  <TermP>
-|  |  |  |  |  </TermP>
+|  |  |  |  |  <Term>
+|  |  |  |  |  </Term>
 |  |  |  |  </Term>
-|  |  |  |  <ExprP>
-|  |  |  |  </ExprP>
-|  |  |  </ExprP>
-|  |  </ExprP>
+|  |  |  |  <Expr>
+|  |  |  |  </Expr>
+|  |  |  </Expr>
+|  |  </Expr>
 |  </Expr>
 </Root>
 "

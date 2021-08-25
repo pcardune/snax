@@ -72,7 +72,7 @@ Expr →
       |  |  <Term>
       |  |  |  <NUM>34</NUM>
       |  |  </Term>
-      |  |  <ExprP>
+      |  |  <Expr>
       |  |  |  <+>+</+>
       |  |  |  <Term>
       |  |  |  |  <(>(</(>
@@ -80,20 +80,20 @@ Expr →
       |  |  |  |  |  <Term>
       |  |  |  |  |  |  <NUM>5</NUM>
       |  |  |  |  |  </Term>
-      |  |  |  |  |  <ExprP>
+      |  |  |  |  |  <Expr>
       |  |  |  |  |  |  <->-</->
       |  |  |  |  |  |  <Term>
       |  |  |  |  |  |  |  <ID>something</ID>
       |  |  |  |  |  |  </Term>
-      |  |  |  |  |  |  <ExprP>
-      |  |  |  |  |  |  </ExprP>
-      |  |  |  |  |  </ExprP>
+      |  |  |  |  |  |  <Expr>
+      |  |  |  |  |  |  </Expr>
+      |  |  |  |  |  </Expr>
       |  |  |  |  </Expr>
       |  |  |  |  <)>)</)>
       |  |  |  </Term>
-      |  |  |  <ExprP>
-      |  |  |  </ExprP>
-      |  |  </ExprP>
+      |  |  |  <Expr>
+      |  |  |  </Expr>
+      |  |  </Expr>
       |  </Expr>
       </Root>
       "

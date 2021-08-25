@@ -1,5 +1,5 @@
 import { lexer, Rules, Token } from './numbers.__generated__';
-import { parse, parseFlow, ParseNode } from '../top-down-parser';
+import { parseFlow, ParseNode } from '../top-down-parser';
 import { Grammar } from '../grammar';
 import { LexToken } from '../../lexer-gen/lexer-gen';
 
@@ -63,8 +63,6 @@ describe('attribute grammar', () => {
 
     const tokens = lexer.parse('100101').toArray();
     const node = parseFlow(grammar, Rules.Root, tokens)._unsafeUnwrap();
-    const oldResult = parse(grammar, Rules.Root, tokens)._unsafeUnwrap();
-    expect(node.pretty()).toEqual(oldResult.pretty());
     expect(node.pretty()).toMatchInlineSnapshot(`
         "
         <Root>

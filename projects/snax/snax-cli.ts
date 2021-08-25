@@ -1,7 +1,6 @@
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import fs from 'fs';
-import { Argv } from 'yargs';
 import { compileStr } from './wat-compiler';
 import loadWabt from 'wabt';
 

@@ -172,28 +172,38 @@ export class Block extends BaseNode implements HasStackIR {
     return ASTValueType.Void;
   }
 
-  toStackIR(): Instruction[] {
-    const table: SymbolTable = new OrderedMap();
+  private table: SymbolTable | null = null;
+
+  resolveSymbols(): SymbolTable {
+    if (this.table) {
+      return this.table;
+    }
+    this.table = new OrderedMap();
     let offset = 0;
-    let stackIR: Instruction[] = [];
     for (let [i, astNode] of this.statements.entries()) {
-      resolveSymbols(table, astNode);
+      resolveSymbols(this.table, astNode);
       if (astNode instanceof LetStatement) {
-        if (table.has(astNode.symbol)) {
+        if (this.table.has(astNode.symbol)) {
           throw new Error(
             `Redeclaration of symbol ${astNode.symbol} in the same scope`
           );
         }
 
         const resolved = new ResolvedLetStatement(astNode, offset);
-        table.set(astNode.symbol, {
+        this.table.set(astNode.symbol, {
           offset: offset++,
           valueType: resolved.expr.resolveType(),
         });
         this.statements[i] = resolved;
-        astNode = resolved;
       }
+    }
+    return this.table;
+  }
 
+  toStackIR(): Instruction[] {
+    this.resolveSymbols();
+    let stackIR: Instruction[] = [];
+    for (const astNode of this.statements) {
       if (astNode.hasStackIR()) {
         stackIR.push(...astNode.toStackIR());
       } else {
@@ -203,16 +213,6 @@ export class Block extends BaseNode implements HasStackIR {
       }
     }
     return stackIR;
-  }
-
-  getSymbolTable() {
-    const table: Map<string, LetStatement> = new Map();
-    for (const letStatement of this.statements) {
-      if (letStatement instanceof LetStatement) {
-        table.set(letStatement.symbol, letStatement);
-      }
-    }
-    return table;
   }
 }
 
@@ -225,7 +225,7 @@ export enum BinaryOp {
 
 const stackInstructionForBinaryOp = (
   op: BinaryOp,
-  valueType: StackIR.ValueType = ValueType.i32
+  valueType: StackIR.ValueType
 ) => {
   switch (op) {
     case BinaryOp.ADD:
@@ -299,7 +299,18 @@ export class Expression extends BaseNode implements HasStackIR {
         ...this.left.toStackIR(),
         ...this.right.toStackIR(),
       ];
-      instructions.push(stackInstructionForBinaryOp(this.op));
+      let typeMapping = {
+        [ASTValueType.Float]: ValueType.f32,
+        [ASTValueType.Integer]: ValueType.i32,
+        [ASTValueType.Void]: null,
+      };
+
+      instructions.push(
+        stackInstructionForBinaryOp(
+          this.op,
+          typeMapping[this.resolveType()] as ValueType
+        )
+      );
       return instructions;
     }
     throw new Error("can't generate stack IR for this j0nx");

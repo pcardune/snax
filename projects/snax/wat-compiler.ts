@@ -27,35 +27,28 @@ export function compileStr(input: string): Result<string, any> {
   }
 }
 
-export function compileAST(block: AST.Block): string {
-  let locals: string[] = [];
-  const instructions = block.toStackIR();
-  let returnType;
-  switch (block.resolveType()) {
+function getWASMType(valueType: AST.ASTValueType) {
+  switch (valueType) {
     case AST.ASTValueType.Float:
-      returnType = 'f32';
-      break;
+      return 'f32';
     case AST.ASTValueType.Integer:
-      returnType = 'i32';
-      break;
+      return 'i32';
     case AST.ASTValueType.Void:
-      returnType = '';
-      break;
-    default:
-      throw new Error(
-        `can't compile instructions for block with type ${block.resolveType()}`
-      );
+      return '';
   }
-  const mainBody = instructions
-    .map((ins) => {
-      if (ins instanceof StackIR.LocalSet) {
-        locals.push('(local i32)');
-      }
-      return ins.toWAT();
-    })
-    .join('\n');
-  const moduleBody = `(func (export "main") (result ${returnType})\n${locals.join(
-    ' '
-  )}\n${mainBody})`;
+}
+
+export function compileAST(block: AST.Block): string {
+  const instructions = block.toStackIR();
+  let returnType = getWASMType(block.resolveType());
+  let locals: string[] = [...block.resolveSymbols().values()].map((e) =>
+    getWASMType(e.valueType)
+  );
+  const mainBody = instructions.map((ins) => ins.toWAT()).join('\n');
+  const moduleBody = `
+(func (export "main") (result ${returnType})
+  (local ${locals.join(' ')})
+  ${mainBody}
+)`;
   return `(module ${moduleBody})`;
 }

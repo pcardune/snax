@@ -1,23 +1,20 @@
-import {
-  Add,
-  HasStackIR,
-  Instruction,
-  PushConst,
-  NumberType,
-} from './stack-ir';
+import { HasStackIR, Instruction, PushConst } from './stack-ir';
 import * as StackIR from './stack-ir';
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { BaseType, Intrinsics } from './snax-types';
 
-abstract class BaseNode {
-  children: BaseNode[];
-  constructor(children: BaseNode[]) {
-    this.children = children;
-  }
+export interface ASTNode {
+  children: ASTNode[];
+  toString(): string;
+  depthFirstIter(): Iter<BaseNode>;
+  resolveType(): BaseType;
+}
 
-  hasStackIR(): this is HasStackIR {
-    return !!(this as any).toStackIR;
+abstract class BaseNode implements ASTNode {
+  children: ASTNode[];
+  constructor(children: ASTNode[]) {
+    this.children = children;
   }
 
   depthFirstIter(): Iter<BaseNode> {
@@ -27,13 +24,20 @@ abstract class BaseNode {
     );
   }
 
+  toString() {
+    return this.name;
+  }
+  abstract get name(): string;
   abstract resolveType(): BaseType;
 }
+export type { BaseNode };
+
 export enum NumberLiteralType {
   Integer = 'int',
   Float = 'float',
 }
 export class NumberLiteral extends BaseNode implements HasStackIR {
+  name = 'NumberLiteral';
   readonly value: number;
   readonly numberType: NumberLiteralType;
   constructor(
@@ -61,6 +65,7 @@ export class NumberLiteral extends BaseNode implements HasStackIR {
 }
 
 export class SymbolRef extends BaseNode {
+  name = 'SymbolRef';
   readonly symbol: string;
   constructor(symbol: string) {
     super([]);
@@ -72,6 +77,7 @@ export class SymbolRef extends BaseNode {
 }
 
 export class TypeRef extends BaseNode {
+  name = 'TypeRef';
   readonly symbol: string;
   constructor(symbol: string) {
     super([]);
@@ -91,6 +97,7 @@ export class TypeRef extends BaseNode {
 }
 
 export class TypeExpr extends BaseNode {
+  name = 'TypeExpr';
   /**
    * The placeholder type
    */
@@ -114,7 +121,8 @@ export class TypeExpr extends BaseNode {
   }
 }
 
-export class ResolvedSymbolRef extends BaseNode implements HasStackIR {
+export class ResolvedSymbolRef extends BaseNode {
+  name = 'ResolvedSymbolRef';
   offset: number;
   valueType: BaseType;
   constructor(offset: number, valueType: BaseType) {
@@ -123,40 +131,33 @@ export class ResolvedSymbolRef extends BaseNode implements HasStackIR {
     this.valueType = valueType;
   }
 
-  toStackIR(): Instruction[] {
-    return [new StackIR.LocalGet(this.offset)];
-  }
   resolveType(): BaseType {
     return this.valueType;
   }
 }
 
 export class ExprStatement extends BaseNode {
+  name = 'ExprStatement';
   constructor(expr: ASTNode) {
     super([expr]);
   }
   get expr() {
-    return this.children[0];
+    return this.children[0] as ASTNode;
   }
   resolveType() {
     return this.expr.resolveType();
   }
-
-  toStackIR(): Instruction[] {
-    if (this.expr.hasStackIR()) {
-      return this.expr.toStackIR();
-    }
-    throw new Error("Can't generate stack IR for this yet...");
-  }
 }
 
 export class LetStatement extends BaseNode {
+  name: string;
   readonly symbol: string;
   constructor(symbol: string, typeExpr: TypeExpr | null, expr: ASTNode) {
     if (!typeExpr) {
       typeExpr = TypeExpr.placeholder;
     }
     super([typeExpr, expr]);
+    this.name = 'LetStatement';
     this.symbol = symbol;
   }
   get typeExpr(): TypeExpr {
@@ -178,7 +179,8 @@ export class LetStatement extends BaseNode {
   }
 }
 
-export class ResolvedLetStatement extends BaseNode implements HasStackIR {
+export class ResolvedLetStatement extends BaseNode {
+  name = 'ResolvedLetStatement';
   readonly offset: number;
   constructor(letStatement: LetStatement, offset: number) {
     super([letStatement.expr]);
@@ -189,12 +191,6 @@ export class ResolvedLetStatement extends BaseNode implements HasStackIR {
   }
   resolveType() {
     return Intrinsics.Void;
-  }
-  toStackIR(): Instruction[] {
-    if (this.expr.hasStackIR()) {
-      return [...this.expr.toStackIR(), new StackIR.LocalSet(this.offset)];
-    }
-    throw new Error("Can't generate stack IR for this yet...");
   }
 }
 type SymbolRecord = { offset: number; valueType: BaseType };
@@ -208,7 +204,7 @@ function resolveSymbol(table: SymbolTable, child: SymbolRef) {
   return new ResolvedSymbolRef(symbol.offset, symbol.valueType);
 }
 
-function resolveSymbols(table: SymbolTable, node: BaseNode) {
+function resolveSymbols(table: SymbolTable, node: ASTNode) {
   for (const [i, child] of node.children.entries()) {
     if (child instanceof SymbolRef) {
       node.children[i] = resolveSymbol(table, child);
@@ -218,10 +214,8 @@ function resolveSymbols(table: SymbolTable, node: BaseNode) {
   }
 }
 
-export class Block extends BaseNode implements HasStackIR {
-  constructor(children: BaseNode[]) {
-    super(children);
-  }
+export class Block extends BaseNode {
+  name = 'Block';
   get statements() {
     return this.children;
   }
@@ -259,21 +253,6 @@ export class Block extends BaseNode implements HasStackIR {
     }
     return this.symbolTable;
   }
-
-  toStackIR(): Instruction[] {
-    this.resolveSymbols();
-    let stackIR: Instruction[] = [];
-    for (const astNode of this.statements) {
-      if (astNode.hasStackIR()) {
-        stackIR.push(...astNode.toStackIR());
-      } else {
-        throw new Error(
-          `Can't create stack ir for block: ${astNode} doesn't have stack ir`
-        );
-      }
-    }
-    return stackIR;
-  }
 }
 
 export enum BinaryOp {
@@ -281,23 +260,8 @@ export enum BinaryOp {
   DIV = '/',
   ADD = '+',
   SUB = '-',
+  ASSIGN = '=',
 }
-
-const stackInstructionForBinaryOp = (
-  op: BinaryOp,
-  valueType: StackIR.NumberType
-) => {
-  switch (op) {
-    case BinaryOp.ADD:
-      return new Add(valueType);
-    case BinaryOp.SUB:
-      return new StackIR.Sub(valueType);
-    case BinaryOp.MUL:
-      return new StackIR.Mul(valueType);
-    case BinaryOp.DIV:
-      return new StackIR.Div(valueType);
-  }
-};
 
 const getASTValueTypeForBinaryOp = (
   op: BinaryOp,
@@ -328,7 +292,8 @@ const getASTValueTypeForBinaryOp = (
   }
 };
 
-export class Expression extends BaseNode implements HasStackIR {
+export class Expression extends BaseNode {
+  name = 'Expression';
   readonly op: BinaryOp;
   constructor(op: BinaryOp, left: ASTNode, right: ASTNode) {
     super([left, right]);
@@ -341,10 +306,6 @@ export class Expression extends BaseNode implements HasStackIR {
     return this.children[1];
   }
 
-  override hasStackIR(): this is HasStackIR {
-    return this.left.hasStackIR() && this.right.hasStackIR();
-  }
-
   resolveType(): BaseType {
     return getASTValueTypeForBinaryOp(
       this.op,
@@ -352,39 +313,4 @@ export class Expression extends BaseNode implements HasStackIR {
       this.right.resolveType()
     );
   }
-
-  toStackIR(): Instruction[] {
-    if (this.left.hasStackIR() && this.right.hasStackIR()) {
-      const instructions = [
-        ...this.left.toStackIR(),
-        ...this.right.toStackIR(),
-      ];
-      let valueType: NumberType;
-      switch (this.resolveType()) {
-        case Intrinsics.f32:
-          valueType = NumberType.f32;
-          break;
-        case Intrinsics.i32:
-          valueType = NumberType.i32;
-          break;
-        default:
-          throw new Error(
-            `No representation for type ${this.resolveType()} in stackIR`
-          );
-      }
-      instructions.push(stackInstructionForBinaryOp(this.op, valueType));
-      return instructions;
-    }
-    throw new Error("can't generate stack IR for this j0nx");
-  }
 }
-
-export type ASTNode =
-  | NumberLiteral
-  | SymbolRef
-  | Expression
-  | LetStatement
-  | ExprStatement
-  | Block
-  | ResolvedSymbolRef
-  | ResolvedLetStatement;

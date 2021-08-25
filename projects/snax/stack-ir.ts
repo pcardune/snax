@@ -1,4 +1,4 @@
-import { HasWAT } from './wat-compiler';
+import { HasWAT as IR } from './wat-compiler';
 
 /**
  * Number Types. Basically the same as:
@@ -11,7 +11,7 @@ export enum NumberType {
   f64 = 'f64',
 }
 
-export class PushConst implements HasWAT {
+export class PushConst implements IR {
   valueType: NumberType;
   value: number;
   constructor(valueType: NumberType, value: number) {
@@ -30,31 +30,31 @@ class BinaryOp {
   }
 }
 
-export class Add extends BinaryOp implements HasWAT {
+export class Add extends BinaryOp implements IR {
   toWAT(): string {
     return `${this.valueType}.add`;
   }
 }
 
-export class Sub extends BinaryOp implements HasWAT {
+export class Sub extends BinaryOp implements IR {
   toWAT(): string {
     return `${this.valueType}.sub`;
   }
 }
 
-export class Mul extends BinaryOp implements HasWAT {
+export class Mul extends BinaryOp implements IR {
   toWAT(): string {
     return `${this.valueType}.mul`;
   }
 }
 
-export class Div extends BinaryOp implements HasWAT {
+export class Div extends BinaryOp implements IR {
   toWAT(): string {
     return `${this.valueType}.div_s`;
   }
 }
 
-export class LocalGet implements HasWAT {
+export class LocalGet implements IR {
   offset: number;
   constructor(offset: number) {
     this.offset = offset;
@@ -64,7 +64,7 @@ export class LocalGet implements HasWAT {
   }
 }
 
-export class LocalSet implements HasWAT {
+export class LocalSet implements IR {
   offset: number;
   constructor(offset: number) {
     this.offset = offset;

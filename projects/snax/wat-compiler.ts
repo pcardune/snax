@@ -2,6 +2,7 @@ import { err, ok, Result } from 'neverthrow';
 import * as AST from './snax-ast';
 import { SNAXParser } from './snax-parser';
 import * as Types from './snax-types';
+import * as ASTCompiler from './ast-compiler';
 
 export interface HasWAT {
   toWAT(): string;
@@ -32,7 +33,8 @@ function getWASMType(valueType: Types.BaseType): string {
 }
 
 export function compileAST(block: AST.Block): string {
-  const instructions = block.toStackIR();
+  const compiler = new ASTCompiler.BlockCompiler(block);
+  const instructions = compiler.compile();
   let returnType = getWASMType(block.resolveType());
   let locals: string[] = [...block.resolveSymbols().values()].map((e) =>
     getWASMType(e.valueType)

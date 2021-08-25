@@ -119,7 +119,7 @@ grammar.createProduction(
 
 // ExprStatement
 grammar.createProduction(R.ExprStatement, [R.Expr, T.SEMI], ([expr]) => {
-  return new AST.ExprStatement(expr);
+  return new AST.ExprStatement(expr as Expression);
 });
 
 // Expr

@@ -5,11 +5,11 @@ import {
   Expression,
   LetStatement,
   NumberLiteral,
-  ASTValueType,
   SymbolRef,
   ExprStatement,
   TypeExpr,
   TypeRef,
+  NumberLiteralType,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -72,14 +72,18 @@ describe('SNAX Parser', () => {
           '123',
           Rule.NumberLiteral
         ) as NumberLiteral;
-        expect(literal).toEqual(new NumberLiteral(123, ASTValueType.Integer));
+        expect(literal).toEqual(
+          new NumberLiteral(123, NumberLiteralType.Integer)
+        );
       });
       it('should parse a string with a floating point number into a NumberLiteral', () => {
         const literal = SNAXParser.parseStrOrThrow(
           '1.23',
           Rule.NumberLiteral
         ) as NumberLiteral;
-        expect(literal).toEqual(new NumberLiteral(1.23, ASTValueType.Float));
+        expect(literal).toEqual(
+          new NumberLiteral(1.23, NumberLiteralType.Float)
+        );
       });
     });
     describe('expression', () => {

@@ -1,7 +1,6 @@
 import { err, ok, Result } from 'neverthrow';
 import * as AST from './snax-ast';
 import { SNAXParser } from './snax-parser';
-import * as StackIR from './stack-ir';
 
 export interface HasWAT {
   toWAT(): string;
@@ -27,15 +26,8 @@ export function compileStr(input: string): Result<string, any> {
   }
 }
 
-function getWASMType(valueType: AST.ASTValueType) {
-  switch (valueType) {
-    case AST.ASTValueType.Float:
-      return 'f32';
-    case AST.ASTValueType.Integer:
-      return 'i32';
-    case AST.ASTValueType.Void:
-      return '';
-  }
+function getWASMType(valueType: AST.ASTValueType): string {
+  return valueType.toValueType() as string;
 }
 
 export function compileAST(block: AST.Block): string {

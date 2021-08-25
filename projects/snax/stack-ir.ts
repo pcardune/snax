@@ -1,6 +1,6 @@
 import { HasWAT } from './wat-compiler';
 
-export enum ValueType {
+export enum NumberType {
   i32 = 'i32',
   i64 = 'i64',
   f32 = 'f32',
@@ -8,9 +8,9 @@ export enum ValueType {
 }
 
 export class PushConst implements HasWAT {
-  valueType: ValueType;
+  valueType: NumberType;
   value: number;
-  constructor(valueType: ValueType, value: number) {
+  constructor(valueType: NumberType, value: number) {
     this.valueType = valueType;
     this.value = value;
   }
@@ -20,8 +20,8 @@ export class PushConst implements HasWAT {
 }
 
 class BinaryOp {
-  valueType: ValueType;
-  constructor(valueType: ValueType) {
+  valueType: NumberType;
+  constructor(valueType: NumberType) {
     this.valueType = valueType;
   }
 }

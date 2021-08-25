@@ -164,11 +164,11 @@ grammar.createProduction(
 // Number Literal
 grammar.createProduction(R.NumberLiteral, [T.NUMBER], (_, [token]) => {
   const value = parseInt((token as LexToken<unknown>).substr);
-  return new NumberLiteral(value, ASTValueType.Integer);
+  return new NumberLiteral(value, AST.NumberLiteralType.Integer);
 });
 grammar.createProduction(R.NumberLiteral, [T.FLOAT_NUMBER], (_, [token]) => {
   const value = parseFloat((token as LexToken<unknown>).substr);
-  return new NumberLiteral(value, ASTValueType.Float);
+  return new NumberLiteral(value, AST.NumberLiteralType.Float);
 });
 
 export class SNAXParser {

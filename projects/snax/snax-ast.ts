@@ -1,14 +1,93 @@
-import { Add, HasStackIR, Instruction, PushConst, ValueType } from './stack-ir';
+import {
+  Add,
+  HasStackIR,
+  Instruction,
+  PushConst,
+  NumberType,
+} from './stack-ir';
 import * as StackIR from './stack-ir';
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
-export enum ASTValueType {
-  Integer = 'int',
-  Float = 'float',
-  Void = 'void',
-  Unknown = 'unknown',
+export abstract class ASTValueType {
+  name: string;
+  constructor(name: string) {
+    this.name = name;
+  }
+  static i32: ASTValueType;
+  static i64: ASTValueType;
+  static f32: ASTValueType;
+  static f64: ASTValueType;
+  static Unknown: ASTValueType;
+  static Void: ASTValueType;
+
+  abstract toValueType(): NumberType;
+
+  toString(): string {
+    return this.name;
+  }
 }
+
+class NumericalType extends ASTValueType {
+  // The size in bytes
+  size: number;
+  interpretation: 'float' | 'int';
+  constructor(name: string, interpretation: 'float' | 'int', size: number) {
+    super(name);
+    this.interpretation = interpretation;
+    this.size = size;
+  }
+  toString() {
+    return `${this.interpretation}${this.size * 8}`;
+  }
+  toValueType(): NumberType {
+    const { i32, i64, f32, f64 } = NumberType;
+    if (this.interpretation === 'float') {
+      if (this.size <= 4) {
+        return f32;
+      } else if (this.size <= 8) {
+        return f64;
+      } else {
+        throw new Error(
+          "Don't know how to store numbers with more than 8 bytes yet"
+        );
+      }
+    } else {
+      if (this.size <= 4) {
+        return i32;
+      } else if (this.size <= 8) {
+        return i64;
+      } else {
+        throw new Error(
+          "Don't know how to store numbers with more than 8 bytes yet"
+        );
+      }
+    }
+  }
+}
+ASTValueType.i32 = new NumericalType('i32', 'int', 4);
+ASTValueType.i64 = new NumericalType('i64', 'int', 8);
+ASTValueType.f32 = new NumericalType('f32', 'float', 4);
+ASTValueType.f64 = new NumericalType('f64', 'float', 8);
+
+class VoidType extends ASTValueType {
+  constructor() {
+    super('void');
+  }
+  toValueType(): NumberType {
+    throw new Error('void types do not have a corresponding value type');
+  }
+}
+ASTValueType.Void = new VoidType();
+class UnknownType extends ASTValueType {
+  constructor() {
+    super('unknown');
+  }
+  toValueType(): NumberType {
+    throw new Error('unknown types do not have a corresponding value type');
+  }
+}
+ASTValueType.Unknown = new UnknownType();
 
 abstract class BaseNode {
   children: BaseNode[];
@@ -29,26 +108,37 @@ abstract class BaseNode {
 
   abstract resolveType(): ASTValueType;
 }
-
+export enum NumberLiteralType {
+  Integer = 'int',
+  Float = 'float',
+}
 export class NumberLiteral extends BaseNode implements HasStackIR {
   readonly value: number;
-  readonly numberType: ASTValueType;
-  constructor(value: number, numberType: ASTValueType = ASTValueType.Integer) {
+  readonly numberType: NumberLiteralType;
+  constructor(
+    value: number,
+    numberType: NumberLiteralType = NumberLiteralType.Integer
+  ) {
     super([]);
     this.value = value;
     this.numberType = numberType;
   }
 
   resolveType(): ASTValueType {
-    return this.numberType;
+    switch (this.numberType) {
+      case NumberLiteralType.Float:
+        return ASTValueType.f32;
+      case NumberLiteralType.Integer:
+        return ASTValueType.i32;
+    }
   }
 
   toStackIR(): Instruction[] {
-    switch (this.numberType) {
-      case ASTValueType.Integer:
-        return [new PushConst(ValueType.i32, this.value)];
-      case ASTValueType.Float:
-        return [new PushConst(ValueType.f32, this.value)];
+    switch (this.resolveType()) {
+      case ASTValueType.i32:
+        return [new PushConst(NumberType.i32, this.value)];
+      case ASTValueType.f32:
+        return [new PushConst(NumberType.f32, this.value)];
       default:
         throw new Error(
           `Unrecognized value type ${this.numberType} for NumberLiteral`
@@ -77,9 +167,9 @@ export class TypeRef extends BaseNode {
   resolveType(): ASTValueType {
     switch (this.symbol) {
       case 'i32':
-        return ASTValueType.Integer;
+        return ASTValueType.i32;
       case 'f32':
-        return ASTValueType.Float;
+        return ASTValueType.f32;
       case 'unknown':
         return ASTValueType.Unknown;
     }
@@ -215,15 +305,6 @@ function resolveSymbols(table: SymbolTable, node: BaseNode) {
   }
 }
 
-type TypeTable = OrderedMap<string, ASTValueType>;
-function resolveTypes(table: TypeTable, node: BaseNode) {
-  for (const [i, child] of node.children.entries()) {
-    if (child instanceof TypeExpr) {
-      child.evaluate();
-    }
-  }
-}
-
 export class Block extends BaseNode implements HasStackIR {
   constructor(children: BaseNode[]) {
     super(children);
@@ -291,7 +372,7 @@ export enum BinaryOp {
 
 const stackInstructionForBinaryOp = (
   op: BinaryOp,
-  valueType: StackIR.ValueType
+  valueType: StackIR.NumberType
 ) => {
   switch (op) {
     case BinaryOp.ADD:
@@ -310,7 +391,7 @@ const getASTValueTypeForBinaryOp = (
   leftType: ASTValueType,
   rightType: ASTValueType
 ): ASTValueType => {
-  let { Integer, Float } = ASTValueType;
+  let { i32: Integer, f32: Float } = ASTValueType;
   switch (leftType) {
     case Integer:
       switch (rightType) {
@@ -365,13 +446,13 @@ export class Expression extends BaseNode implements HasStackIR {
         ...this.left.toStackIR(),
         ...this.right.toStackIR(),
       ];
-      let valueType: ValueType;
+      let valueType: NumberType;
       switch (this.resolveType()) {
-        case ASTValueType.Float:
-          valueType = ValueType.f32;
+        case ASTValueType.f32:
+          valueType = NumberType.f32;
           break;
-        case ASTValueType.Integer:
-          valueType = ValueType.i32;
+        case ASTValueType.i32:
+          valueType = NumberType.i32;
           break;
         default:
           throw new Error(

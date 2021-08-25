@@ -1,10 +1,12 @@
 import { combine, Result } from 'neverthrow';
-import { ParseNode } from '../../grammar/top-down-parser';
+import { ParseNode, Parser } from '../../grammar/top-down-parser';
 import { LexToken } from '../../lexer-gen/lexer-gen';
 import * as dsl from '../../parser-gen/dsl';
 import { charCodes } from '../../utils/iter';
 import { ParseNodeGraph } from './ParseNodeGraph';
 import { logger } from '../../utils/debug';
+import { useMemo, useState } from 'react';
+import { PatternLexer } from '../../lexer-gen/recognizer';
 
 type $TSFixMe = any;
 function TokenList(props: { tokens: Result<LexToken<any>, any>[] }) {
@@ -39,74 +41,91 @@ export function GrammarPlayground(props: {
   initialGrammar: string;
   initialContent: string;
 }) {
-  const segments = [
+  const [input, setInput] = useState(props.initialContent);
+
+  const { lexer, parser, error } = useMemo(() => {
+    const parseTreeResult = dsl.parse(props.initialGrammar);
+    let result: {
+      lexer?: PatternLexer<string>;
+      parser?: Parser<string, ParseNode<string, LexToken<string>>>;
+      error?: any;
+    } = {};
+    if (parseTreeResult.isOk()) {
+      const root = parseTreeResult.value;
+      const maybeLexer = dsl.compileLexer(root);
+      if (maybeLexer.isOk()) {
+        result.lexer = maybeLexer.value;
+        const logs: string[] = [];
+        const maybeParser = logger.capture(
+          () => dsl.compileGrammarToParser(parseTreeResult.value),
+          logs
+        );
+        if (maybeParser.isOk()) {
+          result.parser = maybeParser.value;
+        } else {
+          result.error = maybeParser.error;
+        }
+      } else {
+        result.error = maybeLexer.error;
+      }
+    } else {
+      result.error = parseTreeResult.error;
+    }
+    return result;
+  }, [props.initialGrammar]);
+
+  const [parsedTokens, setParsedTokens] = useState<
+    Result<LexToken<string>, any>[] | null
+  >(null);
+  const [parsedTree, setParsedTree] = useState<ParseNode<
+    string,
+    LexToken<string>
+  > | null>(null);
+  const [parseError, setParseError] = useState<any>(null);
+  const onClickParse = () => {
+    if (lexer && parser) {
+      const parsedTokens = lexer
+        .parse(charCodes(props.initialContent))
+        .catch()
+        .toArray();
+      setParsedTokens(parsedTokens);
+
+      let logs: string[] = [];
+      const maybeParseTree = logger.capture(
+        () =>
+          parser.parseTokens(combine(parsedTokens).unwrapOr([]) as $TSFixMe),
+        logs
+      );
+      if (maybeParseTree.isOk()) {
+        if (maybeParseTree.value) {
+          setParsedTree(maybeParseTree.value);
+        }
+      } else {
+        setParseError(maybeParseTree.error);
+      }
+    }
+  };
+
+  return (
     <div>
       <strong>Grammar:</strong>
       <pre>
         <code className="hljs">{props.initialGrammar}</code>
       </pre>
       <strong>Input:</strong>
-      <pre>
-        <code>{props.initialContent}</code>
-      </pre>
-    </div>,
-  ];
-
-  const parseTreeResult = dsl.parse(props.initialGrammar);
-  if (parseTreeResult.isOk()) {
-    const root = parseTreeResult.value;
-    const maybeLexer = dsl.compileLexer(root);
-    if (maybeLexer.isOk()) {
-      const lexer = maybeLexer.value;
-      const parsedTokens = lexer
-        .parse(charCodes(props.initialContent))
-        .catch()
-        .toArray();
-      segments.push(<TokenList tokens={parsedTokens} />);
-
-      const logs: string[] = [];
-      const maybeParser = logger.capture(
-        () => dsl.compileGrammarToParser(root),
-        logs
-      );
-      if (maybeParser.isOk()) {
-        const parser = maybeParser.value;
-        const maybeParseTree = logger.capture(
-          () =>
-            parser.parseTokens(combine(parsedTokens).unwrapOr([]) as $TSFixMe),
-          logs
-        );
-        if (maybeParseTree.isOk()) {
-          if (maybeParseTree.value) {
-            segments.push(<ParseTree root={maybeParseTree.value} />);
-            segments.push(<ParseNodeGraph root={maybeParseTree.value} />);
-          }
-        } else {
-          segments.push(
-            <div>
-              Failed parsing expression {'' + maybeParseTree.error}
-              <pre>
-                <code>{logs.join('\n')}</code>
-              </pre>
-            </div>
-          );
-        }
-      } else {
-        segments.push(
-          <div>
-            Failed compiling parser: {'' + maybeParser.error}
-            <pre>
-              <code>{logs.join('\n')}</code>
-            </pre>
-          </div>
-        );
-      }
-    } else {
-      segments.push(<div>Failed compiling lexer: {'' + maybeLexer.error}</div>);
-    }
-  } else {
-    segments.push(<div>Failed parsing grammar</div>);
-  }
-
-  return <div>{...segments}</div>;
+      <div>
+        <textarea value={input} onChange={(e) => setInput(e.target.value)} />
+      </div>
+      <button onClick={onClickParse}>Parse</button>
+      {parsedTokens && (
+        <div>
+          Tokens:
+          <TokenList tokens={parsedTokens} />
+        </div>
+      )}
+      {parseError && <div>{parseError}</div>}
+      {/* {parsedTree && <ParseTree root={parsedTree} />} */}
+      {parsedTree && <ParseNodeGraph root={parsedTree} />}
+    </div>
+  );
 }

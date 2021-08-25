@@ -9,21 +9,43 @@ export interface IHaveDebugStr {
   toDebugStr(): string;
 }
 
-let debugFile: any = undefined;
 export function log(...args: any[]) {
-  if (!global.process) {
-    return;
+  logger.log(...args);
+}
+
+type Listener = (...args: any[]) => void;
+class Logger {
+  static readonly instance = new Logger();
+  private listeners: Set<Listener> = new Set();
+  private debugFile: any = undefined;
+
+  private constructor() {}
+
+  subscribe(listener: Listener) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
-  if (process.env.DEBUG) {
-    console.log(...args);
-  } else if (process.env.DEBUG_FILE) {
-    const fs = require('fs');
-    if (!debugFile) {
-      debugFile = fs.openSync(process.env.DEBUG_FILE, 'w');
+
+  log(...args: any[]) {
+    for (const listener of this.listeners) {
+      try {
+        listener(...args);
+      } catch {}
     }
-    fs.writeSync(debugFile, args.join(' ') + '\n');
+    if (process.env.DEBUG) {
+      console.log(...args);
+    } else if (process.env.DEBUG_FILE) {
+      const fs = require('fs');
+      if (!this.debugFile) {
+        this.debugFile = fs.openSync(process.env.DEBUG_FILE, 'w');
+      }
+      fs.writeSync(this.debugFile, args.join(' ') + '\n');
+    }
   }
 }
+export const logger = Logger.instance;
 
 let shouldUseColors = false;
 export function useColors() {

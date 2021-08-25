@@ -1,12 +1,7 @@
 import { combine, Result } from 'neverthrow';
 import { ParseNode } from '../../grammar/top-down-parser';
 import { LexToken } from '../../lexer-gen/lexer-gen';
-import {
-  compileGrammarToParser,
-  compileLexer,
-  lexer,
-  parser,
-} from '../../parser-gen/dsl';
+import * as dsl from '../../parser-gen/dsl';
 import { charCodes } from '../../utils/iter';
 import { ParseNodeGraph } from './ParseNodeGraph';
 type $TSFixMe = any;
@@ -55,11 +50,10 @@ export function GrammarPlayground(props: {
     </div>,
   ];
 
-  const tokens = lexer.parse(charCodes(props.initialGrammar)).toArray();
-  const parseTreeResult = parser.parseTokens(tokens);
+  const parseTreeResult = dsl.parse(props.initialGrammar);
   if (parseTreeResult.isOk()) {
     const root = parseTreeResult.value;
-    const maybeLexer = compileLexer(root);
+    const maybeLexer = dsl.compileLexer(root);
     if (maybeLexer.isOk()) {
       const lexer = maybeLexer.value;
       const parsedTokens = lexer
@@ -68,15 +62,17 @@ export function GrammarPlayground(props: {
         .toArray();
       segments.push(<TokenList tokens={parsedTokens} />);
 
-      const maybeParser = compileGrammarToParser(root);
+      const maybeParser = dsl.compileGrammarToParser(root);
       if (maybeParser.isOk()) {
         const parser = maybeParser.value;
         const maybeParseTree = parser.parseTokens(
           combine(parsedTokens).unwrapOr([]) as $TSFixMe
         );
         if (maybeParseTree.isOk()) {
-          segments.push(<ParseTree root={maybeParseTree.value} />);
-          segments.push(<ParseNodeGraph root={maybeParseTree.value} />);
+          if (maybeParseTree.value) {
+            segments.push(<ParseTree root={maybeParseTree.value} />);
+            segments.push(<ParseNodeGraph root={maybeParseTree.value} />);
+          }
         } else {
           segments.push(
             <div>Failed parsing expression {'' + maybeParseTree.error}</div>

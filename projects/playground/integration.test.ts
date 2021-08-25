@@ -65,6 +65,9 @@ Expr →
       ]
     `);
     let result = parser.parseTokensOrThrow(tokens);
+    if (!result) {
+      fail();
+    }
     expect(result.pretty()).toMatchInlineSnapshot(`
       "
       <Root>

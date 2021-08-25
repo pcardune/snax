@@ -1,5 +1,10 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { buildParser, ParseNode, SymbolsOf } from '../grammar/top-down-parser';
+import {
+  buildParser,
+  ParseNode,
+  Parser,
+  SymbolsOf,
+} from '../grammar/top-down-parser';
 import { LexToken } from '../lexer-gen/lexer-gen';
 
 import { lexer, parser, Token, Rules } from './dsl.__generated__';
@@ -26,7 +31,7 @@ class Literal {
     return `${this.kind}:${this.content}`;
   }
   static fromNode(
-    tokenLiteral: ParseNode<Symbol, LexToken<unknown>>
+    tokenLiteral: ParseNode<Symbol | null, LexToken<unknown>>
   ): Result<Literal, any> {
     if (tokenLiteral.rule !== Rules.Literal) {
       throw new Error(
@@ -59,7 +64,7 @@ class Literal {
 const enumValueForLiteral = (literal: Literal) => '$<' + literal.content + '>';
 
 function mapLiteralsToNames(
-  root: ParseNode<Symbol, LexToken<unknown>>
+  root: ParseNode<Symbol | null, LexToken<unknown>>
 ): Result<OrderedMap<string, Literal>, any> {
   let tokenLiterals: HashMap<Literal, string> = new HashMap(
     (literal) => literal.hash
@@ -97,8 +102,25 @@ function mapLiteralsToNames(
   return ok(patterns);
 }
 
+export function parseOrThrow(input: string) {
+  const tokens = lexer.parse(input);
+  const root = parser.parseTokensOrThrow(tokens);
+  if (!root) {
+    throw new Error('unexpected null root. Are there no tokens?');
+  }
+  return root;
+}
+
+export function parse(input: string) {
+  try {
+    return ok(parseOrThrow(input));
+  } catch (e) {
+    return err(e);
+  }
+}
+
 export function compileLexer(
-  root: ParseNode<Symbol, LexToken<unknown>>
+  root: ParseNode<Symbol | null, LexToken<unknown>>
 ): Result<PatternLexer<string>, any> {
   return flatten(
     mapLiteralsToNames(root).map((names) => {
@@ -128,9 +150,9 @@ export function compileLexer(
 }
 
 export function compileGrammarToParser(
-  root: ParseNode<Symbol, LexToken<unknown>>
-) {
-  let grammarSpec: GrammarSpec<Symbol> = { Root: [] };
+  root: ParseNode<Symbol | null, LexToken<unknown>>
+): Result<Parser<string, ParseNode<string, LexToken<string>>>, any> {
+  let grammarSpec: GrammarSpec<string> = { Root: [] };
   const productionIter = root
     .iterTree()
     .filter((n) => n.rule === Rules.Production);
@@ -148,19 +170,17 @@ export function compileGrammarToParser(
         .iterTree()
         .filter((n) => n.rule === Rules.Element);
 
-      let elementNames: Symbol[] = [];
+      let elementNames: string[] = [];
       for (const element of elementIter) {
         let child = element.children[0];
 
-        if (child.rule === Token.ID) {
+        if (child.token?.token === Token.ID) {
           const name = child.token?.substr as string;
-          elementNames.push(name as unknown as Symbol);
+          elementNames.push(name);
         } else {
           const maybeLiteral = Literal.fromNode(child);
           if (maybeLiteral.isOk()) {
-            elementNames.push(
-              enumValueForLiteral(maybeLiteral.value) as unknown as Symbol
-            );
+            elementNames.push(enumValueForLiteral(maybeLiteral.value));
           } else {
             return err(maybeLiteral.error);
           }
@@ -169,12 +189,14 @@ export function compileGrammarToParser(
       grammarSpec[productionName].push(elementNames);
     }
   }
-
-  return ok(buildParser(grammarSpec));
+  const parser = buildParser(grammarSpec);
+  return ok(
+    parser as unknown as Parser<string, ParseNode<string, LexToken<string>>>
+  );
 }
 
 export function compileLexerToTypescript(
-  parseTree: ParseNode<Symbol, LexToken<unknown>>,
+  parseTree: ParseNode<Symbol | null, LexToken<unknown>>,
   importRoot: string
 ): Result<string, any> {
   return mapLiteralsToNames(parseTree).map((patterns) => {
@@ -225,7 +247,7 @@ export const lexer = new PatternLexer(patterns);
 }
 
 export function compileGrammarToTypescript(
-  parseTree: ParseNode<Symbol, LexToken<unknown>>,
+  parseTree: ParseNode<Symbol | null, LexToken<unknown>>,
   importRoot: string
 ): Result<string, any> {
   const maybeEnumNames = mapLiteralsToNames(parseTree);

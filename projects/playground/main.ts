@@ -27,6 +27,7 @@ file = {
     console.log(root.pretty());
   } else {
     console.log('failed....');
+    return;
   }
 
   let file = new PestFile(root);

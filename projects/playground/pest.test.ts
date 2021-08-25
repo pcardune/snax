@@ -8,6 +8,9 @@ describe('pest parser', () => {
       debug.log(token);
     }
     const root = PestParser.parseStr(input);
+    if (!root) {
+      fail();
+    }
     expect(root.pretty()).toMatchSnapshot();
   });
 });

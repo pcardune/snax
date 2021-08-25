@@ -223,10 +223,10 @@ export class ParseNode<R, T extends LexToken<any>> {
   }
 }
 
-export class Parser<Symbol> {
-  readonly grammar: Grammar<Symbol>;
+export class Parser<Symbol, ActionValue = any> {
+  readonly grammar: Grammar<Symbol, ActionValue>;
   readonly start: Symbol;
-  constructor(grammar: Grammar<Symbol>, start: Symbol) {
+  constructor(grammar: Grammar<Symbol, ActionValue>, start: Symbol) {
     this.grammar = grammar;
     this.start = start;
   }

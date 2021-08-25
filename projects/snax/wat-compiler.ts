@@ -1,6 +1,7 @@
 import { err, ok, Result } from 'neverthrow';
 import * as AST from './snax-ast';
 import { SNAXParser } from './snax-parser';
+import * as Types from './snax-types';
 
 export interface HasWAT {
   toWAT(): string;
@@ -26,7 +27,7 @@ export function compileStr(input: string): Result<string, any> {
   }
 }
 
-function getWASMType(valueType: AST.ASTValueType): string {
+function getWASMType(valueType: Types.BaseType): string {
   return valueType.toValueType() as string;
 }
 

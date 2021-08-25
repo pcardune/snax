@@ -1,5 +1,9 @@
 import { HasWAT } from './wat-compiler';
 
+/**
+ * Number Types. Basically the same as:
+ * https://webassembly.github.io/spec/core/syntax/types.html#number-types
+ */
 export enum NumberType {
   i32 = 'i32',
   i64 = 'i64',

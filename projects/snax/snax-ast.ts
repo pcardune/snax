@@ -8,86 +8,7 @@ import {
 import * as StackIR from './stack-ir';
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-
-export abstract class ASTValueType {
-  name: string;
-  constructor(name: string) {
-    this.name = name;
-  }
-  static i32: ASTValueType;
-  static i64: ASTValueType;
-  static f32: ASTValueType;
-  static f64: ASTValueType;
-  static Unknown: ASTValueType;
-  static Void: ASTValueType;
-
-  abstract toValueType(): NumberType;
-
-  toString(): string {
-    return this.name;
-  }
-}
-
-class NumericalType extends ASTValueType {
-  // The size in bytes
-  size: number;
-  interpretation: 'float' | 'int';
-  constructor(name: string, interpretation: 'float' | 'int', size: number) {
-    super(name);
-    this.interpretation = interpretation;
-    this.size = size;
-  }
-  toString() {
-    return `${this.interpretation}${this.size * 8}`;
-  }
-  toValueType(): NumberType {
-    const { i32, i64, f32, f64 } = NumberType;
-    if (this.interpretation === 'float') {
-      if (this.size <= 4) {
-        return f32;
-      } else if (this.size <= 8) {
-        return f64;
-      } else {
-        throw new Error(
-          "Don't know how to store numbers with more than 8 bytes yet"
-        );
-      }
-    } else {
-      if (this.size <= 4) {
-        return i32;
-      } else if (this.size <= 8) {
-        return i64;
-      } else {
-        throw new Error(
-          "Don't know how to store numbers with more than 8 bytes yet"
-        );
-      }
-    }
-  }
-}
-ASTValueType.i32 = new NumericalType('i32', 'int', 4);
-ASTValueType.i64 = new NumericalType('i64', 'int', 8);
-ASTValueType.f32 = new NumericalType('f32', 'float', 4);
-ASTValueType.f64 = new NumericalType('f64', 'float', 8);
-
-class VoidType extends ASTValueType {
-  constructor() {
-    super('void');
-  }
-  toValueType(): NumberType {
-    throw new Error('void types do not have a corresponding value type');
-  }
-}
-ASTValueType.Void = new VoidType();
-class UnknownType extends ASTValueType {
-  constructor() {
-    super('unknown');
-  }
-  toValueType(): NumberType {
-    throw new Error('unknown types do not have a corresponding value type');
-  }
-}
-ASTValueType.Unknown = new UnknownType();
+import { BaseType, Intrinsics } from './snax-types';
 
 abstract class BaseNode {
   children: BaseNode[];
@@ -106,7 +27,7 @@ abstract class BaseNode {
     );
   }
 
-  abstract resolveType(): ASTValueType;
+  abstract resolveType(): BaseType;
 }
 export enum NumberLiteralType {
   Integer = 'int',
@@ -124,26 +45,18 @@ export class NumberLiteral extends BaseNode implements HasStackIR {
     this.numberType = numberType;
   }
 
-  resolveType(): ASTValueType {
+  resolveType(): BaseType {
     switch (this.numberType) {
       case NumberLiteralType.Float:
-        return ASTValueType.f32;
+        return Intrinsics.f32;
       case NumberLiteralType.Integer:
-        return ASTValueType.i32;
+        return Intrinsics.i32;
     }
   }
 
   toStackIR(): Instruction[] {
-    switch (this.resolveType()) {
-      case ASTValueType.i32:
-        return [new PushConst(NumberType.i32, this.value)];
-      case ASTValueType.f32:
-        return [new PushConst(NumberType.f32, this.value)];
-      default:
-        throw new Error(
-          `Unrecognized value type ${this.numberType} for NumberLiteral`
-        );
-    }
+    const valueType = this.resolveType().toValueType();
+    return [new PushConst(valueType, this.value)];
   }
 }
 
@@ -153,7 +66,7 @@ export class SymbolRef extends BaseNode {
     super([]);
     this.symbol = symbol;
   }
-  resolveType(): ASTValueType {
+  resolveType(): BaseType {
     throw new Error("Can't resolve type on an unresolved symbol");
   }
 }
@@ -164,14 +77,14 @@ export class TypeRef extends BaseNode {
     super([]);
     this.symbol = symbol;
   }
-  resolveType(): ASTValueType {
+  resolveType(): BaseType {
     switch (this.symbol) {
       case 'i32':
-        return ASTValueType.i32;
+        return Intrinsics.i32;
       case 'f32':
-        return ASTValueType.f32;
+        return Intrinsics.f32;
       case 'unknown':
-        return ASTValueType.Unknown;
+        return Intrinsics.Unknown;
     }
     throw new Error(`Can't resolve type ${this.symbol}`);
   }
@@ -189,22 +102,22 @@ export class TypeExpr extends BaseNode {
   get symbol() {
     return this.children[0];
   }
-  resolveType(): ASTValueType {
+  resolveType(): BaseType {
     throw new Error('Method not implemented.');
   }
   /**
    * Evaluate the type expression to make all
    * types concrete.
    */
-  evaluate(): ASTValueType {
+  evaluate(): BaseType {
     return this.symbol.resolveType();
   }
 }
 
 export class ResolvedSymbolRef extends BaseNode implements HasStackIR {
   offset: number;
-  valueType: ASTValueType;
-  constructor(offset: number, valueType: ASTValueType) {
+  valueType: BaseType;
+  constructor(offset: number, valueType: BaseType) {
     super([]);
     this.offset = offset;
     this.valueType = valueType;
@@ -213,7 +126,7 @@ export class ResolvedSymbolRef extends BaseNode implements HasStackIR {
   toStackIR(): Instruction[] {
     return [new StackIR.LocalGet(this.offset)];
   }
-  resolveType(): ASTValueType {
+  resolveType(): BaseType {
     return this.valueType;
   }
 }
@@ -255,7 +168,7 @@ export class LetStatement extends BaseNode {
   resolveType() {
     let explicitType = this.typeExpr.evaluate();
     let exprType = this.expr.resolveType();
-    if (explicitType === ASTValueType.Unknown) {
+    if (explicitType === Intrinsics.Unknown) {
       return exprType;
     }
     if (explicitType === exprType) {
@@ -275,7 +188,7 @@ export class ResolvedLetStatement extends BaseNode implements HasStackIR {
     return this.children[0];
   }
   resolveType() {
-    return ASTValueType.Void;
+    return Intrinsics.Void;
   }
   toStackIR(): Instruction[] {
     if (this.expr.hasStackIR()) {
@@ -284,7 +197,7 @@ export class ResolvedLetStatement extends BaseNode implements HasStackIR {
     throw new Error("Can't generate stack IR for this yet...");
   }
 }
-type SymbolRecord = { offset: number; valueType: ASTValueType };
+type SymbolRecord = { offset: number; valueType: BaseType };
 type SymbolTable = OrderedMap<string, SymbolRecord>;
 
 function resolveSymbol(table: SymbolTable, child: SymbolRef) {
@@ -317,7 +230,7 @@ export class Block extends BaseNode implements HasStackIR {
     if (this.statements.length > 0) {
       return this.statements[this.statements.length - 1].resolveType();
     }
-    return ASTValueType.Void;
+    return Intrinsics.Void;
   }
 
   private symbolTable: SymbolTable | null = null;
@@ -388,10 +301,10 @@ const stackInstructionForBinaryOp = (
 
 const getASTValueTypeForBinaryOp = (
   op: BinaryOp,
-  leftType: ASTValueType,
-  rightType: ASTValueType
-): ASTValueType => {
-  let { i32: Integer, f32: Float } = ASTValueType;
+  leftType: BaseType,
+  rightType: BaseType
+): BaseType => {
+  let { i32: Integer, f32: Float } = Intrinsics;
   switch (leftType) {
     case Integer:
       switch (rightType) {
@@ -432,7 +345,7 @@ export class Expression extends BaseNode implements HasStackIR {
     return this.left.hasStackIR() && this.right.hasStackIR();
   }
 
-  resolveType(): ASTValueType {
+  resolveType(): BaseType {
     return getASTValueTypeForBinaryOp(
       this.op,
       this.left.resolveType(),
@@ -448,10 +361,10 @@ export class Expression extends BaseNode implements HasStackIR {
       ];
       let valueType: NumberType;
       switch (this.resolveType()) {
-        case ASTValueType.f32:
+        case Intrinsics.f32:
           valueType = NumberType.f32;
           break;
-        case ASTValueType.i32:
+        case Intrinsics.i32:
           valueType = NumberType.i32;
           break;
         default:

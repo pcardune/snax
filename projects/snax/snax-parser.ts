@@ -9,7 +9,6 @@ import {
   Expression,
   LetStatement,
   NumberLiteral,
-  ASTValueType,
   SymbolRef,
 } from './snax-ast';
 import * as AST from './snax-ast';

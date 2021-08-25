@@ -45,6 +45,22 @@ export class OrderedMap<K, V> {
     this.keyList.indexOf(key);
   }
 
+  findIndex(callbackFn: (k: K, v: V) => boolean) {
+    for (const [i, k, v] of this.entries()) {
+      if (callbackFn(k, v)) {
+        return i;
+      }
+    }
+  }
+
+  findKey(callbackFn: (v: V) => boolean) {
+    for (const [i, k, v] of this.entries()) {
+      if (callbackFn(v)) {
+        return k;
+      }
+    }
+  }
+
   push(key: K, value: V) {
     if (this.keyMap.get(key) !== undefined) {
       throw new Error(`key ${key} already in map`);

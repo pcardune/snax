@@ -314,7 +314,6 @@ export function parseFlow<Symbol, ActionValue>(
     };
     log(`parseNode(${rootSymbol})`);
     if (nonTerminals.has(rootSymbol)) {
-      log('trying to expand non-terminal node');
       const productions = grammar.productionsFrom(rootSymbol);
       // try each production from current node to find child nodes
       let i = -1;
@@ -358,12 +357,7 @@ export function parseFlow<Symbol, ActionValue>(
           };
           return ok(state);
         } else {
-          log(
-            'failed',
-            rule.toString(),
-            'Undoing children',
-            childStates.map((c) => c).join(', ')
-          );
+          log('failed', rule.toString());
           const tokens = childStates
             .map((state) => state.tokens)
             .flat(Infinity)

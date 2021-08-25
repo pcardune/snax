@@ -64,4 +64,5 @@ export const render = {
 export const grammars = {
   numbers: require('./grammars/numbers.grammar'),
   expressions: require('./grammars/expressions.grammar'),
+  expressionLL1: require('./grammars/expressionLL1.grammar'),
 };

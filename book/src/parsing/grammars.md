@@ -14,6 +14,18 @@ precedence works.
   });
 </script>
 
+## Right Recursive Grammar
+
+The above grammar was left recursive, but it can be rewritten
+as right recursive:
+
+<script>
+  nfaExplore.render.GrammarPlayground({
+    initialGrammar: nfaExplore.grammars.expressionLL1,
+    initialContent:`3+4`,
+  });
+</script>
+
 ## Grammar For Numbers
 
 <script>

@@ -4,6 +4,8 @@ import { LexToken } from '../../lexer-gen/lexer-gen';
 import * as dsl from '../../parser-gen/dsl';
 import { charCodes } from '../../utils/iter';
 import { ParseNodeGraph } from './ParseNodeGraph';
+import { logger } from '../../utils/debug';
+
 type $TSFixMe = any;
 function TokenList(props: { tokens: Result<LexToken<any>, any>[] }) {
   return (
@@ -62,11 +64,17 @@ export function GrammarPlayground(props: {
         .toArray();
       segments.push(<TokenList tokens={parsedTokens} />);
 
-      const maybeParser = dsl.compileGrammarToParser(root);
+      const logs: string[] = [];
+      const maybeParser = logger.capture(
+        () => dsl.compileGrammarToParser(root),
+        logs
+      );
       if (maybeParser.isOk()) {
         const parser = maybeParser.value;
-        const maybeParseTree = parser.parseTokens(
-          combine(parsedTokens).unwrapOr([]) as $TSFixMe
+        const maybeParseTree = logger.capture(
+          () =>
+            parser.parseTokens(combine(parsedTokens).unwrapOr([]) as $TSFixMe),
+          logs
         );
         if (maybeParseTree.isOk()) {
           if (maybeParseTree.value) {
@@ -75,12 +83,22 @@ export function GrammarPlayground(props: {
           }
         } else {
           segments.push(
-            <div>Failed parsing expression {'' + maybeParseTree.error}</div>
+            <div>
+              Failed parsing expression {'' + maybeParseTree.error}
+              <pre>
+                <code>{logs.join('\n')}</code>
+              </pre>
+            </div>
           );
         }
       } else {
         segments.push(
-          <div>Failed compiling parser: {'' + maybeParser.error}</div>
+          <div>
+            Failed compiling parser: {'' + maybeParser.error}
+            <pre>
+              <code>{logs.join('\n')}</code>
+            </pre>
+          </div>
         );
       }
     } else {
@@ -90,16 +108,5 @@ export function GrammarPlayground(props: {
     segments.push(<div>Failed parsing grammar</div>);
   }
 
-  // const typescript = flatten(parseTreeResult.map(compileLexerToTypescript));
-
-  return (
-    <div>
-      {...segments}
-      {/* <pre>
-        <code>{typescript.isOk() && typescript.value}</code>
-      </pre>
-      {parsedTokens.isOk() && <TokenList tokens={parsedTokens.value} />}
-      {parseTreeResult.isOk() && <ParseTree root={parseTreeResult.value} />} */}
-    </div>
-  );
+  return <div>{...segments}</div>;
 }

@@ -26,7 +26,6 @@ const style = [
     selector: 'edge',
     style: {
       width: 3,
-      label: 'data(label)',
       'line-color': '#000',
       'target-arrow-color': '#000',
       'target-arrow-shape': 'triangle',

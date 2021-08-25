@@ -143,7 +143,7 @@ export function compileLexer(
         const ignore = key.startsWith('_');
         patterns.push(key, { nfa, ignore });
       }
-
+      console.log('using patterns', [...patterns.entries()]);
       return ok(new PatternLexer(patterns));
     })
   );
@@ -156,7 +156,11 @@ export function compileGrammarToParser(
   const productionIter = root
     .iterTree()
     .filter((n) => n.rule === Rules.Production);
-
+  const maybeEnumNames = mapLiteralsToNames(root);
+  if (maybeEnumNames.isErr()) {
+    return err(maybeEnumNames.error);
+  }
+  const enumNames = maybeEnumNames.value;
   for (const node of productionIter) {
     const productionName = node.children[0].token?.substr as string;
     grammarSpec[productionName] = [];
@@ -173,14 +177,21 @@ export function compileGrammarToParser(
       let elementNames: string[] = [];
       for (const element of elementIter) {
         let child = element.children[0];
-
         if (child.token?.token === Token.ID) {
           const name = child.token?.substr as string;
           elementNames.push(name);
         } else {
           const maybeLiteral = Literal.fromNode(child);
           if (maybeLiteral.isOk()) {
-            elementNames.push(enumValueForLiteral(maybeLiteral.value));
+            const literal = maybeLiteral.value;
+            const enumName = enumNames.findKey(
+              (otherLiteral) => literal.hash == otherLiteral.hash
+            );
+            if (!enumName)
+              throw new Error(
+                `Could not find literal ${literal.hash} in enums`
+              );
+            elementNames.push(enumName);
           } else {
             return err(maybeLiteral.error);
           }
@@ -189,6 +200,7 @@ export function compileGrammarToParser(
       grammarSpec[productionName].push(elementNames);
     }
   }
+  console.log('using grammar spec', grammarSpec);
   const parser = buildParser(grammarSpec);
   return ok(
     parser as unknown as Parser<string, ParseNode<string, LexToken<string>>>

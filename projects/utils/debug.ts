@@ -44,6 +44,13 @@ class Logger {
       fs.writeSync(this.debugFile, args.join(' ') + '\n');
     }
   }
+
+  capture<R>(insideFunc: () => R, logs: string[]): R {
+    const unsub = this.subscribe((...args: any[]) => logs.push(args.join(' ')));
+    const result = insideFunc();
+    unsub();
+    return result;
+  }
 }
 export const logger = Logger.instance;
 

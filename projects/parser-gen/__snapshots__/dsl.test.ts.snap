@@ -42,7 +42,7 @@ const grammarSpec: GrammarSpec<Rules|Token> = {
     [Token.TOKEN_B, Rules.Rule, ],
   ],
   [Rules.Rule]:[
-    [Token.TOKEN_A, Rules.Rule, Token.IMPLICIT_2, ],
+    [Token.TOKEN_A, Token.IMPLICIT_2, ],
     [],
   ],
 };

@@ -407,3 +407,98 @@ export function isBacktrackFree<S>(grammar: Grammar<S>) {
   }
   return true;
 }
+
+/**
+ * Tests whether a given array has a given prefix
+ *
+ * @param string array to test
+ * @param prefix prefix of the array
+ * @returns whether or not prefix is a prefix of string
+ */
+export function startsWith<S>(
+  string: readonly S[],
+  prefix: readonly S[]
+): boolean {
+  if (string.length < prefix.length) {
+    return false;
+  }
+  for (let i of prefix.keys()) {
+    if (string[i] != prefix[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Given a list of strings, find the longest prefix that matches
+ * more than one of those strings.
+ *
+ * @param strings
+ * @returns
+ */
+export function findLongestPrefix<S>(strings: readonly (readonly S[])[]): S[] {
+  if (strings.length <= 1) {
+    return [];
+  }
+  let longestPrefix: S[] = [];
+  for (const [i, si] of strings.entries()) {
+    if (si.length === 0) {
+      continue;
+    }
+    for (let j = si.length; j > 0; j--) {
+      let prefix = si.slice(0, j);
+      let matches = strings.filter((m) => startsWith(m, prefix));
+      if (matches.length > 1 && prefix.length > longestPrefix.length) {
+        longestPrefix = prefix;
+      }
+    }
+  }
+  return longestPrefix;
+}
+
+/**
+ * Left factoring algorithm for grammars to make them backtrack free
+ * Described on Page 108 of Engineering a Compiler 2nd Edition.
+ */
+export function leftFactor<S, A>(
+  grammar: Grammar<S, A>
+): Grammar<S | string, A> {
+  const newGrammar: Grammar<S | string, A> = new Grammar();
+
+  const nonTerminals = grammar.getNonTerminals();
+
+  let newSymbolCount = 0;
+  function createSymbol(): string {
+    return `__left_factor_${newSymbolCount++}`;
+  }
+
+  for (const A of nonTerminals) {
+    const productions = grammar.productionsFrom(A);
+    if (productions.length == 1) {
+      // no need to left factor productions with one right-hand-side
+      newGrammar.addProduction(productions[0]);
+      continue;
+    }
+
+    const prefix = findLongestPrefix(productions.map((p) => p.symbols));
+    if (prefix.length == 0) {
+      for (const p of productions) {
+        newGrammar.addProduction(p);
+      }
+    } else {
+      // now we need to create a new production.
+      const newRule = createSymbol();
+      newGrammar.addProduction(new Production(A, [...prefix, newRule]));
+      for (const p of productions) {
+        if (startsWith(p.symbols, prefix)) {
+          const suffix: (S | string)[] = p.symbols.slice(prefix.length);
+          newGrammar.addProduction(new Production(newRule, suffix));
+        } else {
+          newGrammar.addProduction(p);
+        }
+      }
+    }
+  }
+  return newGrammar;
+}

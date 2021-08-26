@@ -7,6 +7,7 @@ import {
   EPSILON,
   GrammarSpec,
   buildGrammar,
+  ConstGrammar,
 } from './grammar';
 import * as debug from '../utils/debug';
 import { ok, err, Result } from 'neverthrow';
@@ -169,9 +170,9 @@ export class ParseNode<R, T extends LexToken<any>> {
 }
 
 export class Parser<Symbol, ActionValue = any> {
-  readonly grammar: Grammar<Symbol, ActionValue>;
+  readonly grammar: ConstGrammar<Symbol, ActionValue>;
   readonly start: Symbol;
-  constructor(grammar: Grammar<Symbol, ActionValue>, start: Symbol) {
+  constructor(grammar: ConstGrammar<Symbol, ActionValue>, start: Symbol) {
     this.grammar = grammar;
     this.start = start;
   }
@@ -237,7 +238,7 @@ class ParseError<T> extends Error {
 }
 
 export function parseFlow<Symbol, ActionValue>(
-  grammar: Grammar<Symbol | typeof EPSILON, ActionValue>,
+  grammar: ConstGrammar<Symbol | typeof EPSILON, ActionValue>,
   start: Symbol,
   tokens: Iterable<LexToken<Symbol>>
 ): Result<ActionValue | undefined, ParseError<Symbol>> {

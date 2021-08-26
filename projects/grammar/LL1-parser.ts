@@ -1,6 +1,7 @@
 import { err, ok, Result } from 'neverthrow';
 import { LexToken } from '../lexer-gen/lexer-gen';
 import {
+  ActionFunction,
   BacktrackFreeGrammar,
   Eof,
   EOF,
@@ -29,7 +30,8 @@ export function buildLL1Table<S, A>(
     table.set(row, columns);
   };
 
-  const terminals = grammar.getTerminals();
+  const terminals = new Set(grammar.getTerminals());
+  terminals.delete(EPSILON as any);
   for (const A of grammar.getNonTerminals()) {
     for (const w of [...terminals, EOF] as (S | Eof)[]) {
       setTable(A, w, null);
@@ -74,6 +76,13 @@ export class LL1Parser<S, A> {
       tokens.map((t) => new LexToken(t as unknown as S, { from: 0, to: 0 }, t))
     );
   }
+  parseTokensOrThrow(tokens: Iterable<LexToken<S>>): A | null {
+    const r = this.parseTokens(tokens);
+    if (r.isOk()) {
+      return r.value;
+    }
+    throw r.error;
+  }
   /**
    * Implements table driven LL(1) skeleton parser as described on
    * page 112 of Engineering a Compiler 2nd Edition.
@@ -81,6 +90,18 @@ export class LL1Parser<S, A> {
    * @returns
    */
   parseTokens(tokens: Iterable<LexToken<S>>): Result<A | null, any> {
+    const callAction = (
+      action: ActionFunction<A>,
+      tokens: (LexToken<S | Eof> | A)[]
+    ) => {
+      const nodes = tokens.map((n) => (n instanceof LexToken ? undefined : n));
+      const onlyTokens = tokens.map((t) =>
+        t instanceof LexToken ? t : undefined
+      );
+      const value = action(nodes as A[], onlyTokens as LexToken<S>[]);
+      return value;
+    };
+
     const tokensIter = tokens[Symbol.iterator]();
     const nextWord = () => {
       const next = tokensIter.next();
@@ -91,35 +112,56 @@ export class LL1Parser<S, A> {
     };
     const terminals = this.grammar.getTerminals();
     let word = nextWord();
-    let stack: (S | Eof)[] = [EOF];
-    stack.push(this.start);
+    type State = {
+      symbol: S | Eof;
+      collect?: boolean;
+      production?: Production<S, A>;
+    };
+    let stack: State[] = [{ symbol: EOF, collect: false }];
+    stack.push({ symbol: this.start, collect: false });
     let focus = stack[stack.length - 1];
     let root: A | null = null;
+    let collected: (LexToken<S | Eof> | A)[] = [];
     while (true) {
-      if (focus === EOF && word.token === EOF) {
+      if (focus.collect) {
+        stack.pop();
+        if (!focus.production) {
+          throw new Error(
+            `Unexpected lack of a production to collect for ${String(
+              focus.symbol
+            )}`
+          );
+        }
+        const { action, symbols } = focus.production;
+        const tokens = collected.slice(collected.length - symbols.length);
+        collected = collected.slice(0, collected.length - symbols.length);
+        collected.push(callAction(action, tokens));
+      } else if (focus.symbol === EOF && word.token === EOF) {
         // success
-        return ok(root);
-      } else if (focus === EOF || terminals.has(focus)) {
-        if (focus === word.token) {
+        return ok(collected[0] as A);
+      } else if (focus.symbol === EOF || terminals.has(focus.symbol)) {
+        if (focus.symbol === word.token) {
+          collected.push(word);
           stack.pop();
           word = nextWord();
         } else {
-          return err(new Error(`Couldn't find symbol ${String(focus)}`));
+          return err(new Error(`Couldn't find symbol ${String(focus.symbol)}`));
         }
       } else {
         // focus is a non-terminal
-        let production = this.getTableCell(focus, word.token);
+        let production = this.getTableCell(focus.symbol, word.token);
         if (production) {
           const A = production.rule;
           const B = production.symbols;
-          stack.pop();
+          focus.collect = true;
+          focus.production = production;
           for (let i = B.length - 1; i >= 0; i--) {
             if (B[i] !== (EPSILON as any)) {
-              stack.push(B[i]);
+              stack.push({ symbol: B[i], collect: false });
             }
           }
         } else {
-          return err(new Error(`Failed to expand ${focus}`));
+          return err(new Error(`Failed to expand ${focus.symbol}`));
         }
       }
       focus = stack[stack.length - 1];

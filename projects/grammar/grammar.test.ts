@@ -2,7 +2,6 @@ import {
   buildGrammar,
   calcFirst,
   calcFollow,
-  EPSILON,
   findLongestPrefix,
   Grammar,
   isBacktrackFree,
@@ -10,6 +9,7 @@ import {
   ParseNodeGrammar,
   startsWith,
 } from './grammar';
+import { Parser } from './top-down-parser';
 
 describe('Grammar', () => {
   const grammar: Grammar<string> = new Grammar();
@@ -105,20 +105,21 @@ describe('first and follow set calculation', () => {
       TermP: ['*', '/', 'Symbol(ϵ)'],
       name: ['name'],
       num: ['num'],
+      'Symbol(EOF)': ['Symbol(EOF)'],
       'Symbol(ϵ)': ['Symbol(ϵ)'],
     });
   });
 
   it('should calculate the follow map correctly', () => {
     const first = calcFirst(backtrackFreeGrammar);
-    const follow = calcFollow(backtrackFreeGrammar, first);
+    const follow = calcFollow(backtrackFreeGrammar, first, 'Goal');
     expect(toObject(follow)).toEqual({
-      Expr: [')'],
-      ExprP: [')'],
-      Factor: [')', '*', '+', '-', '/'],
-      Goal: [],
-      Term: [')', '+', '-'],
-      TermP: [')', '+', '-'],
+      Expr: [')', 'Symbol(EOF)'],
+      ExprP: [')', 'Symbol(EOF)'],
+      Factor: [')', '*', '+', '-', '/', 'Symbol(EOF)'],
+      Goal: ['Symbol(EOF)'],
+      Term: [')', '+', '-', 'Symbol(EOF)'],
+      TermP: [')', '+', '-', 'Symbol(EOF)'],
     });
   });
 });
@@ -157,10 +158,10 @@ beforeAll(() => {
 
 describe('isBacktrackFree', () => {
   it('should be backtrack free...', () => {
-    expect(isBacktrackFree(backtrackFreeGrammar)).toBe(true);
+    expect(isBacktrackFree(backtrackFreeGrammar, 'Goal')).toBe(true);
   });
   it('a non-backtrack free grammar should return false', () => {
-    expect(isBacktrackFree(backtrackingGrammar)).toBe(false);
+    expect(isBacktrackFree(backtrackingGrammar, 'Goal')).toBe(false);
   });
 });
 
@@ -204,10 +205,21 @@ describe('findLongestPrefix', () => {
 });
 
 describe('leftFactor', () => {
-  it('will turn the backtracking grammar into a backtrack free grammar', () => {
-    const factored = leftFactor(backtrackingGrammar);
-    expect(isBacktrackFree(backtrackingGrammar)).toBe(false);
-    expect(isBacktrackFree(factored)).toBe(true);
+  let factored: ParseNodeGrammar;
+  beforeAll(() => {
+    factored = leftFactor(backtrackingGrammar);
   });
-  xit('it correctly preserves actions associated with the productions', () => {});
+  it('will turn the backtracking grammar into a backtrack free grammar', () => {
+    expect(isBacktrackFree(backtrackingGrammar, 'Goal')).toBe(false);
+    expect(isBacktrackFree(factored, 'Goal')).toBe(true);
+  });
+  xit('it correctly preserves actions associated with the productions', () => {
+    const root = new Parser(backtrackingGrammar, 'Goal').parseOrThrow([
+      'name',
+      '(',
+      ')',
+    ]);
+    if (!root) fail();
+    expect(root.pretty()).toMatchInlineSnapshot();
+  });
 });

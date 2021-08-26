@@ -3,8 +3,11 @@ import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { ParseNode } from './top-down-parser';
 
 export const EPSILON = Symbol('ϵ');
+export const EOF = Symbol('EOF');
+export type Epsilon = typeof EPSILON;
+export type Eof = typeof EOF;
 
-export interface ConstGrammar<Symbol, ActionValue = void> {
+export interface ConstGrammar<Symbol, ActionValue = any> {
   productionsIter(): Generator<Production<Symbol, ActionValue>>;
   productionsFrom(rule: Symbol): Readonly<Production<Symbol, ActionValue>[]>;
   getNonTerminals(): Readonly<Symbol[]>;
@@ -187,7 +190,7 @@ export function buildGrammar(productions: GrammarSpec) {
         grammar.createProduction(
           symbol,
           [EPSILON],
-          () => new ParseNode(symbol, [])
+          (children, tokens) => new ParseNode(symbol, children)
         );
       } else {
         grammar.createProduction(
@@ -223,6 +226,8 @@ function setsAreEqual(s1: ReadonlySet<any>, s2: ReadonlySet<any>) {
   return true;
 }
 
+type FirstSet<S> = ReadonlySet<S | Eof | Epsilon>;
+type FirstMap<S> = Map<S | Eof | Epsilon, FirstSet<S>>;
 /**
  * Algorithm to calculate the set of terminal symbols
  * that can appear as the first word in some string of symbols.
@@ -230,28 +235,28 @@ function setsAreEqual(s1: ReadonlySet<any>, s2: ReadonlySet<any>) {
  *
  * See Page 104 of Engineering a Compiler 2nd Edition
  */
-export function calcFirst<Symbol>(
-  grammar: Grammar<Symbol>
-): Map<Symbol, ReadonlySet<Symbol>> {
-  const firstMap: Map<Symbol, ReadonlySet<Symbol>> = new Map();
+export function calcFirst<S>(grammar: ConstGrammar<S>): FirstMap<S> {
+  const firstMap: FirstMap<S> = new Map();
 
   let done = false;
-  const setFirst = (k: Symbol, newFirst: ReadonlySet<Symbol>) => {
+  const setFirst = (k: S, newFirst: FirstSet<S>) => {
     const existingFirst = getFirst(k);
     firstMap.set(k, newFirst);
     if (!setsAreEqual(existingFirst, newFirst)) {
       done = false;
     }
   };
-  const getFirst = (k: Symbol) => {
+  const getFirst = (k: S) => {
     if (!firstMap.has(k)) {
       firstMap.set(k, new Set());
     }
-    return firstMap.get(k) as ReadonlySet<Symbol>;
+    return firstMap.get(k) as FirstSet<S>;
   };
 
   for (const terminal of grammar.getTerminals()) {
     firstMap.set(terminal, new Set([terminal]));
+    firstMap.set(EPSILON, new Set([EPSILON]));
+    firstMap.set(EOF, new Set([EOF]));
   }
 
   while (!done) {
@@ -259,19 +264,19 @@ export function calcFirst<Symbol>(
     for (const production of grammar.productionsIter()) {
       const B = production.symbols;
       const b1 = B[0];
-      let rhs = new Set([...getFirst(b1)]);
-      rhs.delete(EPSILON as any);
+      let rhs: Set<S | Eof | Epsilon> = new Set([...getFirst(b1)]);
+      rhs.delete(EPSILON);
       let i = 0;
       let k = production.symbols.length - 1;
-      while (getFirst(B[i]).has(EPSILON as any) && i <= k - 1) {
+      while (getFirst(B[i]).has(EPSILON) && i <= k - 1) {
         for (const s of getFirst(B[i + 1])) {
           rhs.add(s);
         }
-        rhs.delete(EPSILON as any);
+        rhs.delete(EPSILON);
         i++;
       }
-      if (i == k && getFirst(B[k]).has(EPSILON as any)) {
-        rhs.add(EPSILON as any);
+      if (i == k && getFirst(B[k]).has(EPSILON)) {
+        rhs.add(EPSILON);
       }
       const A = production.rule;
       const fA = new Set([...getFirst(A), ...rhs]);
@@ -290,27 +295,29 @@ export function calcFirst<Symbol>(
  * @returns a mapping from non terminal symbols in the given grammar
  * to their follow sets
  */
-export function calcFollow<Symbol>(
-  grammar: Grammar<Symbol>,
-  firstMap: ReadonlyMap<Symbol, ReadonlySet<Symbol>>
-): Map<Symbol, ReadonlySet<Symbol>> {
-  const getFirst = (k: Symbol) => firstMap.get(k) as ReadonlySet<Symbol>;
+export function calcFollow<S>(
+  grammar: ConstGrammar<S>,
+  firstMap: FirstMap<S>,
+  start: S
+): FirstMap<S> {
+  const getFirst = (k: S) => firstMap.get(k) as FirstSet<S>;
 
-  const followMap: Map<Symbol, ReadonlySet<Symbol>> = new Map();
+  const followMap: FirstMap<S> = new Map();
   const nonTerminals = new Set(grammar.getNonTerminals());
   for (const nonTerminal of nonTerminals) {
     followMap.set(nonTerminal, new Set());
   }
+  followMap.set(start, new Set([EOF]));
   let done = false;
-  const setFollow = (k: Symbol, newFollow: ReadonlySet<Symbol>) => {
+  const setFollow = (k: S, newFollow: FirstSet<S>) => {
     const existingFirst = getFollow(k);
     followMap.set(k, newFollow);
     if (!setsAreEqual(existingFirst, newFollow)) {
       done = false;
     }
   };
-  const getFollow = (k: Symbol) => {
-    return followMap.get(k) as ReadonlySet<Symbol>;
+  const getFollow = (k: S) => {
+    return followMap.get(k) as FirstSet<S>;
   };
 
   while (!done) {
@@ -318,7 +325,7 @@ export function calcFollow<Symbol>(
     for (const production of grammar.productionsIter()) {
       let B = production.symbols;
       let k = B.length - 1;
-      let trailer = new Set(getFollow(production.rule));
+      let trailer: Set<S | Eof | Epsilon> = new Set(getFollow(production.rule));
       for (let i = k; i >= 0; i--) {
         if (nonTerminals.has(B[i])) {
           setFollow(B[i], new Set([...getFollow(B[i]), ...trailer]));
@@ -348,64 +355,13 @@ function intersection<S>(a: ReadonlySet<S>, b: ReadonlySet<S>): Set<S> {
   return result;
 }
 
-/**
- * Detect whether or not a grammar is backtrack free, according
- * to the definition on Page 107 of Engineering a Compiler 2nd Edition
- *
- * @param grammar a Grammar
- */
-export function isBacktrackFree<S>(grammar: Grammar<S>) {
-  const firstMap = calcFirst(grammar);
-  const followMap = calcFollow(grammar, firstMap);
-
-  /**
-   * Extend the definition of first to include strings
-   * of symbols, as described on Page 105.
-   */
-  const getFirst = (B: S | Readonly<S[]>) => {
-    if (!(B instanceof Array)) {
-      return firstMap.get(B) as ReadonlySet<S>;
-    }
-    let first = new Set();
-    for (let i = 0; i < B.length; i++) {
-      const Bi = B[i];
-      const firstBi = firstMap.get(Bi) as ReadonlySet<S>;
-      first = new Set([...first, ...firstBi]);
-      if (!firstBi.has(EPSILON as any)) {
-        break;
-      }
-    }
-    return first;
-  };
-
-  const getFirstPlus = (production: Production<S, unknown>) => {
-    const A = production.rule;
-    const B = production.symbols;
-    const firstB = getFirst(B);
-    if (firstB.has(EPSILON as any)) {
-      const followA = followMap.get(A) as ReadonlySet<S>;
-      return new Set([...firstB, ...followA]);
-    } else {
-      return firstB;
-    }
-  };
-
-  for (const A of grammar.getNonTerminals()) {
-    const B = grammar.productionsFrom(A);
-    for (let i = 0; i < B.length; i++) {
-      const firstPlusBi = getFirstPlus(B[i]);
-      for (let j = 0; j < B.length; j++) {
-        if (i !== j) {
-          const firstPlusBj = getFirstPlus(B[j]);
-          if (intersection(firstPlusBi, firstPlusBj).size > 0) {
-            // not backtrack free
-            return false;
-          }
-        }
-      }
-    }
+export function isBacktrackFree<S>(grammar: ConstGrammar<S>, start: S) {
+  try {
+    new BacktrackFreeGrammar(grammar, start);
+    return true;
+  } catch (e) {
+    return false;
   }
-  return true;
 }
 
 /**
@@ -501,4 +457,95 @@ export function leftFactor<S, A>(
     }
   }
   return newGrammar;
+}
+
+/**
+ * A wrapper around Grammar that provides additional information
+ * unique to backtrack free grammars.
+ */
+export class BacktrackFreeGrammar<S, A> implements ConstGrammar<S, A> {
+  private readonly grammar: ConstGrammar<S, A>;
+  private readonly firstMap: FirstMap<S>;
+  private readonly followMap: FirstMap<S>;
+  constructor(grammar: ConstGrammar<S, A>, start: S) {
+    this.grammar = grammar;
+    this.firstMap = calcFirst(this.grammar);
+    this.followMap = calcFollow(this.grammar, this.firstMap, start);
+    if (!this.isValid()) {
+      throw new Error('Grammar is not backtrack free...');
+    }
+  }
+
+  productionsIter(): Generator<Production<S, A>, any, unknown> {
+    return this.grammar.productionsIter();
+  }
+
+  productionsFrom(rule: S): readonly Production<S, A>[] {
+    return this.grammar.productionsFrom(rule);
+  }
+
+  getNonTerminals(): readonly S[] {
+    return this.grammar.getNonTerminals();
+  }
+
+  getTerminals(): Readonly<Set<S>> {
+    return this.grammar.getTerminals();
+  }
+
+  toString(): string {
+    return this.grammar.toString();
+  }
+
+  getFirst(B: S | Readonly<S[]>): FirstSet<S> {
+    if (!(B instanceof Array)) {
+      return this.firstMap.get(B) as FirstSet<S>;
+    }
+    let first: Set<S | Epsilon | Eof> = new Set();
+    for (let i = 0; i < B.length; i++) {
+      const Bi = B[i];
+      const firstBi = this.firstMap.get(Bi) as FirstSet<S>;
+      first = new Set([...first, ...firstBi]);
+      if (!firstBi.has(EPSILON)) {
+        break;
+      }
+    }
+    return first;
+  }
+
+  getFirstPlus(production: Production<S, A>): FirstSet<S> {
+    const A = production.rule;
+    const B = production.symbols;
+    const firstB = this.getFirst(B);
+    if (firstB.has(EPSILON)) {
+      const followA = this.followMap.get(A) as FirstSet<S>;
+      return new Set([...firstB, ...followA]);
+    } else {
+      return firstB;
+    }
+  }
+
+  /**
+   * Detect whether or not a grammar is backtrack free, according
+   * to the definition on Page 107 of Engineering a Compiler 2nd Edition
+   *
+   * @param grammar a Grammar
+   */
+  isValid() {
+    for (const A of this.getNonTerminals()) {
+      const B = this.productionsFrom(A);
+      for (let i = 0; i < B.length; i++) {
+        const firstPlusBi = this.getFirstPlus(B[i]);
+        for (let j = 0; j < B.length; j++) {
+          if (i !== j) {
+            const firstPlusBj = this.getFirstPlus(B[j]);
+            if (intersection(firstPlusBi, firstPlusBj).size > 0) {
+              // not backtrack free
+              return false;
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
 }

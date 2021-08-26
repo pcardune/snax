@@ -337,3 +337,73 @@ export function calcFollow<Symbol>(
   }
   return followMap;
 }
+
+function intersection<S>(a: ReadonlySet<S>, b: ReadonlySet<S>): Set<S> {
+  const result: Set<S> = new Set();
+  for (const i of a) {
+    if (b.has(i)) {
+      result.add(i);
+    }
+  }
+  return result;
+}
+
+/**
+ * Detect whether or not a grammar is backtrack free, according
+ * to the definition on Page 107 of Engineering a Compiler 2nd Edition
+ *
+ * @param grammar a Grammar
+ */
+export function isBacktrackFree<S>(grammar: Grammar<S>) {
+  const firstMap = calcFirst(grammar);
+  const followMap = calcFollow(grammar, firstMap);
+
+  /**
+   * Extend the definition of first to include strings
+   * of symbols, as described on Page 105.
+   */
+  const getFirst = (B: S | Readonly<S[]>) => {
+    if (!(B instanceof Array)) {
+      return firstMap.get(B) as ReadonlySet<S>;
+    }
+    let first = new Set();
+    for (let i = 0; i < B.length; i++) {
+      const Bi = B[i];
+      const firstBi = firstMap.get(Bi) as ReadonlySet<S>;
+      first = new Set([...first, ...firstBi]);
+      if (!firstBi.has(EPSILON as any)) {
+        break;
+      }
+    }
+    return first;
+  };
+
+  const getFirstPlus = (production: Production<S, unknown>) => {
+    const A = production.rule;
+    const B = production.symbols;
+    const firstB = getFirst(B);
+    if (firstB.has(EPSILON as any)) {
+      const followA = followMap.get(A) as ReadonlySet<S>;
+      return new Set([...firstB, ...followA]);
+    } else {
+      return firstB;
+    }
+  };
+
+  for (const A of grammar.getNonTerminals()) {
+    const B = grammar.productionsFrom(A);
+    for (let i = 0; i < B.length; i++) {
+      const firstPlusBi = getFirstPlus(B[i]);
+      for (let j = 0; j < B.length; j++) {
+        if (i !== j) {
+          const firstPlusBj = getFirstPlus(B[j]);
+          if (intersection(firstPlusBi, firstPlusBj).size > 0) {
+            // not backtrack free
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}

@@ -1,4 +1,10 @@
-import { calcFirst, calcFollow, EPSILON, Grammar } from './grammar';
+import {
+  calcFirst,
+  calcFollow,
+  EPSILON,
+  Grammar,
+  isBacktrackFree,
+} from './grammar';
 
 describe('Grammar', () => {
   const grammar: Grammar<string> = new Grammar();
@@ -44,23 +50,29 @@ Op →
   });
 });
 
-describe('first and follow set calculation', () => {
-  const grammar: Grammar<string | typeof EPSILON> = new Grammar();
-  grammar.addProductions('Goal', [['Expr']]);
-  grammar.addProductions('Expr', [['Term', 'ExprP']]);
-  grammar.addProductions('ExprP', [
+let backtrackFreeGrammar: Grammar<string | typeof EPSILON>;
+beforeAll(() => {
+  backtrackFreeGrammar = new Grammar();
+  backtrackFreeGrammar.addProductions('Goal', [['Expr']]);
+  backtrackFreeGrammar.addProductions('Expr', [['Term', 'ExprP']]);
+  backtrackFreeGrammar.addProductions('ExprP', [
     ['+', 'Term', 'ExprP'],
     ['-', 'Term', 'ExprP'],
     [EPSILON],
   ]);
-  grammar.addProductions('Term', [['Factor', 'TermP']]);
-  grammar.addProductions('TermP', [
+  backtrackFreeGrammar.addProductions('Term', [['Factor', 'TermP']]);
+  backtrackFreeGrammar.addProductions('TermP', [
     ['*', 'Factor', 'TermP'],
     ['/', 'Factor', 'TermP'],
     [EPSILON],
   ]);
-  grammar.addProductions('Factor', [['(', 'Expr', ')'], ['num'], ['name']]);
-
+  backtrackFreeGrammar.addProductions('Factor', [
+    ['(', 'Expr', ')'],
+    ['num'],
+    ['name'],
+  ]);
+});
+describe('first and follow set calculation', () => {
   const toObject = (m: Map<any, ReadonlySet<any>>) => {
     let out = {} as { [i: string]: any[] };
     for (let [k, v] of m.entries()) {
@@ -70,7 +82,7 @@ describe('first and follow set calculation', () => {
   };
 
   it('should calculate the first map correctly', () => {
-    const first = calcFirst(grammar);
+    const first = calcFirst(backtrackFreeGrammar);
     expect(toObject(first)).toEqual({
       '(': ['('],
       ')': [')'],
@@ -91,8 +103,8 @@ describe('first and follow set calculation', () => {
   });
 
   it('should calculate the follow map correctly', () => {
-    const first = calcFirst(grammar);
-    const follow = calcFollow(grammar, first);
+    const first = calcFirst(backtrackFreeGrammar);
+    const follow = calcFollow(backtrackFreeGrammar, first);
     expect(toObject(follow)).toEqual({
       Expr: [')'],
       ExprP: [')'],
@@ -101,5 +113,43 @@ describe('first and follow set calculation', () => {
       Term: [')', '+', '-'],
       TermP: [')', '+', '-'],
     });
+  });
+});
+
+let backtrackingGrammar: Grammar<string | typeof EPSILON>;
+beforeAll(() => {
+  backtrackingGrammar = new Grammar();
+  backtrackingGrammar.addProductions('Goal', [['Expr']]);
+  backtrackingGrammar.addProductions('Expr', [['Term', 'ExprP']]);
+  backtrackingGrammar.addProductions('ExprP', [
+    ['+', 'Term', 'ExprP'],
+    ['-', 'Term', 'ExprP'],
+    [EPSILON],
+  ]);
+  backtrackingGrammar.addProductions('Term', [['Factor', 'TermP']]);
+  backtrackingGrammar.addProductions('TermP', [
+    ['*', 'Factor', 'TermP'],
+    ['/', 'Factor', 'TermP'],
+    [EPSILON],
+  ]);
+  backtrackingGrammar.addProductions('Factor', [
+    ['(', 'Expr', ')'],
+    ['num'],
+    ['name'],
+    ['name', '[', 'ArgList', ']'],
+    ['name', '(', 'ArgList', ')'],
+  ]);
+  backtrackingGrammar.addProductions('ArgList', [['Expr', 'MoreArgs']]);
+  backtrackingGrammar.addProductions('MoreArgs', [
+    [',', 'Expr', 'MoreArgs'],
+    [EPSILON],
+  ]);
+});
+describe('isBacktrackFree', () => {
+  it('should be backtrack free...', () => {
+    expect(isBacktrackFree(backtrackFreeGrammar)).toBe(true);
+  });
+  fit('a non-backtrack free grammar should return false', () => {
+    expect(isBacktrackFree(backtrackingGrammar)).toBe(false);
   });
 });

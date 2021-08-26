@@ -210,3 +210,71 @@ export function buildGrammar<Symbol>(productions: GrammarSpec<Symbol>) {
   });
   return grammar;
 }
+
+function setsAreEqual(s1: ReadonlySet<any>, s2: ReadonlySet<any>) {
+  if (s1.size !== s2.size) {
+    return false;
+  }
+  for (const s of s1) {
+    if (!s2.has(s)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Algorithm to calculate the set of terminal symbols
+ * that can appear as the first word in some string of symbols.
+ * @returns a map from symbols in the given grammar to their "first" sets
+ *
+ * See Page 104 of Engineering a Compiler 2nd Edition
+ */
+export function calcFirst<Symbol>(grammar: Grammar<Symbol>) {
+  const firstMap: Map<Symbol, ReadonlySet<Symbol>> = new Map();
+
+  let done = false;
+  const setFirst = (k: Symbol, newFirst: ReadonlySet<Symbol>) => {
+    const existingFirst = getFirst(k);
+    firstMap.set(k, newFirst);
+    if (!setsAreEqual(existingFirst, newFirst)) {
+      done = false;
+    }
+  };
+  const getFirst = (k: Symbol) => {
+    if (!firstMap.has(k)) {
+      firstMap.set(k, new Set());
+    }
+    return firstMap.get(k) as ReadonlySet<Symbol>;
+  };
+
+  for (const terminal of grammar.getTerminals()) {
+    firstMap.set(terminal, new Set([terminal]));
+  }
+
+  while (!done) {
+    done = true;
+    for (const production of grammar.productionsIter()) {
+      const B = production.symbols;
+      const b1 = B[0];
+      let rhs = new Set([...getFirst(b1)]);
+      rhs.delete(EPSILON as any);
+      let i = 0;
+      let k = production.symbols.length - 1;
+      while (getFirst(B[i]).has(EPSILON as any) && i <= k - 1) {
+        for (const s of getFirst(B[i + 1])) {
+          rhs.add(s);
+        }
+        rhs.delete(EPSILON as any);
+        i++;
+      }
+      if (i == k && getFirst(B[k]).has(EPSILON as any)) {
+        rhs.add(EPSILON as any);
+      }
+      const A = production.rule;
+      const fA = new Set([...getFirst(A), ...rhs]);
+      setFirst(A, fA);
+    }
+  }
+  return firstMap;
+}

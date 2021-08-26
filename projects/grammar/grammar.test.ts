@@ -1,4 +1,4 @@
-import { Grammar } from './grammar';
+import { calcFirst, EPSILON, Grammar } from './grammar';
 
 describe('Grammar', () => {
   const grammar: Grammar<string> = new Grammar();
@@ -41,5 +41,52 @@ Op →
   | '/'
 "
 `);
+  });
+});
+
+describe('calcFirst', () => {
+  const grammar: Grammar<string | typeof EPSILON> = new Grammar();
+  grammar.addProductions('Goal', [['Expr']]);
+  grammar.addProductions('Expr', [['Term', 'ExprP']]);
+  grammar.addProductions('ExprP', [
+    ['+', 'Term', 'ExprP'],
+    ['-', 'Term', 'ExprP'],
+    [EPSILON],
+  ]);
+  grammar.addProductions('Term', [['Factor', 'TermP']]);
+  grammar.addProductions('TermP', [
+    ['*', 'Factor', 'TermP'],
+    ['/', 'Factor', 'TermP'],
+    [EPSILON],
+  ]);
+  grammar.addProductions('Factor', [['(', 'Expr', ')'], ['num'], ['name']]);
+
+  const toObject = (m: Map<any, ReadonlySet<any>>) => {
+    let out = {} as { [i: string]: any[] };
+    for (let [k, v] of m.entries()) {
+      out[k.toString()] = [...v].map((v) => v.toString()).sort();
+    }
+    return out;
+  };
+
+  it('should work', () => {
+    const first = calcFirst(grammar);
+    expect(toObject(first)).toEqual({
+      '(': ['('],
+      ')': [')'],
+      '*': ['*'],
+      '+': ['+'],
+      '-': ['-'],
+      '/': ['/'],
+      Expr: ['(', 'name', 'num'],
+      ExprP: ['+', '-', 'Symbol(ϵ)'],
+      Factor: ['(', 'name', 'num'],
+      Goal: ['(', 'name', 'num'],
+      Term: ['(', 'name', 'num'],
+      TermP: ['*', '/', 'Symbol(ϵ)'],
+      name: ['name'],
+      num: ['num'],
+      'Symbol(ϵ)': ['Symbol(ϵ)'],
+    });
   });
 });

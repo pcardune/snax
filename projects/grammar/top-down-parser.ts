@@ -98,61 +98,6 @@ class DefaultHashMap<K, V> extends HashMap<K, V> {
   }
 }
 
-/**
- * TODO: this needs to be finished
- * p. 104 of Engineering a Compiler
- */
-// export function calcFirst(grammar: Grammar<unknown>) {
-//   let hasher = (s: GSymbol) => s.hash();
-//   const set = (items?: GSymbol[]) => new HashSet(hasher, items);
-//   let first: DefaultHashMap<GSymbol, HashSet<GSymbol>> = new DefaultHashMap(
-//     hasher,
-//     set
-//   );
-
-//   // step 1: add terminals and ϵ and EOF
-//   for (const symbol of grammar.getTerminals()) {
-//     first.set(symbol, set([symbol as GSymbol]));
-//   }
-//   first.set(EOF, set([EOF as GSymbol]));
-//   first.set(EPSILON, set([EPSILON as GSymbol]));
-
-//   // step 2: initialize non-terminals with empty set
-//   for (const symbol of grammar.getNonTerminals()) {
-//     first.set(symbol, set());
-//   }
-
-//   // step 3:
-//   let needsWork = true;
-//   while (needsWork) {
-//     needsWork = false;
-//     for (const A of grammar.productionsIter()) {
-//       const B = A.symbols;
-//       if (B.length > 0) {
-//         let rhs = set([...first.get(B[0]).values()]);
-//         rhs.delete(EPSILON);
-//         let i = 0;
-//         while (first.get(B[i]).has(EPSILON) && i < B.length - 1) {
-//           let temp = first.get(B[i + 1]);
-//           temp.delete(EPSILON);
-//           for (const value of temp) {
-//             rhs.add(value);
-//           }
-//           i++;
-//         }
-//         if (i == B.length - 1 && first.get(B[B.length - 1]).has(EPSILON)) {
-//           rhs.add(EPSILON);
-//         }
-//         let firstA = first.get(A.nonTerminal);
-//         for (const rh of rhs) {
-//           firstA.add(rh);
-//         }
-//       }
-//     }
-//   }
-//   return first;
-// }
-
 export class ParseNode<R, T extends LexToken<any>> {
   rule: R | null;
   parent: ParseNode<R, T> | null = null;

@@ -84,10 +84,7 @@ export function GrammarPlayground(props: {
   const [parseError, setParseError] = useState<any>(null);
   const onClickParse = () => {
     if (lexer && parser) {
-      const parsedTokens = lexer
-        .parse(charCodes(props.initialContent))
-        .catch()
-        .toArray();
+      const parsedTokens = lexer.parse(charCodes(input)).catch().toArray();
       setParsedTokens(parsedTokens);
 
       let logs: string[] = [];

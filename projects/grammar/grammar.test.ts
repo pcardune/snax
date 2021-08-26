@@ -1,4 +1,5 @@
 import {
+  buildGrammar,
   calcFirst,
   calcFollow,
   EPSILON,
@@ -6,6 +7,7 @@ import {
   Grammar,
   isBacktrackFree,
   leftFactor,
+  ParseNodeGrammar,
   startsWith,
 } from './grammar';
 
@@ -53,27 +55,29 @@ Op →
   });
 });
 
-let backtrackFreeGrammar: Grammar<string | typeof EPSILON>;
+let backtrackFreeGrammar: ParseNodeGrammar;
 beforeAll(() => {
-  backtrackFreeGrammar = new Grammar();
-  backtrackFreeGrammar.addProductions('Goal', [['Expr']]);
-  backtrackFreeGrammar.addProductions('Expr', [['Term', 'ExprP']]);
-  backtrackFreeGrammar.addProductions('ExprP', [
-    ['+', 'Term', 'ExprP'],
-    ['-', 'Term', 'ExprP'],
-    [EPSILON],
-  ]);
-  backtrackFreeGrammar.addProductions('Term', [['Factor', 'TermP']]);
-  backtrackFreeGrammar.addProductions('TermP', [
-    ['*', 'Factor', 'TermP'],
-    ['/', 'Factor', 'TermP'],
-    [EPSILON],
-  ]);
-  backtrackFreeGrammar.addProductions('Factor', [
-    ['(', 'Expr', ')'],
-    ['num'],
-    ['name'],
-  ]);
+  // prettier-ignore
+  backtrackFreeGrammar = buildGrammar({
+    'Goal': [['Expr']],
+    'Expr': [['Term', 'ExprP']],
+    'ExprP': [
+      ['+', 'Term', 'ExprP'],
+      ['-', 'Term', 'ExprP'],
+      [],
+    ],
+    'Term': [['Factor', 'TermP']],
+    'TermP': [
+      ['*', 'Factor', 'TermP'],
+      ['/', 'Factor', 'TermP'],
+      [],
+    ],
+    'Factor': [
+      ['(', 'Expr', ')'],
+      ['num'],
+      ['name'],
+    ]
+  })
 });
 describe('first and follow set calculation', () => {
   const toObject = (m: Map<any, ReadonlySet<any>>) => {
@@ -119,34 +123,36 @@ describe('first and follow set calculation', () => {
   });
 });
 
-let backtrackingGrammar: Grammar<string | typeof EPSILON>;
+let backtrackingGrammar: ParseNodeGrammar;
 beforeAll(() => {
-  backtrackingGrammar = new Grammar();
-  backtrackingGrammar.addProductions('Goal', [['Expr']]);
-  backtrackingGrammar.addProductions('Expr', [['Term', 'ExprP']]);
-  backtrackingGrammar.addProductions('ExprP', [
-    ['+', 'Term', 'ExprP'],
-    ['-', 'Term', 'ExprP'],
-    [EPSILON],
-  ]);
-  backtrackingGrammar.addProductions('Term', [['Factor', 'TermP']]);
-  backtrackingGrammar.addProductions('TermP', [
-    ['*', 'Factor', 'TermP'],
-    ['/', 'Factor', 'TermP'],
-    [EPSILON],
-  ]);
-  backtrackingGrammar.addProductions('Factor', [
-    ['(', 'Expr', ')'],
-    ['num'],
-    ['name'],
-    ['name', '[', 'ArgList', ']'],
-    ['name', '(', 'ArgList', ')'],
-  ]);
-  backtrackingGrammar.addProductions('ArgList', [['Expr', 'MoreArgs']]);
-  backtrackingGrammar.addProductions('MoreArgs', [
-    [',', 'Expr', 'MoreArgs'],
-    [EPSILON],
-  ]);
+  // prettier-ignore
+  backtrackingGrammar = buildGrammar({
+    'Goal': [['Expr']],
+    'Expr': [['Term', 'ExprP']],
+    'ExprP': [
+      ['+', 'Term', 'ExprP'],
+      ['-', 'Term', 'ExprP'],
+      [],
+    ],
+    'Term': [['Factor', 'TermP']],
+    'TermP': [
+      ['*', 'Factor', 'TermP'],
+      ['/', 'Factor', 'TermP'],
+      [],
+    ],
+    'Factor': [
+      ['(', 'Expr', ')'],
+      ['num'],
+      ['name'],
+      ['name', '[', 'ArgList', ']'],
+      ['name', '(', 'ArgList', ')'],
+    ],
+    'ArgList': [['Expr', 'MoreArgs']],
+    'MoreArgs': [
+      [',', 'Expr', 'MoreArgs'],
+      [],
+    ],
+  });
 });
 
 describe('isBacktrackFree', () => {

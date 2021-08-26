@@ -166,21 +166,21 @@ export class Production<
     return `${this.rule} -> ${this.symbols.map((s) => s.toString()).join(' ')}`;
   }
 }
+export type ParseNodeGrammar = Grammar<
+  string | typeof EPSILON,
+  ParseNode<string | typeof EPSILON | null, LexToken<any>>
+>;
+export type GrammarSpec = { [index: string]: string[][] };
+export function buildGrammar(productions: GrammarSpec) {
+  type GrammarSymbol = string | typeof EPSILON;
 
-export type GrammarSpec<R> = { Root: R[][]; [index: string]: R[][] };
-export function buildGrammar<Symbol>(productions: GrammarSpec<Symbol>) {
-  type GrammarSymbol = Symbol | typeof EPSILON;
-
-  const grammar: Grammar<
-    GrammarSymbol,
-    ParseNode<GrammarSymbol | null, LexToken<any>>
-  > = new Grammar();
+  const grammar: ParseNodeGrammar = new Grammar();
   const nonTerminals: Set<Symbol> = new Set();
   Object.keys(productions).forEach((key) => {
     nonTerminals.add(key as unknown as Symbol);
   });
   Object.entries(productions).forEach(([key, value]) => {
-    const symbol = key as unknown as GrammarSymbol;
+    const symbol = key;
     for (const specSymbols of value) {
       if (specSymbols.length === 0) {
         // this is an empty rule, put epsilon in it

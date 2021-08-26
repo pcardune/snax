@@ -30,7 +30,7 @@ const foo = {
   [Rules.Bit]: [[Token.IMPLICIT_0], [Token.IMPLICIT_1]],
 };
 
-const grammarSpec: GrammarSpec<Rules | Token> = {
+const grammarSpec: GrammarSpec = {
   [Rules.Root]: [[Rules.List]],
   [Rules.List]: [[Rules.Bit, Rules.List], [Rules.Bit], []],
   [Rules.Bit]: [[Token.IMPLICIT_0], [Token.IMPLICIT_1]],

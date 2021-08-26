@@ -204,10 +204,10 @@ export class Parser<Symbol, ActionValue = any> {
 }
 export type SymbolsOf<T> = T extends Parser<infer Symbols> ? Symbols : never;
 
-export function buildParser<Symbol>(grammarSpec: GrammarSpec<Symbol>) {
+export function buildParser(grammarSpec: GrammarSpec) {
   const grammar = buildGrammar(grammarSpec);
   removeDirectLeftRecursion(grammar);
-  return new Parser(grammar, 'Root' as unknown as Symbol);
+  return new Parser(grammar, 'Root');
 }
 
 export enum ParseErrorType {

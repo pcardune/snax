@@ -152,7 +152,7 @@ export function compileLexer(
 export function compileGrammarToParser(
   root: ParseNode<Symbol | null, LexToken<unknown>>
 ): Result<Parser<string, ParseNode<string, LexToken<string>>>, any> {
-  let grammarSpec: GrammarSpec<string> = { Root: [] };
+  let grammarSpec: GrammarSpec = { Root: [] };
   const productionIter = root
     .iterTree()
     .filter((n) => n.rule === Rules.Production);
@@ -287,7 +287,7 @@ export enum Rules {
 
   out += '}\n\n';
 
-  out += 'const grammarSpec: GrammarSpec<Rules|Token> = {\n';
+  out += 'const grammarSpec: GrammarSpec = {\n';
 
   parseTree
     .iterTree()

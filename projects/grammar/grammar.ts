@@ -230,7 +230,9 @@ function setsAreEqual(s1: ReadonlySet<any>, s2: ReadonlySet<any>) {
  *
  * See Page 104 of Engineering a Compiler 2nd Edition
  */
-export function calcFirst<Symbol>(grammar: Grammar<Symbol>) {
+export function calcFirst<Symbol>(
+  grammar: Grammar<Symbol>
+): Map<Symbol, ReadonlySet<Symbol>> {
   const firstMap: Map<Symbol, ReadonlySet<Symbol>> = new Map();
 
   let done = false;
@@ -277,4 +279,61 @@ export function calcFirst<Symbol>(grammar: Grammar<Symbol>) {
     }
   }
   return firstMap;
+}
+
+/**
+ * Calculate follow sets as described on page 106 of
+ * Engineering a Compiler 2nd Edition
+ *
+ * @param grammar a grammar
+ * @param firstMap the first sets calculated with {@link calcFirst}
+ * @returns a mapping from non terminal symbols in the given grammar
+ * to their follow sets
+ */
+export function calcFollow<Symbol>(
+  grammar: Grammar<Symbol>,
+  firstMap: ReadonlyMap<Symbol, ReadonlySet<Symbol>>
+): Map<Symbol, ReadonlySet<Symbol>> {
+  const getFirst = (k: Symbol) => firstMap.get(k) as ReadonlySet<Symbol>;
+
+  const followMap: Map<Symbol, ReadonlySet<Symbol>> = new Map();
+  const nonTerminals = new Set(grammar.getNonTerminals());
+  for (const nonTerminal of nonTerminals) {
+    followMap.set(nonTerminal, new Set());
+  }
+  let done = false;
+  const setFollow = (k: Symbol, newFollow: ReadonlySet<Symbol>) => {
+    const existingFirst = getFollow(k);
+    followMap.set(k, newFollow);
+    if (!setsAreEqual(existingFirst, newFollow)) {
+      done = false;
+    }
+  };
+  const getFollow = (k: Symbol) => {
+    return followMap.get(k) as ReadonlySet<Symbol>;
+  };
+
+  while (!done) {
+    done = true;
+    for (const production of grammar.productionsIter()) {
+      let B = production.symbols;
+      let k = B.length - 1;
+      let trailer = new Set(getFollow(production.rule));
+      for (let i = k; i >= 0; i--) {
+        if (nonTerminals.has(B[i])) {
+          setFollow(B[i], new Set([...getFollow(B[i]), ...trailer]));
+          const firstBi = getFirst(B[i]);
+          if (firstBi.has(EPSILON as any)) {
+            trailer = new Set([...trailer, ...firstBi]);
+            trailer.delete(EPSILON as any);
+          } else {
+            trailer = new Set(firstBi);
+          }
+        } else {
+          trailer = new Set(getFirst(B[i]));
+        }
+      }
+    }
+  }
+  return followMap;
 }

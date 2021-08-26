@@ -1,4 +1,4 @@
-import { calcFirst, EPSILON, Grammar } from './grammar';
+import { calcFirst, calcFollow, EPSILON, Grammar } from './grammar';
 
 describe('Grammar', () => {
   const grammar: Grammar<string> = new Grammar();
@@ -44,7 +44,7 @@ Op →
   });
 });
 
-describe('calcFirst', () => {
+describe('first and follow set calculation', () => {
   const grammar: Grammar<string | typeof EPSILON> = new Grammar();
   grammar.addProductions('Goal', [['Expr']]);
   grammar.addProductions('Expr', [['Term', 'ExprP']]);
@@ -69,7 +69,7 @@ describe('calcFirst', () => {
     return out;
   };
 
-  it('should work', () => {
+  it('should calculate the first map correctly', () => {
     const first = calcFirst(grammar);
     expect(toObject(first)).toEqual({
       '(': ['('],
@@ -87,6 +87,19 @@ describe('calcFirst', () => {
       name: ['name'],
       num: ['num'],
       'Symbol(ϵ)': ['Symbol(ϵ)'],
+    });
+  });
+
+  it('should calculate the follow map correctly', () => {
+    const first = calcFirst(grammar);
+    const follow = calcFollow(grammar, first);
+    expect(toObject(follow)).toEqual({
+      Expr: [')'],
+      ExprP: [')'],
+      Factor: [')', '*', '+', '-', '/'],
+      Goal: [],
+      Term: [')', '+', '-'],
+      TermP: [')', '+', '-'],
     });
   });
 });

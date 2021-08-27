@@ -21,27 +21,27 @@ describe('removeDirectLeftRecursion', () => {
   ]);
   grammar.addProductions('Factor', [['(', 'Expr', ')'], ['num'], ['name']]);
   test('it works', () => {
-    removeDirectLeftRecursion(grammar);
-    expect(grammar.toString()).toMatchInlineSnapshot(`
-"
-Factor →
-  | '(' Expr ')'
-  | 'num'
-  | 'name'
-ExprP →
-  | '+' Term ExprP
-  | '-' Term ExprP
-  | ϵ
-Expr →
-  | Term ExprP
-TermP →
-  | '*' Factor TermP
-  | '/' Factor TermP
-  | ϵ
-Term →
-  | Factor TermP
-"
-`);
+    const removed = removeDirectLeftRecursion(grammar);
+    expect(removed.toString()).toMatchInlineSnapshot(`
+      "
+      Expr →
+        | Term ExprP
+      ExprP →
+        | '+' Term ExprP
+        | '-' Term ExprP
+        | ϵ
+      Term →
+        | Factor TermP
+      TermP →
+        | '*' Factor TermP
+        | '/' Factor TermP
+        | ϵ
+      Factor →
+        | '(' Expr ')'
+        | 'num'
+        | 'name'
+      "
+    `);
   });
 });
 
@@ -51,20 +51,20 @@ describe('removeLeftRecursion', () => {
   grammar.addProductions('B', [['C']]);
   grammar.addProductions('C', [['A', 'd']]);
   test('it works', () => {
-    removeLeftRecursion(grammar);
-    expect(grammar.toString()).toMatchInlineSnapshot(`
-"
-A →
-  | B
-B →
-  | C
-CP →
-  | 'd' CP
-  | ϵ
-C →
-  | CP
-"
-`);
+    const removed = removeLeftRecursion(grammar);
+    expect(removed.toString()).toMatchInlineSnapshot(`
+      "
+      A →
+        | B
+      B →
+        | C
+      C →
+        | CP
+      CP →
+        | 'd' CP
+        | ϵ
+      "
+    `);
   });
 });
 

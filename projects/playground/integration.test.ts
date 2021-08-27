@@ -39,16 +39,16 @@ describe('integration test', () => {
 "
 Root →
   | Expr
-Term →
-  | 'NUM'
-  | 'ID'
-  | '(' Expr ')'
+Expr →
+  | Term ExprP
 ExprP →
   | '+' Term ExprP
   | '-' Term ExprP
   | ϵ
-Expr →
-  | Term ExprP
+Term →
+  | 'NUM'
+  | 'ID'
+  | '(' Expr ')'
 "
 `);
     let chars = charCodes('34 + (5-something)');

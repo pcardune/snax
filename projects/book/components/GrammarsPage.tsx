@@ -1,7 +1,32 @@
+import { useMemo } from 'react';
 import { buildGrammar } from '../../grammar/grammar';
+import {
+  removeDirectLeftRecursion,
+  removeLeftRecursion,
+} from '../../grammar/top-down-parser';
 import { useDSLGrammar } from '../hooks/useDSLGrammar';
-import { GrammarTable } from './GrammarTable';
+import { GrammarTable, NonTerminal } from './GrammarTable';
 import { LexerTable } from './LexerTable';
+
+//prettier-ignore
+const expressionGrammarSpec = {
+  Goal: [['Expr']],
+  Expr: [
+    ['Expr', '+', 'Term'],
+    ['Expr', '-', 'Term'],
+    ['Term'],
+  ],
+  Term: [
+    ['Term', '*', 'Factor'],
+    ['Term', '/', 'Factor'],
+    ['Factor'],
+  ],
+  Factor: [
+    ['(', 'Expr', ')'],
+    ['NUM'],
+    ['NAME'],
+  ]
+};
 
 const backtrackFreeGrammar = buildGrammar({
   Goal: [['Expr']],
@@ -14,9 +39,31 @@ const backtrackFreeGrammar = buildGrammar({
 
 export function GrammarsPage() {
   const numbers = useDSLGrammar(require('../grammars/numbers.grammar'));
-
+  const expressionGrammar = useMemo(
+    () => buildGrammar(expressionGrammarSpec),
+    [expressionGrammarSpec]
+  );
+  const rrExpressionGrammar = useMemo(
+    () => removeDirectLeftRecursion(buildGrammar(expressionGrammarSpec)),
+    [expressionGrammarSpec]
+  );
   return (
     <div>
+      <h2>Standard Expression Grammar</h2>
+      <p>
+        Here is a standard expression grammar showing how operator precedence
+        works.
+      </p>
+      <GrammarTable grammar={expressionGrammar} />
+      <p>
+        This grammar is <em>left recursive</em>, which is problematic for
+        top-down parsers. When expanding <NonTerminal>Expr</NonTerminal>, the
+        first rule tries to match the first symbol in the expansion, which is{' '}
+        <NonTerminal>Expr</NonTerminal>. So it will recurse infinitely.
+        Fortunately, it's possible to rewrite the grammar automatically to
+        eliminate left recursion.
+      </p>
+      <GrammarTable grammar={rrExpressionGrammar} />
       <h2>Grammar for Numbers</h2>
       {numbers.lexer && <LexerTable lexer={numbers.lexer} />}
       {numbers.parser && (

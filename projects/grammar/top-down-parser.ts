@@ -12,10 +12,11 @@ import {
 import * as debug from '../utils/debug';
 import { ok, err, Result } from 'neverthrow';
 
-export function removeDirectLeftRecursion<Symbol>(
-  grammar: Grammar<Symbol | string | typeof EPSILON>
+export function removeDirectLeftRecursion<S>(
+  grammar: Grammar<S | string | typeof EPSILON>
 ) {
-  type GrammarSymbol = Symbol | string | typeof EPSILON;
+  type GrammarSymbol = S | string | typeof EPSILON;
+  const newGrammar: Grammar<GrammarSymbol> = new Grammar();
   const NTs = grammar.getNonTerminals();
   for (const nt of NTs) {
     if (nt === EPSILON) {
@@ -29,36 +30,47 @@ export function removeDirectLeftRecursion<Symbol>(
     }
     if (isLeftRecursive) {
       const ntPrime: GrammarSymbol = nt + 'P';
+      let newPrimes: Production<GrammarSymbol>[] = [];
+      let newPs: Production<GrammarSymbol>[] = [];
+      const action = grammar.productionsFrom(nt)[0]?.action;
       for (const p of grammar.productionsFrom(nt)) {
-        let newP: Production<GrammarSymbol>;
         if (p.isLeftRecursive()) {
-          newP = new Production(
-            ntPrime,
-            [...p.symbols.slice(1), ntPrime],
-            p.action
+          newPrimes.push(
+            new Production(ntPrime, [...p.symbols.slice(1), ntPrime], p.action)
           );
         } else {
-          newP = new Production(p.rule, [...p.symbols, ntPrime], p.action);
+          newPs.push(new Production(p.rule, [...p.symbols, ntPrime], p.action));
         }
         grammar.removeProduction(p);
-        grammar.addProduction(newP);
       }
-      const action = grammar.productionsFrom(nt)[0]?.action;
-      if (grammar.productionsFrom(nt).length == 0) {
-        grammar.addProduction(new Production(nt, [ntPrime], action));
+      for (const newP of newPs) {
+        newGrammar.addProduction(newP);
       }
-      grammar.addProduction(
+      if (newPs.length == 0) {
+        newGrammar.addProduction(new Production(nt, [ntPrime], action));
+      }
+      for (const newPrime of newPrimes) {
+        newGrammar.addProduction(newPrime);
+      }
+      newGrammar.addProduction(
         new Production(ntPrime as GrammarSymbol, [EPSILON], action)
       );
+    } else {
+      for (const p of grammar.productionsFrom(nt)) {
+        newGrammar.addProduction(p);
+      }
     }
   }
+  return newGrammar;
 }
 
 /**
  * Removes left recursion from a grammar.
  * See p. 103 of "Engineering a Compiler"
  */
-export function removeLeftRecursion<R>(sourceGrammar: Grammar<R>): Grammar<R> {
+export function removeLeftRecursion<R>(
+  sourceGrammar: Grammar<R | string | typeof EPSILON>
+): Grammar<R | string | typeof EPSILON> {
   let nonTerminals = sourceGrammar.getNonTerminals(); // A
   for (let i = 0; i < nonTerminals.length; i++) {
     for (let j = 0; j < i; j++) {
@@ -79,7 +91,7 @@ export function removeLeftRecursion<R>(sourceGrammar: Grammar<R>): Grammar<R> {
         }
       }
     }
-    removeDirectLeftRecursion(sourceGrammar);
+    sourceGrammar = removeDirectLeftRecursion(sourceGrammar);
   }
   return sourceGrammar;
 }
@@ -207,8 +219,7 @@ export type SymbolsOf<T> = T extends Parser<infer Symbols> ? Symbols : never;
 
 export function buildParser(grammarSpec: GrammarSpec) {
   const grammar = buildGrammar(grammarSpec);
-  removeDirectLeftRecursion(grammar);
-  return new Parser(grammar, 'Root');
+  return new Parser(removeDirectLeftRecursion(grammar), 'Root');
 }
 
 export enum ParseErrorType {

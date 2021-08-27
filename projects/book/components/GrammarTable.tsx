@@ -4,7 +4,7 @@ import { Table, Td } from './Table';
 import { PatternLexer } from '../../lexer-gen/recognizer';
 import { isImplicit } from '../../parser-gen/dsl';
 
-const NonTerm = styled.span`
+export const NonTerminal = styled.span`
   font-style: italic;
 `;
 
@@ -31,7 +31,7 @@ export function Symbol({
   nonTerminal: boolean;
 }) {
   if (nonTerminal) {
-    return <NonTerm>{symbol}</NonTerm>;
+    return <NonTerminal>{symbol}</NonTerminal>;
   }
   return <Terminal symbol={symbol} />;
 }

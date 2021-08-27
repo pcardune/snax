@@ -132,17 +132,20 @@ describe('buildLL1Table()', () => {
     const productions = [...backtrackFreeGrammar.productionsIter()];
     const table = buildLL1Table(backtrackFreeGrammar);
     const entries = [];
-    for (const [row, cols] of table.entries()) {
-      for (const [col, cell] of cols.entries()) {
-        const rowcol = `(${row}, ${col.toString()})`.padEnd(22, '.');
-        const index = productions.indexOf(cell);
-        entries.push(
-          `${rowcol} (${index === -1 ? '-' : index}) ${
-            cell?.toString() || null
-          }`
-        );
+    let lastRow: any = null;
+    for (const [row, col, cell] of table.entries()) {
+      if (lastRow === null) {
+        lastRow = row;
       }
-      entries.push('');
+      if (lastRow !== row) {
+        entries.push('');
+      }
+      lastRow = row;
+      const rowcol = `(${row}, ${col.toString()})`.padEnd(22, '.');
+      const index = productions.indexOf(cell);
+      entries.push(
+        `${rowcol} (${index === -1 ? '-' : index}) ${cell?.toString() || null}`
+      );
     }
     expect(entries.join('\n')).toMatchInlineSnapshot(`
       "(Goal, +)............. (-) null
@@ -203,8 +206,7 @@ describe('buildLL1Table()', () => {
       (Factor, ))........... (-) null
       (Factor, num)......... (10) Factor -> num
       (Factor, name)........ (11) Factor -> name
-      (Factor, Symbol(EOF)). (-) null
-      "
+      (Factor, Symbol(EOF)). (-) null"
     `);
   });
 });

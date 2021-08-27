@@ -11,40 +11,64 @@ import {
 } from './grammar';
 
 type LL1Table<S, A> = Map<S, Map<S | Eof | Epsilon, null | Production<S, A>>>;
+
+class LL1TableImpl<S, A> {
+  private table: LL1Table<S, A> = new Map();
+
+  set(
+    nonTerminal: S,
+    terminal: S | Eof | Epsilon,
+    cell: null | Production<S, A>
+  ) {
+    let columns = this.table.get(nonTerminal);
+    if (!columns) {
+      columns = new Map();
+    }
+    columns.set(terminal, cell);
+    this.table.set(nonTerminal, columns);
+  }
+
+  get(nonTerminal: S, terminal: S | Eof | Epsilon) {
+    return this.table.get(nonTerminal)?.get(terminal) || null;
+  }
+
+  *entries(): Generator<[S, S | Eof | Epsilon, null | Production<S, A>]> {
+    for (const [row, cols] of this.table.entries()) {
+      for (const [col, cell] of cols.entries()) {
+        yield [row, col, cell] as [
+          S,
+          S | Eof | Epsilon,
+          null | Production<S, A>
+        ];
+      }
+    }
+  }
+}
+
 /**
  * Algorithm for construction of LL1 table from backtrack free grammar.
  * See page 113 of Engineering a Compiler 2nd Edition
  */
 export function buildLL1Table<S, A>(
   grammar: BacktrackFreeGrammar<S, A>
-): LL1Table<S, A> {
-  type Cell = null | Production<S, A>;
-  const table: LL1Table<S, A> = new Map();
-
-  const setTable = (row: S, col: S | Eof | Epsilon, cell: Cell) => {
-    let columns = table.get(row);
-    if (!columns) {
-      columns = new Map();
-    }
-    columns.set(col, cell);
-    table.set(row, columns);
-  };
+): LL1TableImpl<S, A> {
+  const table: LL1TableImpl<S, A> = new LL1TableImpl();
 
   const terminals = new Set(grammar.getTerminals());
   terminals.delete(EPSILON as any);
   for (const A of grammar.getNonTerminals()) {
     for (const w of [...terminals, EOF] as (S | Eof)[]) {
-      setTable(A, w, null);
+      table.set(A, w, null);
     }
     for (const p of grammar.productionsFrom(A)) {
       const firstPlus = grammar.getFirstPlus(p);
       for (const w of firstPlus) {
         if (terminals.has(w as S)) {
-          setTable(A, w, p);
+          table.set(A, w, p);
         }
       }
       if (firstPlus.has(EOF)) {
-        setTable(A, EOF, p);
+        table.set(A, EOF, p);
       }
     }
   }
@@ -53,15 +77,12 @@ export function buildLL1Table<S, A>(
 
 export class LL1Parser<S, A> {
   readonly grammar: BacktrackFreeGrammar<S, A>;
-  private table: Readonly<LL1Table<S, A>>;
+  private table: Readonly<LL1TableImpl<S, A>>;
   private start: S;
   constructor(grammar: BacktrackFreeGrammar<S, A>, start: S) {
     this.grammar = grammar;
     this.table = buildLL1Table(this.grammar);
     this.start = start;
-  }
-  private getTableCell(t: S, nt: S | Eof | Epsilon) {
-    return this.table.get(t)?.get(nt) || null;
   }
 
   parseOrThrow(tokens: string[]) {
@@ -149,7 +170,7 @@ export class LL1Parser<S, A> {
         }
       } else {
         // focus is a non-terminal
-        let production = this.getTableCell(focus.symbol, word.token);
+        let production = this.table.get(focus.symbol, word.token);
         if (production) {
           const A = production.rule;
           const B = production.symbols;

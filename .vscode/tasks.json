@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "book",
+      "type": "shell",
+      "command": "mdbook watch ./book",
+      "isBackground": true
+    },
+    {
+      "label": "webpack",
+      "type": "shell",
+      "command": "npx webpack serve",
+      "isBackground": true
+    },
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "npx tsc --build --watch",
+      "isBackground": true
+    },
+    {
+      "label": "dev",
+      "dependsOn": ["book", "webpack", "build"],
+      "problemMatcher": [],
+      "runOptions": { "instanceLimit": 1, "runOn": "folderOpen" }
+    }
+  ]
+}

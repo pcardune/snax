@@ -9,6 +9,9 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
+    "book:watch": "mdbook watch ./book",
+    "start": "webpack serve",
     "test": "jest"
   },
   "author": "",

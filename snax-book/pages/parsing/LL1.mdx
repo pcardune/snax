@@ -1,3 +1,24 @@
-<script src="/main.js"></script>
+import { LL1TableUI } from '../../components/LL1TableUI';
+import { GrammarTable } from '../../components/GrammarTable';
+import expressionSpec from '../../grammars/expressionSpec';
+import numbersSpec from '../../grammars/numbersSpec';
 
-# LL(1) Parsing
+# Table-Driven LL(1) Parsing
+
+If we have a backtrack free grammar, we can use a 1 token lookahead
+to decide which production to expand next. The first step of generating
+an LL(1) parser is to create the lookup table that maps a (non-terminal, terminal)
+pair to a particular production.
+
+Given the following expression grammar:
+
+<GrammarTable grammar={expressionSpec} />
+
+The LL(1) lookahead table would look like this:
+
+<LL1TableUI start="Goal" grammarSpec={expressionSpec} />
+
+## Parsing
+
+<GrammarTable grammar={numbersSpec} />
+<LL1TableUI start="Goal" grammarSpec={numbersSpec} />

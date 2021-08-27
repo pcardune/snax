@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Table, Td } from './Table';
 import { PatternLexer } from '../../dist/lexer-gen/recognizer';
 import { isImplicit } from '../../dist/parser-gen/dsl';
+import { GrammarLike, useGrammar } from '../hooks/useGrammar';
 
 export const NonTerminal = styled.span`
   font-style: italic;
@@ -41,13 +42,12 @@ const IndexCell = styled(Td)`
   text-align: right;
 `;
 
-export function GrammarTable({
-  grammar,
-  lexer,
-}: {
-  grammar: ConstGrammar<any>;
+export function GrammarTable(props: {
+  grammar: GrammarLike;
   lexer?: PatternLexer<any>;
 }) {
+  const grammar = useGrammar(props.grammar);
+  const lexer = props.lexer;
   const nonTerminals = grammar.getNonTerminals();
   let i = 0;
   const rows = nonTerminals

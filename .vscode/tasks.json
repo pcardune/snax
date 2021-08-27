@@ -5,7 +5,8 @@
       "label": "next",
       "type": "shell",
       "command": "cd snax-book && npm run dev",
-      "isBackground": true
+      "isBackground": true,
+      "problemMatcher": []
     },
     {
       "label": "build",
@@ -17,7 +18,10 @@
       "label": "dev",
       "dependsOn": ["build", "next"],
       "problemMatcher": [],
-      "runOptions": { "instanceLimit": 1, "runOn": "folderOpen" }
+      "runOptions": {
+        "instanceLimit": 1,
+        "runOn": "folderOpen"
+      }
     }
   ]
 }

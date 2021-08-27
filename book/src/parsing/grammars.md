@@ -34,3 +34,7 @@ as right recursive:
     initialContent:`101001`,
   });
 </script>
+
+<script>
+  nfaExplore.render.GrammarsPage({});
+</script>

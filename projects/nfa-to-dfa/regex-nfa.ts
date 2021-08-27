@@ -263,7 +263,9 @@ export function charSeq(seq: string | Iterable<number>): RegexNFA {
     seq = charCodes(seq);
   }
   let nfa: RegexNFA | undefined;
+  let description = '';
   for (const char of seq) {
+    description += String.fromCharCode(char);
     if (nfa === undefined) {
       nfa = new SingleCharNFA(char);
     } else {
@@ -271,6 +273,7 @@ export function charSeq(seq: string | Iterable<number>): RegexNFA {
     }
   }
   if (nfa === undefined) throw new Error('charSeq called with empty string');
+  nfa.description = description;
   return nfa;
 }
 

@@ -80,8 +80,10 @@ export class NewTokenIterator<T> extends Iter<LexToken<T>> {
 export class PatternLexer<T> {
   private matcher: MultiPatternMatcher<T>;
   private ignore: T[] = [];
+  readonly patternDescriptions: OrderedMap<T, string>;
   constructor(patterns: OrderedMap<T, { nfa: ConstNFA; ignore?: boolean }>) {
     this.matcher = new MultiPatternMatcher(patterns.map((v) => v.nfa));
+    this.patternDescriptions = patterns.map((v) => v.nfa.getDescription());
     this.ignore = patterns
       .entries()
       .filter(([_i, _k, v]) => !!v.ignore)

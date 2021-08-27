@@ -44,6 +44,12 @@ export interface ConstNFA extends IHaveDebugStr {
    * Get the start state of the nfa;
    */
   getStartState(): number;
+
+  /**
+   * Get a human readonable description of what this
+   * NFA matches
+   */
+  getDescription(): string;
 }
 
 export interface MutNFA extends ConstNFA {
@@ -116,6 +122,12 @@ export class NFA implements MutNFA {
   private readonly alphabet: number[] = [];
 
   private startState: number = NFA.ERROR_STATE;
+
+  public description: string = '';
+
+  getDescription(): string {
+    return this.description;
+  }
 
   getAlphabet() {
     return this.alphabet;

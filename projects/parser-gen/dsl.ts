@@ -102,6 +102,10 @@ function mapLiteralsToNames(
   return ok(patterns);
 }
 
+export function isImplicit(enumName: any) {
+  return String(enumName).startsWith('IMPLICIT_');
+}
+
 export function parseOrThrow(input: string) {
   const tokens = lexer.parse(input);
   const root = parser.parseTokensOrThrow(tokens);
@@ -135,6 +139,7 @@ export function compileLexer(
           if (maybeNFA.isErr()) {
             return err(maybeNFA.error);
           } else {
+            maybeNFA.value.description = literal.content;
             nfa = maybeNFA.value;
           }
         } else {
@@ -143,7 +148,6 @@ export function compileLexer(
         const ignore = key.startsWith('_');
         patterns.push(key, { nfa, ignore });
       }
-      console.log('using patterns', [...patterns.entries()]);
       return ok(new PatternLexer(patterns));
     })
   );
@@ -200,7 +204,6 @@ export function compileGrammarToParser(
       grammarSpec[productionName].push(elementNames);
     }
   }
-  console.log('using grammar spec', grammarSpec);
   const parser = buildParser(grammarSpec);
   return ok(
     parser as unknown as Parser<string, ParseNode<string, LexToken<string>>>

@@ -8,6 +8,8 @@ import React from 'react';
 import { RegexNFA } from './components/RegexNFA';
 import { GrammarPlayground } from './components/GrammarPlayground';
 import { SnaxEditor } from './components/SnaxEditor';
+import { SnaxGrammar } from './components/SnaxGrammar';
+import { GrammarsPage } from './components/GrammarsPage';
 
 function getContainerEl(container: string | HTMLElement) {
   if (typeof container == 'string') {
@@ -59,6 +61,8 @@ export const render = {
   RegexNFA: wrap(RegexNFA),
   GrammarPlayground: wrap(GrammarPlayground),
   SnaxEditor: wrap(SnaxEditor),
+  SnaxGrammar: wrap(SnaxGrammar),
+  GrammarsPage: wrap(GrammarsPage),
 };
 
 export const grammars = {

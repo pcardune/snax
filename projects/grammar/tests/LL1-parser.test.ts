@@ -134,7 +134,6 @@ describe('buildLL1Table()', () => {
     const entries = [];
     for (const [row, cols] of table.entries()) {
       for (const [col, cell] of cols.entries()) {
-        console.log(row, col, '->', cell);
         const rowcol = `(${row}, ${col.toString()})`.padEnd(22, '.');
         const index = productions.indexOf(cell);
         entries.push(

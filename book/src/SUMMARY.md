@@ -8,3 +8,4 @@
 - [Parsing](./parsing/index.md)
   - [Grammars](./parsing/grammars.md)
 - [Snax](./snax/index.md)
+  - [Grammar](./snax/grammar.md)

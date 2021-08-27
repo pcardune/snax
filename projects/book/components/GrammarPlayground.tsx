@@ -1,12 +1,13 @@
 import { combine, Result } from 'neverthrow';
-import { ParseNode, Parser } from '../../grammar/top-down-parser';
+import { ParseNode } from '../../grammar/top-down-parser';
 import { LexToken } from '../../lexer-gen/lexer-gen';
-import * as dsl from '../../parser-gen/dsl';
 import { charCodes } from '../../utils/iter';
 import { ParseNodeGraph } from './ParseNodeGraph';
 import { logger } from '../../utils/debug';
-import { useMemo, useState } from 'react';
-import { PatternLexer } from '../../lexer-gen/recognizer';
+import { useState } from 'react';
+import { useDSLGrammar } from '../hooks/useDSLGrammar';
+import { GrammarTable } from './GrammarTable';
+import { LexerTable } from './LexerTable';
 
 type $TSFixMe = any;
 function TokenList(props: { tokens: Result<LexToken<any>, any>[] }) {
@@ -43,36 +44,7 @@ export function GrammarPlayground(props: {
 }) {
   const [input, setInput] = useState(props.initialContent);
 
-  const { lexer, parser, error } = useMemo(() => {
-    const parseTreeResult = dsl.parse(props.initialGrammar);
-    let result: {
-      lexer?: PatternLexer<string>;
-      parser?: Parser<string, ParseNode<string, LexToken<string>>>;
-      error?: any;
-    } = {};
-    if (parseTreeResult.isOk()) {
-      const root = parseTreeResult.value;
-      const maybeLexer = dsl.compileLexer(root);
-      if (maybeLexer.isOk()) {
-        result.lexer = maybeLexer.value;
-        const logs: string[] = [];
-        const maybeParser = logger.capture(
-          () => dsl.compileGrammarToParser(parseTreeResult.value),
-          logs
-        );
-        if (maybeParser.isOk()) {
-          result.parser = maybeParser.value;
-        } else {
-          result.error = maybeParser.error;
-        }
-      } else {
-        result.error = maybeLexer.error;
-      }
-    } else {
-      result.error = parseTreeResult.error;
-    }
-    return result;
-  }, [props.initialGrammar]);
+  const { lexer, parser, error } = useDSLGrammar(props.initialGrammar);
 
   const [parsedTokens, setParsedTokens] = useState<
     Result<LexToken<string>, any>[] | null
@@ -105,10 +77,10 @@ export function GrammarPlayground(props: {
 
   return (
     <div>
+      <strong>Tokens:</strong>
+      {lexer && <LexerTable lexer={lexer} />}
       <strong>Grammar:</strong>
-      <pre>
-        <code className="hljs">{props.initialGrammar}</code>
-      </pre>
+      {parser && <GrammarTable grammar={parser.grammar} lexer={lexer} />}
       <strong>Input:</strong>
       <div>
         <textarea value={input} onChange={(e) => setInput(e.target.value)} />

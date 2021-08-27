@@ -6,7 +6,6 @@
   },
   "include": [],
   "references": [
-    { "path": "./projects/book" },
     { "path": "./projects/grammar" },
     { "path": "./projects/lexer-gen" },
     { "path": "./projects/parser-gen" },

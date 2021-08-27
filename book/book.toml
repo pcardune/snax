@@ -1,6 +1,0 @@
-[book]
-authors = ["Paul Carduner"]
-language = "en"
-multilingual = false
-src = "src"
-title = "Finite Automata"

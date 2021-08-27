@@ -17,29 +17,20 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/cytoscape": "^3.14.17",
     "@types/jest": "^26.0.24",
     "@types/react": "^17.0.19",
     "@types/react-dom": "^17.0.9",
-    "@types/styled-components": "^5.1.13",
     "@types/yargs": "^16.0.4",
-    "cytoscape": "^3.19.1",
     "jest": "^27.0.6",
     "prettier": "^2.3.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "ts-jest": "^27.0.4",
-    "ts-loader": "^9.2.5",
     "ts-node": "^10.1.0",
-    "typescript": "^4.3.5",
-    "webpack": "^5.51.1",
-    "webpack-cli": "^4.8.0",
-    "webpack-dev-server": "^4.0.0"
+    "typescript": "^4.3.5"
   },
   "dependencies": {
     "neverthrow": "^4.2.2",
-    "node-polyfill-webpack-plugin": "^1.1.4",
-    "styled-components": "^5.3.1",
     "wabt": "^1.0.24",
     "yargs": "^16.2.0"
   }

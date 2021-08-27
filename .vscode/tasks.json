@@ -2,15 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "book",
+      "label": "next",
       "type": "shell",
-      "command": "mdbook watch ./book",
-      "isBackground": true
-    },
-    {
-      "label": "webpack",
-      "type": "shell",
-      "command": "npx webpack serve",
+      "command": "cd snax-book && npm run dev",
       "isBackground": true
     },
     {
@@ -21,7 +15,7 @@
     },
     {
       "label": "dev",
-      "dependsOn": ["book", "webpack", "build"],
+      "dependsOn": ["build", "next"],
       "problemMatcher": [],
       "runOptions": { "instanceLimit": 1, "runOn": "folderOpen" }
     }

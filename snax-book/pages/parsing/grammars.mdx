@@ -1,0 +1,28 @@
+import { GrammarPlayground } from '../../components/GrammarPlayground';
+import { GrammarsPage } from '../../components/GrammarsPage';
+
+import expressions from '../../grammars/expressions.grammar';
+import expressionLL1 from '../../grammars/expressionLL1.grammar';
+import numbers from '../../grammars/numbers.grammar';
+
+# Grammars
+
+## Standard Expression Grammar
+
+Here is a standard expression grammar showing how operator
+precedence works.
+
+<GrammarPlayground initialGrammar={expressions} initialContent="3+4" />
+
+## Right Recursive Grammar
+
+The above grammar was left recursive, but it can be rewritten
+as right recursive:
+
+<GrammarPlayground initialGrammar={expressionLL1} initialContent="3+4" />
+
+## Grammar For Numbers
+
+<GrammarPlayground initialGrammar={numbers} initialContent="101001" />
+
+<GrammarsPage />

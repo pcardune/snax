@@ -8,21 +8,14 @@ npx jest
 
 ## Book
 
-Prereq:
-
-- Install [mdbook](https://github.com/rust-lang/mdBook)
-
 Development:
 
-1. start mdbook in watch mode:
+1. start server from inside snax-book directory in watch mode:
    ```
-   mdbook watch ./book
+   cd snax-book/
+   npm run dev
    ```
-1. start webpack in watch mode:
-   ```
-   npx webpack serve
-   ```
-1. go to http://localhost:8080
+1. go to http://localhost:3000
 
 ## Scripts
 

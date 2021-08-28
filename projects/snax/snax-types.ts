@@ -69,6 +69,15 @@ class UnknownType extends BaseType {
   }
 }
 
+class BoolType extends BaseType {
+  constructor() {
+    super('bool');
+  }
+  toValueType(): StackIR.NumberType {
+    return StackIR.NumberType.i32;
+  }
+}
+
 class FuncType extends BaseType {
   argTypes: BaseType[];
   returnType: BaseType;
@@ -92,6 +101,7 @@ export const Intrinsics = {
   f64: new NumericalType('f64', 'float', 8),
   Void: new VoidType(),
   Unknown: new UnknownType(),
+  Bool: new BoolType(),
 };
 const { i32, i64, f32, f64 } = Intrinsics;
 export const Operators = {

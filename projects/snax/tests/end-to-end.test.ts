@@ -29,6 +29,11 @@ async function compileToWasmModule(input: string) {
   return { exports: exports as any, wasmModule };
 }
 
+async function exec(input: string) {
+  const { exports } = await compileToWasmModule(input);
+  return exports.main();
+}
+
 describe('end-to-end test', () => {
   it('compiles integers', async () => {
     const { exports } = await compileToWasmModule('123;');
@@ -38,6 +43,11 @@ describe('end-to-end test', () => {
   it('compiles floats', async () => {
     const { exports } = await compileToWasmModule('1.23;');
     expect(exports.main()).toBeCloseTo(1.23, 4);
+  });
+
+  it('compiles booleans', async () => {
+    expect(await exec('true;')).toBe(1);
+    expect(await exec('false;')).toBe(0);
   });
 
   it('compiles expressions', async () => {

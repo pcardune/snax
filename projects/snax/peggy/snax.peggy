@@ -68,6 +68,7 @@ term "term"
 factor "factor"
   = "(" inner:expr ")" { return inner; }
   / number
+  / bool
   / id
 
 number "number"
@@ -84,6 +85,9 @@ float "float"
       AST.NumberLiteralType.Float
     )
   }
+
+bool = "true" { return new AST.BooleanLiteral(true); }
+     / "false" { return new AST.BooleanLiteral(false); }
 
 id "symbol"
   = name:identifier { return new AST.SymbolRef(name); }

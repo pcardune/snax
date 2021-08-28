@@ -10,6 +10,7 @@ import {
   TypeExpr,
   TypeRef,
   NumberLiteralType,
+  BooleanLiteral,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -71,6 +72,13 @@ describe('SNAX Parser', () => {
         const literal = SNAXParser.parseStrOrThrow('1.23', 'expr');
         expect(literal).toEqual(
           new NumberLiteral(1.23, NumberLiteralType.Float)
+        );
+      });
+    });
+    describe('boolean literals', () => {
+      it('should parse true into a BooleanLiteral', () => {
+        expect(SNAXParser.parseStrOrThrow('true', 'expr')).toEqual(
+          new BooleanLiteral(true)
         );
       });
     });

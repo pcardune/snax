@@ -32,3 +32,14 @@ describe('ExpressionCompiler', () => {
     ]);
   });
 });
+
+describe('BooleanLiteralCompiler', () => {
+  it('compiles booleans to i32 consts', () => {
+    expect(ASTCompiler.forNode(new AST.BooleanLiteral(true)).compile()).toEqual(
+      [new IR.PushConst(IR.NumberType.i32, 1)]
+    );
+    expect(
+      ASTCompiler.forNode(new AST.BooleanLiteral(false)).compile()
+    ).toEqual([new IR.PushConst(IR.NumberType.i32, 0)]);
+  });
+});

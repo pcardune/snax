@@ -32,6 +32,18 @@ abstract class BaseNode implements ASTNode {
 }
 export type { BaseNode };
 
+export class BooleanLiteral extends BaseNode {
+  name = 'BooleanLiteral';
+  value: boolean;
+  constructor(value: boolean) {
+    super([]);
+    this.value = value;
+  }
+  resolveType(): BaseType {
+    return Intrinsics.Bool;
+  }
+}
+
 export enum NumberLiteralType {
   Integer = 'int',
   Float = 'float',

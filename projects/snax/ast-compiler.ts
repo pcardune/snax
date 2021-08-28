@@ -22,6 +22,8 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new ResolvedLetStatementCompiler(node);
     } else if (node instanceof AST.ResolvedSymbolRef) {
       return new ResolvedSymbolRefCompiler(node);
+    } else if (node instanceof AST.BooleanLiteral) {
+      return new BooleanLiteralCompiler(node);
     } else {
       throw new Error(`No compiler available for node ${node.toString()}`);
     }
@@ -115,5 +117,12 @@ class NumberLiteralCompiler extends ASTCompiler<AST.NumberLiteral> {
   compile(): IR.Instruction[] {
     const valueType = this.root.resolveType().toValueType();
     return [new IR.PushConst(valueType, this.root.value)];
+  }
+}
+
+class BooleanLiteralCompiler extends ASTCompiler<AST.BooleanLiteral> {
+  compile(): IR.Instruction[] {
+    const value = this.root.value ? 1 : 0;
+    return [new IR.PushConst(IR.NumberType.i32, value)];
   }
 }

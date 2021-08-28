@@ -5,13 +5,26 @@ import { Parser } from '../top-down-parser';
 let backtrackFreeGrammar: BacktrackFreeGrammar<any, any>;
 beforeAll(() => {
   backtrackFreeGrammar = new BacktrackFreeGrammar(
+    //prettier-ignore
     buildGrammar({
       Goal: [['Expr']],
       Expr: [['Term', 'ExprP']],
-      ExprP: [['+', 'Term', 'ExprP'], ['-', 'Term', 'ExprP'], []],
+      ExprP: [
+        ['+', 'Term', 'ExprP'],
+        ['-', 'Term', 'ExprP'],
+        []
+      ],
       Term: [['Factor', 'TermP']],
-      TermP: [['*', 'Factor', 'TermP'], ['/', 'Factor', 'TermP'], []],
-      Factor: [['(', 'Expr', ')'], ['num'], ['name']],
+      TermP: [
+        ['*', 'Factor', 'TermP'],
+        ['/', 'Factor', 'TermP'],
+        []
+      ],
+      Factor: [
+        ['(', 'Expr', ')'], 
+        ['num'], 
+        ['name']
+      ],
     }),
     'Goal'
   );
@@ -25,6 +38,7 @@ describe('LL1Parser', () => {
   it('should parse valid sentances', () => {
     parser.parseOrThrow(['num']);
     parser.parseOrThrow(['(', 'num', ')', '+', 'name']);
+    parser.parseOrThrow(['num', '+', 'name']);
   });
   it('should not parse invalid sentences', () => {
     expect(() =>
@@ -37,54 +51,41 @@ describe('LL1Parser', () => {
       parser.parseOrThrow(['num', '+'])
     ).toThrowErrorMatchingInlineSnapshot(`"Failed to expand Term"`);
   });
-  it('should construct a proper parse tree', () => {
-    const tree = parser.parseOrThrow(['(', 'num', ')', '+', 'name']);
-    const oldTree = new Parser(backtrackFreeGrammar, 'Goal').parseOrThrow([
-      '(',
-      'num',
-      ')',
+
+  it('should construct a parse tree', () => {
+    let backtrackFreeGrammar = new BacktrackFreeGrammar(
+      //prettier-ignore
+      buildGrammar({
+        Goal: [['Expr']],
+        Expr: [['A', '+', 'B']],
+        A: [['apple'], ['ananas']],
+        B: [['bear'], ['balloon']]
+      }),
+      'Goal'
+    );
+    const tree = new LL1Parser(backtrackFreeGrammar, 'Goal').parseOrThrow([
+      'apple',
       '+',
-      'name',
+      'balloon',
     ]);
-    expect(oldTree.pretty()).toMatchInlineSnapshot(`
+    expect(tree.pretty()).toMatchInlineSnapshot(`
       "
       <Goal>
       |  <Expr>
-      |  |  <Term>
-      |  |  |  <Factor>
-      |  |  |  |  <(>(</(>
-      |  |  |  |  <Expr>
-      |  |  |  |  |  <Term>
-      |  |  |  |  |  |  <Factor>
-      |  |  |  |  |  |  |  <num>num</num>
-      |  |  |  |  |  |  </Factor>
-      |  |  |  |  |  |  <TermP>
-      |  |  |  |  |  |  </TermP>
-      |  |  |  |  |  </Term>
-      |  |  |  |  |  <ExprP>
-      |  |  |  |  |  </ExprP>
-      |  |  |  |  </Expr>
-      |  |  |  |  <)>)</)>
-      |  |  |  </Factor>
-      |  |  |  <TermP>
-      |  |  |  </TermP>
-      |  |  </Term>
-      |  |  <ExprP>
-      |  |  |  <+>+</+>
-      |  |  |  <Term>
-      |  |  |  |  <Factor>
-      |  |  |  |  |  <name>name</name>
-      |  |  |  |  </Factor>
-      |  |  |  |  <TermP>
-      |  |  |  |  </TermP>
-      |  |  |  </Term>
-      |  |  |  <ExprP>
-      |  |  |  </ExprP>
-      |  |  </ExprP>
+      |  |  <A>
+      |  |  |  <apple>apple</apple>
+      |  |  </A>
+      |  |  <+>+</+>
+      |  |  <B>
+      |  |  |  <balloon>balloon</balloon>
+      |  |  </B>
       |  </Expr>
       </Goal>
       "
     `);
+  });
+  it('should construct a proper parse tree', () => {
+    const tree = parser.parseOrThrow(['(', 'num', ')', '+', 'name']);
     expect(tree.pretty()).toMatchInlineSnapshot(`
       "
       <Goal>

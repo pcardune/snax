@@ -8,6 +8,7 @@ import {
   EPSILON,
   Epsilon,
   Production,
+  SemanticAction,
 } from './grammar';
 
 type LL1Table<S, A> = Map<S, Map<S | Eof | Epsilon, null | Production<S, A>>>;
@@ -120,18 +121,6 @@ export class LL1Parser<S, A> {
   }
 
   *parseGen(tokens: Iterable<LexToken<S>>) {
-    const callAction = (
-      action: ActionFunction<A>,
-      tokens: (LexToken<S | Eof> | A)[]
-    ) => {
-      const nodes = tokens.map((n) => (n instanceof LexToken ? undefined : n));
-      const onlyTokens = tokens.map((t) =>
-        t instanceof LexToken ? t : undefined
-      );
-      const value = action(nodes as A[], onlyTokens as LexToken<S>[]);
-      return value;
-    };
-
     const tokensIter = tokens[Symbol.iterator]();
     const nextWord = () => {
       const next = tokensIter.next();
@@ -140,58 +129,51 @@ export class LL1Parser<S, A> {
       }
       return new LexToken(EOF, { from: 0, to: 0 }, '');
     };
+
     const terminals = this.grammar.getTerminals();
     let word = nextWord();
-    type State = {
-      symbol: S | Eof;
-      collect?: boolean;
-      production?: Production<S, A>;
-    };
-    let stack: State[] = [{ symbol: EOF, collect: false }];
-    stack.push({ symbol: this.start, collect: false });
+    type State = S | Eof | StackAction<A>;
+    let stack: State[] = [EOF];
+    stack.push(this.start);
     let focus = stack[stack.length - 1];
     let collected: (LexToken<S | Eof> | A)[] = [];
     while (true) {
       yield { focus, stack: [...stack], collected: [...collected], word };
-      if (focus.collect) {
+      if (focus instanceof StackAction) {
         stack.pop();
-        if (!focus.production) {
-          throw new Error(
-            `Unexpected lack of a production to collect for ${String(
-              focus.symbol
-            )}`
-          );
-        }
-        const { action, symbols } = focus.production;
-        const tokens = collected.slice(collected.length - symbols.length);
-        collected = collected.slice(0, collected.length - symbols.length);
-        collected.push(callAction(action, tokens));
-      } else if (focus.symbol === EOF && word.token === EOF) {
+        stack.pop();
+        const tokens = collected.slice(collected.length - focus.index);
+        collected = collected.slice(0, collected.length - focus.index);
+        collected.push(focus.call(tokens));
+      } else if (focus === EOF && word.token === EOF) {
         // success
         return ok(collected[0] as A) as Result<A | null, any>;
-      } else if (focus.symbol === EOF || terminals.has(focus.symbol)) {
-        if (focus.symbol === word.token) {
+      } else if (focus === EOF || terminals.has(focus)) {
+        if (focus === word.token) {
           collected.push(word);
           stack.pop();
           word = nextWord();
         } else {
-          return err(new Error(`Couldn't find symbol ${String(focus.symbol)}`));
+          return err(new Error(`Couldn't find symbol ${String(focus)}`));
         }
       } else {
         // focus is a non-terminal
-        let production = this.table.get(focus.symbol, word.token);
+        let production = this.table.get(focus, word.token);
         if (production) {
-          const A = production.rule;
-          const B = production.symbols;
-          focus.collect = true;
-          focus.production = production;
+          // push body onto the stack in reverse
+          const B = production.body;
           for (let i = B.length - 1; i >= 0; i--) {
-            if (B[i] !== (EPSILON as any)) {
-              stack.push({ symbol: B[i], collect: false });
+            const Bi = B[i];
+            if (Bi !== (EPSILON as any)) {
+              if (Bi instanceof SemanticAction) {
+                stack.push(new StackAction(Bi, i));
+              } else {
+                stack.push(Bi);
+              }
             }
           }
         } else {
-          return err(new Error(`Failed to expand ${focus.symbol}`)) as Result<
+          return err(new Error(`Failed to expand ${focus}`)) as Result<
             A | null,
             any
           >;
@@ -199,5 +181,23 @@ export class LL1Parser<S, A> {
       }
       focus = stack[stack.length - 1];
     }
+  }
+}
+
+export class StackAction<A> {
+  sa: SemanticAction<A>;
+  index: number;
+  constructor(sa: SemanticAction<A>, index: number) {
+    this.sa = sa;
+    this.index = index;
+  }
+
+  call(tokens: (LexToken<unknown> | A)[]) {
+    const nodes = tokens.map((n) => (n instanceof LexToken ? undefined : n));
+    const onlyTokens = tokens.map((t) =>
+      t instanceof LexToken ? t : undefined
+    );
+    const value = this.sa.func(nodes as A[], onlyTokens as LexToken<unknown>[]);
+    return value;
   }
 }

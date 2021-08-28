@@ -1,5 +1,6 @@
-import { ParseNode } from '../../grammar/top-down-parser';
-import { LexToken } from '../../lexer-gen/lexer-gen';
+import { CSSProperties } from 'react';
+import { ParseNode } from '../../dist/grammar/top-down-parser';
+import { LexToken } from '../../dist/lexer-gen/lexer-gen';
 import Cytoscape from './Cytoscape';
 
 const style = [
@@ -36,14 +37,17 @@ const style = [
   },
 ];
 
-export function ParseNodeGraph(props: { root: ParseNode<any, LexToken<any>> }) {
+export function ParseNodeGraph(props: {
+  root: ParseNode<any, LexToken<any>>;
+  style?: CSSProperties;
+}) {
   return (
     <Cytoscape
       style={{
         width: 400,
         height: 400,
         border: '2px solid #ddd',
-        margin: 'auto',
+        ...props.style,
       }}
       cyConfig={{
         layout: {

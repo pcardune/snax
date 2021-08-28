@@ -1,5 +1,5 @@
 import cytoscape from 'cytoscape';
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 
 type Props = React.ComponentPropsWithoutRef<'div'> & {
   cyConfig: any;

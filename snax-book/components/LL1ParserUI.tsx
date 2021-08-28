@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
-import { BacktrackFreeGrammar } from '../../dist/grammar/grammar';
-import { LL1Parser } from '../../dist/grammar/LL1-parser';
+import {
+  BacktrackFreeGrammar,
+  SemanticAction,
+} from '../../dist/grammar/grammar';
+import { LL1Parser, StackAction } from '../../dist/grammar/LL1-parser';
 import { ParseNode } from '../../dist/grammar/top-down-parser';
 import { LexToken } from '../../dist/lexer-gen/lexer-gen';
 import { PatternLexer } from '../../dist/lexer-gen/recognizer';
@@ -15,16 +18,33 @@ function Collected(props: { collected: any[] }) {
   const last = props.collected[props.collected.length - 1];
   const els = [];
   let i = 0;
+  const style = { border: '2px solid #ddd', marginInline: '10px' };
   for (const item of props.collected) {
     if (item instanceof LexToken) {
-      els.push(<span key={i++}>&quot;{item.substr}&quot;</span>);
+      els.push(
+        <div key={i++} style={{ ...style, padding: 10 }}>
+          &quot;{item.substr}&quot;
+        </div>
+      );
     } else if (item instanceof ParseNode) {
-      els.push(<ParseNodeGraph key={i++} root={item} />);
+      els.push(
+        <ParseNodeGraph
+          key={i++}
+          root={item}
+          style={{ ...style, width: 150, height: 150 }}
+        />
+      );
     } else {
-      els.push(<span key={i++}>?</span>);
+      els.push(<span key={i++}>?, </span>);
     }
   }
-  return <>{els}</>;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      {els.length}
+      {': '}
+      {els}
+    </div>
+  );
 }
 
 export function LL1ParserUI(props: {
@@ -88,9 +108,15 @@ export function LL1ParserUI(props: {
           {parseStates.map((state, i) => (
             <Tr key={i}>
               <Td style={{ textAlign: 'center' }}>{i}</Td>
-              <Td>{state.focus.symbol}</Td>
+              <Td>
+                {state.focus instanceof StackAction ? 'f()' : state.focus}
+              </Td>
               <Td>{state.word.substr}</Td>
-              <Td>{state.stack.map((s) => String(s.symbol)).join(', ')}</Td>
+              <Td>
+                {state.stack
+                  .map((s) => (s instanceof StackAction ? 'f()' : String(s)))
+                  .join(', ')}
+              </Td>
               <Td>
                 <Collected collected={state.collected} />
               </Td>

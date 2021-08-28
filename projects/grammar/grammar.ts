@@ -118,7 +118,7 @@ export class Grammar<Symbol, ActionValue = any>
   }
 }
 
-class SemanticAction<ActionValue> {
+export class SemanticAction<ActionValue> {
   func: ActionFunction<ActionValue>;
   constructor(func: ActionFunction<ActionValue>) {
     this.func = func;

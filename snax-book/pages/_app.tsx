@@ -1,4 +1,3 @@
-import '../styles/general.css';
 import '../styles/variables.css';
 import '../styles/general.css';
 import '../styles/chrome.css';
@@ -32,6 +31,7 @@ const links: Section[] = [
     path: '/parsing',
     children: [
       { title: 'Grammars', path: '/parsing/grammars' },
+      { title: 'Syntax Directed Definitions (SDD)', path: '/parsing/sdd' },
       { title: 'LL1 Parsing', path: '/parsing/LL1' },
     ],
   },

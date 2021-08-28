@@ -50,6 +50,13 @@ describe('end-to-end test', () => {
     expect(await exec('false;')).toBe(0);
   });
 
+  it('compiles boolean expressions', async () => {
+    expect(await exec('true && false;')).toBe(0);
+    expect(await exec('true || false;')).toBe(1);
+    expect(await exec('true && true;')).toBe(1);
+    expect(await exec('false || false;')).toBe(0);
+  });
+
   it('compiles expressions', async () => {
     const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10;');
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`

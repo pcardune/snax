@@ -151,6 +151,22 @@ describe('SNAX Parser', () => {
           new Expression(BinaryOp.ADD, new NumberLiteral(3), new SymbolRef('x'))
         );
       });
+      it('should handle boolean operators', () => {
+        expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
+          new Expression(
+            BinaryOp.LOGICAL_AND,
+            new BooleanLiteral(true),
+            new SymbolRef('x')
+          )
+        );
+        expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
+          new Expression(
+            BinaryOp.LOGICAL_OR,
+            new BooleanLiteral(true),
+            new SymbolRef('x')
+          )
+        );
+      });
     });
 
     describe('let statements', () => {

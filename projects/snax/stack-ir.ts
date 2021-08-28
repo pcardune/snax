@@ -36,13 +36,6 @@ export class PushConst implements IR {
   }
 }
 
-class BinaryOp {
-  valueType: NumberType;
-  constructor(valueType: NumberType) {
-    this.valueType = valueType;
-  }
-}
-
 export class Convert implements IR {
   sourceType: NumberType;
   destType: NumberType;
@@ -61,28 +54,38 @@ export class Convert implements IR {
   }
 }
 
-export class Add extends BinaryOp implements IR {
-  toWAT(): string {
-    return `${this.valueType}.add`;
+abstract class BinaryOp {
+  valueType: NumberType;
+  constructor(valueType: NumberType) {
+    this.valueType = valueType;
   }
+  abstract get instruction(): string;
+  toWAT(): string {
+    return `${this.valueType}.${this.instruction}`;
+  }
+}
+export class Add extends BinaryOp implements IR {
+  instruction = 'add';
 }
 
 export class Sub extends BinaryOp implements IR {
-  toWAT(): string {
-    return `${this.valueType}.sub`;
-  }
+  instruction = 'sub';
 }
 
 export class Mul extends BinaryOp implements IR {
-  toWAT(): string {
-    return `${this.valueType}.mul`;
-  }
+  instruction = 'mul';
 }
 
 export class Div extends BinaryOp implements IR {
-  toWAT(): string {
-    return `${this.valueType}.div_s`;
-  }
+  instruction = 'div_s';
+}
+
+export class And extends BinaryOp implements IR {
+  instruction = 'and';
+}
+
+export class Or extends BinaryOp implements IR {
+  instruction = 'or';
 }
 
 export class LocalGet implements IR {

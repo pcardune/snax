@@ -273,6 +273,8 @@ export enum BinaryOp {
   ADD = '+',
   SUB = '-',
   ASSIGN = '=',
+  LOGICAL_AND = '&&',
+  LOGICAL_OR = '||',
 }
 
 const getASTValueTypeForBinaryOp = (
@@ -280,27 +282,35 @@ const getASTValueTypeForBinaryOp = (
   leftType: BaseType,
   rightType: BaseType
 ): BaseType => {
-  let { i32: Integer, f32: Float } = Intrinsics;
+  let { i32, f32, Bool } = Intrinsics;
+  const error = new Error(`Can't perform ${leftType} ${op} ${rightType}`);
   switch (leftType) {
-    case Integer:
+    case Bool:
       switch (rightType) {
-        case Integer:
-          return Integer;
-        case Float:
-          return Float;
+        case Bool:
+          return Bool;
         default:
-          throw new Error(`Can't perform ${leftType}${op}${rightType}`);
+          throw error;
       }
-    case Float:
+    case i32:
       switch (rightType) {
-        case Integer:
-        case Float:
-          return Float;
+        case i32:
+          return i32;
+        case f32:
+          return f32;
         default:
-          throw new Error(`Can't perform ${leftType}${op}${rightType}`);
+          throw error;
+      }
+    case f32:
+      switch (rightType) {
+        case i32:
+        case f32:
+          return f32;
+        default:
+          throw error;
       }
     default:
-      throw new Error(`Can't perform ${leftType}${op}${rightType}`);
+      throw error;
   }
 };
 

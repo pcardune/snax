@@ -54,6 +54,11 @@ class ResolvedSymbolRefCompiler extends ASTCompiler<AST.ResolvedSymbolRef> {
   }
 }
 
+type LogicalOp = AST.BinaryOp.LOGICAL_AND | AST.BinaryOp.LOGICAL_OR;
+function isLogicalOp(op: AST.BinaryOp): op is LogicalOp {
+  return [AST.BinaryOp.LOGICAL_AND, AST.BinaryOp.LOGICAL_OR].includes(op);
+}
+
 type NumericOp =
   | AST.BinaryOp.MUL
   | AST.BinaryOp.DIV
@@ -100,6 +105,21 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
     throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
   }
 
+  private getLogicalOpInstruction() {
+    const {
+      BinaryOp: { LOGICAL_AND, LOGICAL_OR },
+    } = AST;
+    if (!isLogicalOp(this.root.op)) {
+      throw new Error('panic in the disco');
+    }
+    switch (this.root.op) {
+      case LOGICAL_AND:
+        return new IR.And(this.root.resolveType().toValueType());
+      case LOGICAL_OR:
+        return new IR.Or(this.root.resolveType().toValueType());
+    }
+  }
+
   compile(): IR.Instruction[] {
     if (isNumericOp(this.root.op)) {
       return [
@@ -107,6 +127,14 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
         ...this.convert(this.root.left),
         ...ASTCompiler.forNode(this.root.right).compile(),
         this.getNumericalOpInstruction(),
+      ];
+    }
+    if (isLogicalOp(this.root.op)) {
+      return [
+        ...ASTCompiler.forNode(this.root.left).compile(),
+        ...this.convert(this.root.left),
+        ...ASTCompiler.forNode(this.root.right).compile(),
+        this.getLogicalOpInstruction(),
       ];
     }
     throw new Error(`Not sure how to compile operator ${this.root.op} yet...`);

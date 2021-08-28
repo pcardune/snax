@@ -42,8 +42,20 @@ expr "expr"
   = assignment
 
 assignment "assignment"
-  = left:additive ws "=" ws right:additive {
+  = left:bool_or ws "=" ws right:bool_or {
     return new AST.Expression(AST.BinaryOp.ASSIGN, left, right);
+  }
+  / bool_or
+
+bool_or "bool or"
+  = left:bool_and ws "||" ws right:bool_and {
+    return new AST.Expression(AST.BinaryOp.LOGICAL_OR, left, right);
+  }
+  / bool_and
+
+bool_and "bool op"
+  = left:additive ws "&&" ws right:additive {
+    return new AST.Expression(AST.BinaryOp.LOGICAL_AND, left, right);
   }
   / additive
 

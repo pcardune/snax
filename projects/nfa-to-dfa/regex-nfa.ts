@@ -257,7 +257,9 @@ export function chars(validChars: string | Iterable<number>): RegexNFA {
   }
   return nfa;
 }
-
+/**
+ * Returns an NFA that matches a sequence of characters.
+ */
 export function charSeq(seq: string | Iterable<number>): RegexNFA {
   if (typeof seq == 'string') {
     seq = charCodes(seq);

@@ -1,7 +1,7 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { charCodes, Iter, rewindable, RewindableIterator } from '../utils/iter';
 import { ConstNFA } from '../nfa-to-dfa/nfa';
-import { CombinedDFA } from '../nfa-to-dfa/regex-nfa';
+import { charSeq, CombinedDFA } from '../nfa-to-dfa/regex-nfa';
 import { LexToken } from './lexer-gen';
 
 export class MultiPatternMatcher<T> {
@@ -80,7 +80,9 @@ export class NewTokenIterator<T> extends Iter<LexToken<T>> {
 export class PatternLexer<T> {
   private matcher: MultiPatternMatcher<T>;
   private ignore: T[] = [];
+
   readonly patternDescriptions: OrderedMap<T, string>;
+
   constructor(patterns: OrderedMap<T, { nfa: ConstNFA; ignore?: boolean }>) {
     this.matcher = new MultiPatternMatcher(patterns.map((v) => v.nfa));
     this.patternDescriptions = patterns.map((v) => v.nfa.getDescription());
@@ -90,10 +92,24 @@ export class PatternLexer<T> {
       .map(([_i, k]) => k)
       .toArray();
   }
+
   parse(input: Iterator<number> | string) {
     if (typeof input === 'string') {
       input = charCodes(input);
     }
     return new NewTokenIterator(this.matcher, input, this.ignore);
+  }
+
+  /**
+   * Constructs a pattern lexer from a Set of strings.
+   * Given the set ["foo", "bar", "zoo"], the resulting
+   * lexer will produce tokens for those words.
+   */
+  static forCharSequences(charSeqs: Set<string>): PatternLexer<string> {
+    const patterns: OrderedMap<string, { nfa: ConstNFA }> = new OrderedMap();
+    for (const seq of charSeqs) {
+      patterns.set(seq, { nfa: charSeq(seq) });
+    }
+    return new PatternLexer(patterns);
   }
 }

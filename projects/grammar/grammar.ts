@@ -30,10 +30,16 @@ export class Grammar<Symbol, ActionValue = any>
 
   createProduction(
     rule: Symbol,
-    symbols: Symbol[],
+    symbols: (Symbol | SemanticAction<ActionValue>)[],
     action?: ActionFunction<ActionValue>
   ) {
-    const production = new Production(rule, symbols, action);
+    if (action) {
+      symbols.push(new SemanticAction(action));
+    }
+    const production: Production<Symbol, ActionValue> = new Production(
+      rule,
+      symbols
+    );
     this.addProduction(production);
     return production;
   }
@@ -112,10 +118,14 @@ export class Grammar<Symbol, ActionValue = any>
   }
 }
 
-export class Production<
-  Symbol extends { toString(): string },
-  ActionValue = void
-> {
+class SemanticAction<ActionValue> {
+  func: ActionFunction<ActionValue>;
+  constructor(func: ActionFunction<ActionValue>) {
+    this.func = func;
+  }
+}
+
+export class Production<Symbol, ActionValue = void> {
   /**
    * The left hand symbol. So the production:
    *   Expr -> Term Op Term
@@ -128,22 +138,37 @@ export class Production<
    *   Expr -> Term Op Term
    * the `symbols` would be `[Term, Op, Term]`
    */
-  readonly symbols: Readonly<Symbol[]>;
-
-  readonly action: ActionFunction<ActionValue>;
+  readonly body: Readonly<(Symbol | SemanticAction<ActionValue>)[]>;
 
   constructor(
     rule: Symbol,
-    symbols: Symbol[],
+    symbols: (Symbol | SemanticAction<ActionValue>)[],
     action?: ActionFunction<ActionValue>
   ) {
+    if (action) {
+      symbols.push(new SemanticAction(action));
+    }
     this.rule = rule;
-    this.symbols = symbols;
-    this.action = action
-      ? action
-      : () => {
-          throw new Error('No action for production ' + this.toString());
-        };
+    this.body = symbols;
+  }
+
+  get symbols(): Symbol[] {
+    return this.body.filter((s) => !(s instanceof SemanticAction)) as Symbol[];
+  }
+
+  /**
+   * @deprecated
+   */
+  get action(): ActionFunction<ActionValue> {
+    const action = this.body.find((s) => s instanceof SemanticAction) as
+      | SemanticAction<ActionValue>
+      | undefined;
+    if (action) {
+      return action.func;
+    }
+    return () => {
+      throw new Error('No action for production ' + this.toString());
+    };
   }
 
   isLeftRecursive(): boolean {
@@ -166,7 +191,7 @@ export class Production<
   }
 
   toString(): string {
-    return `${this.rule} -> ${this.symbols.map((s) => s.toString()).join(' ')}`;
+    return `${this.rule} -> ${this.symbols.map((s) => String(s)).join(' ')}`;
   }
 }
 export type ParseNodeGrammar = Grammar<
@@ -187,16 +212,16 @@ export function buildGrammar(productions: GrammarSpec) {
     for (const specSymbols of value) {
       if (specSymbols.length === 0) {
         // this is an empty rule, put epsilon in it
-        grammar.createProduction(
-          symbol,
-          [EPSILON],
-          (children, tokens) => new ParseNode(symbol, children)
-        );
+        grammar.createProduction(symbol, [
+          EPSILON,
+          new SemanticAction(
+            (children, tokens) => new ParseNode(symbol, children)
+          ),
+        ]);
       } else {
-        grammar.createProduction(
-          symbol,
-          [...specSymbols],
-          (children, tokens) => {
+        grammar.createProduction(symbol, [
+          ...specSymbols,
+          new SemanticAction((children, tokens) => {
             let spliced: ParseNode<GrammarSymbol | null, LexToken<any>>[] = [];
             for (let [i, child] of children.entries()) {
               if (child) {
@@ -206,8 +231,8 @@ export function buildGrammar(productions: GrammarSpec) {
               }
             }
             return new ParseNode(symbol, spliced);
-          }
-        );
+          }),
+        ]);
       }
     }
   });

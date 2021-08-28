@@ -1,6 +1,6 @@
 {
   "extends": "../tsconfig.base.json",
-  "include": ["*.ts"],
+  "include": ["*.ts", "peggy/snax.ts"],
   "references": [
     { "path": "../grammar" },
     { "path": "../utils" },

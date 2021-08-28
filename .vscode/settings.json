@@ -1,4 +1,12 @@
 {
   "jest.jestCommandLine": "./node_modules/.bin/jest",
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "projects/snax/peggy/snax\\.peggy",
+        "cmd": "npx ts-node projects/snax/peggy/build.ts"
+      }
+    ]
+  }
 }

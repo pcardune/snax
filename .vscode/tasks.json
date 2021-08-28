@@ -12,7 +12,8 @@
       "label": "build",
       "type": "shell",
       "command": "npx tsc --build --watch",
-      "isBackground": true
+      "isBackground": true,
+      "problemMatcher": []
     },
     {
       "label": "dev",

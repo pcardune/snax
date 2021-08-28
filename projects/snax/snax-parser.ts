@@ -169,25 +169,21 @@ grammar.createProduction(R.NumberLiteral, [T.FLOAT_NUMBER], (_, [token]) => {
   const value = parseFloat((token as LexToken<unknown>).substr);
   return new NumberLiteral(value, AST.NumberLiteralType.Float);
 });
+import { parse } from './peggy/snax';
 
 export class SNAXParser {
-  static parseStr(input: string, start: R = R.Root): Result<ASTNode, any> {
-    const tokens = lexer.parse(input);
-    const result = parseFlow(grammar, start, tokens);
-    if (result.isOk()) {
-      if (!result.value) {
-        return err('Nothing to parse');
-      }
-      return ok(result.value);
+  static parseStr(
+    input: string,
+    start: string = 'start'
+  ): Result<ASTNode, any> {
+    try {
+      return ok(SNAXParser.parseStrOrThrow(input, start) as ASTNode);
+    } catch (e) {
+      return err(e);
     }
-    return err(result.error);
   }
 
-  static parseStrOrThrow(input: string, start: R = R.Root): ASTNode {
-    const result = SNAXParser.parseStr(input, start);
-    if (result.isErr()) {
-      throw result.error;
-    }
-    return result.value;
+  static parseStrOrThrow(input: string, start: string = 'start'): ASTNode {
+    return parse(input, { startRule: start }) as ASTNode;
   }
 }

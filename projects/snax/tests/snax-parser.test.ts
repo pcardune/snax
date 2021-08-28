@@ -60,27 +60,15 @@ describe('SNAX grammar', () => {
 
 describe('SNAX Parser', () => {
   describe('parseStr', () => {
-    describe('empty string', () => {
-      it('should return an error result', () => {
-        const node = SNAXParser.parseStrOrThrow('');
-        expect(node).toEqual(new Block([]));
-      });
-    });
     describe('numbers', () => {
       it('should parse a string with a number into a NumberLiteral', () => {
-        const literal = SNAXParser.parseStrOrThrow(
-          '123',
-          Rule.NumberLiteral
-        ) as NumberLiteral;
+        const literal = SNAXParser.parseStrOrThrow('123', 'expr');
         expect(literal).toEqual(
           new NumberLiteral(123, NumberLiteralType.Integer)
         );
       });
       it('should parse a string with a floating point number into a NumberLiteral', () => {
-        const literal = SNAXParser.parseStrOrThrow(
-          '1.23',
-          Rule.NumberLiteral
-        ) as NumberLiteral;
+        const literal = SNAXParser.parseStrOrThrow('1.23', 'expr');
         expect(literal).toEqual(
           new NumberLiteral(1.23, NumberLiteralType.Float)
         );
@@ -88,13 +76,13 @@ describe('SNAX Parser', () => {
     });
     describe('expression', () => {
       it('should drop parentheses', () => {
-        const expr = SNAXParser.parseStrOrThrow('(123)', Rule.Expr);
-        expect(expr).toBeInstanceOf(NumberLiteral);
+        const expr = SNAXParser.parseStrOrThrow('(123)', 'expr');
+        expect(expr).toEqual(new NumberLiteral(123));
       });
       it('should handle +', () => {
         const expr = SNAXParser.parseStrOrThrow(
           '123+456',
-          Rule.Expr
+          'expr'
         ) as Expression;
         expect(expr).toBeInstanceOf(Expression);
         expect(expr.left).toBeInstanceOf(NumberLiteral);
@@ -104,28 +92,22 @@ describe('SNAX Parser', () => {
         expect((expr.right as NumberLiteral).value).toEqual(456);
       });
       it("should handle a sequence of +'s", () => {
-        const expr = SNAXParser.parseStrOrThrow(
-          '123+456+789',
-          Rule.Expr
-        ) as Expression;
+        const expr = SNAXParser.parseStrOrThrow('123+456+789', 'expr');
 
         expect(expr).toEqual(
           new Expression(
             BinaryOp.ADD,
-            new NumberLiteral(123),
             new Expression(
               BinaryOp.ADD,
-              new NumberLiteral(456),
-              new NumberLiteral(789)
-            )
+              new NumberLiteral(123),
+              new NumberLiteral(456)
+            ),
+            new NumberLiteral(789)
           )
         );
       });
       it('should make * operator take precedence over +', () => {
-        let expr = SNAXParser.parseStrOrThrow(
-          '123+456*789',
-          Rule.Expr
-        ) as Expression;
+        let expr = SNAXParser.parseStrOrThrow('123+456*789', 'expr');
         expect(expr).toEqual(
           new Expression(
             BinaryOp.ADD,
@@ -138,10 +120,7 @@ describe('SNAX Parser', () => {
           )
         );
 
-        expr = SNAXParser.parseStrOrThrow(
-          '123*456+789',
-          Rule.Expr
-        ) as Expression;
+        expr = SNAXParser.parseStrOrThrow('123*456+789', 'expr');
         expect(expr).toEqual(
           new Expression(
             BinaryOp.ADD,
@@ -156,11 +135,11 @@ describe('SNAX Parser', () => {
       });
       it('should ignore whitespace', () => {
         expect(
-          SNAXParser.parseStrOrThrow('123 + \n456 * \t789', Rule.Expr)
-        ).toEqual(SNAXParser.parseStrOrThrow('123+456*789', Rule.Expr));
+          SNAXParser.parseStrOrThrow('123 + \n456 * \t789', 'expr')
+        ).toEqual(SNAXParser.parseStrOrThrow('123+456*789', 'expr'));
       });
       it('should allow symbols', () => {
-        expect(SNAXParser.parseStrOrThrow('3+x', Rule.Expr)).toEqual(
+        expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(
           new Expression(BinaryOp.ADD, new NumberLiteral(3), new SymbolRef('x'))
         );
       });
@@ -170,7 +149,7 @@ describe('SNAX Parser', () => {
       it('should parse untyped let statements', () => {
         const letNode = SNAXParser.parseStrOrThrow(
           'let x = 3;',
-          Rule.LetStatement
+          'statement'
         ) as LetStatement;
         expect(letNode).toEqual(
           new LetStatement('x', null, new NumberLiteral(3))
@@ -179,7 +158,7 @@ describe('SNAX Parser', () => {
       it('should parse typed let statements', () => {
         const letNode = SNAXParser.parseStrOrThrow(
           'let x:i32 = 3;',
-          Rule.LetStatement
+          'statement'
         ) as LetStatement;
         expect(letNode).toEqual(
           new LetStatement(

@@ -59,12 +59,29 @@ class VoidType extends BaseType {
     throw new Error('void types do not have a corresponding value type');
   }
 }
+
 class UnknownType extends BaseType {
   constructor() {
     super('unknown');
   }
   toValueType(): StackIR.NumberType {
     throw new Error('unknown types do not have a corresponding value type');
+  }
+}
+
+class FuncType extends BaseType {
+  argTypes: BaseType[];
+  returnType: BaseType;
+  constructor(argTypes: BaseType[], returnType: BaseType) {
+    super(
+      `func(${argTypes.map((at) => at.name).join(', ')}):${returnType.name}`
+    );
+    this.argTypes = argTypes;
+    this.returnType = returnType;
+  }
+
+  toValueType(): StackIR.NumberType {
+    throw new Error('func types do not have a corresponding value type... yet');
   }
 }
 
@@ -75,5 +92,9 @@ export const Intrinsics = {
   f64: new NumericalType('f64', 'float', 8),
   Void: new VoidType(),
   Unknown: new UnknownType(),
+};
+const { i32, i64, f32, f64 } = Intrinsics;
+export const Operators = {
+  i32Add: new FuncType([i32, i32], i32),
 };
 export type { VoidType, UnknownType, NumericalType };

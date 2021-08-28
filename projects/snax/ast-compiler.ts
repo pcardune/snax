@@ -85,10 +85,24 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
         return new IR.Div(valueType);
     }
   }
+
+  private convert(child: AST.ASTNode) {
+    const targetType = this.root.resolveType().toValueType();
+    const childType = child.resolveType().toValueType();
+    if (childType === targetType) {
+      return [];
+    }
+    if (IR.isIntType(childType) && IR.isFloatType(targetType)) {
+      return [new IR.Convert(childType, targetType)];
+    }
+    throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
+  }
+
   compile(): IR.Instruction[] {
     if (isNumericOp(this.root.op)) {
       return [
         ...ASTCompiler.forNode(this.root.left).compile(),
+        ...this.convert(this.root.left),
         ...ASTCompiler.forNode(this.root.right).compile(),
         this.getNumericalOpInstruction(),
       ];

@@ -61,7 +61,7 @@ describe('end-to-end test', () => {
     expect(exports.main()).toEqual(12);
   });
 
-  xit('converts between ints and floats', async () => {
+  it('converts between ints and floats', async () => {
     const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
     expect(exports.main()).toBeCloseTo(8.2);
   });

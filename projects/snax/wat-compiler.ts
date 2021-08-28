@@ -7,9 +7,6 @@ import * as ASTCompiler from './ast-compiler';
 export interface HasWAT {
   toWAT(): string;
 }
-export function hasWAT(item: any): item is HasWAT {
-  return !!item.toStackIR;
-}
 
 export function compileStr(input: string): Result<string, any> {
   const maybeAST = SNAXParser.parseStr(input);

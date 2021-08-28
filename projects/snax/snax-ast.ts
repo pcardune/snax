@@ -1,8 +1,7 @@
-import { HasStackIR, Instruction, PushConst } from './stack-ir';
-import * as StackIR from './stack-ir';
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { BaseType, Intrinsics } from './snax-types';
+import { ASTCompiler } from './ast-compiler';
 
 export interface ASTNode {
   children: ASTNode[];
@@ -27,6 +26,11 @@ abstract class BaseNode implements ASTNode {
   toString() {
     return this.name;
   }
+
+  toStackIR() {
+    return ASTCompiler.forNode(this).compile();
+  }
+
   abstract get name(): string;
   abstract resolveType(): BaseType;
 }
@@ -48,7 +52,7 @@ export enum NumberLiteralType {
   Integer = 'int',
   Float = 'float',
 }
-export class NumberLiteral extends BaseNode implements HasStackIR {
+export class NumberLiteral extends BaseNode {
   name = 'NumberLiteral';
   readonly value: number;
   readonly numberType: NumberLiteralType;
@@ -68,11 +72,6 @@ export class NumberLiteral extends BaseNode implements HasStackIR {
       case NumberLiteralType.Integer:
         return Intrinsics.i32;
     }
-  }
-
-  toStackIR(): Instruction[] {
-    const valueType = this.resolveType().toValueType();
-    return [new PushConst(valueType, this.value)];
   }
 }
 

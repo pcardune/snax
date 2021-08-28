@@ -1,4 +1,4 @@
-import { HasWAT as IR } from './wat-compiler';
+import { HasWAT } from './wat-compiler';
 
 /**
  * Number Types. Basically the same as:
@@ -24,10 +24,15 @@ enum Sign {
   Unsigned = 'u',
 }
 
-export class PushConst implements IR {
+abstract class Instruction implements HasWAT {
+  abstract toWAT(): string;
+}
+
+export class PushConst extends Instruction {
   valueType: NumberType;
   value: number;
   constructor(valueType: NumberType, value: number) {
+    super();
     this.valueType = valueType;
     this.value = value;
   }
@@ -36,7 +41,7 @@ export class PushConst implements IR {
   }
 }
 
-export class Convert implements IR {
+export class Convert extends Instruction {
   sourceType: NumberType;
   destType: NumberType;
   sign: Sign;
@@ -45,6 +50,7 @@ export class Convert implements IR {
     destType: NumberType.f32 | NumberType.f64,
     sign: Sign = Sign.Signed
   ) {
+    super();
     this.sourceType = sourceType;
     this.destType = destType;
     this.sign = sign;
@@ -64,33 +70,34 @@ abstract class BinaryOp {
     return `${this.valueType}.${this.instruction}`;
   }
 }
-export class Add extends BinaryOp implements IR {
+export class Add extends BinaryOp {
   instruction = 'add';
 }
 
-export class Sub extends BinaryOp implements IR {
+export class Sub extends BinaryOp {
   instruction = 'sub';
 }
 
-export class Mul extends BinaryOp implements IR {
+export class Mul extends BinaryOp {
   instruction = 'mul';
 }
 
-export class Div extends BinaryOp implements IR {
+export class Div extends BinaryOp {
   instruction = 'div_s';
 }
 
-export class And extends BinaryOp implements IR {
+export class And extends BinaryOp {
   instruction = 'and';
 }
 
-export class Or extends BinaryOp implements IR {
+export class Or extends BinaryOp {
   instruction = 'or';
 }
 
-export class LocalGet implements IR {
+export class LocalGet extends Instruction {
   offset: number;
   constructor(offset: number) {
+    super();
     this.offset = offset;
   }
   toWAT(): string {
@@ -98,9 +105,10 @@ export class LocalGet implements IR {
   }
 }
 
-export class LocalSet implements IR {
+export class LocalSet extends Instruction {
   offset: number;
   constructor(offset: number) {
+    super();
     this.offset = offset;
   }
   toWAT(): string {
@@ -108,20 +116,4 @@ export class LocalSet implements IR {
   }
 }
 
-export type Instruction =
-  | PushConst
-  | Add
-  | Sub
-  | Mul
-  | Div
-  | LocalGet
-  | LocalSet
-  | Convert;
-
-export interface HasStackIR {
-  toStackIR(): Instruction[];
-}
-
-export function hasStackIR(item: any): item is HasStackIR {
-  return !!item.toStackIR;
-}
+export type { Instruction };

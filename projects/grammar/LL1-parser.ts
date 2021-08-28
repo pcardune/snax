@@ -111,6 +111,15 @@ export class LL1Parser<S, A> {
    * @returns
    */
   parseTokens(tokens: Iterable<LexToken<S>>): Result<A | null, any> {
+    const generator = this.parseGen(tokens);
+    let state;
+    do {
+      state = generator.next();
+    } while (!state.done);
+    return state.value as Result<A | null, any>;
+  }
+
+  *parseGen(tokens: Iterable<LexToken<S>>) {
     const callAction = (
       action: ActionFunction<A>,
       tokens: (LexToken<S | Eof> | A)[]
@@ -141,9 +150,9 @@ export class LL1Parser<S, A> {
     let stack: State[] = [{ symbol: EOF, collect: false }];
     stack.push({ symbol: this.start, collect: false });
     let focus = stack[stack.length - 1];
-    let root: A | null = null;
     let collected: (LexToken<S | Eof> | A)[] = [];
     while (true) {
+      yield { focus, stack: [...stack], collected: [...collected], word };
       if (focus.collect) {
         stack.pop();
         if (!focus.production) {
@@ -159,7 +168,7 @@ export class LL1Parser<S, A> {
         collected.push(callAction(action, tokens));
       } else if (focus.symbol === EOF && word.token === EOF) {
         // success
-        return ok(collected[0] as A);
+        return ok(collected[0] as A) as Result<A | null, any>;
       } else if (focus.symbol === EOF || terminals.has(focus.symbol)) {
         if (focus.symbol === word.token) {
           collected.push(word);
@@ -182,7 +191,10 @@ export class LL1Parser<S, A> {
             }
           }
         } else {
-          return err(new Error(`Failed to expand ${focus.symbol}`));
+          return err(new Error(`Failed to expand ${focus.symbol}`)) as Result<
+            A | null,
+            any
+          >;
         }
       }
       focus = stack[stack.length - 1];

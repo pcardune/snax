@@ -177,7 +177,9 @@ export class ParseNode<R, T extends LexToken<any>> {
     if (this.token) {
       return this.token.toString();
     }
-    return `${this.rule}[${this.children.map((c) => c.toString()).join(', ')}]`;
+    return `${this.rule}[${this.children
+      .map((c) => (c ? c.toString() : 'ERROR'))
+      .join(', ')}]`;
   }
 }
 

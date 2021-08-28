@@ -2,6 +2,7 @@ import { LL1TableUI } from '../../components/LL1TableUI';
 import { GrammarTable } from '../../components/GrammarTable';
 import expressionSpec from '../../grammars/expressionSpec';
 import numbersSpec from '../../grammars/numbersSpec';
+import { LL1ParserUI } from '../../components/LL1ParserUI';
 
 # Table-Driven LL(1) Parsing
 
@@ -20,5 +21,21 @@ The LL(1) lookahead table would look like this:
 
 ## Parsing
 
-<GrammarTable grammar={numbersSpec} />
-<LL1TableUI start="Goal" grammarSpec={numbersSpec} />
+<LL1ParserUI grammar={expressionSpec} start="Goal" input="num" />
+
+Let's look at an example of parsing a binary number. Below is the grammar we'll use, along with the lookahead table:
+
+<div
+  style={{
+    display: 'flex',
+    flexFlow: 'row wrap',
+    justifyContent: 'space-around',
+  }}
+>
+  <GrammarTable grammar={numbersSpec} />
+  <LL1TableUI start="Goal" grammarSpec={numbersSpec} />
+</div>
+
+We'll parse the string "101". As the parsing algorithm unfolds, the parser goes through these states:
+
+<LL1ParserUI grammar={numbersSpec} start="Goal" input="101" />

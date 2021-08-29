@@ -40,7 +40,10 @@ export function compileAST(block: AST.Block): string {
   const moduleBody = `
 (func (export "main") (result ${returnType})
   (local ${locals.join(' ')})
+  i32.const 1
+  memory.grow
+  drop
   ${mainBody}
 )`;
-  return `(module ${moduleBody})`;
+  return `(module (memory 1) (export "mem" (memory 0)) ${moduleBody})`;
 }

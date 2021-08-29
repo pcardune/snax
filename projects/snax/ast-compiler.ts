@@ -24,6 +24,8 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new ResolvedSymbolRefCompiler(node);
     } else if (node instanceof AST.BooleanLiteral) {
       return new BooleanLiteralCompiler(node);
+    } else if (node instanceof AST.ArrayLiteral) {
+      return new ArrayLiteralCompiler(node);
     } else {
       throw new Error(`No compiler available for node ${node.toString()}`);
     }
@@ -120,6 +122,18 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
     }
   }
 
+  private compileArrayIndex(refExpr: AST.ASTNode, indexExpr: AST.ASTNode) {
+    const valueType = this.root.resolveType().toValueType();
+    return [
+      ...ASTCompiler.forNode(refExpr).compile(),
+      ...ASTCompiler.forNode(indexExpr).compile(),
+      new IR.Add(valueType),
+      new IR.PushConst(valueType, 4),
+      new IR.Mul(valueType),
+      new IR.MemoryLoad(refExpr.resolveType().toValueType(), 0),
+    ];
+  }
+
   compile(): IR.Instruction[] {
     if (isNumericOp(this.root.op)) {
       return [
@@ -137,7 +151,12 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
         this.getLogicalOpInstruction(),
       ];
     }
-    throw new Error(`Not sure how to compile operator ${this.root.op} yet...`);
+    if (this.root.op === AST.BinaryOp.ARRAY_INDEX) {
+      return this.compileArrayIndex(this.root.left, this.root.right);
+    }
+    throw new Error(
+      `ExpressionCompiler: Not sure how to compile operator ${this.root.op} yet...`
+    );
   }
 }
 
@@ -152,5 +171,26 @@ class BooleanLiteralCompiler extends ASTCompiler<AST.BooleanLiteral> {
   compile(): IR.Instruction[] {
     const value = this.root.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];
+  }
+}
+
+class ArrayLiteralCompiler extends ASTCompiler<AST.ArrayLiteral> {
+  compile(): IR.Instruction[] {
+    const arrayType = this.root.resolveType();
+    // TODO: this should not be zero, otherwise every array literal
+    // will overwrite the other array literals...
+    const baseAddressInstr = new IR.PushConst(IR.NumberType.i32, 0);
+    const instr: IR.Instruction[] = [
+      ...this.root.children.map((child, i) => [
+        // push memory space offset
+        baseAddressInstr,
+        // push value from expression
+        ...ASTCompiler.forNode(child).compile(),
+        // store value
+        new IR.MemoryStore(arrayType.elementType.toValueType(), i * 4, 4),
+      ]),
+    ].flat();
+    instr.push(baseAddressInstr);
+    return instr;
   }
 }

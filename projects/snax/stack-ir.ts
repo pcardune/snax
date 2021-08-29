@@ -116,4 +116,34 @@ export class LocalSet extends Instruction {
   }
 }
 
+export class MemoryLoad extends Instruction {
+  valueType: NumberType;
+  offset: number;
+  align: number;
+  constructor(valueType: NumberType, offset: number = 0, align: number = 1) {
+    super();
+    this.valueType = valueType;
+    this.offset = offset;
+    this.align = align;
+  }
+  toWAT(): string {
+    return `${this.valueType}.load offset=${this.offset} align=${this.align}`;
+  }
+}
+
+export class MemoryStore extends Instruction {
+  valueType: NumberType;
+  offset: number;
+  align: number;
+  constructor(valueType: NumberType, offset: number = 0, align: number = 1) {
+    super();
+    this.valueType = valueType;
+    this.offset = offset;
+    this.align = align;
+  }
+  toWAT(): string {
+    return `${this.valueType}.store offset=${this.offset} align=${this.align}`;
+  }
+}
+
 export type { Instruction };

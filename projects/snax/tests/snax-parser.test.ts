@@ -11,6 +11,7 @@ import {
   TypeRef,
   NumberLiteralType,
   BooleanLiteral,
+  ArrayLiteral,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -79,6 +80,22 @@ describe('SNAX Parser', () => {
       it('should parse true into a BooleanLiteral', () => {
         expect(SNAXParser.parseStrOrThrow('true', 'expr')).toEqual(
           new BooleanLiteral(true)
+        );
+      });
+    });
+    describe('array literals', () => {
+      it('should parse [] into an array literal', () => {
+        expect(SNAXParser.parseStrOrThrow('[]', 'expr')).toEqual(
+          new ArrayLiteral([])
+        );
+      });
+      it('should parse [3,4,5] into an array literal', () => {
+        expect(SNAXParser.parseStrOrThrow('[3, 4, 5]', 'expr')).toEqual(
+          new ArrayLiteral([
+            new NumberLiteral(3),
+            new NumberLiteral(4),
+            new NumberLiteral(5),
+          ])
         );
       });
     });
@@ -166,6 +183,18 @@ describe('SNAX Parser', () => {
             new SymbolRef('x')
           )
         );
+      });
+
+      describe('array indexing expressions', () => {
+        it('should parse array indexing operator', () => {
+          expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
+            new Expression(
+              BinaryOp.ARRAY_INDEX,
+              new SymbolRef('x'),
+              new NumberLiteral(1)
+            )
+          );
+        });
       });
     });
 

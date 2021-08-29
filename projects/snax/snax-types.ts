@@ -78,6 +78,19 @@ class BoolType extends BaseType {
   }
 }
 
+export class ArrayType extends BaseType {
+  elementType: BaseType;
+  length: number;
+  constructor(elementType: BaseType, length: number) {
+    super(`${elementType}[]`);
+    this.elementType = elementType;
+    this.length = length;
+  }
+  toValueType(): StackIR.NumberType {
+    return StackIR.NumberType.i32;
+  }
+}
+
 class FuncType extends BaseType {
   argTypes: BaseType[];
   returnType: BaseType;

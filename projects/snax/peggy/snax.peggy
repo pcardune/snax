@@ -69,19 +69,32 @@ additive "additive"
   / term
 
 term "term"
-  = left:factor ws right:(ws ("*" / "/") ws factor)* {
+  = left:indexing ws right:(ws ("*" / "/") ws indexing)* {
     return right.reduce((result: AST.ASTNode, element: any[]) => {
       let op = element[1] === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV;
       return new AST.Expression(op, result, element[3]);
     }, left);
   }
+  / indexing
+
+indexing "indexing"
+  = element:factor ws "[" ws index:expr ws "]" {
+    return new AST.Expression(AST.BinaryOp.ARRAY_INDEX, element, index);
+  }
   / factor
 
 factor "factor"
   = "(" inner:expr ")" { return inner; }
+  / arrayLiteral
   / number
   / bool
   / id
+
+arrayLiteral "array"
+  = "[" ws items:exprList? ws "]" { return new AST.ArrayLiteral(items || []); }
+
+exprList "exprList"
+  = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map(t=>t[3])]; }
 
 number "number"
   = float

@@ -1,6 +1,6 @@
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { BaseType, Intrinsics } from './snax-types';
+import { ArrayType, BaseType, Intrinsics } from './snax-types';
 import { ASTCompiler } from './ast-compiler';
 
 export interface ASTNode {
@@ -274,6 +274,7 @@ export enum BinaryOp {
   ASSIGN = '=',
   LOGICAL_AND = '&&',
   LOGICAL_OR = '||',
+  ARRAY_INDEX = '[]',
 }
 
 const getASTValueTypeForBinaryOp = (
@@ -282,34 +283,44 @@ const getASTValueTypeForBinaryOp = (
   rightType: BaseType
 ): BaseType => {
   let { i32, f32, Bool } = Intrinsics;
-  const error = new Error(`Can't perform ${leftType} ${op} ${rightType}`);
-  switch (leftType) {
-    case Bool:
-      switch (rightType) {
-        case Bool:
-          return Bool;
-        default:
-          throw error;
+  const error = new Error(
+    `TypeError: Can't perform ${leftType} ${op} ${rightType}`
+  );
+  switch (op) {
+    case BinaryOp.ARRAY_INDEX:
+      if (leftType instanceof ArrayType) {
+        return leftType.elementType;
       }
-    case i32:
-      switch (rightType) {
-        case i32:
-          return i32;
-        case f32:
-          return f32;
-        default:
-          throw error;
-      }
-    case f32:
-      switch (rightType) {
-        case i32:
-        case f32:
-          return f32;
-        default:
-          throw error;
-      }
-    default:
       throw error;
+    default:
+      switch (leftType) {
+        case Bool:
+          switch (rightType) {
+            case Bool:
+              return Bool;
+            default:
+              throw error;
+          }
+        case i32:
+          switch (rightType) {
+            case i32:
+              return i32;
+            case f32:
+              return f32;
+            default:
+              throw error;
+          }
+        case f32:
+          switch (rightType) {
+            case i32:
+            case f32:
+              return f32;
+            default:
+              throw error;
+          }
+        default:
+          throw error;
+      }
   }
 };
 
@@ -333,5 +344,24 @@ export class Expression extends BaseNode {
       this.left.resolveType(),
       this.right.resolveType()
     );
+  }
+}
+
+export class ArrayLiteral extends BaseNode {
+  name = 'Array';
+  constructor(elements: ASTNode[]) {
+    super(elements);
+  }
+
+  resolveType(): ArrayType {
+    let type = Intrinsics.Void;
+    for (const [i, element] of this.children.entries()) {
+      if (i == 0) {
+        type = element.resolveType();
+      } else if (element.resolveType() !== type) {
+        throw new Error("Can't have an array with mixed types.");
+      }
+    }
+    return new ArrayType(type, this.children.length);
   }
 }

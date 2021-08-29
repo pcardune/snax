@@ -12,6 +12,11 @@ import {
   NumberLiteralType,
   BooleanLiteral,
   ArrayLiteral,
+  ParameterList,
+  FuncDecl,
+  Parameter,
+  ReturnStatement,
+  ArgList,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -247,6 +252,60 @@ describe('SNAX Parser', () => {
             ),
             new ExprStatement(new NumberLiteral(8)),
           ])
+        );
+      });
+    });
+
+    describe('functions', () => {
+      it('should parse an empty function', () => {
+        expect(SNAXParser.parseStrOrThrow('func foo() {}')).toEqual(
+          new Block([new FuncDecl('foo', new ParameterList([]), new Block([]))])
+        );
+      });
+      it('should parse a function with parameters', () => {
+        expect(SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}')).toEqual(
+          new Block([
+            new FuncDecl(
+              'foo',
+              new ParameterList([
+                new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+                new Parameter('b', new TypeExpr(new TypeRef('f32'))),
+              ]),
+              new Block([])
+            ),
+          ])
+        );
+      });
+      it('should parse a function with a body', () => {
+        expect(
+          SNAXParser.parseStrOrThrow('func foo(a:i32) { return a+1; }')
+        ).toEqual(
+          new Block([
+            new FuncDecl(
+              'foo',
+              new ParameterList([
+                new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+              ]),
+              new Block([
+                new ReturnStatement(
+                  new Expression(
+                    BinaryOp.ADD,
+                    new SymbolRef('a'),
+                    new NumberLiteral(1)
+                  )
+                ),
+              ])
+            ),
+          ])
+        );
+      });
+      it('should parse a function call', () => {
+        expect(SNAXParser.parseStrOrThrow('foo(3,4)', 'expr')).toEqual(
+          new Expression(
+            BinaryOp.CALL,
+            new SymbolRef('foo'),
+            new ArgList([new NumberLiteral(3), new NumberLiteral(4)])
+          )
         );
       });
     });

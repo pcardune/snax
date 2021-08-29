@@ -28,9 +28,23 @@ statement
   = "let" ws name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr ws ";" {
     return new AST.LetStatement(name, type ? type[2] : null, expr);
   }
+  / funcDecl
+  / "return" ws expr:expr? ws ";" {
+    return new AST.ReturnStatement(expr);
+  }
   / expr:expr ws ";" {
     return new AST.ExprStatement(expr);
   }
+
+funcDecl = "func" ws name:identifier ws "(" ws params:parameterList? ws ")" ws "{" ws block:block? ws "}" {
+    return new AST.FuncDecl(name, params || new AST.ParameterList([]), block || new AST.Block([]));
+  }
+parameterList = head:parameter tail:(ws "," ws parameter)* {
+  return new AST.ParameterList([head, ...tail.map((p:any[]) => p[3])])
+}
+parameter = name:identifier ws ":" ws type:typeExpr {
+  return new AST.Parameter(name, type);
+}
 
 typeExpr "typeExpr"
   = typeRef: typeRef { return new AST.TypeExpr(typeRef); }
@@ -69,11 +83,17 @@ additive "additive"
   / term
 
 term "term"
-  = left:indexing ws right:(ws ("*" / "/") ws indexing)* {
+  = left:calling ws right:(ws ("*" / "/") ws calling)* {
     return right.reduce((result: AST.ASTNode, element: any[]) => {
       let op = element[1] === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV;
       return new AST.Expression(op, result, element[3]);
     }, left);
+  }
+  / calling
+
+calling "calling"
+  = funcExpr:indexing ws "(" ws argList:exprList? ws ")" {
+    return new AST.Expression(AST.BinaryOp.CALL, funcExpr, new AST.ArgList(argList || []));
   }
   / indexing
 

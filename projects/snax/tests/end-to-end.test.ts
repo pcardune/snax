@@ -1,7 +1,7 @@
-import { SNAXParser } from "../snax-parser";
-import * as AST from "../snax-ast";
-import { compileAST } from "../wat-compiler";
-import loadWabt from "wabt";
+import { SNAXParser } from '../snax-parser';
+import * as AST from '../snax-ast';
+import { compileAST } from '../wat-compiler';
+import loadWabt from 'wabt';
 
 type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
@@ -21,7 +21,7 @@ function compileToWAT(input: string) {
 
 async function compileToWasmModule(input: string) {
   const wat = compileToWAT(input);
-  const wasmModule = wabt.parseWat("", wat);
+  const wasmModule = wabt.parseWat('', wat);
   wasmModule.validate();
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
@@ -34,24 +34,24 @@ async function exec(input: string) {
   return exports.main();
 }
 
-describe("end-to-end test", () => {
-  it("compiles integers", async () => {
-    const { exports } = await compileToWasmModule("123;");
+describe('end-to-end test', () => {
+  it('compiles integers', async () => {
+    const { exports } = await compileToWasmModule('123;');
     expect(exports.main()).toEqual(123);
   });
 
-  it("compiles floats", async () => {
-    const { exports } = await compileToWasmModule("1.23;");
+  it('compiles floats', async () => {
+    const { exports } = await compileToWasmModule('1.23;');
     expect(exports.main()).toBeCloseTo(1.23, 4);
   });
 
-  it("compiles booleans", async () => {
-    expect(await exec("true;")).toBe(1);
-    expect(await exec("false;")).toBe(0);
+  it('compiles booleans', async () => {
+    expect(await exec('true;')).toBe(1);
+    expect(await exec('false;')).toBe(0);
   });
 
-  it("compiles arrays", async () => {
-    const input = "[6,5,4][1];";
+  it('compiles arrays', async () => {
+    const input = '[6,5,4][1];';
     const { exports } = await compileToWasmModule(input);
     const result = exports.main();
     const mem = new Int8Array(exports.mem.buffer.slice(0, 12));
@@ -59,15 +59,15 @@ describe("end-to-end test", () => {
     expect(result).toBe(5);
   });
 
-  it("compiles boolean expressions", async () => {
-    expect(await exec("true && false;")).toBe(0);
-    expect(await exec("true || false;")).toBe(1);
-    expect(await exec("true && true;")).toBe(1);
-    expect(await exec("false || false;")).toBe(0);
+  it('compiles boolean expressions', async () => {
+    expect(await exec('true && false;')).toBe(0);
+    expect(await exec('true || false;')).toBe(1);
+    expect(await exec('true && true;')).toBe(1);
+    expect(await exec('false || false;')).toBe(0);
   });
 
-  it("compiles expressions", async () => {
-    const { exports, wasmModule } = await compileToWasmModule("3+5*2-10/10;");
+  it('compiles expressions', async () => {
+    const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10;');
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
@@ -92,14 +92,14 @@ describe("end-to-end test", () => {
     expect(exports.main()).toEqual(12);
   });
 
-  it("converts between ints and floats", async () => {
-    const { exports, wasmModule } = await compileToWasmModule("3+5.2;");
+  it('converts between ints and floats', async () => {
+    const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
     expect(exports.main()).toBeCloseTo(8.2);
   });
 
-  it("compiles blocks", async () => {
+  it('compiles blocks', async () => {
     const { exports, wasmModule } = await compileToWasmModule(
-      "let x = 3; let y = x+4; y;"
+      'let x = 3; let y = x+4; y;'
     );
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module

@@ -1,6 +1,6 @@
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { ArrayType, BaseType, Intrinsics } from './snax-types';
+import { ArrayType, BaseType, FuncType, Intrinsics } from './snax-types';
 import { ASTCompiler } from './ast-compiler';
 
 export interface ASTNode {
@@ -275,6 +275,7 @@ export enum BinaryOp {
   LOGICAL_AND = '&&',
   LOGICAL_OR = '||',
   ARRAY_INDEX = '[]',
+  CALL = 'call',
 }
 
 const getASTValueTypeForBinaryOp = (
@@ -363,5 +364,77 @@ export class ArrayLiteral extends BaseNode {
       }
     }
     return new ArrayType(type, this.children.length);
+  }
+}
+
+export class ParameterList extends BaseNode {
+  name = 'ParameterList';
+  constructor(parameters: ASTNode[]) {
+    super(parameters);
+  }
+  get parameters() {
+    return this.children;
+  }
+  resolveType(): BaseType {
+    throw new Error("ParameterList nodes don't have a type");
+  }
+}
+
+export class FuncDecl extends BaseNode {
+  name = 'FuncDecl';
+  symbol: string;
+  constructor(symbol: string, parameters: ParameterList, body: Block) {
+    super([parameters, body]);
+    this.symbol = symbol;
+  }
+  get parameters() {
+    return (this.children[0] as ParameterList).parameters;
+  }
+  get block() {
+    return this.children[1] as Block;
+  }
+  resolveType(): BaseType {
+    return new FuncType(
+      this.parameters.map((p) => p.resolveType()),
+      Intrinsics.Void
+    );
+  }
+}
+
+export class Parameter extends BaseNode {
+  name = 'Parameter';
+  symbol: string;
+  constructor(symbol: string, typeExpr: TypeExpr) {
+    super([typeExpr]);
+    this.symbol = symbol;
+  }
+  get typeExpr() {
+    return this.children[0] as TypeExpr;
+  }
+  resolveType(): BaseType {
+    return this.typeExpr.resolveType();
+  }
+}
+
+export class ReturnStatement extends BaseNode {
+  name = 'Return';
+  constructor(expr?: ASTNode) {
+    super(expr ? [expr] : []);
+  }
+  get expr(): ASTNode | null {
+    return this.children[0] || null;
+  }
+  resolveType(): BaseType {
+    return this.expr?.resolveType() || Intrinsics.Void;
+  }
+}
+
+export class ArgList extends BaseNode {
+  name = 'ArgList';
+  constructor(args: ASTNode[]) {
+    super(args);
+  }
+  resolveType(): BaseType {
+    throw new Error('ArgLists do not have a type');
   }
 }

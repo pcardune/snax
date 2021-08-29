@@ -91,7 +91,7 @@ export class ArrayType extends BaseType {
   }
 }
 
-class FuncType extends BaseType {
+export class FuncType extends BaseType {
   argTypes: BaseType[];
   returnType: BaseType;
   constructor(argTypes: BaseType[], returnType: BaseType) {

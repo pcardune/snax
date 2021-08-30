@@ -288,7 +288,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c66 = peg$otherExpectation("array");
   const peg$c67 = function(items: any): any { return new AST.ArrayLiteral(items || []); };
   const peg$c68 = peg$otherExpectation("exprList");
-  const peg$c69 = function(head: any, tail: any): any { return [head, ...tail.map(t=>t[3])]; };
+  const peg$c69 = function(head: any, tail: any): any { return [head, ...tail.map((t:any[])=>t[3])]; };
   const peg$c70 = peg$otherExpectation("number");
   const peg$c71 = peg$otherExpectation("integer");
   const peg$c72 = /^[0-9]/;

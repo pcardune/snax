@@ -114,7 +114,7 @@ arrayLiteral "array"
   = "[" ws items:exprList? ws "]" { return new AST.ArrayLiteral(items || []); }
 
 exprList "exprList"
-  = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map(t=>t[3])]; }
+  = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map((t:any[])=>t[3])]; }
 
 number "number"
   = float

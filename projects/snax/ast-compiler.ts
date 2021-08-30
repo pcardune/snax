@@ -134,6 +134,29 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
     ];
   }
 
+  private compileAssignment(
+    left: AST.ASTNode,
+    right: AST.ASTNode
+  ): IR.Instruction[] {
+    const leftType = left.resolveType();
+    const rightType = right.resolveType();
+    if (leftType !== rightType) {
+      throw new Error(
+        `Can't assign value of type ${rightType} to symbol of type ${leftType}`
+      );
+    }
+    if (left instanceof AST.ResolvedSymbolRef) {
+      return [
+        ...ASTCompiler.forNode(right).compile(),
+        new IR.LocalSet(left.offset),
+      ];
+    } else {
+      throw new Error(
+        `Can't assign to something that is not a resolved symbol`
+      );
+    }
+  }
+
   compile(): IR.Instruction[] {
     if (isNumericOp(this.root.op)) {
       return [
@@ -153,6 +176,9 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
     }
     if (this.root.op === AST.BinaryOp.ARRAY_INDEX) {
       return this.compileArrayIndex(this.root.left, this.root.right);
+    }
+    if (this.root.op === AST.BinaryOp.ASSIGN) {
+      return this.compileAssignment(this.root.left, this.root.right);
     }
     throw new Error(
       `ExpressionCompiler: Not sure how to compile operator ${this.root.op} yet...`

@@ -97,11 +97,12 @@ describe('end-to-end test', () => {
     expect(exports.main()).toBeCloseTo(8.2);
   });
 
-  it('compiles blocks', async () => {
-    const { exports, wasmModule } = await compileToWasmModule(
-      'let x = 3; let y = x+4; y;'
-    );
-    expect(wasmModule.toText({})).toMatchInlineSnapshot(`
+  describe('block compilation', () => {
+    it('compiles blocks', async () => {
+      const { exports, wasmModule } = await compileToWasmModule(
+        'let x = 3; let y = x+4; y;'
+      );
+      expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (export \\"mem\\" (memory 0))
@@ -121,6 +122,21 @@ describe('end-to-end test', () => {
         (type (;0;) (func (result i32))))
       "
     `);
-    expect(exports.main()).toBe(7);
+      expect(exports.main()).toBe(7);
+    });
+  });
+
+  describe('assignment operator', () => {
+    it('compiles assignments', async () => {
+      expect(await exec('let x = 3; x = 4; x;')).toBe(4);
+    });
+    it('does not compile invalid assignments', async () => {
+      await expect(exec('let x = 3; y = 4; y;')).rejects.toMatchInlineSnapshot(
+        `[Error: Reference to undeclared symbol y]`
+      );
+      await expect(exec('let x = 3; 5 = 4; x;')).rejects.toMatchInlineSnapshot(
+        `[Error: Can't assign to something that is not a resolved symbol]`
+      );
+    });
   });
 });

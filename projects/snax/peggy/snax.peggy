@@ -71,9 +71,25 @@ bool_or "bool or"
   }
   / bool_and
 
-bool_and "bool op"
-  = left:additive ws "&&" ws right:additive {
+bool_and "bool and"
+  = left:equality ws "&&" ws right:equality {
     return new AST.Expression(AST.BinaryOp.LOGICAL_AND, left, right);
+  }
+  / equality
+
+equality "equality"
+  = left:ordering ws "==" ws right:ordering {
+    return new AST.Expression(AST.BinaryOp.EQUAL_TO, left, right);
+  }
+  / ordering
+
+ordering "ordering"
+  = left:additive ws op:("<" / ">") ws right:additive {
+    return new AST.Expression(
+      op==="<" ? AST.BinaryOp.LESS_THAN : AST.BinaryOp.GREATER_THAN,
+      left,
+      right
+    );
   }
   / additive
 

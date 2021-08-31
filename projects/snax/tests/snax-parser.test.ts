@@ -66,269 +66,275 @@ describe('SNAX grammar', () => {
 });
 
 describe('SNAX Parser', () => {
-  describe('parseStr', () => {
-    describe('numbers', () => {
-      it('should parse a string with a number into a NumberLiteral', () => {
-        const literal = SNAXParser.parseStrOrThrow('123', 'expr');
-        expect(literal).toEqual(
-          new NumberLiteral(123, NumberLiteralType.Integer)
-        );
-      });
-      it('should parse a string with a floating point number into a NumberLiteral', () => {
-        const literal = SNAXParser.parseStrOrThrow('1.23', 'expr');
-        expect(literal).toEqual(
-          new NumberLiteral(1.23, NumberLiteralType.Float)
-        );
-      });
+  describe('numbers', () => {
+    it('should parse a string with a number into a NumberLiteral', () => {
+      const literal = SNAXParser.parseStrOrThrow('123', 'expr');
+      expect(literal).toEqual(
+        new NumberLiteral(123, NumberLiteralType.Integer)
+      );
     });
-    describe('boolean literals', () => {
-      it('should parse true into a BooleanLiteral', () => {
-        expect(SNAXParser.parseStrOrThrow('true', 'expr')).toEqual(
-          new BooleanLiteral(true)
-        );
-      });
+    it('should parse a string with a floating point number into a NumberLiteral', () => {
+      const literal = SNAXParser.parseStrOrThrow('1.23', 'expr');
+      expect(literal).toEqual(new NumberLiteral(1.23, NumberLiteralType.Float));
     });
-    describe('array literals', () => {
-      it('should parse [] into an array literal', () => {
-        expect(SNAXParser.parseStrOrThrow('[]', 'expr')).toEqual(
-          new ArrayLiteral([])
-        );
-      });
-      it('should parse [3,4,5] into an array literal', () => {
-        expect(SNAXParser.parseStrOrThrow('[3, 4, 5]', 'expr')).toEqual(
-          new ArrayLiteral([
-            new NumberLiteral(3),
-            new NumberLiteral(4),
-            new NumberLiteral(5),
-          ])
-        );
-      });
+  });
+  describe('boolean literals', () => {
+    it('should parse true into a BooleanLiteral', () => {
+      expect(SNAXParser.parseStrOrThrow('true', 'expr')).toEqual(
+        new BooleanLiteral(true)
+      );
     });
-    describe('expression', () => {
-      it('should drop parentheses', () => {
-        const expr = SNAXParser.parseStrOrThrow('(123)', 'expr');
-        expect(expr).toEqual(new NumberLiteral(123));
-      });
-      it('should handle +', () => {
-        const expr = SNAXParser.parseStrOrThrow(
-          '123+456',
-          'expr'
-        ) as Expression;
-        expect(expr).toBeInstanceOf(Expression);
-        expect(expr.left).toBeInstanceOf(NumberLiteral);
-        expect(expr.right).toBeInstanceOf(NumberLiteral);
-        expect(expr.op).toBe(BinaryOp.ADD);
-        expect((expr.left as NumberLiteral).value).toEqual(123);
-        expect((expr.right as NumberLiteral).value).toEqual(456);
-      });
-      it("should handle a sequence of +'s", () => {
-        const expr = SNAXParser.parseStrOrThrow('123+456+789', 'expr');
+  });
+  describe('array literals', () => {
+    it('should parse [] into an array literal', () => {
+      expect(SNAXParser.parseStrOrThrow('[]', 'expr')).toEqual(
+        new ArrayLiteral([])
+      );
+    });
+    it('should parse [3,4,5] into an array literal', () => {
+      expect(SNAXParser.parseStrOrThrow('[3, 4, 5]', 'expr')).toEqual(
+        new ArrayLiteral([
+          new NumberLiteral(3),
+          new NumberLiteral(4),
+          new NumberLiteral(5),
+        ])
+      );
+    });
+  });
+  describe('expression', () => {
+    it('should drop parentheses', () => {
+      const expr = SNAXParser.parseStrOrThrow('(123)', 'expr');
+      expect(expr).toEqual(new NumberLiteral(123));
+    });
+    it('should handle +', () => {
+      const expr = SNAXParser.parseStrOrThrow('123+456', 'expr') as Expression;
+      expect(expr).toBeInstanceOf(Expression);
+      expect(expr.left).toBeInstanceOf(NumberLiteral);
+      expect(expr.right).toBeInstanceOf(NumberLiteral);
+      expect(expr.op).toBe(BinaryOp.ADD);
+      expect((expr.left as NumberLiteral).value).toEqual(123);
+      expect((expr.right as NumberLiteral).value).toEqual(456);
+    });
+    it("should handle a sequence of +'s", () => {
+      const expr = SNAXParser.parseStrOrThrow('123+456+789', 'expr');
 
-        expect(expr).toEqual(
-          new Expression(
-            BinaryOp.ADD,
-            new Expression(
-              BinaryOp.ADD,
-              new NumberLiteral(123),
-              new NumberLiteral(456)
-            ),
-            new NumberLiteral(789)
-          )
-        );
-      });
-      it('should make * operator take precedence over +', () => {
-        let expr = SNAXParser.parseStrOrThrow('123+456*789', 'expr');
-        expect(expr).toEqual(
+      expect(expr).toEqual(
+        new Expression(
+          BinaryOp.ADD,
           new Expression(
             BinaryOp.ADD,
             new NumberLiteral(123),
-            new Expression(
-              BinaryOp.MUL,
-              new NumberLiteral(456),
-              new NumberLiteral(789)
-            )
-          )
-        );
-
-        expr = SNAXParser.parseStrOrThrow('123*456+789', 'expr');
-        expect(expr).toEqual(
+            new NumberLiteral(456)
+          ),
+          new NumberLiteral(789)
+        )
+      );
+    });
+    it('should make * operator take precedence over +', () => {
+      let expr = SNAXParser.parseStrOrThrow('123+456*789', 'expr');
+      expect(expr).toEqual(
+        new Expression(
+          BinaryOp.ADD,
+          new NumberLiteral(123),
           new Expression(
-            BinaryOp.ADD,
-            new Expression(
-              BinaryOp.MUL,
-              new NumberLiteral(123),
-              new NumberLiteral(456)
-            ),
+            BinaryOp.MUL,
+            new NumberLiteral(456),
             new NumberLiteral(789)
           )
-        );
-      });
-      it('should ignore whitespace', () => {
-        expect(
-          SNAXParser.parseStrOrThrow('123 + \n456 * \t789', 'expr')
-        ).toEqual(SNAXParser.parseStrOrThrow('123+456*789', 'expr'));
-      });
-      it('should allow symbols', () => {
-        expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(
-          new Expression(BinaryOp.ADD, new NumberLiteral(3), new SymbolRef('x'))
-        );
-      });
-      it('should handle boolean operators', () => {
-        expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
-          new Expression(
-            BinaryOp.LOGICAL_AND,
-            new BooleanLiteral(true),
-            new SymbolRef('x')
-          )
-        );
-        expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
-          new Expression(
-            BinaryOp.LOGICAL_OR,
-            new BooleanLiteral(true),
-            new SymbolRef('x')
-          )
-        );
-      });
+        )
+      );
 
-      describe('array indexing expressions', () => {
-        it('should parse array indexing operator', () => {
-          expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
-            new Expression(
-              BinaryOp.ARRAY_INDEX,
-              new SymbolRef('x'),
-              new NumberLiteral(1)
-            )
-          );
-        });
-      });
+      expr = SNAXParser.parseStrOrThrow('123*456+789', 'expr');
+      expect(expr).toEqual(
+        new Expression(
+          BinaryOp.ADD,
+          new Expression(
+            BinaryOp.MUL,
+            new NumberLiteral(123),
+            new NumberLiteral(456)
+          ),
+          new NumberLiteral(789)
+        )
+      );
+    });
+    it('should ignore whitespace', () => {
+      expect(SNAXParser.parseStrOrThrow('123 + \n456 * \t789', 'expr')).toEqual(
+        SNAXParser.parseStrOrThrow('123+456*789', 'expr')
+      );
+    });
+    it('should allow symbols', () => {
+      expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(
+        new Expression(BinaryOp.ADD, new NumberLiteral(3), new SymbolRef('x'))
+      );
+    });
+    it('should handle boolean operators', () => {
+      expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
+        new Expression(
+          BinaryOp.LOGICAL_AND,
+          new BooleanLiteral(true),
+          new SymbolRef('x')
+        )
+      );
+      expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
+        new Expression(
+          BinaryOp.LOGICAL_OR,
+          new BooleanLiteral(true),
+          new SymbolRef('x')
+        )
+      );
+    });
+    it('should handle relational operators', () => {
+      const three = new NumberLiteral(3);
+      const four = new NumberLiteral(4);
+      expect(SNAXParser.parseStrOrThrow('3 < 4', 'expr')).toEqual(
+        new Expression(BinaryOp.LESS_THAN, three, four)
+      );
+      expect(SNAXParser.parseStrOrThrow('3 > 4', 'expr')).toEqual(
+        new Expression(BinaryOp.GREATER_THAN, three, four)
+      );
+      expect(SNAXParser.parseStrOrThrow('3 == 4', 'expr')).toEqual(
+        new Expression(BinaryOp.EQUAL_TO, three, four)
+      );
     });
 
-    describe('let statements', () => {
-      it('should parse untyped let statements', () => {
-        const letNode = SNAXParser.parseStrOrThrow(
-          'let x = 3;',
-          'statement'
-        ) as LetStatement;
-        expect(letNode).toEqual(
-          new LetStatement('x', null, new NumberLiteral(3))
-        );
-      });
-      it('should parse typed let statements', () => {
-        const letNode = SNAXParser.parseStrOrThrow(
-          'let x:i32 = 3;',
-          'statement'
-        ) as LetStatement;
-        expect(letNode).toEqual(
-          new LetStatement(
-            'x',
-            new TypeExpr(new TypeRef('i32')),
-            new NumberLiteral(3)
+    describe('array indexing expressions', () => {
+      it('should parse array indexing operator', () => {
+        expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
+          new Expression(
+            BinaryOp.ARRAY_INDEX,
+            new SymbolRef('x'),
+            new NumberLiteral(1)
           )
         );
       });
     });
+  });
 
-    describe('block', () => {
-      it('should parse a series of statements', () => {
-        const block = SNAXParser.parseStrOrThrow(`
+  describe('let statements', () => {
+    it('should parse untyped let statements', () => {
+      const letNode = SNAXParser.parseStrOrThrow(
+        'let x = 3;',
+        'statement'
+      ) as LetStatement;
+      expect(letNode).toEqual(
+        new LetStatement('x', null, new NumberLiteral(3))
+      );
+    });
+    it('should parse typed let statements', () => {
+      const letNode = SNAXParser.parseStrOrThrow(
+        'let x:i32 = 3;',
+        'statement'
+      ) as LetStatement;
+      expect(letNode).toEqual(
+        new LetStatement(
+          'x',
+          new TypeExpr(new TypeRef('i32')),
+          new NumberLiteral(3)
+        )
+      );
+    });
+  });
+
+  describe('block', () => {
+    it('should parse a series of statements', () => {
+      const block = SNAXParser.parseStrOrThrow(`
           let x = 3;
           let y = 7;
         `);
-        expect(block).toEqual(
-          new Block([
-            new LetStatement('x', null, new NumberLiteral(3)),
-            new LetStatement('y', null, new NumberLiteral(7)),
-          ])
-        );
-      });
-      it('should allow for expression statements', () => {
-        const block = SNAXParser.parseStrOrThrow(`
+      expect(block).toEqual(
+        new Block([
+          new LetStatement('x', null, new NumberLiteral(3)),
+          new LetStatement('y', null, new NumberLiteral(7)),
+        ])
+      );
+    });
+    it('should allow for expression statements', () => {
+      const block = SNAXParser.parseStrOrThrow(`
           let x = 3;
           3+x; 8;
         `);
-        expect(block).toEqual(
-          new Block([
-            new LetStatement('x', null, new NumberLiteral(3)),
-            new ExprStatement(
-              new Expression(
-                BinaryOp.ADD,
-                new NumberLiteral(3),
-                new SymbolRef('x')
-              )
-            ),
-            new ExprStatement(new NumberLiteral(8)),
-          ])
-        );
-      });
-      it('should parse nested blocks', () => {
-        expect(
-          SNAXParser.parseStrOrThrow(`
+      expect(block).toEqual(
+        new Block([
+          new LetStatement('x', null, new NumberLiteral(3)),
+          new ExprStatement(
+            new Expression(
+              BinaryOp.ADD,
+              new NumberLiteral(3),
+              new SymbolRef('x')
+            )
+          ),
+          new ExprStatement(new NumberLiteral(8)),
+        ])
+      );
+    });
+    it('should parse nested blocks', () => {
+      expect(
+        SNAXParser.parseStrOrThrow(`
           let x = 1;
           {
             let x = 2;
           }
         `)
-        ).toEqual(
-          new Block([
-            new LetStatement('x', null, new NumberLiteral(1)),
-            new Block([new LetStatement('x', null, new NumberLiteral(2))]),
-          ])
-        );
-      });
+      ).toEqual(
+        new Block([
+          new LetStatement('x', null, new NumberLiteral(1)),
+          new Block([new LetStatement('x', null, new NumberLiteral(2))]),
+        ])
+      );
     });
+  });
 
-    describe('functions', () => {
-      it('should parse an empty function', () => {
-        expect(SNAXParser.parseStrOrThrow('func foo() {}')).toEqual(
-          new Block([new FuncDecl('foo', new ParameterList([]), new Block([]))])
-        );
-      });
-      it('should parse a function with parameters', () => {
-        expect(SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}')).toEqual(
-          new Block([
-            new FuncDecl(
-              'foo',
-              new ParameterList([
-                new Parameter('a', new TypeExpr(new TypeRef('i32'))),
-                new Parameter('b', new TypeExpr(new TypeRef('f32'))),
-              ]),
-              new Block([])
-            ),
-          ])
-        );
-      });
-      it('should parse a function with a body', () => {
-        expect(
-          SNAXParser.parseStrOrThrow('func foo(a:i32) { return a+1; }')
-        ).toEqual(
-          new Block([
-            new FuncDecl(
-              'foo',
-              new ParameterList([
-                new Parameter('a', new TypeExpr(new TypeRef('i32'))),
-              ]),
-              new Block([
-                new ReturnStatement(
-                  new Expression(
-                    BinaryOp.ADD,
-                    new SymbolRef('a'),
-                    new NumberLiteral(1)
-                  )
-                ),
-              ])
-            ),
-          ])
-        );
-      });
-      it('should parse a function call', () => {
-        expect(SNAXParser.parseStrOrThrow('foo(3,4)', 'expr')).toEqual(
-          new Expression(
-            BinaryOp.CALL,
-            new SymbolRef('foo'),
-            new ArgList([new NumberLiteral(3), new NumberLiteral(4)])
-          )
-        );
-      });
+  describe('functions', () => {
+    it('should parse an empty function', () => {
+      expect(SNAXParser.parseStrOrThrow('func foo() {}')).toEqual(
+        new Block([new FuncDecl('foo', new ParameterList([]), new Block([]))])
+      );
+    });
+    it('should parse a function with parameters', () => {
+      expect(SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}')).toEqual(
+        new Block([
+          new FuncDecl(
+            'foo',
+            new ParameterList([
+              new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+              new Parameter('b', new TypeExpr(new TypeRef('f32'))),
+            ]),
+            new Block([])
+          ),
+        ])
+      );
+    });
+    it('should parse a function with a body', () => {
+      expect(
+        SNAXParser.parseStrOrThrow('func foo(a:i32) { return a+1; }')
+      ).toEqual(
+        new Block([
+          new FuncDecl(
+            'foo',
+            new ParameterList([
+              new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+            ]),
+            new Block([
+              new ReturnStatement(
+                new Expression(
+                  BinaryOp.ADD,
+                  new SymbolRef('a'),
+                  new NumberLiteral(1)
+                )
+              ),
+            ])
+          ),
+        ])
+      );
+    });
+    it('should parse a function call', () => {
+      expect(SNAXParser.parseStrOrThrow('foo(3,4)', 'expr')).toEqual(
+        new Expression(
+          BinaryOp.CALL,
+          new SymbolRef('foo'),
+          new ArgList([new NumberLiteral(3), new NumberLiteral(4)])
+        )
+      );
     });
   });
 });

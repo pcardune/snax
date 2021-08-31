@@ -326,10 +326,18 @@ export enum BinaryOp {
   DIV = '/',
   ADD = '+',
   SUB = '-',
+
+  LESS_THAN = '<',
+  GREATER_THAN = '>',
+  EQUAL_TO = '==',
+
   ASSIGN = '=',
+
   LOGICAL_AND = '&&',
   LOGICAL_OR = '||',
+
   ARRAY_INDEX = '[]',
+
   CALL = 'call',
 }
 

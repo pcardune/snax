@@ -33,8 +33,8 @@ export function compileAST(block: AST.Block): string {
   const compiler = new ASTCompiler.BlockCompiler(block);
   const instructions = compiler.compile();
   let returnType = getWASMType(block.resolveType());
-  let locals: string[] = [...block.resolveSymbols().values()].map((e) =>
-    getWASMType(e.valueType)
+  let locals: string[] = [...block.resolveSymbols(null).values()].map(
+    (valueType) => getWASMType(valueType)
   );
   const mainBody = instructions.map((ins) => ins.toWAT()).join('\n');
   const moduleBody = `

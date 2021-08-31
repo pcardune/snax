@@ -103,26 +103,76 @@ describe('end-to-end test', () => {
         'let x = 3; let y = x+4; y;'
       );
       expect(wasmModule.toText({})).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"mem\\" (memory 0))
-        (func (;0;) (result i32)
-          (local i32 i32)
-          i32.const 1
-          memory.grow
-          drop
-          i32.const 3
-          local.set 0
-          local.get 0
-          i32.const 4
-          i32.add
-          local.set 1
-          local.get 1)
-        (export \\"main\\" (func 0))
-        (type (;0;) (func (result i32))))
-      "
-    `);
+              "(module
+                (memory (;0;) 1)
+                (export \\"mem\\" (memory 0))
+                (func (;0;) (result i32)
+                  (local i32 i32)
+                  i32.const 1
+                  memory.grow
+                  drop
+                  i32.const 3
+                  local.set 0
+                  local.get 0
+                  i32.const 4
+                  i32.add
+                  local.set 1
+                  local.get 1)
+                (export \\"main\\" (func 0))
+                (type (;0;) (func (result i32))))
+              "
+          `);
       expect(exports.main()).toBe(7);
+    });
+
+    describe('nested blocks have their own lexical scope', () => {
+      it('assigns to a separate location for a symbol of the same name', async () => {
+        expect(
+          await exec(`
+            let x = 1;
+            {
+              let x = 2;
+            }
+            x;
+          `)
+        ).toEqual(1);
+      });
+      it('assigns to a separate location for a symbol of the same name declared after the nested block', async () => {
+        expect(
+          await exec(`
+            {
+              let y = 2;
+            }
+            let y = 3;
+            y;
+          `)
+        ).toEqual(3);
+      });
+      it('assigns to the right location for a variable declared in a higher scope', async () => {
+        expect(
+          await exec(`
+            let x = 1;
+            {
+              x = 2;
+            }
+            x;
+          `)
+        ).toEqual(2);
+      });
+      it('fails if you try to assign to something that has not yet been declared', async () => {
+        await expect(
+          exec(`
+            let x = 1;
+            {
+              y = 2;
+            }
+            let y = 3;
+            y;
+          `)
+        ).rejects.toMatchInlineSnapshot(
+          `[Error: Reference to undeclared symbol y]`
+        );
+      });
     });
   });
 

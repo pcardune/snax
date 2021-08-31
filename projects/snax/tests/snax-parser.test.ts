@@ -230,7 +230,10 @@ describe('SNAX Parser', () => {
 
     describe('block', () => {
       it('should parse a series of statements', () => {
-        const block = SNAXParser.parseStrOrThrow('let x = 3; let y = 7;');
+        const block = SNAXParser.parseStrOrThrow(`
+          let x = 3;
+          let y = 7;
+        `);
         expect(block).toEqual(
           new Block([
             new LetStatement('x', null, new NumberLiteral(3)),
@@ -239,7 +242,10 @@ describe('SNAX Parser', () => {
         );
       });
       it('should allow for expression statements', () => {
-        const block = SNAXParser.parseStrOrThrow('let x = 3; 3+x; 8;');
+        const block = SNAXParser.parseStrOrThrow(`
+          let x = 3;
+          3+x; 8;
+        `);
         expect(block).toEqual(
           new Block([
             new LetStatement('x', null, new NumberLiteral(3)),
@@ -251,6 +257,21 @@ describe('SNAX Parser', () => {
               )
             ),
             new ExprStatement(new NumberLiteral(8)),
+          ])
+        );
+      });
+      it('should parse nested blocks', () => {
+        expect(
+          SNAXParser.parseStrOrThrow(`
+          let x = 1;
+          {
+            let x = 2;
+          }
+        `)
+        ).toEqual(
+          new Block([
+            new LetStatement('x', null, new NumberLiteral(1)),
+            new Block([new LetStatement('x', null, new NumberLiteral(2))]),
           ])
         );
       });

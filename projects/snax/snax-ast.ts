@@ -205,7 +205,45 @@ export class ResolvedLetStatement extends BaseNode {
   }
 }
 type SymbolRecord = { offset: number; valueType: BaseType };
-type SymbolTable = OrderedMap<string, SymbolRecord>;
+// type SymbolTable = OrderedMap<string, SymbolRecord>;
+
+class SymbolTable {
+  private table: OrderedMap<string, SymbolRecord> = new OrderedMap();
+  private parent: SymbolTable | null;
+  private valueTypes: BaseType[] = [];
+
+  constructor(parent: SymbolTable | null = null) {
+    this.parent = parent;
+  }
+
+  get(symbol: string): SymbolRecord | undefined {
+    return this.table.get(symbol) ?? this.parent?.get(symbol);
+  }
+
+  has(symbol: string): boolean {
+    return this.table.has(symbol);
+  }
+
+  values(): Iter<BaseType> {
+    return iter(this.getTopParent().valueTypes);
+  }
+
+  private getTopParent() {
+    let table: SymbolTable = this;
+    while (table.parent) {
+      table = table.parent;
+    }
+    return table;
+  }
+
+  reserve(symbol: string, valueType: BaseType) {
+    let top = this.getTopParent();
+    let offset = top.valueTypes.length;
+    top.valueTypes.push(valueType);
+    this.table.set(symbol, { offset, valueType });
+    return offset;
+  }
+}
 
 function resolveSymbol(table: SymbolTable, child: SymbolRef) {
   const symbol = table.get(child.symbol);
@@ -240,13 +278,15 @@ export class Block extends BaseNode {
 
   private symbolTable: SymbolTable | null = null;
 
-  resolveSymbols(): SymbolTable {
+  resolveSymbols(parentSymbolTable: SymbolTable | null): SymbolTable {
     if (this.symbolTable) {
       return this.symbolTable;
     }
-    this.symbolTable = new OrderedMap();
-    let offset = 0;
+    this.symbolTable = new SymbolTable(parentSymbolTable);
     for (let [i, astNode] of this.statements.entries()) {
+      if (astNode instanceof Block) {
+        astNode.resolveSymbols(this.symbolTable);
+      }
       resolveSymbols(this.symbolTable, astNode);
       if (astNode instanceof LetStatement) {
         if (this.symbolTable.has(astNode.symbol)) {
@@ -254,11 +294,11 @@ export class Block extends BaseNode {
             `Redeclaration of symbol ${astNode.symbol} in the same scope`
           );
         }
+        const offset = this.symbolTable.reserve(
+          astNode.symbol,
+          astNode.expr.resolveType()
+        );
         const resolved = new ResolvedLetStatement(astNode, offset);
-        this.symbolTable.set(astNode.symbol, {
-          offset: offset++,
-          valueType: resolved.expr.resolveType(),
-        });
         this.statements[i] = resolved;
       }
     }

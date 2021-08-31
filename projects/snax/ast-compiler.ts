@@ -34,7 +34,7 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
 
 export class BlockCompiler extends ASTCompiler<AST.Block> {
   compile(): IR.Instruction[] {
-    this.root.resolveSymbols();
+    this.root.resolveSymbols(null);
     return this.root.statements
       .map((astNode) => ASTCompiler.forNode(astNode).compile())
       .flat();

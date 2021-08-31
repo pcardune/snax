@@ -12,11 +12,11 @@
 }
 
 start
-  = block
+  = ws block:block ws { return block; }
   / statement
   / expr
 
-block
+block "block"
   = head:statement tail:(ws statement)* {
     return new AST.Block([
       head,
@@ -24,27 +24,30 @@ block
     ]);
   }
 
-statement
-  = "let" ws name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr ws ";" {
+statement "statement"
+  = "let" ws name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr ws ";" ws {
     return new AST.LetStatement(name, type ? type[2] : null, expr);
   }
-  / funcDecl
-  / "return" ws expr:expr? ws ";" {
+  / funcDecl: funcDecl ws { return funcDecl; }
+  / "return" ws expr:expr? ws ";" ws {
     return new AST.ReturnStatement(expr);
   }
-  / expr:expr ws ";" {
+  / "{" ws block:block ws "}" ws { return block; }
+  / expr:expr ws ";" ws {
     return new AST.ExprStatement(expr);
   }
 
 funcDecl = "func" ws name:identifier ws "(" ws params:parameterList? ws ")" ws "{" ws block:block? ws "}" {
     return new AST.FuncDecl(name, params || new AST.ParameterList([]), block || new AST.Block([]));
   }
-parameterList = head:parameter tail:(ws "," ws parameter)* {
-  return new AST.ParameterList([head, ...tail.map((p:any[]) => p[3])])
-}
-parameter = name:identifier ws ":" ws type:typeExpr {
-  return new AST.Parameter(name, type);
-}
+parameterList "parameterList"
+  = head:parameter tail:(ws "," ws parameter)* {
+    return new AST.ParameterList([head, ...tail.map((p:any[]) => p[3])])
+  }
+parameter "parameter"
+  = name:identifier ws ":" ws type:typeExpr {
+    return new AST.Parameter(name, type);
+  }
 
 typeExpr "typeExpr"
   = typeRef: typeRef { return new AST.TypeExpr(typeRef); }

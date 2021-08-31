@@ -28,9 +28,24 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new BooleanLiteralCompiler(node);
     } else if (node instanceof AST.ArrayLiteral) {
       return new ArrayLiteralCompiler(node);
+    } else if (node instanceof AST.ArgList) {
+      return new ArgListCompiler(node);
+    } else if (node instanceof AST.ReturnStatement) {
+      return new ReturnStatementCompiler(node);
     } else {
-      throw new Error(`No compiler available for node ${node.toString()}`);
+      throw new Error(
+        `ASTCompiler: No compiler available for node ${node.toString()}`
+      );
     }
+  }
+}
+
+class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
+  compile() {
+    return [
+      ...(this.root.expr ? ASTCompiler.forNode(this.root.expr).compile() : []),
+      new IR.Return(),
+    ];
   }
 }
 
@@ -38,6 +53,7 @@ export class BlockCompiler extends ASTCompiler<AST.Block> {
   compile(): IR.Instruction[] {
     this.root.resolveSymbols(null);
     return this.root.statements
+      .filter((astNode) => !(astNode instanceof AST.FuncDecl))
       .map((astNode) => ASTCompiler.forNode(astNode).compile())
       .flat();
   }
@@ -49,7 +65,20 @@ export class ModuleCompiler {
     this.block = block;
   }
   compile(): Wasm.Module {
-    const symbolTable = this.block.resolveSymbols(null);
+    const symbolTable = new AST.SymbolTable();
+
+    const funcNodes = this.block.statements.filter(
+      (statement): statement is AST.FuncDecl =>
+        statement instanceof AST.FuncDecl
+    );
+    let funcs: Wasm.Func[] = [];
+    for (const func of funcNodes) {
+      funcs.push(new FuncDeclCompiler(func).compile());
+      symbolTable.reserve(func.symbol, func.resolveType());
+    }
+
+    this.block.resolveSymbols(symbolTable);
+
     const body = ASTCompiler.forNode(this.block).compile();
     const blockType = this.block.resolveType();
     const results =
@@ -59,6 +88,7 @@ export class ModuleCompiler {
     ];
     return new Wasm.Module({
       funcs: [
+        ...funcs,
         new Wasm.Func({
           funcType: new Wasm.FuncType({
             results,
@@ -69,6 +99,35 @@ export class ModuleCompiler {
           body,
         }),
       ],
+    });
+  }
+}
+
+export class FuncDeclCompiler {
+  funcDecl: AST.FuncDecl;
+  constructor(funcDecl: AST.FuncDecl) {
+    this.funcDecl = funcDecl;
+  }
+  compile(): Wasm.Func {
+    const symbolTable = new AST.SymbolTable();
+    for (const param of this.funcDecl.parameters) {
+      symbolTable.reserve(param.symbol, param.resolveType());
+    }
+    this.funcDecl.block.resolveSymbols(symbolTable);
+
+    const funcType = this.funcDecl.resolveType();
+    const params = funcType.argTypes.map((t) => t.toValueType());
+    const results =
+      funcType.returnType === Intrinsics.Void
+        ? []
+        : [funcType.returnType.toValueType()];
+    return new Wasm.Func({
+      id: this.funcDecl.symbol,
+      body: ASTCompiler.forNode(this.funcDecl.block).compile(),
+      funcType: new Wasm.FuncType({
+        params,
+        results,
+      }),
     });
   }
 }
@@ -189,6 +248,19 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
     }
   }
 
+  compileCall(left: AST.ASTNode, right: AST.ASTNode): IR.Instruction[] {
+    if (left instanceof AST.ResolvedSymbolRef) {
+      return [
+        ...ASTCompiler.forNode(right).compile(),
+        new IR.Call(left.offset),
+      ];
+    } else {
+      throw new Error(
+        `ExpressionCompiler: Can't call unresolved symbol ${left}`
+      );
+    }
+  }
+
   compile(): IR.Instruction[] {
     if (isNumericOp(this.root.op)) {
       return [
@@ -212,9 +284,20 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
     if (this.root.op === AST.BinaryOp.ASSIGN) {
       return this.compileAssignment(this.root.left, this.root.right);
     }
+    if (this.root.op === AST.BinaryOp.CALL) {
+      return this.compileCall(this.root.left, this.root.right);
+    }
     throw new Error(
       `ExpressionCompiler: Not sure how to compile operator ${this.root.op} yet...`
     );
+  }
+}
+
+class ArgListCompiler extends ASTCompiler<AST.ArgList> {
+  compile() {
+    return this.root.children
+      .map((child) => ASTCompiler.forNode(child).compile())
+      .flat();
   }
 }
 

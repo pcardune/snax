@@ -105,6 +105,12 @@ export class LocalGet extends Instruction {
   }
 }
 
+export class Return extends Instruction {
+  toWAT() {
+    return 'return';
+  }
+}
+
 export class LocalSet extends Instruction {
   offset: number;
   constructor(offset: number) {
@@ -113,6 +119,17 @@ export class LocalSet extends Instruction {
   }
   toWAT(): string {
     return `local.set ${this.offset}`;
+  }
+}
+
+export class Call extends Instruction {
+  offset: number;
+  constructor(offset: number) {
+    super();
+    this.offset = offset;
+  }
+  toWAT() {
+    return `call ${this.offset}`;
   }
 }
 

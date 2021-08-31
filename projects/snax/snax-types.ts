@@ -103,7 +103,9 @@ export class FuncType extends BaseType {
   }
 
   toValueType(): StackIR.NumberType {
-    throw new Error('func types do not have a corresponding value type... yet');
+    throw new Error(
+      'FuncType: func types do not have a corresponding value type... yet'
+    );
   }
 }
 

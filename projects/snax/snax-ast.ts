@@ -83,7 +83,7 @@ export class SymbolRef extends BaseNode {
     this.symbol = symbol;
   }
   resolveType(): BaseType {
-    throw new Error("Can't resolve type on an unresolved symbol");
+    throw new Error("SymbolRef: Can't resolve type on an unresolved symbol");
   }
 }
 
@@ -121,7 +121,7 @@ export class TypeExpr extends BaseNode {
     return this.children[0];
   }
   resolveType(): BaseType {
-    throw new Error('Method not implemented.');
+    return this.symbol.resolveType();
   }
   /**
    * Evaluate the type expression to make all
@@ -207,10 +207,11 @@ export class ResolvedLetStatement extends BaseNode {
 type SymbolRecord = { offset: number; valueType: BaseType };
 // type SymbolTable = OrderedMap<string, SymbolRecord>;
 
-class SymbolTable {
+export class SymbolTable {
   private table: OrderedMap<string, SymbolRecord> = new OrderedMap();
   private parent: SymbolTable | null;
-  private valueTypes: BaseType[] = [];
+  private localValueTypes: BaseType[] = [];
+  private funcTypes: FuncType[] = [];
 
   constructor(parent: SymbolTable | null = null) {
     this.parent = parent;
@@ -225,7 +226,7 @@ class SymbolTable {
   }
 
   values(): Iter<BaseType> {
-    return iter(this.getTopParent().valueTypes);
+    return iter(this.getTopParent().localValueTypes);
   }
 
   private getTopParent() {
@@ -237,11 +238,18 @@ class SymbolTable {
   }
 
   reserve(symbol: string, valueType: BaseType) {
-    let top = this.getTopParent();
-    let offset = top.valueTypes.length;
-    top.valueTypes.push(valueType);
-    this.table.set(symbol, { offset, valueType });
-    return offset;
+    if (valueType instanceof FuncType) {
+      let offset = this.funcTypes.length;
+      this.funcTypes.push(valueType);
+      this.table.set(symbol, { offset, valueType });
+      return offset;
+    } else {
+      let top = this.getTopParent();
+      let offset = top.localValueTypes.length;
+      top.localValueTypes.push(valueType);
+      this.table.set(symbol, { offset, valueType });
+      return offset;
+    }
   }
 }
 
@@ -271,7 +279,12 @@ export class Block extends BaseNode {
 
   resolveType() {
     if (this.statements.length > 0) {
-      return this.statements[this.statements.length - 1].resolveType();
+      for (let i = this.statements.length - 1; i >= 0; i--) {
+        let sType = this.statements[i].resolveType();
+        if (!(sType instanceof FuncType)) {
+          return sType;
+        }
+      }
     }
     return Intrinsics.Void;
   }
@@ -287,7 +300,9 @@ export class Block extends BaseNode {
       if (astNode instanceof Block) {
         astNode.resolveSymbols(this.symbolTable);
       }
-      resolveSymbols(this.symbolTable, astNode);
+      if (!(astNode instanceof FuncDecl)) {
+        resolveSymbols(this.symbolTable, astNode);
+      }
       if (astNode instanceof LetStatement) {
         if (this.symbolTable.has(astNode.symbol)) {
           throw new Error(
@@ -380,6 +395,14 @@ export class Expression extends BaseNode {
   }
 
   resolveType(): BaseType {
+    if (this.op === BinaryOp.CALL) {
+      const leftType = this.left.resolveType();
+      if (leftType instanceof FuncType) {
+        return leftType.returnType;
+      } else {
+        throw new Error("Can't call something that is not a function");
+      }
+    }
     return getASTValueTypeForBinaryOp(
       this.op,
       this.left.resolveType(),
@@ -409,11 +432,11 @@ export class ArrayLiteral extends BaseNode {
 
 export class ParameterList extends BaseNode {
   name = 'ParameterList';
-  constructor(parameters: ASTNode[]) {
+  constructor(parameters: Parameter[]) {
     super(parameters);
   }
   get parameters() {
-    return this.children;
+    return this.children as Parameter[];
   }
   resolveType(): BaseType {
     throw new Error("ParameterList nodes don't have a type");
@@ -433,10 +456,10 @@ export class FuncDecl extends BaseNode {
   get block() {
     return this.children[1] as Block;
   }
-  resolveType(): BaseType {
+  resolveType(): FuncType {
     return new FuncType(
       this.parameters.map((p) => p.resolveType()),
-      Intrinsics.Void
+      this.block.resolveType()
     );
   }
 }

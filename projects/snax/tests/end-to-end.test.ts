@@ -187,4 +187,42 @@ describe('end-to-end test', () => {
       );
     });
   });
+
+  describe('functions', () => {
+    it('compiles functions', async () => {
+      const wat = compileToWAT(`
+          let x = 3;
+          add(x, 5);
+          func add(x:i32, y:i32) {
+            return x+y;
+          }
+        `);
+      expect(wat).toMatchInlineSnapshot(`
+        "(module (memory 1) (export \\"mem\\" (memory 0))
+        (func $add  (param i32 i32) (result i32) 
+          local.get 0
+          local.get 1
+          i32.add
+          return
+        )
+        (func  (export \\"main\\")  (result i32) (local  i32)
+          i32.const 3
+          local.set 0
+          local.get 0
+          i32.const 5
+          call 0
+        )
+        )"
+      `);
+      expect(
+        await exec(`
+          let x = 3;
+          add(x, 5);
+          func add(x:i32, y:i32) {
+            return x+y;
+          }
+        `)
+      ).toBe(8);
+    });
+  });
 });

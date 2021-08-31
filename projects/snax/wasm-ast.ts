@@ -11,7 +11,7 @@ abstract class Node<Fields> {
 export class Module extends Node<{ funcs: Func[] }> implements HasWAT {
   toWAT() {
     const body = this.fields.funcs.map((f) => f.toWAT()).join('\n');
-    return `(module (memory 1) (export "mem" (memory 0)) ${body})`;
+    return `(module (memory 1) (export "mem" (memory 0))\n${body}\n)`;
   }
 }
 
@@ -46,17 +46,17 @@ export class Func
   }
 
   toWAT() {
-    const id = this.fields.id ? `"${this.fields.id}"` : '';
+    const id = this.fields.id ? `$${this.fields.id}` : '';
     const locals = this.fields.locals.map((local) => local.toWAT()).join(' ');
     const body = this.fields.body.map((ins) => '  ' + ins.toWAT()).join('\n');
     const inlineExport = this.fields.exportName
       ? `(export "${this.fields.exportName}")`
       : '';
     const { params, results } = this.fields.funcType.fields;
-    const paramsStr = params.length > 0 ? `(params ${params.join(' ')})` : '';
+    const paramsStr = params.length > 0 ? `(param ${params.join(' ')})` : '';
     const resultsStr =
       results.length > 0 ? `(result ${results.join(' ')})` : '';
-    return `(func ${id} ${inlineExport} ${paramsStr} ${resultsStr} ${locals} ${body})`;
+    return `(func ${id} ${inlineExport} ${paramsStr} ${resultsStr} ${locals}\n${body}\n)`;
   }
 }
 

@@ -1,7 +1,7 @@
 import * as AST from '../snax-ast';
 import * as IR from '../stack-ir';
 import * as Wasm from '../wasm-ast';
-import { ASTCompiler, ModuleCompiler } from '../ast-compiler';
+import { ASTCompiler, FuncDeclCompiler, ModuleCompiler } from '../ast-compiler';
 
 describe('ExpressionCompiler', () => {
   const { i32, f32 } = IR.NumberType;
@@ -45,6 +45,35 @@ describe('BooleanLiteralCompiler', () => {
   });
 });
 
+describe('FuncDeclCompiler', () => {
+  it('compiles functions', () => {
+    const block = new AST.Block([
+      new AST.ReturnStatement(new AST.NumberLiteral(3)),
+    ]);
+    expect(
+      new FuncDeclCompiler(
+        new AST.FuncDecl(
+          'foo',
+          new AST.ParameterList([
+            new AST.Parameter('a', new AST.TypeExpr(new AST.TypeRef('i32'))),
+            new AST.Parameter('b', new AST.TypeExpr(new AST.TypeRef('f32'))),
+          ]),
+          block
+        )
+      ).compile()
+    ).toEqual(
+      new Wasm.Func({
+        id: 'foo',
+        funcType: new Wasm.FuncType({
+          params: [IR.NumberType.i32, IR.NumberType.f32],
+          results: [IR.NumberType.i32],
+        }),
+        body: ASTCompiler.forNode(block).compile(),
+      })
+    );
+  });
+});
+
 describe('ModuleCompiler', () => {
   it('compiles an empty module to a module with an empty main function', () => {
     expect(new ModuleCompiler(new AST.Block([])).compile()).toEqual(
@@ -65,6 +94,29 @@ describe('ModuleCompiler', () => {
             }),
             exportName: 'main',
             body: [...ASTCompiler.forNode(num).compile()],
+          }),
+        ],
+      })
+    );
+  });
+  it('compiles functions in the top-level block to wasm functions', () => {
+    const funcDecl = new AST.FuncDecl(
+      'foo',
+      new AST.ParameterList([
+        new AST.Parameter('a', new AST.TypeExpr(new AST.TypeRef('i32'))),
+      ]),
+      new AST.Block([new AST.ReturnStatement(new AST.SymbolRef('a'))])
+    );
+    expect(new ModuleCompiler(new AST.Block([funcDecl])).compile()).toEqual(
+      new Wasm.Module({
+        funcs: [
+          new FuncDeclCompiler(funcDecl).compile(),
+          new Wasm.Func({
+            funcType: new Wasm.FuncType({
+              params: [],
+              results: [],
+            }),
+            exportName: 'main',
           }),
         ],
       })

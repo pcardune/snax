@@ -1,6 +1,7 @@
 import { NumberLiteral } from '../snax-ast';
 import * as AST from '../snax-ast';
 import { PushConst, NumberType } from '../stack-ir';
+import { ASTCompiler } from '../ast-compiler';
 
 describe('snax-ast', () => {
   describe('NumberLiterl', () => {
@@ -10,7 +11,7 @@ describe('snax-ast', () => {
     });
 
     test('toStackIR() returns a PushConst instruction', () => {
-      expect(literal.toStackIR()).toEqual([
+      expect(ASTCompiler.forNode(literal).compile()).toEqual([
         new PushConst(NumberType.i32, literal.value),
       ]);
     });

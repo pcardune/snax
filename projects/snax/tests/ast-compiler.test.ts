@@ -3,6 +3,10 @@ import * as IR from '../stack-ir';
 import * as Wasm from '../wasm-ast';
 import { ASTCompiler, FuncDeclCompiler, ModuleCompiler } from '../ast-compiler';
 
+function compile(node: AST.ASTNode) {
+  return ASTCompiler.forNode(node).compile();
+}
+
 describe('ExpressionCompiler', () => {
   const { i32, f32 } = IR.NumberType;
   test('compile() combines the stack IRS of the sub expressions', () => {
@@ -11,24 +15,31 @@ describe('ExpressionCompiler', () => {
     const expr = new AST.Expression(AST.BinaryOp.ADD, twenty, thirty);
     const compiler = ASTCompiler.forNode(expr);
     expect(compiler.compile()).toEqual([
-      ...twenty.toStackIR(),
-      ...thirty.toStackIR(),
+      ...compile(twenty),
+      ...compile(thirty),
       new IR.Add(i32),
     ]);
   });
-  it('casts integers to floats', () => {
+  fit('casts integers to floats', () => {
     const ten = new AST.NumberLiteral(10);
     const twelvePointThree = new AST.NumberLiteral(
       12.3,
       AST.NumberLiteralType.Float
     );
-    const compiler = ASTCompiler.forNode(
-      new AST.Expression(AST.BinaryOp.ADD, ten, twelvePointThree)
-    );
-    expect(compiler.compile()).toEqual([
-      ...ten.toStackIR(),
+    expect(
+      compile(new AST.Expression(AST.BinaryOp.ADD, ten, twelvePointThree))
+    ).toEqual([
+      ...compile(ten),
       new IR.Convert(i32, f32),
-      ...twelvePointThree.toStackIR(),
+      ...compile(twelvePointThree),
+      new IR.Add(f32),
+    ]);
+    expect(
+      compile(new AST.Expression(AST.BinaryOp.ADD, twelvePointThree, ten))
+    ).toEqual([
+      ...compile(twelvePointThree),
+      ...compile(ten),
+      new IR.Convert(i32, f32),
       new IR.Add(f32),
     ]);
   });

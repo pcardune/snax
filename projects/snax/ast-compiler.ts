@@ -1,5 +1,5 @@
 import * as AST from './snax-ast';
-import { Intrinsics } from './snax-types';
+import { Intrinsics, NumericalType } from './snax-types';
 import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
 
@@ -147,88 +147,72 @@ class ResolvedSymbolRefCompiler extends ASTCompiler<AST.ResolvedSymbolRef> {
   }
 }
 
-type LogicalOp = AST.BinaryOp.LOGICAL_AND | AST.BinaryOp.LOGICAL_OR;
-function isLogicalOp(op: AST.BinaryOp): op is LogicalOp {
-  return [AST.BinaryOp.LOGICAL_AND, AST.BinaryOp.LOGICAL_OR].includes(op);
+function convert(child: AST.ASTNode, targetType: IR.NumberType) {
+  const childType = child.resolveType().toValueType();
+  if (childType === targetType) {
+    return [];
+  }
+  if (IR.isIntType(childType) && IR.isFloatType(targetType)) {
+    return [new IR.Convert(childType, targetType)];
+  }
+  throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
 }
 
-type NumericOp =
-  | AST.BinaryOp.MUL
-  | AST.BinaryOp.DIV
-  | AST.BinaryOp.ADD
-  | AST.BinaryOp.SUB;
+function matchTypes(left: AST.ASTNode, right: AST.ASTNode) {
+  const leftType = left.resolveType();
+  const rightType = right.resolveType();
+  let targetType = leftType;
+  if (leftType instanceof NumericalType && rightType instanceof NumericalType) {
+    if (rightType.interpretation === 'float') {
+      targetType = rightType;
+    }
+  } else {
+    throw new Error("pushNumberOps: don't know how to cast to number");
+  }
+  return targetType.toValueType();
+}
 
-function isNumericOp(op: AST.BinaryOp): op is NumericOp {
+function pushNumberOps(left: AST.ASTNode, right: AST.ASTNode) {
+  let targetType = matchTypes(left, right);
   return [
-    AST.BinaryOp.MUL,
-    AST.BinaryOp.DIV,
-    AST.BinaryOp.ADD,
-    AST.BinaryOp.SUB,
-  ].includes(op);
+    ...ASTCompiler.forNode(left).compile(),
+    ...convert(left, targetType),
+    ...ASTCompiler.forNode(right).compile(),
+    ...convert(right, targetType),
+  ];
 }
 
-class ExpressionCompiler extends ASTCompiler<AST.Expression> {
-  private getNumericalOpInstruction() {
-    const { BinaryOp } = AST;
-    const valueType = this.root.resolveType().toValueType();
-    if (!isNumericOp(this.root.op)) {
-      throw new Error('panic in the disco');
-    }
-    switch (this.root.op) {
-      case BinaryOp.ADD:
-        return new IR.Add(valueType);
-      case BinaryOp.SUB:
-        return new IR.Sub(valueType);
-      case BinaryOp.MUL:
-        return new IR.Mul(valueType);
-      case BinaryOp.DIV:
-        return new IR.Div(valueType);
-    }
-  }
-
-  private convert(child: AST.ASTNode) {
-    const targetType = this.root.resolveType().toValueType();
-    const childType = child.resolveType().toValueType();
-    if (childType === targetType) {
-      return [];
-    }
-    if (IR.isIntType(childType) && IR.isFloatType(targetType)) {
-      return [new IR.Convert(childType, targetType)];
-    }
-    throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
-  }
-
-  private getLogicalOpInstruction() {
-    const {
-      BinaryOp: { LOGICAL_AND, LOGICAL_OR },
-    } = AST;
-    if (!isLogicalOp(this.root.op)) {
-      throw new Error('panic in the disco');
-    }
-    switch (this.root.op) {
-      case LOGICAL_AND:
-        return new IR.And(this.root.resolveType().toValueType());
-      case LOGICAL_OR:
-        return new IR.Or(this.root.resolveType().toValueType());
-    }
-  }
-
-  private compileArrayIndex(refExpr: AST.ASTNode, indexExpr: AST.ASTNode) {
-    const valueType = this.root.resolveType().toValueType();
-    return [
-      ...ASTCompiler.forNode(refExpr).compile(),
-      ...ASTCompiler.forNode(indexExpr).compile(),
-      new IR.Add(valueType),
-      new IR.PushConst(valueType, 4),
-      new IR.Mul(valueType),
-      new IR.MemoryLoad(refExpr.resolveType().toValueType(), 0),
-    ];
-  }
-
-  private compileAssignment(
-    left: AST.ASTNode,
-    right: AST.ASTNode
-  ): IR.Instruction[] {
+const OpCompilers: Record<
+  AST.BinaryOp,
+  (left: AST.ASTNode, right: AST.ASTNode) => IR.Instruction[]
+> = {
+  [AST.BinaryOp.ADD]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.Add(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.SUB]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.Sub(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.MUL]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.Mul(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.DIV]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.Div(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.LOGICAL_AND]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...ASTCompiler.forNode(left).compile(),
+    ...ASTCompiler.forNode(right).compile(),
+    new IR.And(Intrinsics.Bool.toValueType()),
+  ],
+  [AST.BinaryOp.LOGICAL_OR]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...ASTCompiler.forNode(left).compile(),
+    ...ASTCompiler.forNode(right).compile(),
+    new IR.Or(Intrinsics.Bool.toValueType()),
+  ],
+  [AST.BinaryOp.ASSIGN]: (left: AST.ASTNode, right: AST.ASTNode) => {
     const leftType = left.resolveType();
     const rightType = right.resolveType();
     if (leftType !== rightType) {
@@ -246,9 +230,22 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
         `Can't assign to something that is not a resolved symbol`
       );
     }
-  }
-
-  compileCall(left: AST.ASTNode, right: AST.ASTNode): IR.Instruction[] {
+  },
+  [AST.BinaryOp.ARRAY_INDEX]: (
+    refExpr: AST.ASTNode,
+    indexExpr: AST.ASTNode
+  ) => {
+    const valueType = refExpr.resolveType().toValueType();
+    return [
+      ...ASTCompiler.forNode(refExpr).compile(),
+      ...ASTCompiler.forNode(indexExpr).compile(),
+      new IR.Add(valueType),
+      new IR.PushConst(valueType, 4),
+      new IR.Mul(valueType),
+      new IR.MemoryLoad(refExpr.resolveType().toValueType(), 0),
+    ];
+  },
+  [AST.BinaryOp.CALL]: (left: AST.ASTNode, right: AST.ASTNode) => {
     if (left instanceof AST.ResolvedSymbolRef) {
       return [
         ...ASTCompiler.forNode(right).compile(),
@@ -259,37 +256,21 @@ class ExpressionCompiler extends ASTCompiler<AST.Expression> {
         `ExpressionCompiler: Can't call unresolved symbol ${left}`
       );
     }
-  }
+  },
+  [AST.BinaryOp.EQUAL_TO]: () => {
+    throw new Error('EQUAL_TO not implemented yet');
+  },
+  [AST.BinaryOp.LESS_THAN]: () => {
+    throw new Error('LESS_THAN not implemented yet');
+  },
+  [AST.BinaryOp.GREATER_THAN]: () => {
+    throw new Error('GREATER_THAN not implemented yet');
+  },
+};
 
+class ExpressionCompiler extends ASTCompiler<AST.Expression> {
   compile(): IR.Instruction[] {
-    if (isNumericOp(this.root.op)) {
-      return [
-        ...ASTCompiler.forNode(this.root.left).compile(),
-        ...this.convert(this.root.left),
-        ...ASTCompiler.forNode(this.root.right).compile(),
-        this.getNumericalOpInstruction(),
-      ];
-    }
-    if (isLogicalOp(this.root.op)) {
-      return [
-        ...ASTCompiler.forNode(this.root.left).compile(),
-        ...this.convert(this.root.left),
-        ...ASTCompiler.forNode(this.root.right).compile(),
-        this.getLogicalOpInstruction(),
-      ];
-    }
-    if (this.root.op === AST.BinaryOp.ARRAY_INDEX) {
-      return this.compileArrayIndex(this.root.left, this.root.right);
-    }
-    if (this.root.op === AST.BinaryOp.ASSIGN) {
-      return this.compileAssignment(this.root.left, this.root.right);
-    }
-    if (this.root.op === AST.BinaryOp.CALL) {
-      return this.compileCall(this.root.left, this.root.right);
-    }
-    throw new Error(
-      `ExpressionCompiler: Not sure how to compile operator ${this.root.op} yet...`
-    );
+    return OpCompilers[this.root.op](this.root.left, this.root.right);
   }
 }
 

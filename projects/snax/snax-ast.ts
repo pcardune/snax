@@ -1,7 +1,12 @@
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { ArrayType, BaseType, FuncType, Intrinsics } from './snax-types';
-import { ASTCompiler } from './ast-compiler';
+import {
+  ArrayType,
+  BaseType,
+  FuncType,
+  Intrinsics,
+  Operators,
+} from './snax-types';
 
 export interface ASTNode {
   children: ASTNode[];
@@ -25,10 +30,6 @@ abstract class BaseNode implements ASTNode {
 
   toString() {
     return this.name;
-  }
-
-  toStackIR() {
-    return ASTCompiler.forNode(this).compile();
   }
 
   abstract get name(): string;
@@ -341,7 +342,7 @@ export enum BinaryOp {
   CALL = 'call',
 }
 
-const getASTValueTypeForBinaryOp = (
+const getTypeForBinaryOp = (
   op: BinaryOp,
   leftType: BaseType,
   rightType: BaseType
@@ -356,6 +357,8 @@ const getASTValueTypeForBinaryOp = (
         return leftType.elementType;
       }
       throw error;
+    // case BinaryOp.ADD:
+    //   return Operators.Add.resolveGenerics([leftType, rightType]).returnType;
     default:
       switch (leftType) {
         case Bool:
@@ -411,7 +414,7 @@ export class Expression extends BaseNode {
         throw new Error("Can't call something that is not a function");
       }
     }
-    return getASTValueTypeForBinaryOp(
+    return getTypeForBinaryOp(
       this.op,
       this.left.resolveType(),
       this.right.resolveType()

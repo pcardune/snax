@@ -35,6 +35,10 @@ async function exec(input: string) {
 }
 
 describe('end-to-end test', () => {
+  it('compiles an empty program', async () => {
+    expect(await exec('')).toBe(undefined);
+  });
+
   it('compiles integers', async () => {
     const { exports } = await compileToWasmModule('123;');
     expect(exports.main()).toEqual(123);
@@ -73,9 +77,6 @@ describe('end-to-end test', () => {
         (memory (;0;) 1)
         (export \\"mem\\" (memory 0))
         (func (;0;) (result i32)
-          i32.const 1
-          memory.grow
-          drop
           i32.const 3
           i32.const 5
           i32.const 2
@@ -108,9 +109,6 @@ describe('end-to-end test', () => {
                 (export \\"mem\\" (memory 0))
                 (func (;0;) (result i32)
                   (local i32 i32)
-                  i32.const 1
-                  memory.grow
-                  drop
                   i32.const 3
                   local.set 0
                   local.get 0

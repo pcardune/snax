@@ -15,6 +15,7 @@ start
   = ws block:block ws { return block; }
   / statement
   / expr
+  / ws { return new AST.Block([]); }
 
 block "block"
   = head:statement tail:(ws statement)* {

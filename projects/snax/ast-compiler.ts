@@ -1,5 +1,7 @@
 import * as AST from './snax-ast';
+import { Intrinsics } from './snax-types';
 import * as IR from './stack-ir';
+import * as Wasm from './wasm-ast';
 
 export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
   root: Root;
@@ -38,6 +40,36 @@ export class BlockCompiler extends ASTCompiler<AST.Block> {
     return this.root.statements
       .map((astNode) => ASTCompiler.forNode(astNode).compile())
       .flat();
+  }
+}
+
+export class ModuleCompiler {
+  block: AST.Block;
+  constructor(block: AST.Block) {
+    this.block = block;
+  }
+  compile(): Wasm.Module {
+    const symbolTable = this.block.resolveSymbols(null);
+    const body = ASTCompiler.forNode(this.block).compile();
+    const blockType = this.block.resolveType();
+    const results =
+      blockType === Intrinsics.Void ? [] : [blockType.toValueType()];
+    const locals = [
+      ...symbolTable.values().map((t) => new Wasm.Local(t.toValueType())),
+    ];
+    return new Wasm.Module({
+      funcs: [
+        new Wasm.Func({
+          funcType: new Wasm.FuncType({
+            results,
+            params: [],
+          }),
+          locals,
+          exportName: 'main',
+          body,
+        }),
+      ],
+    });
   }
 }
 

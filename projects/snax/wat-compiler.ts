@@ -25,25 +25,6 @@ export function compileStr(input: string): Result<string, any> {
   }
 }
 
-function getWASMType(valueType: Types.BaseType): string {
-  return valueType.toValueType() as string;
-}
-
 export function compileAST(block: AST.Block): string {
-  const compiler = new ASTCompiler.BlockCompiler(block);
-  const instructions = compiler.compile();
-  let returnType = getWASMType(block.resolveType());
-  let locals: string[] = [...block.resolveSymbols(null).values()].map(
-    (valueType) => getWASMType(valueType)
-  );
-  const mainBody = instructions.map((ins) => ins.toWAT()).join('\n');
-  const moduleBody = `
-(func (export "main") (result ${returnType})
-  (local ${locals.join(' ')})
-  i32.const 1
-  memory.grow
-  drop
-  ${mainBody}
-)`;
-  return `(module (memory 1) (export "mem" (memory 0)) ${moduleBody})`;
+  return new ASTCompiler.ModuleCompiler(block).compile().toWAT();
 }

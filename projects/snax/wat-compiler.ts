@@ -1,7 +1,6 @@
 import { err, ok, Result } from 'neverthrow';
 import * as AST from './snax-ast';
 import { SNAXParser } from './snax-parser';
-import * as Types from './snax-types';
 import * as ASTCompiler from './ast-compiler';
 
 export interface HasWAT {

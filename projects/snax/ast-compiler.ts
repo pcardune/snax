@@ -1,4 +1,5 @@
 import * as AST from './snax-ast';
+import { SNAXParser } from './snax-parser';
 import { Intrinsics, NumericalType } from './snax-types';
 import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
@@ -156,12 +157,35 @@ export function assignStorageLocations(file: AST.File) {
   }
 }
 
+export type ModuleCompilerOptions = {
+  includeRuntime: boolean;
+};
 export class ModuleCompiler {
   file: AST.File;
-  constructor(file: AST.File) {
+  options: ModuleCompilerOptions;
+  constructor(file: AST.File, options?: Partial<ModuleCompilerOptions>) {
     this.file = file;
+    this.options = {
+      includeRuntime: false,
+      ...options,
+    };
   }
   compile(): Wasm.Module {
+    if (this.options.includeRuntime) {
+      let runtimeAST = SNAXParser.parseStrOrThrow(`
+        global next = 0;
+        func malloc(numBytes:i32) {
+          let startAddress = next;
+          next = next + numBytes;
+          return startAddress;
+        }`);
+      this.file.children.push(
+        ...runtimeAST.children.filter(
+          (node) => !(node instanceof AST.FuncDecl && node.symbol === 'main')
+        )
+      );
+    }
+
     resolveSymbols(this.file);
     assignStorageLocations(this.file);
 

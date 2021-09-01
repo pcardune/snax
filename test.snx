@@ -1,4 +1,8 @@
-let a = 1.4;
-let b = 2.3;
-let c = a +b;
-c;
+func sumTo10(i:i32, n:i32, stepSize:i32) {
+  if (i > 0) {
+    return sumTo10(i-1, n+stepSize, stepSize);
+  }
+  return n;
+}
+
+sumTo10(300, 0, 3);

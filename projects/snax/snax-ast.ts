@@ -230,6 +230,22 @@ export class IfStatement extends BaseNode {
   }
 }
 
+export class WhileStatement extends BaseNode {
+  name = 'WhileStatement';
+  constructor(condExpr: ASTNode, thenBlock: Block) {
+    super([condExpr, thenBlock]);
+  }
+  get condExpr() {
+    return this.children[0];
+  }
+  get thenBlock() {
+    return this.children[1] as Block;
+  }
+  resolveType() {
+    return Intrinsics.Void;
+  }
+}
+
 type SymbolLocation = {
   area: 'funcs' | 'locals';
   offset: number;

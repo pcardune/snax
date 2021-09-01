@@ -18,6 +18,7 @@ import {
   ReturnStatement,
   ArgList,
   IfStatement,
+  WhileStatement,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -231,6 +232,30 @@ describe('SNAX Parser', () => {
           'x',
           new TypeExpr(new TypeRef('i32')),
           new NumberLiteral(3)
+        )
+      );
+    });
+  });
+
+  describe('while loops', () => {
+    it('should parse while loops', () => {
+      expect(
+        SNAXParser.parseStrOrThrow(
+          `while (true) { doSomething(); }`,
+          'statement'
+        )
+      ).toEqual(
+        new WhileStatement(
+          new BooleanLiteral(true),
+          new Block([
+            new ExprStatement(
+              new Expression(
+                BinaryOp.CALL,
+                new SymbolRef('doSomething'),
+                new ArgList([])
+              )
+            ),
+          ])
         )
       );
     });

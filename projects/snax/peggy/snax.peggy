@@ -30,6 +30,7 @@ statement "statement"
     return new AST.LetStatement(name, type ? type[2] : null, expr);
   }
   / ifStatement
+  / whileStatement
   / funcDecl: funcDecl ws { return funcDecl; }
   / "return" ws expr:expr? ws ";" ws {
     return new AST.ReturnStatement(expr);
@@ -38,6 +39,15 @@ statement "statement"
   / expr:expr ws ";" ws {
     return new AST.ExprStatement(expr);
   }
+
+whileStatement "while statement"
+  = "while" ws "(" ws condExpr:expr ws ")" ws
+    "{" ws thenBlock:block ws "}" ws {
+      return new AST.WhileStatement(
+        condExpr,
+        thenBlock
+      );
+    }
 
 ifStatement "if statement"
   = "if" ws "(" ws condExpr:expr ws ")" ws

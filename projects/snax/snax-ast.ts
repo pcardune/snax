@@ -266,6 +266,7 @@ export enum BinaryOp {
   LESS_THAN = '<',
   GREATER_THAN = '>',
   EQUAL_TO = '==',
+  NOT_EQUAL_TO = '!=',
 
   ASSIGN = '=',
 

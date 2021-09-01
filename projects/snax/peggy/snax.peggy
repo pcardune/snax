@@ -78,8 +78,12 @@ bool_and "bool and"
   / equality
 
 equality "equality"
-  = left:ordering ws "==" ws right:ordering {
-    return new AST.Expression(AST.BinaryOp.EQUAL_TO, left, right);
+  = left:ordering ws op:("==" / "!=") ws right:ordering {
+    return new AST.Expression(
+      op === "!=" ? AST.BinaryOp.NOT_EQUAL_TO : AST.BinaryOp.EQUAL_TO,
+      left,
+      right
+    );
   }
   / ordering
 

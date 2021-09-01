@@ -94,6 +94,40 @@ export class Or extends BinaryOp {
   instruction = 'or';
 }
 
+export class LessThan extends BinaryOp {
+  get instruction() {
+    switch (this.valueType) {
+      case NumberType.f32:
+      case NumberType.f64:
+        return 'lt';
+      case NumberType.i32:
+      case NumberType.i64:
+        return 'lt_s';
+    }
+  }
+}
+
+export class GreaterThan extends BinaryOp {
+  get instruction() {
+    switch (this.valueType) {
+      case NumberType.f32:
+      case NumberType.f64:
+        return 'gt';
+      case NumberType.i32:
+      case NumberType.i64:
+        return 'gt_s';
+    }
+  }
+}
+
+export class Equal extends BinaryOp {
+  instruction = 'eq';
+}
+
+export class NotEqual extends BinaryOp {
+  instruction = 'ne';
+}
+
 export class LocalGet extends Instruction {
   offset: number;
   constructor(offset: number) {

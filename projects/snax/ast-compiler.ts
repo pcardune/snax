@@ -253,6 +253,7 @@ function matchTypes(left: AST.ASTNode, right: AST.ASTNode) {
     if (rightType.interpretation === 'float') {
       targetType = rightType;
     }
+  } else if (leftType === Intrinsics.Bool && rightType === Intrinsics.Bool) {
   } else {
     throw new Error("pushNumberOps: don't know how to cast to number");
   }
@@ -288,6 +289,22 @@ const OpCompilers: Record<
   [AST.BinaryOp.DIV]: (left: AST.ASTNode, right: AST.ASTNode) => [
     ...pushNumberOps(left, right),
     new IR.Div(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.Equal(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.NOT_EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.NotEqual(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.LESS_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.LessThan(matchTypes(left, right)),
+  ],
+  [AST.BinaryOp.GREATER_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    ...pushNumberOps(left, right),
+    new IR.GreaterThan(matchTypes(left, right)),
   ],
   [AST.BinaryOp.LOGICAL_AND]: (left: AST.ASTNode, right: AST.ASTNode) => [
     ...ASTCompiler.forNode(left).compile(),
@@ -353,15 +370,6 @@ const OpCompilers: Record<
         `ExpressionCompiler: Can't call unresolved symbol ${left}`
       );
     }
-  },
-  [AST.BinaryOp.EQUAL_TO]: () => {
-    throw new Error('EQUAL_TO not implemented yet');
-  },
-  [AST.BinaryOp.LESS_THAN]: () => {
-    throw new Error('LESS_THAN not implemented yet');
-  },
-  [AST.BinaryOp.GREATER_THAN]: () => {
-    throw new Error('GREATER_THAN not implemented yet');
   },
 };
 

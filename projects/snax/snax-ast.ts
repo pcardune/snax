@@ -1,17 +1,12 @@
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import {
-  ArrayType,
-  BaseType,
-  FuncType,
-  Intrinsics,
-  Operators,
-} from './snax-types';
+import { ArrayType, BaseType, FuncType, Intrinsics } from './snax-types';
 
 export interface ASTNode {
   children: ASTNode[];
   toString(): string;
   depthFirstIter(): Iter<BaseNode>;
+  preorderIter(): Iter<BaseNode>;
   resolveType(): BaseType;
 }
 
@@ -28,6 +23,12 @@ abstract class BaseNode implements ASTNode {
     );
   }
 
+  preorderIter(): Iter<BaseNode> {
+    return iter([this as BaseNode]).chain(
+      ...this.children.map((c) => c.preorderIter())
+    );
+  }
+
   toString() {
     return this.name;
   }
@@ -36,6 +37,23 @@ abstract class BaseNode implements ASTNode {
   abstract resolveType(): BaseType;
 }
 export type { BaseNode };
+
+export class File extends BaseNode {
+  name = 'File';
+  symbolTable?: SymbolTable;
+
+  constructor(funcs: FuncDecl[]) {
+    super(funcs);
+  }
+
+  get funcDecls() {
+    return this.children as FuncDecl[];
+  }
+
+  resolveType(): BaseType {
+    throw new Error('Files do not have types yet');
+  }
+}
 
 export class BooleanLiteral extends BaseNode {
   name = 'BooleanLiteral';
@@ -79,12 +97,16 @@ export class NumberLiteral extends BaseNode {
 export class SymbolRef extends BaseNode {
   name = 'SymbolRef';
   readonly symbol: string;
+  symbolRecord?: SymbolRecord;
   constructor(symbol: string) {
     super([]);
     this.symbol = symbol;
   }
   resolveType(): BaseType {
-    throw new Error("SymbolRef: Can't resolve type on an unresolved symbol");
+    if (!this.symbolRecord) {
+      throw new Error("SymbolRef: Can't resolve type on an unresolved symbol");
+    }
+    return this.symbolRecord.declNode.resolveType();
   }
 }
 
@@ -133,21 +155,6 @@ export class TypeExpr extends BaseNode {
   }
 }
 
-export class ResolvedSymbolRef extends BaseNode {
-  name = 'ResolvedSymbolRef';
-  offset: number;
-  valueType: BaseType;
-  constructor(offset: number, valueType: BaseType) {
-    super([]);
-    this.offset = offset;
-    this.valueType = valueType;
-  }
-
-  resolveType(): BaseType {
-    return this.valueType;
-  }
-}
-
 export class ExprStatement extends BaseNode {
   name = 'ExprStatement';
   constructor(expr: ASTNode) {
@@ -164,6 +171,8 @@ export class ExprStatement extends BaseNode {
 export class LetStatement extends BaseNode {
   name: string;
   readonly symbol: string;
+  location?: SymbolLocation;
+
   constructor(symbol: string, typeExpr: TypeExpr | null, expr: ASTNode) {
     if (!typeExpr) {
       typeExpr = TypeExpr.placeholder;
@@ -191,28 +200,20 @@ export class LetStatement extends BaseNode {
   }
 }
 
-export class ResolvedLetStatement extends BaseNode {
-  name = 'ResolvedLetStatement';
-  readonly offset: number;
-  constructor(letStatement: LetStatement, offset: number) {
-    super([letStatement.expr]);
-    this.offset = offset;
-  }
-  get expr() {
-    return this.children[0];
-  }
-  resolveType() {
-    return Intrinsics.Void;
-  }
-}
-type SymbolRecord = { offset: number; valueType: BaseType };
-// type SymbolTable = OrderedMap<string, SymbolRecord>;
+type SymbolLocation = {
+  area: 'funcs' | 'locals';
+  offset: number;
+};
+
+type SymbolRecord = {
+  location?: SymbolLocation;
+  valueType?: BaseType;
+  declNode: ASTNode;
+};
 
 export class SymbolTable {
   private table: OrderedMap<string, SymbolRecord> = new OrderedMap();
   private parent: SymbolTable | null;
-  private localValueTypes: BaseType[] = [];
-  private funcTypes: FuncType[] = [];
 
   constructor(parent: SymbolTable | null = null) {
     this.parent = parent;
@@ -226,49 +227,12 @@ export class SymbolTable {
     return this.table.has(symbol);
   }
 
-  values(): Iter<BaseType> {
-    return iter(this.getTopParent().localValueTypes);
+  records() {
+    return this.table.values();
   }
 
-  private getTopParent() {
-    let table: SymbolTable = this;
-    while (table.parent) {
-      table = table.parent;
-    }
-    return table;
-  }
-
-  reserve(symbol: string, valueType: BaseType) {
-    if (valueType instanceof FuncType) {
-      let offset = this.funcTypes.length;
-      this.funcTypes.push(valueType);
-      this.table.set(symbol, { offset, valueType });
-      return offset;
-    } else {
-      let top = this.getTopParent();
-      let offset = top.localValueTypes.length;
-      top.localValueTypes.push(valueType);
-      this.table.set(symbol, { offset, valueType });
-      return offset;
-    }
-  }
-}
-
-function resolveSymbol(table: SymbolTable, child: SymbolRef) {
-  const symbol = table.get(child.symbol);
-  if (!symbol) {
-    throw new Error(`Reference to undeclared symbol ${child.symbol}`);
-  }
-  return new ResolvedSymbolRef(symbol.offset, symbol.valueType);
-}
-
-function resolveSymbols(table: SymbolTable, node: ASTNode) {
-  for (const [i, child] of node.children.entries()) {
-    if (child instanceof SymbolRef) {
-      node.children[i] = resolveSymbol(table, child);
-    } else {
-      resolveSymbols(table, child);
-    }
+  declare(symbol: string, declNode: ASTNode) {
+    this.table.set(symbol, { declNode });
   }
 }
 
@@ -290,36 +254,7 @@ export class Block extends BaseNode {
     return Intrinsics.Void;
   }
 
-  private symbolTable: SymbolTable | null = null;
-
-  resolveSymbols(parentSymbolTable: SymbolTable | null): SymbolTable {
-    if (this.symbolTable) {
-      return this.symbolTable;
-    }
-    this.symbolTable = new SymbolTable(parentSymbolTable);
-    for (let [i, astNode] of this.statements.entries()) {
-      if (astNode instanceof Block) {
-        astNode.resolveSymbols(this.symbolTable);
-      }
-      if (!(astNode instanceof FuncDecl)) {
-        resolveSymbols(this.symbolTable, astNode);
-      }
-      if (astNode instanceof LetStatement) {
-        if (this.symbolTable.has(astNode.symbol)) {
-          throw new Error(
-            `Redeclaration of symbol ${astNode.symbol} in the same scope`
-          );
-        }
-        const offset = this.symbolTable.reserve(
-          astNode.symbol,
-          astNode.expr.resolveType()
-        );
-        const resolved = new ResolvedLetStatement(astNode, offset);
-        this.statements[i] = resolved;
-      }
-    }
-    return this.symbolTable;
-  }
+  symbolTable?: SymbolTable;
 }
 
 export enum BinaryOp {
@@ -457,6 +392,10 @@ export class ParameterList extends BaseNode {
 export class FuncDecl extends BaseNode {
   name = 'FuncDecl';
   symbol: string;
+
+  symbolTable?: SymbolTable;
+  locals: SymbolRecord[] = [];
+
   constructor(symbol: string, parameters: ParameterList, body: Block) {
     super([parameters, body]);
     this.symbol = symbol;
@@ -478,6 +417,8 @@ export class FuncDecl extends BaseNode {
 export class Parameter extends BaseNode {
   name = 'Parameter';
   symbol: string;
+  location?: SymbolLocation;
+
   constructor(symbol: string, typeExpr: TypeExpr) {
     super([typeExpr]);
     this.symbol = symbol;

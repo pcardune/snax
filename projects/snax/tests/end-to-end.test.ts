@@ -36,6 +36,13 @@ async function exec(input: string) {
 
 describe("end-to-end test", () => {
   it("compiles an empty program", async () => {
+    expect(compileToWAT("")).toMatchInlineSnapshot(`
+      "(module (memory 1) (export \\"mem\\" (memory 0))
+      (func $main (export \\"main\\")   
+
+      )
+      )"
+    `);
     expect(await exec("")).toBe(undefined);
   });
 
@@ -76,7 +83,7 @@ describe("end-to-end test", () => {
       "(module
         (memory (;0;) 1)
         (export \\"mem\\" (memory 0))
-        (func (;0;) (result i32)
+        (func $main (result i32)
           i32.const 3
           i32.const 5
           i32.const 2
@@ -96,7 +103,7 @@ describe("end-to-end test", () => {
   it("converts between ints and floats", async () => {
     expect(compileToWAT("3+5.2;")).toMatchInlineSnapshot(`
       "(module (memory 1) (export \\"mem\\" (memory 0))
-      (func  (export \\"main\\")  (result f32) 
+      (func $main (export \\"main\\")  (result f32) 
         i32.const 3
         f32.convert_i32_s
         f32.const 5.2
@@ -110,26 +117,39 @@ describe("end-to-end test", () => {
 
   describe("block compilation", () => {
     it("compiles blocks", async () => {
+      expect(compileToWAT("let x = 3; let y = x+4; y;")).toMatchInlineSnapshot(`
+        "(module (memory 1) (export \\"mem\\" (memory 0))
+        (func $main (export \\"main\\")  (result i32) (local  i32) (local  i32)
+          i32.const 3
+          local.set 0
+          local.get 0
+          i32.const 4
+          i32.add
+          local.set 1
+          local.get 1
+        )
+        )"
+      `);
       const { exports, wasmModule } = await compileToWasmModule(
         "let x = 3; let y = x+4; y;"
       );
       expect(wasmModule.toText({})).toMatchInlineSnapshot(`
-              "(module
-                (memory (;0;) 1)
-                (export \\"mem\\" (memory 0))
-                (func (;0;) (result i32)
-                  (local i32 i32)
-                  i32.const 3
-                  local.set 0
-                  local.get 0
-                  i32.const 4
-                  i32.add
-                  local.set 1
-                  local.get 1)
-                (export \\"main\\" (func 0))
-                (type (;0;) (func (result i32))))
-              "
-          `);
+        "(module
+          (memory (;0;) 1)
+          (export \\"mem\\" (memory 0))
+          (func $main (result i32)
+            (local i32 i32)
+            i32.const 3
+            local.set 0
+            local.get 0
+            i32.const 4
+            i32.add
+            local.set 1
+            local.get 1)
+          (export \\"main\\" (func 0))
+          (type (;0;) (func (result i32))))
+        "
+      `);
       expect(exports.main()).toBe(7);
     });
 
@@ -209,13 +229,13 @@ describe("end-to-end test", () => {
         `);
       expect(wat).toMatchInlineSnapshot(`
         "(module (memory 1) (export \\"mem\\" (memory 0))
-        (func $add  (param i32 i32) (result i32) 
+        (func $add  (param i32 i32) (result i32) (local  i32) (local  i32)
           local.get 0
           local.get 1
           i32.add
           return
         )
-        (func  (export \\"main\\")  (result i32) (local  i32)
+        (func $main (export \\"main\\")  (result i32) (local  i32)
           i32.const 3
           local.set 0
           local.get 0

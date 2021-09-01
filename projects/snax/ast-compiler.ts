@@ -20,10 +20,10 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new NumberLiteralCompiler(node);
     } else if (node instanceof AST.Block) {
       return new BlockCompiler(node);
-    } else if (node instanceof AST.ResolvedLetStatement) {
-      return new ResolvedLetStatementCompiler(node);
-    } else if (node instanceof AST.ResolvedSymbolRef) {
-      return new ResolvedSymbolRefCompiler(node);
+    } else if (node instanceof AST.LetStatement) {
+      return new LetStatementCompiler(node);
+    } else if (node instanceof AST.SymbolRef) {
+      return new SymbolRefCompiler(node);
     } else if (node instanceof AST.BooleanLiteral) {
       return new BooleanLiteralCompiler(node);
     } else if (node instanceof AST.ArrayLiteral) {
@@ -51,11 +51,93 @@ class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
 
 export class BlockCompiler extends ASTCompiler<AST.Block> {
   compile(): IR.Instruction[] {
-    this.root.resolveSymbols(null);
     return this.root.statements
       .filter((astNode) => !(astNode instanceof AST.FuncDecl))
       .map((astNode) => ASTCompiler.forNode(astNode).compile())
       .flat();
+  }
+}
+
+export function resolveSymbols(file: AST.File) {
+  if (file.symbolTable) {
+    throw new Error('resolveSymbols: Already resolved symbols for block...');
+  }
+  file.symbolTable = new AST.SymbolTable();
+
+  for (const funcDecl of file.funcDecls) {
+    file.symbolTable.declare(funcDecl.symbol, funcDecl);
+  }
+
+  const scopes: AST.SymbolTable[] = [file.symbolTable];
+
+  function recurse(astNode: AST.ASTNode) {
+    const currentScope = scopes[scopes.length - 1];
+    if (astNode instanceof AST.Block) {
+      astNode.symbolTable = new AST.SymbolTable(currentScope);
+      scopes.push(astNode.symbolTable);
+      for (const child of astNode.children) {
+        recurse(child);
+      }
+      scopes.pop();
+      return;
+    } else if (astNode instanceof AST.FuncDecl) {
+      astNode.symbolTable = new AST.SymbolTable(currentScope);
+      scopes.push(astNode.symbolTable);
+      astNode.children.forEach(recurse);
+      scopes.pop();
+      return;
+    }
+    astNode.children.forEach(recurse);
+    if (astNode instanceof AST.Parameter) {
+      if (currentScope.has(astNode.symbol)) {
+        throw new Error(`Redeclaration of parameter ${astNode.symbol}`);
+      }
+      currentScope.declare(astNode.symbol, astNode);
+    } else if (astNode instanceof AST.LetStatement) {
+      if (currentScope.has(astNode.symbol)) {
+        throw new Error(
+          `Redeclaration of symbol ${astNode.symbol} in the same scope`
+        );
+      }
+      currentScope.declare(astNode.symbol, astNode);
+    } else if (astNode instanceof AST.SymbolRef) {
+      const symbolRecord = currentScope.get(astNode.symbol);
+      if (!symbolRecord) {
+        throw new Error(`Reference to undeclared symbol ${astNode.symbol}`);
+      }
+      astNode.symbolRecord = symbolRecord;
+    }
+  }
+  recurse(file);
+}
+
+export function assignStorageLocations(file: AST.File) {
+  function recurse(funcDecl: AST.FuncDecl, astNode: AST.ASTNode) {
+    if (astNode instanceof AST.Block || astNode instanceof AST.FuncDecl) {
+      for (const record of astNode.symbolTable!.records()) {
+        if (
+          record.declNode instanceof AST.LetStatement ||
+          record.declNode instanceof AST.Parameter
+        ) {
+          funcDecl.locals?.push(record);
+          record.location = {
+            area: 'locals',
+            offset: funcDecl.locals?.length - 1,
+          };
+          record.declNode.location = record.location;
+          record.valueType = record.declNode.resolveType();
+        }
+      }
+    }
+    astNode.children.forEach((child) => recurse(funcDecl, child));
+  }
+  let offset = 0;
+  for (const record of file.symbolTable!.records()) {
+    if (record.declNode instanceof AST.FuncDecl) {
+      record.declNode.locals = [];
+      record.location = { area: 'funcs', offset: offset++ };
+      recurse(record.declNode, record.declNode);
+    }
   }
 }
 
@@ -65,40 +147,34 @@ export class ModuleCompiler {
     this.block = block;
   }
   compile(): Wasm.Module {
-    const symbolTable = new AST.SymbolTable();
-
-    const funcNodes = this.block.statements.filter(
+    // step 1 is to extract functions and put everything
+    // into a file.
+    const funcDecls = this.block.children.filter(
       (statement): statement is AST.FuncDecl =>
         statement instanceof AST.FuncDecl
     );
-    let funcs: Wasm.Func[] = [];
-    for (const func of funcNodes) {
-      funcs.push(new FuncDeclCompiler(func).compile());
-      symbolTable.reserve(func.symbol, func.resolveType());
-    }
+    this.block.children = this.block.children.filter(
+      (child) => !(child instanceof AST.FuncDecl)
+    );
 
-    this.block.resolveSymbols(symbolTable);
+    const file = new AST.File([
+      ...funcDecls,
+      new AST.FuncDecl('main', new AST.ParameterList([]), this.block),
+    ]);
 
-    const body = ASTCompiler.forNode(this.block).compile();
-    const blockType = this.block.resolveType();
-    const results =
-      blockType === Intrinsics.Void ? [] : [blockType.toValueType()];
-    const locals = [
-      ...symbolTable.values().map((t) => new Wasm.Local(t.toValueType())),
-    ];
+    resolveSymbols(file);
+    assignStorageLocations(file);
+
+    const funcs: Wasm.Func[] = file.funcDecls.map((func) => {
+      const wasmFunc = new FuncDeclCompiler(func).compile();
+      if (func.symbol === 'main') {
+        wasmFunc.fields.exportName = 'main';
+      }
+      return wasmFunc;
+    });
+
     return new Wasm.Module({
-      funcs: [
-        ...funcs,
-        new Wasm.Func({
-          funcType: new Wasm.FuncType({
-            results,
-            params: [],
-          }),
-          locals,
-          exportName: 'main',
-          body,
-        }),
-      ],
+      funcs: [...funcs],
     });
   }
 }
@@ -109,18 +185,17 @@ export class FuncDeclCompiler {
     this.funcDecl = funcDecl;
   }
   compile(): Wasm.Func {
-    const symbolTable = new AST.SymbolTable();
-    for (const param of this.funcDecl.parameters) {
-      symbolTable.reserve(param.symbol, param.resolveType());
-    }
-    this.funcDecl.block.resolveSymbols(symbolTable);
-
     const funcType = this.funcDecl.resolveType();
     const params = funcType.argTypes.map((t) => t.toValueType());
     const results =
       funcType.returnType === Intrinsics.Void
         ? []
         : [funcType.returnType.toValueType()];
+
+    const locals: Wasm.Local[] = [];
+    for (const local of this.funcDecl.locals) {
+      locals.push(new Wasm.Local(local.declNode.resolveType().toValueType()));
+    }
     return new Wasm.Func({
       id: this.funcDecl.symbol,
       body: ASTCompiler.forNode(this.funcDecl.block).compile(),
@@ -128,22 +203,34 @@ export class FuncDeclCompiler {
         params,
         results,
       }),
+      locals,
     });
   }
 }
 
-class ResolvedLetStatementCompiler extends ASTCompiler<AST.ResolvedLetStatement> {
+class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
   compile(): IR.Instruction[] {
+    if (!this.root.location) {
+      throw new Error(
+        `LetStatementCompiler: Can't compile let statement ${this.root.symbol} without a data location`
+      );
+    }
     return [
       ...ASTCompiler.forNode(this.root.expr).compile(),
-      new IR.LocalSet(this.root.offset),
+      new IR.LocalSet(this.root.location.offset),
     ];
   }
 }
 
-class ResolvedSymbolRefCompiler extends ASTCompiler<AST.ResolvedSymbolRef> {
+class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
   compile(): IR.Instruction[] {
-    return [new IR.LocalGet(this.root.offset)];
+    const location = this.root.symbolRecord?.location;
+    if (!location) {
+      throw new Error(
+        `SymbolRefCompiler: Can't compile reference to unlocated symbol ${this.root.name}`
+      );
+    }
+    return [new IR.LocalGet(this.root.symbolRecord!.location!.offset)];
   }
 }
 
@@ -220,10 +307,16 @@ const OpCompilers: Record<
         `Can't assign value of type ${rightType} to symbol of type ${leftType}`
       );
     }
-    if (left instanceof AST.ResolvedSymbolRef) {
+    if (left instanceof AST.SymbolRef) {
+      const location = left.symbolRecord?.location;
+      if (!location) {
+        throw new Error(
+          `ASSIGN: can't compile assignment to unlocated symbol ${left.symbol}`
+        );
+      }
       return [
         ...ASTCompiler.forNode(right).compile(),
-        new IR.LocalSet(left.offset),
+        new IR.LocalSet(location.offset),
       ];
     } else {
       throw new Error(
@@ -246,10 +339,14 @@ const OpCompilers: Record<
     ];
   },
   [AST.BinaryOp.CALL]: (left: AST.ASTNode, right: AST.ASTNode) => {
-    if (left instanceof AST.ResolvedSymbolRef) {
+    if (left instanceof AST.SymbolRef) {
+      const location = left.symbolRecord?.location;
+      if (!location || location.area !== 'funcs') {
+        throw new Error(`CALL: can't call unlocated function ${left.symbol}`);
+      }
       return [
         ...ASTCompiler.forNode(right).compile(),
-        new IR.Call(left.offset),
+        new IR.Call(location.offset),
       ];
     } else {
       throw new Error(

@@ -1,7 +1,13 @@
 import * as AST from '../snax-ast';
 import * as IR from '../stack-ir';
 import * as Wasm from '../wasm-ast';
-import { ASTCompiler, FuncDeclCompiler, ModuleCompiler } from '../ast-compiler';
+import {
+  assignStorageLocations,
+  ASTCompiler,
+  FuncDeclCompiler,
+  ModuleCompiler,
+  resolveSymbols,
+} from '../ast-compiler';
 
 function compile(node: AST.ASTNode) {
   return ASTCompiler.forNode(node).compile();
@@ -82,6 +88,81 @@ describe('FuncDeclCompiler', () => {
         body: ASTCompiler.forNode(block).compile(),
       })
     );
+  });
+});
+
+fdescribe('block compilation', () => {
+  let file: AST.File;
+  let funcDecl: AST.FuncDecl;
+  let outerBlock: AST.Block;
+  let innerBlock: AST.Block;
+
+  beforeEach(() => {
+    innerBlock = new AST.Block([
+      new AST.LetStatement('x', null, new AST.NumberLiteral(3)),
+      new AST.SymbolRef('x'),
+      new AST.SymbolRef('y'),
+    ]);
+    outerBlock = new AST.Block([
+      new AST.LetStatement('x', null, new AST.NumberLiteral(1)),
+      new AST.LetStatement('y', null, new AST.NumberLiteral(2)),
+      innerBlock,
+      new AST.SymbolRef('x'),
+    ]);
+    funcDecl = new AST.FuncDecl('main', new AST.ParameterList([]), outerBlock);
+    file = new AST.File([funcDecl]);
+    resolveSymbols(file);
+  });
+
+  describe('resolveSymbols', () => {
+    it('constructs the correct symbol table', () => {
+      if (!outerBlock.symbolTable) {
+        fail('resolveSymbols should attach a symbolTable to the block');
+      }
+      expect(outerBlock.symbolTable.get('x')?.declNode).toBe(
+        outerBlock.children[0]
+      );
+      expect(outerBlock.symbolTable.get('y')?.declNode).toBe(
+        outerBlock.children[1]
+      );
+      expect((outerBlock.children[3] as AST.SymbolRef).symbolRecord).toBe(
+        outerBlock.symbolTable.get('x')
+      );
+    });
+    it('symbols are resolved to the nearest scope they are found in', () => {
+      const innerXRef = innerBlock.children[1] as AST.SymbolRef;
+      expect(innerXRef.symbolRecord).not.toBe(outerBlock.symbolTable?.get('x'));
+      expect(innerXRef.symbolRecord).toBe(innerBlock.symbolTable?.get('x'));
+    });
+    it('symbols are resolved to an outer scope when not in the current scope', () => {
+      expect((innerBlock.children[2] as AST.SymbolRef).symbolRecord).toBe(
+        outerBlock.symbolTable?.get('y')
+      );
+    });
+  });
+
+  describe('assignStorageLocations', () => {
+    beforeEach(() => {
+      assignStorageLocations(file);
+    });
+    it('should assign correct storage locations for variables declared in the outer block', () => {
+      expect(outerBlock.symbolTable?.get('x')?.location).toEqual({
+        area: 'locals',
+        offset: 0,
+      });
+    });
+    it('should attach locations to let statements', () => {
+      expect((outerBlock.children[0] as AST.LetStatement).location).toEqual({
+        area: 'locals',
+        offset: 0,
+      });
+    });
+    it('should give locations to inner block let statements that do not conflict with outer block let statements', () => {
+      expect((innerBlock.children[0] as AST.LetStatement).location).toEqual({
+        area: 'locals',
+        offset: 2,
+      });
+    });
   });
 });
 

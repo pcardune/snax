@@ -91,7 +91,7 @@ describe('FuncDeclCompiler', () => {
   });
 });
 
-fdescribe('block compilation', () => {
+describe('block compilation', () => {
   let file: AST.File;
   let funcDecl: AST.FuncDecl;
   let outerBlock: AST.Block;
@@ -163,6 +163,23 @@ fdescribe('block compilation', () => {
         offset: 2,
       });
     });
+  });
+});
+
+fdescribe('IfStatementCompiler', () => {
+  it('compiles if statements', () => {
+    const ifStatement = new AST.IfStatement(
+      new AST.BooleanLiteral(true),
+      new AST.Block([new AST.ExprStatement(new AST.NumberLiteral(2))]),
+      new AST.Block([new AST.ExprStatement(new AST.NumberLiteral(4))])
+    );
+    expect(compile(ifStatement)).toEqual([
+      ...compile(ifStatement.condExpr),
+      new Wasm.IfBlock({
+        then: compile(ifStatement.thenBlock),
+        else: compile(ifStatement.elseBlock),
+      }),
+    ]);
   });
 });
 

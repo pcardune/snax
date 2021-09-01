@@ -22,6 +22,8 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new BlockCompiler(node);
     } else if (node instanceof AST.LetStatement) {
       return new LetStatementCompiler(node);
+    } else if (node instanceof AST.IfStatement) {
+      return new IfStatementCompiler(node);
     } else if (node instanceof AST.SymbolRef) {
       return new SymbolRefCompiler(node);
     } else if (node instanceof AST.BooleanLiteral) {
@@ -218,6 +220,18 @@ class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
     return [
       ...ASTCompiler.forNode(this.root.expr).compile(),
       new IR.LocalSet(this.root.location.offset),
+    ];
+  }
+}
+
+class IfStatementCompiler extends ASTCompiler<AST.IfStatement> {
+  compile(): IR.Instruction[] {
+    return [
+      ...ASTCompiler.forNode(this.root.condExpr).compile(),
+      new Wasm.IfBlock({
+        then: ASTCompiler.forNode(this.root.thenBlock).compile(),
+        else: ASTCompiler.forNode(this.root.elseBlock).compile(),
+      }),
     ];
   }
 }

@@ -72,3 +72,18 @@ export class Local
     return `(local ${id} ${this.fields.valueType})`;
   }
 }
+
+export class IfBlock extends Node<{
+  then: IR.Instruction[];
+  else: IR.Instruction[];
+}> {
+  toWAT() {
+    return [
+      'if',
+      ...this.fields.then.map((i) => i.toWAT()),
+      'else',
+      ...this.fields.else.map((i) => i.toWAT()),
+      'end',
+    ].join('\n');
+  }
+}

@@ -231,6 +231,21 @@ describe('end-to-end test', () => {
     });
   });
 
+  describe('control flow', () => {
+    it('compiles if statements', async () => {
+      const code = `
+        let x=3;
+        if (x==4) {
+          x=7;
+        } else {
+          x=9;
+        }
+        x;
+      `;
+      expect(await exec(code)).toBe(9);
+    });
+  });
+
   describe('functions', () => {
     it('compiles functions', async () => {
       const wat = compileToWAT(`

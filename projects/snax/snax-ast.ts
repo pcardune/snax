@@ -218,7 +218,7 @@ export class IfStatement extends BaseNode {
     return this.children[1] as Block;
   }
   get elseBlock() {
-    return this.children[1] as Block;
+    return this.children[2] as Block;
   }
   resolveType() {
     const thenType = this.thenBlock.resolveType();

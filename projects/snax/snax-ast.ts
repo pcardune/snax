@@ -178,7 +178,7 @@ export class ExprStatement extends BaseNode {
     return this.children[0] as ASTNode;
   }
   resolveType() {
-    return this.expr.resolveType();
+    return Intrinsics.Void;
   }
 }
 
@@ -272,7 +272,7 @@ export class WhileStatement extends BaseNode {
 }
 
 type SymbolLocation = {
-  area: 'funcs' | 'locals';
+  area: 'funcs' | 'locals' | 'globals';
   offset: number;
 };
 
@@ -314,14 +314,6 @@ export class Block extends BaseNode {
   }
 
   resolveType() {
-    if (this.statements.length > 0) {
-      for (let i = this.statements.length - 1; i >= 0; i--) {
-        let sType = this.statements[i].resolveType();
-        if (!(sType instanceof FuncType)) {
-          return sType;
-        }
-      }
-    }
     return Intrinsics.Void;
   }
 
@@ -488,9 +480,22 @@ export class FuncDecl extends BaseNode {
     return this.children[1] as Block;
   }
   resolveType(): FuncType {
+    let returnType: BaseType | null = null;
+    for (const node of this.block.depthFirstIter()) {
+      if (node instanceof ReturnStatement) {
+        let alternativeReturnType = node.resolveType();
+        if (returnType === null) {
+          returnType = alternativeReturnType;
+        } else if (alternativeReturnType !== returnType) {
+          throw new Error(
+            `FuncDecl: can't resolve type for function ${this.symbol}: return statements have varying types`
+          );
+        }
+      }
+    }
     return new FuncType(
       this.parameters.map((p) => p.resolveType()),
-      this.block.resolveType()
+      returnType ?? Intrinsics.Void
     );
   }
 }

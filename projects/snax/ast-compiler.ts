@@ -15,7 +15,7 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
     if (node instanceof AST.Expression) {
       return new ExpressionCompiler(node);
     } else if (node instanceof AST.ExprStatement) {
-      return ASTCompiler.forNode(node.expr);
+      return new ExprStatementCompiler(node);
     } else if (node instanceof AST.NumberLiteral) {
       return new NumberLiteralCompiler(node);
     } else if (node instanceof AST.Block) {
@@ -74,6 +74,10 @@ export function resolveSymbols(file: AST.File) {
 
   for (const funcDecl of file.funcDecls) {
     file.symbolTable.declare(funcDecl.symbol, funcDecl);
+  }
+
+  for (const globalDecl of file.globalDecls) {
+    file.symbolTable.declare(globalDecl.symbol, globalDecl);
   }
 
   const scopes: AST.SymbolTable[] = [file.symbolTable];
@@ -139,12 +143,15 @@ export function assignStorageLocations(file: AST.File) {
     }
     astNode.children.forEach((child) => recurse(funcDecl, child));
   }
-  let offset = 0;
+  let funcOffset = 0;
+  let globalOffset = 0;
   for (const record of file.symbolTable!.records()) {
     if (record.declNode instanceof AST.FuncDecl) {
       record.declNode.locals = [];
-      record.location = { area: 'funcs', offset: offset++ };
+      record.location = { area: 'funcs', offset: funcOffset++ };
       recurse(record.declNode, record.declNode);
+    } else if (record.declNode instanceof AST.GlobalDecl) {
+      record.location = { area: 'globals', offset: globalOffset++ };
     }
   }
 }
@@ -169,7 +176,10 @@ export class ModuleCompiler {
     const globals: Wasm.Global[] = this.file.globalDecls.map((global, i) => {
       return new Wasm.Global({
         id: `g${i}`,
-        globalType: global.resolveType().toValueType(),
+        globalType: new Wasm.GlobalType({
+          valtype: global.resolveType().toValueType(),
+          mut: true,
+        }),
         expr: compile(global.expr),
       });
     });
@@ -265,7 +275,16 @@ class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
         `SymbolRefCompiler: Can't compile reference to unlocated symbol ${this.root.name}`
       );
     }
-    return [new IR.LocalGet(this.root.symbolRecord!.location!.offset)];
+    switch (location.area) {
+      case 'locals':
+        return [new IR.LocalGet(location.offset)];
+      case 'globals':
+        return [new IR.GlobalGet(location.offset)];
+      default:
+        throw new Error(
+          `SymbolRefCompiler: don't know how to compile reference to a location in ${location.area}`
+        );
+    }
   }
 }
 
@@ -366,10 +385,23 @@ const OpCompilers: Record<
           `ASSIGN: can't compile assignment to unlocated symbol ${left.symbol}`
         );
       }
-      return [
-        ...ASTCompiler.forNode(right).compile(),
-        new IR.LocalSet(location.offset),
-      ];
+      switch (location.area) {
+        case 'locals':
+          return [
+            ...ASTCompiler.forNode(right).compile(),
+            new IR.LocalTee(location.offset),
+          ];
+        case 'globals':
+          return [
+            ...compile(right),
+            new IR.GlobalSet(location.offset),
+            new IR.GlobalGet(location.offset),
+          ];
+        default:
+          throw new Error(
+            `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+          );
+      }
     } else {
       throw new Error(
         `Can't assign to something that is not a resolved symbol`
@@ -411,6 +443,15 @@ const OpCompilers: Record<
 class ExpressionCompiler extends ASTCompiler<AST.Expression> {
   compile(): IR.Instruction[] {
     return OpCompilers[this.root.op](this.root.left, this.root.right);
+  }
+}
+
+class ExprStatementCompiler extends ASTCompiler<AST.ExprStatement> {
+  compile() {
+    if (this.root.expr.resolveType() === Intrinsics.Void) {
+      return compile(this.root.expr);
+    }
+    return [...compile(this.root.expr), new IR.Drop()];
   }
 }
 

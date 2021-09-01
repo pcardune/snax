@@ -16,7 +16,12 @@ function compileToWAT(input: string) {
   if (!(ast instanceof AST.File)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  return wabt.parseWat('', compileAST(ast)).toText({});
+  const wat = compileAST(ast);
+  try {
+    return wabt.parseWat('', wat).toText({});
+  } catch (e) {
+    return wat;
+  }
 }
 
 async function compileToWasmModule(input: string) {
@@ -49,6 +54,17 @@ describe('end-to-end test', () => {
   });
 
   it('compiles integers', async () => {
+    expect(compileToWAT('123;')).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (export \\"mem\\" (memory 0))
+        (func $main (result i32)
+          i32.const 123
+          return)
+        (export \\"main\\" (func 0))
+        (type (;0;) (func (result i32))))
+      "
+    `);
     const { exports } = await compileToWasmModule('123;');
     expect(exports.main()).toEqual(123);
   });
@@ -107,7 +123,8 @@ describe('end-to-end test', () => {
           i32.const 10
           i32.const 10
           i32.div_s
-          i32.sub)
+          i32.sub
+          return)
         (export \\"main\\" (func 0))
         (type (;0;) (func (result i32))))
       "
@@ -124,7 +141,8 @@ describe('end-to-end test', () => {
           i32.const 3
           f32.convert_i32_s
           f32.const 0x1.4cccccp+2 (;=5.2;)
-          f32.add)
+          f32.add
+          return)
         (export \\"main\\" (func 0))
         (type (;0;) (func (result f32))))
       "
@@ -147,7 +165,8 @@ describe('end-to-end test', () => {
             i32.const 4
             i32.add
             local.set 1
-            local.get 1)
+            local.get 1
+            return)
           (export \\"main\\" (func 0))
           (type (;0;) (func (result i32))))
         "
@@ -155,23 +174,6 @@ describe('end-to-end test', () => {
       const { exports, wasmModule } = await compileToWasmModule(
         'let x = 3; let y = x+4; y;'
       );
-      expect(wasmModule.toText({})).toMatchInlineSnapshot(`
-        "(module
-          (memory (;0;) 1)
-          (export \\"mem\\" (memory 0))
-          (func $main (result i32)
-            (local i32 i32)
-            i32.const 3
-            local.set 0
-            local.get 0
-            i32.const 4
-            i32.add
-            local.set 1
-            local.get 1)
-          (export \\"main\\" (func 0))
-          (type (;0;) (func (result i32))))
-        "
-      `);
       expect(exports.main()).toBe(7);
     });
 
@@ -199,15 +201,31 @@ describe('end-to-end test', () => {
         ).toEqual(3);
       });
       it('assigns to the right location for a variable declared in a higher scope', async () => {
-        expect(
-          await exec(`
-            let x = 1;
-            {
-              x = 2;
-            }
-            x;
-          `)
-        ).toEqual(2);
+        const code = `
+          let x = 1;
+          {
+            x = 2;
+          }
+          x;
+        `;
+        expect(compileToWAT(code)).toMatchInlineSnapshot(`
+          "(module
+            (memory (;0;) 1)
+            (export \\"mem\\" (memory 0))
+            (func $main (result i32)
+              (local i32)
+              i32.const 1
+              local.set 0
+              i32.const 2
+              local.tee 0
+              drop
+              local.get 0
+              return)
+            (export \\"main\\" (func 0))
+            (type (;0;) (func (result i32))))
+          "
+        `);
+        expect(await exec(code)).toEqual(2);
       });
       it('fails if you try to assign to something that has not yet been declared', async () => {
         await expect(
@@ -290,7 +308,8 @@ describe('end-to-end test', () => {
             local.set 0
             local.get 0
             i32.const 5
-            call 0)
+            call 0
+            return)
           (export \\"main\\" (func 1))
           (type (;0;) (func (param i32 i32) (result i32)))
           (type (;1;) (func (result i32))))
@@ -309,7 +328,7 @@ describe('end-to-end test', () => {
   });
 
   describe('globals', () => {
-    xit('supports globals', async () => {
+    it('supports globals', async () => {
       const code = `
         global counter = 0;
         func count() {
@@ -319,7 +338,29 @@ describe('end-to-end test', () => {
         count();
         counter;
       `;
-      expect(compileToWAT(code)).toMatchInlineSnapshot();
+      expect(compileToWAT(code)).toMatchInlineSnapshot(`
+        "(module
+          (memory (;0;) 1)
+          (export \\"mem\\" (memory 0))
+          (global $g0 (mut i32) (i32.const 0))
+          (func $count
+            global.get 0
+            i32.const 1
+            i32.add
+            global.set 0
+            global.get 0
+            drop)
+          (func $main (result i32)
+            call 0
+            call 0
+            global.get 0
+            return)
+          (export \\"main\\" (func 1))
+          (type (;0;) (func))
+          (type (;1;) (func (result i32))))
+        "
+      `);
+      expect(await exec(code)).toEqual(2);
     });
   });
 });

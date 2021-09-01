@@ -24,17 +24,25 @@ export class Module
 
 export class Global extends Node<{
   id?: string;
-  globalType: IR.NumberType;
+  globalType: GlobalType;
   expr: IR.Instruction[];
 }> {
   toWAT() {
     let parts = [
       'global',
       this.fields.id ? `$${this.fields.id}` : '',
-      this.fields.globalType,
+      this.fields.globalType.toWAT(),
       ...this.fields.expr.map((i) => i.toWAT()),
     ];
     return `(${parts.join(' ')})`;
+  }
+}
+
+export class GlobalType extends Node<{ valtype: IR.NumberType; mut: boolean }> {
+  toWAT() {
+    return this.fields.mut
+      ? `(mut ${this.fields.valtype})`
+      : this.fields.valtype;
   }
 }
 

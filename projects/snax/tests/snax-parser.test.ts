@@ -456,7 +456,7 @@ describe('SNAX Parser', () => {
             new FuncDecl('foo'),
             new FuncDecl('bar'),
             new FuncDecl('main', {
-              body: new Block([new ExprStatement(new NumberLiteral(1))]),
+              body: new Block([new ReturnStatement(new NumberLiteral(1))]),
             }),
           ],
         })

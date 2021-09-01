@@ -132,20 +132,34 @@ export class EqualsZero extends BinaryOp {
   instruction = 'eqz';
 }
 
-export class LocalGet extends Instruction {
+abstract class VariableGet extends Instruction {
   offset: number;
   constructor(offset: number) {
     super();
     this.offset = offset;
   }
+}
+
+export class LocalGet extends VariableGet {
   toWAT(): string {
     return `local.get ${this.offset}`;
+  }
+}
+export class GlobalGet extends VariableGet {
+  toWAT(): string {
+    return `global.get ${this.offset}`;
   }
 }
 
 export class Return extends Instruction {
   toWAT() {
     return 'return';
+  }
+}
+
+export class Drop extends Instruction {
+  toWAT() {
+    return 'drop';
   }
 }
 
@@ -159,7 +173,26 @@ export class LocalSet extends Instruction {
     return `local.set ${this.offset}`;
   }
 }
-
+export class LocalTee extends Instruction {
+  offset: number;
+  constructor(offset: number) {
+    super();
+    this.offset = offset;
+  }
+  toWAT(): string {
+    return `local.tee ${this.offset}`;
+  }
+}
+export class GlobalSet extends Instruction {
+  offset: number;
+  constructor(offset: number) {
+    super();
+    this.offset = offset;
+  }
+  toWAT(): string {
+    return `global.set ${this.offset}`;
+  }
+}
 export class Call extends Instruction {
   offset: number;
   constructor(offset: number) {

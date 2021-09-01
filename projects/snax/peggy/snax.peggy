@@ -32,7 +32,18 @@ file "file"
         mainFuncBody.push(statement);
       }
     }
-    funcs.push(new AST.FuncDecl('main', {body: new AST.Block(mainFuncBody)}))
+    if (mainFuncBody.length > 0) {
+      let lastStatement = mainFuncBody[mainFuncBody.length-1];
+      if (lastStatement instanceof AST.ExprStatement) {
+        mainFuncBody[mainFuncBody.length-1] = new AST.ReturnStatement(
+          lastStatement.expr
+        );
+      }
+    }
+    funcs.push(
+      new AST.FuncDecl('main', {
+        body: new AST.Block(mainFuncBody)
+      }))
     return new AST.File({
       funcs,
       globals,

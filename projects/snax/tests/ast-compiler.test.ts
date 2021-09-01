@@ -87,9 +87,10 @@ describe('FuncDeclCompiler', () => {
   });
 });
 
-describe('block compilation', () => {
+describe('file compilation', () => {
   let file: AST.File;
   let funcDecl: AST.FuncDecl;
+  let globalDecl: AST.GlobalDecl;
   let outerBlock: AST.Block;
   let innerBlock: AST.Block;
 
@@ -105,8 +106,9 @@ describe('block compilation', () => {
       innerBlock,
       new AST.SymbolRef('x'),
     ]);
+    globalDecl = new AST.GlobalDecl('g', null, new AST.NumberLiteral(10));
     funcDecl = new AST.FuncDecl('main', { body: outerBlock });
-    file = new AST.File({ funcs: [funcDecl] });
+    file = new AST.File({ funcs: [funcDecl], globals: [globalDecl] });
     resolveSymbols(file);
   });
 
@@ -135,6 +137,9 @@ describe('block compilation', () => {
         outerBlock.symbolTable?.get('y')
       );
     });
+    it('globals appear in the files symbol table', () => {
+      expect(file.symbolTable?.has('g')).toBe(true);
+    });
   });
 
   describe('assignStorageLocations', () => {
@@ -157,6 +162,12 @@ describe('block compilation', () => {
       expect((innerBlock.children[0] as AST.LetStatement).location).toEqual({
         area: 'locals',
         offset: 2,
+      });
+    });
+    it('should assign global storage locations to global variables', () => {
+      expect(file.symbolTable?.get('g')?.location).toEqual({
+        area: 'globals',
+        offset: 0,
       });
     });
   });
@@ -225,7 +236,10 @@ describe('ModuleCompiler', () => {
         globals: [
           new Wasm.Global({
             id: 'g0',
-            globalType: IR.NumberType.i32,
+            globalType: new Wasm.GlobalType({
+              valtype: IR.NumberType.i32,
+              mut: true,
+            }),
             expr: [new IR.PushConst(IR.NumberType.i32, 0)],
           }),
         ],
@@ -246,7 +260,7 @@ describe('ModuleCompiler', () => {
           new Wasm.Func({
             funcType: new Wasm.FuncType({
               params: [],
-              results: [IR.NumberType.i32],
+              results: [],
             }),
             exportName: 'main',
             id: 'main',

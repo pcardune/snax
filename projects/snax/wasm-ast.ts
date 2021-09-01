@@ -87,3 +87,16 @@ export class IfBlock extends Node<{
     ].join('\n');
   }
 }
+
+export class LoopBlock extends Node<{
+  label: string;
+  instr: IR.Instruction[];
+}> {
+  toWAT() {
+    return [
+      `loop $${this.fields.label ?? ''}`,
+      ...this.fields.instr.map((i) => i.toWAT()),
+      `end $${this.fields.label ?? ''}`,
+    ].join('\n');
+  }
+}

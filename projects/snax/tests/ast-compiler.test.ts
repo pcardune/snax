@@ -7,11 +7,8 @@ import {
   FuncDeclCompiler,
   ModuleCompiler,
   resolveSymbols,
+  compile,
 } from '../ast-compiler';
-
-function compile(node: AST.ASTNode) {
-  return ASTCompiler.forNode(node).compile();
-}
 
 describe('ExpressionCompiler', () => {
   const { i32, f32 } = IR.NumberType;
@@ -26,7 +23,7 @@ describe('ExpressionCompiler', () => {
       new IR.Add(i32),
     ]);
   });
-  fit('casts integers to floats', () => {
+  it('casts integers to floats', () => {
     const ten = new AST.NumberLiteral(10);
     const twelvePointThree = new AST.NumberLiteral(
       12.3,
@@ -166,7 +163,7 @@ describe('block compilation', () => {
   });
 });
 
-fdescribe('IfStatementCompiler', () => {
+describe('IfStatementCompiler', () => {
   it('compiles if statements', () => {
     const ifStatement = new AST.IfStatement(
       new AST.BooleanLiteral(true),
@@ -183,11 +180,36 @@ fdescribe('IfStatementCompiler', () => {
   });
 });
 
+describe('WhileStatementCompiler', () => {
+  it('compiles while statements', () => {
+    const whileStatement = new AST.WhileStatement(
+      new AST.BooleanLiteral(true),
+      new AST.Block([new AST.ExprStatement(new AST.NumberLiteral(2))])
+    );
+    expect(compile(whileStatement)).toEqual([
+      ...compile(whileStatement.condExpr),
+      new Wasm.IfBlock({
+        then: [
+          new Wasm.LoopBlock({
+            instr: [
+              ...compile(whileStatement.thenBlock),
+              ...compile(whileStatement.condExpr),
+              new IR.BreakIf('while_0'),
+            ],
+            label: 'while_0',
+          }),
+        ],
+        else: [],
+      }),
+    ]);
+  });
+});
+
 describe('ModuleCompiler', () => {
   it('compiles an empty module to a module with an empty main function', () => {
     expect(new ModuleCompiler(new AST.Block([])).compile()).toEqual(
       new Wasm.Module({
-        funcs: [new Wasm.Func({ exportName: 'main' })],
+        funcs: [new Wasm.Func({ exportName: 'main', id: 'main' })],
       })
     );
   });
@@ -202,6 +224,7 @@ describe('ModuleCompiler', () => {
               results: [IR.NumberType.i32],
             }),
             exportName: 'main',
+            id: 'main',
             body: [...ASTCompiler.forNode(num).compile()],
           }),
         ],
@@ -225,6 +248,7 @@ describe('ModuleCompiler', () => {
               params: [],
               results: [],
             }),
+            id: 'main',
             exportName: 'main',
           }),
         ],

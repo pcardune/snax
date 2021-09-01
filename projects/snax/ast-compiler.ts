@@ -32,6 +32,8 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new ArrayLiteralCompiler(node);
     } else if (node instanceof AST.ArgList) {
       return new ArgListCompiler(node);
+    } else if (node instanceof AST.WhileStatement) {
+      return new WhileStatementCompiler(node);
     } else if (node instanceof AST.ReturnStatement) {
       return new ReturnStatementCompiler(node);
     } else {
@@ -40,6 +42,10 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       );
     }
   }
+}
+
+export function compile(node: AST.ASTNode) {
+  return ASTCompiler.forNode(node).compile();
 }
 
 class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
@@ -231,6 +237,27 @@ class IfStatementCompiler extends ASTCompiler<AST.IfStatement> {
       new Wasm.IfBlock({
         then: ASTCompiler.forNode(this.root.thenBlock).compile(),
         else: ASTCompiler.forNode(this.root.elseBlock).compile(),
+      }),
+    ];
+  }
+}
+
+class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
+  compile() {
+    return [
+      ...compile(this.root.condExpr),
+      new Wasm.IfBlock({
+        then: [
+          new Wasm.LoopBlock({
+            instr: [
+              ...compile(this.root.thenBlock),
+              ...compile(this.root.condExpr),
+              new IR.BreakIf('while_0'),
+            ],
+            label: 'while_0',
+          }),
+        ],
+        else: [],
       }),
     ];
   }

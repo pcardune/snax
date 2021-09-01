@@ -244,6 +244,16 @@ describe('end-to-end test', () => {
       `;
       expect(await exec(code)).toBe(9);
     });
+    it('compiles while statements', async () => {
+      const code = `
+        let i = 0;
+        while (i < 10) {
+          i = i+1;
+        }
+        i;
+      `;
+      expect(await exec(code)).toBe(10);
+    });
   });
 
   describe('functions', () => {

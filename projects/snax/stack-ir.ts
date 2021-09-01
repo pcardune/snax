@@ -128,6 +128,10 @@ export class NotEqual extends BinaryOp {
   instruction = 'ne';
 }
 
+export class EqualsZero extends BinaryOp {
+  instruction = 'eqz';
+}
+
 export class LocalGet extends Instruction {
   offset: number;
   constructor(offset: number) {
@@ -164,6 +168,17 @@ export class Call extends Instruction {
   }
   toWAT() {
     return `call ${this.offset}`;
+  }
+}
+
+export class BreakIf extends Instruction {
+  label: string;
+  constructor(label: string) {
+    super();
+    this.label = label;
+  }
+  toWAT(): string {
+    return `br_if $${this.label}`;
   }
 }
 

@@ -12,7 +12,7 @@ fs.writeFileSync(
     format: 'commonjs',
     plugins: [tspegjs],
     cache: true,
-    allowedStartRules: ['start', 'expr', 'statement'],
+    allowedStartRules: ['start', 'expr', 'statement', 'block', 'funcDecl'],
   })
 );
 

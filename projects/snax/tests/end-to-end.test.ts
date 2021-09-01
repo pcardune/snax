@@ -13,8 +13,8 @@ beforeAll(async () => {
 function compileToWAT(input: string) {
   const ast = SNAXParser.parseStrOrThrow(input);
 
-  if (!(ast instanceof AST.Block)) {
-    throw new Error(`parsed to an ast node ${ast}, which isn't a block`);
+  if (!(ast instanceof AST.File)) {
+    throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
   return compileAST(ast);
 }

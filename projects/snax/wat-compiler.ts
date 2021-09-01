@@ -12,8 +12,8 @@ export function compileStr(input: string): Result<string, any> {
   const maybeAST = SNAXParser.parseStr(input);
   if (maybeAST.isOk()) {
     const ast = maybeAST.value;
-    if (!(ast instanceof AST.Block)) {
-      return err(new Error('parsed input did not yield a block...'));
+    if (!(ast instanceof AST.File)) {
+      return err(new Error('parsed input did not yield a file...'));
     }
     try {
       return ok(compileAST(ast));
@@ -25,6 +25,6 @@ export function compileStr(input: string): Result<string, any> {
   }
 }
 
-export function compileAST(block: AST.Block): string {
-  return new ASTCompiler.ModuleCompiler(block).compile().toWAT();
+export function compileAST(file: AST.File): string {
+  return new ASTCompiler.ModuleCompiler(file).compile().toWAT();
 }

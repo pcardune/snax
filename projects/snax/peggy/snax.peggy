@@ -12,13 +12,47 @@
 }
 
 start
-  = ws block:block ws { return block; }
+  = file
+  / ws block:block ws { return block; }
   / statement
   / expr
   / ws { return new AST.Block([]); }
 
+file "file"
+  = ws statements:fileStatementList? ws {
+    let funcs: AST.FuncDecl[] = [];
+    let globals: AST.GlobalDecl[] = [];
+    let mainFuncBody = [];
+    for (const statement of statements??[]) {
+      if (statement instanceof AST.FuncDecl) {
+        funcs.push(statement);
+      } else if (statement instanceof AST.GlobalDecl) {
+        globals.push(statement);
+      } else {
+        mainFuncBody.push(statement);
+      }
+    }
+    funcs.push(new AST.FuncDecl('main', {body: new AST.Block(mainFuncBody)}))
+    return new AST.File({
+      funcs,
+      globals,
+    })
+  }
+
+fileStatementList "file statements"
+  = head:fileStatement tail:(ws fileStatement)* {
+    return [head, ...tail.map(t=>t[1])];
+  }
+
+fileStatement "file statement"
+  = "global" ws varDecl:varDecl ws ";" ws {
+    return new AST.GlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
+  }
+  / funcDecl
+  / statement
+
 block "block"
-  = head:statement tail:(ws statement)* {
+  = ws head:statement tail:(ws statement)* ws {
     return new AST.Block([
       head,
       ...tail.map((els:any[]) => els[1])
@@ -26,18 +60,22 @@ block "block"
   }
 
 statement "statement"
-  = "let" ws name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr ws ";" ws {
-    return new AST.LetStatement(name, type ? type[2] : null, expr);
+  = "let" ws varDecl:varDecl ws ";" ws {
+    return new AST.LetStatement(varDecl.name, varDecl.type, varDecl.expr);
   }
   / ifStatement
   / whileStatement
-  / funcDecl: funcDecl ws { return funcDecl; }
   / "return" ws expr:expr? ws ";" ws {
     return new AST.ReturnStatement(expr);
   }
   / "{" ws block:block ws "}" ws { return block; }
   / expr:expr ws ";" ws {
     return new AST.ExprStatement(expr);
+  }
+
+varDecl "varDecl"
+  = name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr {
+    return {name, type:type ? type[2] : null, expr};
   }
 
 whileStatement "while statement"
@@ -60,8 +98,8 @@ ifStatement "if statement"
     );
   }
 
-funcDecl = "func" ws name:identifier ws "(" ws params:parameterList? ws ")" ws "{" ws block:block? ws "}" {
-    return new AST.FuncDecl(name, params || new AST.ParameterList([]), block || new AST.Block([]));
+funcDecl = "func" ws name:identifier ws "(" ws parameters:parameterList? ws ")" ws "{" ws body:block? ws "}" {
+    return new AST.FuncDecl(name, {parameters, body});
   }
 parameterList "parameterList"
   = head:parameter tail:(ws "," ws parameter)* {

@@ -19,6 +19,8 @@ import {
   ArgList,
   IfStatement,
   WhileStatement,
+  File,
+  GlobalDecl,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -263,10 +265,13 @@ describe('SNAX Parser', () => {
 
   describe('block', () => {
     it('should parse a series of statements', () => {
-      const block = SNAXParser.parseStrOrThrow(`
+      const block = SNAXParser.parseStrOrThrow(
+        `
           let x = 3;
           let y = 7;
-        `);
+        `,
+        'block'
+      );
       expect(block).toEqual(
         new Block([
           new LetStatement('x', null, new NumberLiteral(3)),
@@ -275,10 +280,13 @@ describe('SNAX Parser', () => {
       );
     });
     it('should allow for expression statements', () => {
-      const block = SNAXParser.parseStrOrThrow(`
+      const block = SNAXParser.parseStrOrThrow(
+        `
           let x = 3;
           3+x; 8;
-        `);
+        `,
+        'block'
+      );
       expect(block).toEqual(
         new Block([
           new LetStatement('x', null, new NumberLiteral(3)),
@@ -295,12 +303,15 @@ describe('SNAX Parser', () => {
     });
     it('should parse nested blocks', () => {
       expect(
-        SNAXParser.parseStrOrThrow(`
+        SNAXParser.parseStrOrThrow(
+          `
           let x = 1;
           {
             let x = 2;
           }
-        `)
+        `,
+          'block'
+        )
       ).toEqual(
         new Block([
           new LetStatement('x', null, new NumberLiteral(1)),
@@ -379,45 +390,43 @@ describe('SNAX Parser', () => {
 
   describe('functions', () => {
     it('should parse an empty function', () => {
-      expect(SNAXParser.parseStrOrThrow('func foo() {}')).toEqual(
-        new Block([new FuncDecl('foo', new ParameterList([]), new Block([]))])
+      expect(SNAXParser.parseStrOrThrow('func foo() {}', 'funcDecl')).toEqual(
+        new FuncDecl('foo')
       );
     });
     it('should parse a function with parameters', () => {
-      expect(SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}')).toEqual(
-        new Block([
-          new FuncDecl(
-            'foo',
-            new ParameterList([
-              new Parameter('a', new TypeExpr(new TypeRef('i32'))),
-              new Parameter('b', new TypeExpr(new TypeRef('f32'))),
-            ]),
-            new Block([])
-          ),
-        ])
+      expect(
+        SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}', 'funcDecl')
+      ).toEqual(
+        new FuncDecl('foo', {
+          parameters: new ParameterList([
+            new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+            new Parameter('b', new TypeExpr(new TypeRef('f32'))),
+          ]),
+        })
       );
     });
     it('should parse a function with a body', () => {
       expect(
-        SNAXParser.parseStrOrThrow('func foo(a:i32) { return a+1; }')
+        SNAXParser.parseStrOrThrow(
+          'func foo(a:i32) { return a+1; }',
+          'funcDecl'
+        )
       ).toEqual(
-        new Block([
-          new FuncDecl(
-            'foo',
-            new ParameterList([
-              new Parameter('a', new TypeExpr(new TypeRef('i32'))),
-            ]),
-            new Block([
-              new ReturnStatement(
-                new Expression(
-                  BinaryOp.ADD,
-                  new SymbolRef('a'),
-                  new NumberLiteral(1)
-                )
-              ),
-            ])
-          ),
-        ])
+        new FuncDecl('foo', {
+          parameters: new ParameterList([
+            new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+          ]),
+          body: new Block([
+            new ReturnStatement(
+              new Expression(
+                BinaryOp.ADD,
+                new SymbolRef('a'),
+                new NumberLiteral(1)
+              )
+            ),
+          ]),
+        })
       );
     });
     it('should parse a function call', () => {
@@ -427,6 +436,30 @@ describe('SNAX Parser', () => {
           new SymbolRef('foo'),
           new ArgList([new NumberLiteral(3), new NumberLiteral(4)])
         )
+      );
+    });
+  });
+
+  describe('files', () => {
+    it('should parse files', () => {
+      expect(
+        SNAXParser.parseStrOrThrow(`
+          global counter = 0;
+          func foo(){}
+          func bar(){}
+          1;
+        `)
+      ).toEqual(
+        new File({
+          globals: [new GlobalDecl('counter', null, new NumberLiteral(0))],
+          funcs: [
+            new FuncDecl('foo'),
+            new FuncDecl('bar'),
+            new FuncDecl('main', {
+              body: new Block([new ExprStatement(new NumberLiteral(1))]),
+            }),
+          ],
+        })
       );
     });
   });

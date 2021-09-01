@@ -150,30 +150,15 @@ export function assignStorageLocations(file: AST.File) {
 }
 
 export class ModuleCompiler {
-  block: AST.Block;
-  constructor(block: AST.Block) {
-    this.block = block;
+  file: AST.File;
+  constructor(file: AST.File) {
+    this.file = file;
   }
   compile(): Wasm.Module {
-    // step 1 is to extract functions and put everything
-    // into a file.
-    const funcDecls = this.block.children.filter(
-      (statement): statement is AST.FuncDecl =>
-        statement instanceof AST.FuncDecl
-    );
-    this.block.children = this.block.children.filter(
-      (child) => !(child instanceof AST.FuncDecl)
-    );
+    resolveSymbols(this.file);
+    assignStorageLocations(this.file);
 
-    const file = new AST.File([
-      ...funcDecls,
-      new AST.FuncDecl('main', new AST.ParameterList([]), this.block),
-    ]);
-
-    resolveSymbols(file);
-    assignStorageLocations(file);
-
-    const funcs: Wasm.Func[] = file.funcDecls.map((func) => {
+    const funcs: Wasm.Func[] = this.file.funcDecls.map((func) => {
       const wasmFunc = new FuncDeclCompiler(func).compile();
       if (func.symbol === 'main') {
         wasmFunc.fields.exportName = 'main';

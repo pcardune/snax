@@ -48,12 +48,20 @@ export class File extends BaseNode {
   name = 'File';
   symbolTable?: SymbolTable;
 
-  constructor(funcs: FuncDecl[]) {
-    super(funcs);
+  constructor(fields: { funcs?: FuncDecl[]; globals?: GlobalDecl[] }) {
+    super([...(fields.globals ?? []), ...(fields.funcs ?? [])]);
   }
 
-  get funcDecls() {
-    return this.children as FuncDecl[];
+  get globalDecls(): GlobalDecl[] {
+    return this.children.filter(
+      (child): child is GlobalDecl => child instanceof GlobalDecl
+    );
+  }
+
+  get funcDecls(): FuncDecl[] {
+    return this.children.filter(
+      (child): child is FuncDecl => child instanceof FuncDecl
+    );
   }
 
   resolveType(): BaseType {
@@ -174,8 +182,7 @@ export class ExprStatement extends BaseNode {
   }
 }
 
-export class LetStatement extends BaseNode {
-  name: string;
+abstract class VariableDecl extends BaseNode {
   readonly symbol: string;
   location?: SymbolLocation;
 
@@ -184,7 +191,6 @@ export class LetStatement extends BaseNode {
       typeExpr = TypeExpr.placeholder;
     }
     super([typeExpr, expr]);
-    this.name = 'LetStatement';
     this.symbol = symbol;
   }
   get typeExpr(): TypeExpr {
@@ -193,6 +199,25 @@ export class LetStatement extends BaseNode {
   get expr() {
     return this.children[1];
   }
+}
+
+export class GlobalDecl extends VariableDecl {
+  name = 'GlobalDecl';
+  resolveType() {
+    let explicitType = this.typeExpr.evaluate();
+    let exprType = this.expr.resolveType();
+    if (explicitType === Intrinsics.Unknown) {
+      return exprType;
+    }
+    if (explicitType === exprType) {
+      return explicitType;
+    }
+    throw new Error(`type ${exprType} can't be assigned to an ${explicitType}`);
+  }
+}
+
+export class LetStatement extends VariableDecl {
+  name = 'LetStatement';
   resolveType() {
     let explicitType = this.typeExpr.evaluate();
     let exprType = this.expr.resolveType();
@@ -443,8 +468,17 @@ export class FuncDecl extends BaseNode {
   symbolTable?: SymbolTable;
   locals: SymbolRecord[] = [];
 
-  constructor(symbol: string, parameters: ParameterList, body: Block) {
-    super([parameters, body]);
+  constructor(
+    symbol: string,
+    fields?: {
+      parameters?: ParameterList;
+      body?: Block;
+    }
+  ) {
+    super([
+      fields?.parameters ?? new ParameterList([]),
+      fields?.body ?? new Block([]),
+    ]);
     this.symbol = symbol;
   }
   get parameters() {

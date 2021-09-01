@@ -66,14 +66,13 @@ describe('FuncDeclCompiler', () => {
     ]);
     expect(
       new FuncDeclCompiler(
-        new AST.FuncDecl(
-          'foo',
-          new AST.ParameterList([
+        new AST.FuncDecl('foo', {
+          parameters: new AST.ParameterList([
             new AST.Parameter('a', new AST.TypeExpr(new AST.TypeRef('i32'))),
             new AST.Parameter('b', new AST.TypeExpr(new AST.TypeRef('f32'))),
           ]),
-          block
-        )
+          body: block,
+        })
       ).compile()
     ).toEqual(
       new Wasm.Func({
@@ -106,8 +105,8 @@ describe('block compilation', () => {
       innerBlock,
       new AST.SymbolRef('x'),
     ]);
-    funcDecl = new AST.FuncDecl('main', new AST.ParameterList([]), outerBlock);
-    file = new AST.File([funcDecl]);
+    funcDecl = new AST.FuncDecl('main', { body: outerBlock });
+    file = new AST.File({ funcs: [funcDecl] });
     resolveSymbols(file);
   });
 
@@ -206,16 +205,22 @@ describe('WhileStatementCompiler', () => {
 });
 
 describe('ModuleCompiler', () => {
-  it('compiles an empty module to a module with an empty main function', () => {
-    expect(new ModuleCompiler(new AST.Block([])).compile()).toEqual(
+  it('compiles an empty module to an empty wasm module', () => {
+    expect(new ModuleCompiler(new AST.File({})).compile()).toEqual(
       new Wasm.Module({
-        funcs: [new Wasm.Func({ exportName: 'main', id: 'main' })],
+        funcs: [],
       })
     );
   });
-  it('compiles instructions in a block into a top-level "main" function', () => {
+  it('compiles functions in the module', () => {
     const num = new AST.NumberLiteral(32);
-    expect(new ModuleCompiler(new AST.Block([num])).compile()).toEqual(
+    expect(
+      new ModuleCompiler(
+        new AST.File({
+          funcs: [new AST.FuncDecl('main', { body: new AST.Block([num]) })],
+        })
+      ).compile()
+    ).toEqual(
       new Wasm.Module({
         funcs: [
           new Wasm.Func({
@@ -232,14 +237,19 @@ describe('ModuleCompiler', () => {
     );
   });
   it('compiles functions in the top-level block to wasm functions', () => {
-    const funcDecl = new AST.FuncDecl(
-      'foo',
-      new AST.ParameterList([
+    const funcDecl = new AST.FuncDecl('foo', {
+      parameters: new AST.ParameterList([
         new AST.Parameter('a', new AST.TypeExpr(new AST.TypeRef('i32'))),
       ]),
-      new AST.Block([new AST.ReturnStatement(new AST.SymbolRef('a'))])
-    );
-    expect(new ModuleCompiler(new AST.Block([funcDecl])).compile()).toEqual(
+      body: new AST.Block([new AST.ReturnStatement(new AST.SymbolRef('a'))]),
+    });
+    expect(
+      new ModuleCompiler(
+        new AST.File({
+          funcs: [funcDecl, new AST.FuncDecl('main')],
+        })
+      ).compile()
+    ).toEqual(
       new Wasm.Module({
         funcs: [
           new FuncDeclCompiler(funcDecl).compile(),

@@ -1,6 +1,12 @@
 import { iter, Iter } from '../utils/iter';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { ArrayType, BaseType, FuncType, Intrinsics } from './snax-types';
+import {
+  ArrayType,
+  BaseType,
+  FuncType,
+  Intrinsics,
+  UnionType,
+} from './snax-types';
 
 export interface ASTNode {
   children: ASTNode[];
@@ -197,6 +203,30 @@ export class LetStatement extends BaseNode {
       return explicitType;
     }
     throw new Error(`type ${exprType} can't be assigned to an ${explicitType}`);
+  }
+}
+
+export class IfStatement extends BaseNode {
+  name = 'IfStatement';
+  constructor(condExpr: ASTNode, thenBlock: Block, elseBlock?: Block) {
+    super([condExpr, thenBlock, elseBlock ?? new Block([])]);
+  }
+  get condExpr() {
+    return this.children[0];
+  }
+  get thenBlock() {
+    return this.children[1] as Block;
+  }
+  get elseBlock() {
+    return this.children[1] as Block;
+  }
+  resolveType() {
+    const thenType = this.thenBlock.resolveType();
+    const elseType = this.elseBlock.resolveType();
+    if (thenType === elseType) {
+      return thenType;
+    }
+    return new UnionType([thenType, elseType]);
   }
 }
 

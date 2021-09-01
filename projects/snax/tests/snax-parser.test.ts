@@ -17,6 +17,7 @@ import {
   Parameter,
   ReturnStatement,
   ArgList,
+  IfStatement,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
 
@@ -280,6 +281,73 @@ describe('SNAX Parser', () => {
           new LetStatement('x', null, new NumberLiteral(1)),
           new Block([new LetStatement('x', null, new NumberLiteral(2))]),
         ])
+      );
+    });
+  });
+
+  describe('if statements', () => {
+    it('should parse an if statement', () => {
+      expect(
+        SNAXParser.parseStrOrThrow(
+          `if (x==3) {
+             y = 2;
+           }`,
+          'statement'
+        )
+      ).toEqual(
+        new IfStatement(
+          new Expression(
+            BinaryOp.EQUAL_TO,
+            new SymbolRef('x'),
+            new NumberLiteral(3)
+          ),
+          new Block([
+            new ExprStatement(
+              new Expression(
+                BinaryOp.ASSIGN,
+                new SymbolRef('y'),
+                new NumberLiteral(2)
+              )
+            ),
+          ]),
+          new Block([])
+        )
+      );
+    });
+    it('should parse an if/else statement', () => {
+      expect(
+        SNAXParser.parseStrOrThrow(
+          `if (x==3) {
+             y = 2;
+           } else { y = 4; }`,
+          'statement'
+        )
+      ).toEqual(
+        new IfStatement(
+          new Expression(
+            BinaryOp.EQUAL_TO,
+            new SymbolRef('x'),
+            new NumberLiteral(3)
+          ),
+          new Block([
+            new ExprStatement(
+              new Expression(
+                BinaryOp.ASSIGN,
+                new SymbolRef('y'),
+                new NumberLiteral(2)
+              )
+            ),
+          ]),
+          new Block([
+            new ExprStatement(
+              new Expression(
+                BinaryOp.ASSIGN,
+                new SymbolRef('y'),
+                new NumberLiteral(4)
+              )
+            ),
+          ])
+        )
       );
     });
   });

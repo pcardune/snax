@@ -29,6 +29,7 @@ statement "statement"
   = "let" ws name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr ws ";" ws {
     return new AST.LetStatement(name, type ? type[2] : null, expr);
   }
+  / ifStatement
   / funcDecl: funcDecl ws { return funcDecl; }
   / "return" ws expr:expr? ws ";" ws {
     return new AST.ReturnStatement(expr);
@@ -36,6 +37,17 @@ statement "statement"
   / "{" ws block:block ws "}" ws { return block; }
   / expr:expr ws ";" ws {
     return new AST.ExprStatement(expr);
+  }
+
+ifStatement "if statement"
+  = "if" ws "(" ws condExpr:expr ws ")" ws
+    "{" ws thenBlock:block ws "}" ws
+    elseBlock:("else" ws "{" ws block ws "}" ws)? {
+    return new AST.IfStatement(
+      condExpr,
+      thenBlock,
+      elseBlock ? elseBlock[4] : new AST.Block([])
+    );
   }
 
 funcDecl = "func" ws name:identifier ws "(" ws params:parameterList? ws ")" ws "{" ws block:block? ws "}" {

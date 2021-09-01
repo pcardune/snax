@@ -8,10 +8,33 @@ abstract class Node<Fields> {
   }
 }
 
-export class Module extends Node<{ funcs: Func[] }> implements HasWAT {
+export class Module
+  extends Node<{ funcs: Func[]; globals: Global[] }>
+  implements HasWAT
+{
+  constructor(fields: { funcs?: Func[]; globals?: Global[] }) {
+    super({ funcs: fields.funcs ?? [], globals: fields.globals ?? [] });
+  }
   toWAT() {
-    const body = this.fields.funcs.map((f) => f.toWAT()).join('\n');
-    return `(module (memory 1) (export "mem" (memory 0))\n${body}\n)`;
+    const globals = (this.fields.globals ?? []).map((g) => g.toWAT()).join(' ');
+    const body = (this.fields.funcs ?? []).map((f) => f.toWAT()).join('\n');
+    return `(module (memory 1) (export "mem" (memory 0)) ${globals}\n${body}\n)`;
+  }
+}
+
+export class Global extends Node<{
+  id?: string;
+  globalType: IR.NumberType;
+  expr: IR.Instruction[];
+}> {
+  toWAT() {
+    let parts = [
+      'global',
+      this.fields.id ? `$${this.fields.id}` : '',
+      this.fields.globalType,
+      ...this.fields.expr.map((i) => i.toWAT()),
+    ];
+    return `(${parts.join(' ')})`;
   }
 }
 

@@ -166,8 +166,17 @@ export class ModuleCompiler {
       return wasmFunc;
     });
 
+    const globals: Wasm.Global[] = this.file.globalDecls.map((global, i) => {
+      return new Wasm.Global({
+        id: `g${i}`,
+        globalType: global.resolveType().toValueType(),
+        expr: compile(global.expr),
+      });
+    });
+
     return new Wasm.Module({
-      funcs: [...funcs],
+      funcs,
+      globals,
     });
   }
 }

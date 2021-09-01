@@ -16,7 +16,7 @@ function compileToWAT(input: string) {
   if (!(ast instanceof AST.File)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  return compileAST(ast);
+  return wabt.parseWat('', compileAST(ast)).toText({});
 }
 
 async function compileToWasmModule(input: string) {
@@ -37,11 +37,13 @@ async function exec(input: string) {
 describe('end-to-end test', () => {
   it('compiles an empty program', async () => {
     expect(compileToWAT('')).toMatchInlineSnapshot(`
-      "(module (memory 1) (export \\"mem\\" (memory 0))
-      (func $main (export \\"main\\")   
-
-      )
-      )"
+      "(module
+        (memory (;0;) 1)
+        (export \\"mem\\" (memory 0))
+        (func $main)
+        (export \\"main\\" (func 0))
+        (type (;0;) (func)))
+      "
     `);
     expect(await exec('')).toBe(undefined);
   });
@@ -115,14 +117,17 @@ describe('end-to-end test', () => {
 
   it('converts between ints and floats', async () => {
     expect(compileToWAT('3+5.2;')).toMatchInlineSnapshot(`
-      "(module (memory 1) (export \\"mem\\" (memory 0))
-      (func $main (export \\"main\\")  (result f32) 
-        i32.const 3
-        f32.convert_i32_s
-        f32.const 5.2
-        f32.add
-      )
-      )"
+      "(module
+        (memory (;0;) 1)
+        (export \\"mem\\" (memory 0))
+        (func $main (result f32)
+          i32.const 3
+          f32.convert_i32_s
+          f32.const 0x1.4cccccp+2 (;=5.2;)
+          f32.add)
+        (export \\"main\\" (func 0))
+        (type (;0;) (func (result f32))))
+      "
     `);
     const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
     expect(exports.main()).toBeCloseTo(8.2);
@@ -131,17 +136,21 @@ describe('end-to-end test', () => {
   describe('block compilation', () => {
     it('compiles blocks', async () => {
       expect(compileToWAT('let x = 3; let y = x+4; y;')).toMatchInlineSnapshot(`
-        "(module (memory 1) (export \\"mem\\" (memory 0))
-        (func $main (export \\"main\\")  (result i32) (local  i32) (local  i32)
-          i32.const 3
-          local.set 0
-          local.get 0
-          i32.const 4
-          i32.add
-          local.set 1
-          local.get 1
-        )
-        )"
+        "(module
+          (memory (;0;) 1)
+          (export \\"mem\\" (memory 0))
+          (func $main (result i32)
+            (local i32 i32)
+            i32.const 3
+            local.set 0
+            local.get 0
+            i32.const 4
+            i32.add
+            local.set 1
+            local.get 1)
+          (export \\"main\\" (func 0))
+          (type (;0;) (func (result i32))))
+        "
       `);
       const { exports, wasmModule } = await compileToWasmModule(
         'let x = 3; let y = x+4; y;'
@@ -266,21 +275,26 @@ describe('end-to-end test', () => {
           }
         `);
       expect(wat).toMatchInlineSnapshot(`
-        "(module (memory 1) (export \\"mem\\" (memory 0))
-        (func $add  (param i32 i32) (result i32) (local  i32) (local  i32)
-          local.get 0
-          local.get 1
-          i32.add
-          return
-        )
-        (func $main (export \\"main\\")  (result i32) (local  i32)
-          i32.const 3
-          local.set 0
-          local.get 0
-          i32.const 5
-          call 0
-        )
-        )"
+        "(module
+          (memory (;0;) 1)
+          (export \\"mem\\" (memory 0))
+          (func $add (param i32 i32) (result i32)
+            (local i32 i32)
+            local.get 0
+            local.get 1
+            i32.add
+            return)
+          (func $main (result i32)
+            (local i32)
+            i32.const 3
+            local.set 0
+            local.get 0
+            i32.const 5
+            call 0)
+          (export \\"main\\" (func 1))
+          (type (;0;) (func (param i32 i32) (result i32)))
+          (type (;1;) (func (result i32))))
+        "
       `);
       expect(
         await exec(`
@@ -291,6 +305,21 @@ describe('end-to-end test', () => {
           }
         `)
       ).toBe(8);
+    });
+  });
+
+  describe('globals', () => {
+    xit('supports globals', async () => {
+      const code = `
+        global counter = 0;
+        func count() {
+          counter = counter + 1;
+        }
+        count();
+        count();
+        counter;
+      `;
+      expect(compileToWAT(code)).toMatchInlineSnapshot();
     });
   });
 });

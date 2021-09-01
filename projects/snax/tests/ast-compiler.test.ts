@@ -209,6 +209,26 @@ describe('ModuleCompiler', () => {
     expect(new ModuleCompiler(new AST.File({})).compile()).toEqual(
       new Wasm.Module({
         funcs: [],
+        globals: [],
+      })
+    );
+  });
+  it('compiles globals in the module', () => {
+    expect(
+      new ModuleCompiler(
+        new AST.File({
+          globals: [new AST.GlobalDecl('foo', null, new AST.NumberLiteral(0))],
+        })
+      ).compile()
+    ).toEqual(
+      new Wasm.Module({
+        globals: [
+          new Wasm.Global({
+            id: 'g0',
+            globalType: IR.NumberType.i32,
+            expr: [new IR.PushConst(IR.NumberType.i32, 0)],
+          }),
+        ],
       })
     );
   });

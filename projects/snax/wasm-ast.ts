@@ -18,7 +18,7 @@ export class Module
   toWAT() {
     const globals = (this.fields.globals ?? []).map((g) => g.toWAT()).join(' ');
     const body = (this.fields.funcs ?? []).map((f) => f.toWAT()).join('\n');
-    return `(module (memory 1) (export "mem" (memory 0)) ${globals}\n${body}\n)`;
+    return `(module (memory 1) (export "memory" (memory 0)) ${globals}\n${body}\n)`;
   }
 }
 

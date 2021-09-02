@@ -181,16 +181,18 @@ export function resolveSymbols(file: AST.File) {
 }
 
 export type ModuleCompilerOptions = {
-  includeRuntime: boolean;
+  includeRuntime?: boolean;
+  includeWASI?: boolean;
 };
 export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   file: AST.File;
-  options: ModuleCompilerOptions;
-  constructor(file: AST.File, options?: Partial<ModuleCompilerOptions>) {
+  options: Required<ModuleCompilerOptions>;
+  constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);
     this.file = file;
     this.options = {
       includeRuntime: false,
+      includeWASI: false,
       ...options,
     };
   }
@@ -224,7 +226,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     const funcs: Wasm.Func[] = this.file.funcDecls.map((func) => {
       const wasmFunc = new FuncDeclCompiler(func).compile();
       if (func.symbol === 'main') {
-        wasmFunc.fields.exportName = 'main';
+        wasmFunc.fields.exportName = '_start';
       }
       return wasmFunc;
     });

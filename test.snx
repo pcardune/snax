@@ -1,8 +1,10 @@
-func sumTo10(i:i32, n:i32, stepSize:i32) {
-  if (i > 0) {
-    return sumTo10(i-1, n+stepSize, stepSize);
+func sumTo10(i:i32, stepSize:i32) {
+  let n = 0;
+  while (i > 0) {
+    n = n+stepSize;
+    i = i-1;
   }
   return n;
 }
 
-sumTo10(300, 0, 3);
+sumTo10(300, 3);

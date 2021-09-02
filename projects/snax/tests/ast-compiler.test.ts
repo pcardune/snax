@@ -325,7 +325,7 @@ describe('ModuleCompiler', () => {
               params: [],
               results: [],
             }),
-            exportName: 'main',
+            exportName: '_start',
             id: 'main',
             body: [...compiler.compileChild(num)],
           }),
@@ -356,7 +356,7 @@ describe('ModuleCompiler', () => {
               results: [],
             }),
             id: 'main',
-            exportName: 'main',
+            exportName: '_start',
           }),
         ],
       })

@@ -122,7 +122,8 @@ parameter "parameter"
   }
 
 typeExpr "typeExpr"
-  = typeRef: typeRef { return new AST.TypeExpr(typeRef); }
+  = "&" expr:typeExpr { return new AST.PointerTypeExpr(expr); }
+  / typeRef
 
 typeRef "typeRef"
   = name:identifier { return new AST.TypeRef(name); }
@@ -193,8 +194,14 @@ calling "calling"
   / indexing
 
 indexing "indexing"
-  = element:factor ws "[" ws index:expr ws "]" {
+  = element:deref ws "[" ws index:deref ws "]" {
     return new AST.Expression(AST.BinaryOp.ARRAY_INDEX, element, index);
+  }
+  / deref
+
+deref "deref"
+  = "@" expr:factor {
+    return new AST.UnaryExpr(AST.UnaryOp.DEREF, expr);
   }
   / factor
 

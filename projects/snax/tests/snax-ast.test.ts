@@ -16,19 +16,4 @@ describe('snax-ast', () => {
       ]);
     });
   });
-
-  describe('LetStatement', () => {
-    it('should check types', () => {
-      const letStatement = new AST.LetStatement(
-        'x',
-        new AST.TypeExpr(new AST.TypeRef('i32')),
-        new AST.NumberLiteral(3.2, AST.NumberLiteralType.Float)
-      );
-      expect(() =>
-        letStatement.resolveType()
-      ).toThrowErrorMatchingInlineSnapshot(
-        `"type float32 can't be assigned to an int32"`
-      );
-    });
-  });
 });

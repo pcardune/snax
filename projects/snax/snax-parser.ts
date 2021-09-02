@@ -102,11 +102,7 @@ grammar.createProduction(
   R.LetStatement,
   [T.LET, T.ID, T.COLON, T.ID, T.EQUALS, R.Expr, T.SEMI],
   ([_0, _1, _2, _3, _4, expr], [_let, id, _colon, typeId]) => {
-    return new LetStatement(
-      id.substr,
-      new AST.TypeExpr(new AST.TypeRef(typeId.substr)),
-      expr
-    );
+    return new LetStatement(id.substr, new AST.TypeRef(typeId.substr), expr);
   }
 );
 grammar.createProduction(

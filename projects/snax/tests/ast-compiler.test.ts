@@ -68,8 +68,8 @@ describe('FuncDeclCompiler', () => {
       new FuncDeclCompiler(
         new AST.FuncDecl('foo', {
           parameters: new AST.ParameterList([
-            new AST.Parameter('a', new AST.TypeExpr(new AST.TypeRef('i32'))),
-            new AST.Parameter('b', new AST.TypeExpr(new AST.TypeRef('f32'))),
+            new AST.Parameter('a', new AST.TypeRef('i32')),
+            new AST.Parameter('b', new AST.TypeRef('f32')),
           ]),
           body: block,
         })
@@ -273,7 +273,7 @@ describe('ModuleCompiler', () => {
   it('compiles functions in the top-level block to wasm functions', () => {
     const funcDecl = new AST.FuncDecl('foo', {
       parameters: new AST.ParameterList([
-        new AST.Parameter('a', new AST.TypeExpr(new AST.TypeRef('i32'))),
+        new AST.Parameter('a', new AST.TypeRef('i32')),
       ]),
       body: new AST.Block([new AST.ReturnStatement(new AST.SymbolRef('a'))]),
     });

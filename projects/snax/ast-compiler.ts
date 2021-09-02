@@ -37,6 +37,8 @@ export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
       return new WhileStatementCompiler(node);
     } else if (node instanceof AST.ReturnStatement) {
       return new ReturnStatementCompiler(node);
+    } else if (node instanceof AST.UnaryExpr) {
+      return new UnaryExprCompiler(node);
     } else {
       throw new Error(
         `ASTCompiler: No compiler available for node ${node.toString()}`
@@ -426,9 +428,37 @@ const OpCompilers: Record<
             `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
           );
       }
+    } else if (left instanceof AST.UnaryExpr && left.op === AST.UnaryOp.DEREF) {
+      return [
+        ...compile(left.expr),
+        ...compile(right),
+        new IR.MemoryStore(rightType.toValueType()),
+        ...compile(left.expr),
+        new IR.MemoryLoad(rightType.toValueType()),
+      ];
+    } else if (
+      left instanceof AST.Expression &&
+      left.op === AST.BinaryOp.ARRAY_INDEX
+    ) {
+      let valueType = leftType.toValueType();
+      const arrayExpr = left;
+      let calcPointer = [
+        ...compile(arrayExpr.left),
+        ...compile(arrayExpr.right),
+        new IR.PushConst(valueType, leftType.numBytes),
+        new IR.Mul(valueType),
+        new IR.Add(valueType),
+      ];
+      return [
+        ...calcPointer,
+        ...compile(right),
+        new IR.MemoryStore(valueType, 0, leftType.numBytes),
+        ...calcPointer,
+        new IR.MemoryLoad(valueType),
+      ];
     } else {
       throw new Error(
-        `Can't assign to something that is not a resolved symbol`
+        `ASSIGN: Can't assign to something that is not a resolved symbol or a memory address`
       );
     }
   },
@@ -467,6 +497,19 @@ const OpCompilers: Record<
 class ExpressionCompiler extends ASTCompiler<AST.Expression> {
   compile(): IR.Instruction[] {
     return OpCompilers[this.root.op](this.root.left, this.root.right);
+  }
+}
+
+class UnaryExprCompiler extends ASTCompiler<AST.UnaryExpr> {
+  compile() {
+    switch (this.root.op) {
+      case AST.UnaryOp.DEREF:
+        const exprType = this.root.expr.resolveType();
+        return [
+          ...compile(this.root.expr),
+          new IR.MemoryLoad(exprType.toValueType()),
+        ];
+    }
   }
 }
 

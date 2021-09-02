@@ -250,7 +250,7 @@ describe('assignment operator', () => {
       `[Error: Reference to undeclared symbol y]`
     );
     await expect(exec('let x = 3; 5 = 4; x;')).rejects.toMatchInlineSnapshot(
-      `[Error: Can't assign to something that is not a resolved symbol]`
+      `[Error: ASSIGN: Can't assign to something that is not a resolved symbol or a memory address]`
     );
   });
 });
@@ -370,6 +370,84 @@ describe('runtime', () => {
           y;
         `)
     ).toEqual(3);
+  });
+});
+
+describe('pointers', () => {
+  it('has pointers', async () => {
+    const code = `
+        let p:&i32 = 0;
+        @p = 10;
+        @p;
+      `;
+    expect(compileToWAT(code)).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (export \\"mem\\" (memory 0))
+        (func $main (result i32)
+          (local i32)
+          i32.const 0
+          local.set 0
+          local.get 0
+          i32.const 10
+          i32.store align=1
+          local.get 0
+          i32.load align=1
+          drop
+          local.get 0
+          i32.load align=1
+          return)
+        (export \\"main\\" (func 0))
+        (type (;0;) (func (result i32))))
+      "
+    `);
+    expect(await exec(code)).toEqual(10);
+  });
+  it('allows pointer arithmetic through array indexing', async () => {
+    const code = `
+      let p:&i32 = 0;
+      let q:&i32 = 4;
+      @q = 175;
+      p[1];
+    `;
+    expect(await exec(code)).toEqual(175);
+  });
+  it('allows assigning to pointer offsets with array indexing', async () => {
+    const code = `
+      let p:&i32 = 0;
+      p[1] = 174;
+    `;
+    expect(compileToWAT(code)).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (export \\"mem\\" (memory 0))
+        (func $main (result i32)
+          (local i32)
+          i32.const 0
+          local.set 0
+          local.get 0
+          i32.const 1
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.const 174
+          i32.store
+          local.get 0
+          i32.const 1
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load align=1
+          return)
+        (export \\"main\\" (func 0))
+        (type (;0;) (func (result i32))))
+      "
+    `);
+    const { exports } = await compileToWasmModule(code);
+    const result = exports.main();
+    const mem = new Int32Array(exports.mem.buffer.slice(0, 8));
+    expect([...mem]).toEqual([0, 174]);
+    expect(result).toEqual(174);
   });
 });
 

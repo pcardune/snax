@@ -7,7 +7,6 @@ import {
   NumberLiteral,
   SymbolRef,
   ExprStatement,
-  TypeExpr,
   TypeRef,
   NumberLiteralType,
   BooleanLiteral,
@@ -21,8 +20,12 @@ import {
   WhileStatement,
   File,
   GlobalDecl,
+  PointerTypeExpr,
+  UnaryExpr,
+  UnaryOp,
 } from '../snax-ast';
 import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
+import { PointerType } from '../snax-types';
 
 describe('SNAX lexer', () => {
   it('should lex numbers into NUMBER tokens', () => {
@@ -201,6 +204,14 @@ describe('SNAX Parser', () => {
       );
     });
 
+    describe('dereference operator', () => {
+      it('works', () => {
+        expect(SNAXParser.parseStrOrThrow('@foo', 'expr')).toEqual(
+          new UnaryExpr(UnaryOp.DEREF, new SymbolRef('foo'))
+        );
+      });
+    });
+
     describe('array indexing expressions', () => {
       it('should parse array indexing operator', () => {
         expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
@@ -230,11 +241,15 @@ describe('SNAX Parser', () => {
         'statement'
       ) as LetStatement;
       expect(letNode).toEqual(
-        new LetStatement(
-          'x',
-          new TypeExpr(new TypeRef('i32')),
-          new NumberLiteral(3)
-        )
+        new LetStatement('x', new TypeRef('i32'), new NumberLiteral(3))
+      );
+    });
+  });
+
+  describe('type expressions', () => {
+    it('parses pointer types', () => {
+      expect(SNAXParser.parseStrOrThrow('&i32', 'typeExpr')).toEqual(
+        new PointerTypeExpr(new TypeRef('i32'))
       );
     });
   });
@@ -400,8 +415,8 @@ describe('SNAX Parser', () => {
       ).toEqual(
         new FuncDecl('foo', {
           parameters: new ParameterList([
-            new Parameter('a', new TypeExpr(new TypeRef('i32'))),
-            new Parameter('b', new TypeExpr(new TypeRef('f32'))),
+            new Parameter('a', new TypeRef('i32')),
+            new Parameter('b', new TypeRef('f32')),
           ]),
         })
       );
@@ -415,7 +430,7 @@ describe('SNAX Parser', () => {
       ).toEqual(
         new FuncDecl('foo', {
           parameters: new ParameterList([
-            new Parameter('a', new TypeExpr(new TypeRef('i32'))),
+            new Parameter('a', new TypeRef('i32')),
           ]),
           body: new Block([
             new ReturnStatement(

@@ -12,6 +12,8 @@ export abstract class BaseType {
     );
   }
 
+  abstract get numBytes(): number;
+
   toString(): string {
     return this.name;
   }
@@ -26,22 +28,22 @@ abstract class BaseGenericType {
 
 export class NumericalType extends BaseType {
   // The size in bytes
-  size: number;
+  numBytes: number;
   interpretation: 'float' | 'int';
   constructor(name: string, interpretation: 'float' | 'int', size: number) {
     super(name);
     this.interpretation = interpretation;
-    this.size = size;
+    this.numBytes = size;
   }
   toString() {
-    return `${this.interpretation}${this.size * 8}`;
+    return `${this.interpretation}${this.numBytes * 8}`;
   }
   toValueType(): StackIR.NumberType {
     const { i32, i64, f32, f64 } = StackIR.NumberType;
     if (this.interpretation === 'float') {
-      if (this.size <= 4) {
+      if (this.numBytes <= 4) {
         return f32;
-      } else if (this.size <= 8) {
+      } else if (this.numBytes <= 8) {
         return f64;
       } else {
         throw new Error(
@@ -49,9 +51,9 @@ export class NumericalType extends BaseType {
         );
       }
     } else {
-      if (this.size <= 4) {
+      if (this.numBytes <= 4) {
         return i32;
-      } else if (this.size <= 8) {
+      } else if (this.numBytes <= 8) {
         return i64;
       } else {
         throw new Error(
@@ -63,22 +65,37 @@ export class NumericalType extends BaseType {
 }
 
 class VoidType extends BaseType {
+  numBytes = 0;
   constructor() {
     super('void');
   }
 }
 
 class UnknownType extends BaseType {
+  numBytes = 0;
   constructor() {
     super('unknown');
   }
 }
 
 class BoolType extends BaseType {
+  numBytes = 4;
   constructor() {
     super('bool');
   }
   toValueType(): StackIR.NumberType {
+    return StackIR.NumberType.i32;
+  }
+}
+
+export class PointerType extends BaseType {
+  numBytes = 4;
+  toType: BaseType;
+  constructor(toType: BaseType) {
+    super(`&${toType.name}`);
+    this.toType = toType;
+  }
+  toValueType() {
     return StackIR.NumberType.i32;
   }
 }
@@ -91,14 +108,22 @@ export class ArrayType extends BaseType {
     this.elementType = elementType;
     this.length = length;
   }
+  get numBytes() {
+    return this.elementType.numBytes * this.length;
+  }
   toValueType(): StackIR.NumberType {
     return StackIR.NumberType.i32;
   }
 }
 
 export class UnionType extends BaseType {
+  memberTypes: BaseType[];
   constructor(memberTypes: BaseType[]) {
     super(memberTypes.map((t) => t.name).join(' | '));
+    this.memberTypes = memberTypes;
+  }
+  get numBytes() {
+    return Math.max(...this.memberTypes.map((t) => t.numBytes));
   }
 }
 
@@ -113,6 +138,7 @@ export class GenericType extends BaseGenericType {
 }
 
 export class FuncType extends BaseType {
+  numBytes = 0;
   argTypes: BaseType[];
   returnType: BaseType;
   constructor(argTypes: BaseType[], returnType: BaseType) {

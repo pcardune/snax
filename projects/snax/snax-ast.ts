@@ -5,6 +5,7 @@ import {
   BaseType,
   FuncType,
   Intrinsics,
+  PointerType,
   UnionType,
 } from './snax-types';
 
@@ -144,28 +145,18 @@ export class TypeRef extends BaseNode {
   }
 }
 
-export class TypeExpr extends BaseNode {
-  name = 'TypeExpr';
-  /**
-   * The placeholder type
-   */
-  static placeholder = new TypeExpr(new TypeRef('unknown'));
+type TypeExpr = PointerTypeExpr | TypeRef;
 
-  constructor(symbol: ASTNode) {
-    super([symbol]);
+export class PointerTypeExpr extends BaseNode {
+  name = 'PointerTypeExpr';
+  constructor(pointerToExpr: ASTNode) {
+    super([pointerToExpr]);
   }
-  get symbol() {
+  get pointerToExpr() {
     return this.children[0];
   }
   resolveType(): BaseType {
-    return this.symbol.resolveType();
-  }
-  /**
-   * Evaluate the type expression to make all
-   * types concrete.
-   */
-  evaluate(): BaseType {
-    return this.symbol.resolveType();
+    return new PointerType(this.pointerToExpr.resolveType());
   }
 }
 
@@ -188,7 +179,7 @@ abstract class VariableDecl extends BaseNode {
 
   constructor(symbol: string, typeExpr: TypeExpr | null, expr: ASTNode) {
     if (!typeExpr) {
-      typeExpr = TypeExpr.placeholder;
+      typeExpr = new TypeRef('unknown');
     }
     super([typeExpr, expr]);
     this.symbol = symbol;
@@ -204,30 +195,22 @@ abstract class VariableDecl extends BaseNode {
 export class GlobalDecl extends VariableDecl {
   name = 'GlobalDecl';
   resolveType() {
-    let explicitType = this.typeExpr.evaluate();
-    let exprType = this.expr.resolveType();
+    let explicitType = this.typeExpr.resolveType();
     if (explicitType === Intrinsics.Unknown) {
-      return exprType;
+      return this.expr.resolveType();
     }
-    if (explicitType === exprType) {
-      return explicitType;
-    }
-    throw new Error(`type ${exprType} can't be assigned to an ${explicitType}`);
+    return explicitType;
   }
 }
 
 export class LetStatement extends VariableDecl {
   name = 'LetStatement';
   resolveType() {
-    let explicitType = this.typeExpr.evaluate();
-    let exprType = this.expr.resolveType();
+    let explicitType = this.typeExpr.resolveType();
     if (explicitType === Intrinsics.Unknown) {
-      return exprType;
+      return this.expr.resolveType();
     }
-    if (explicitType === exprType) {
-      return explicitType;
-    }
-    throw new Error(`type ${exprType} can't be assigned to an ${explicitType}`);
+    return explicitType;
   }
 }
 
@@ -354,6 +337,8 @@ const getTypeForBinaryOp = (
     case BinaryOp.ARRAY_INDEX:
       if (leftType instanceof ArrayType) {
         return leftType.elementType;
+      } else if (leftType instanceof PointerType) {
+        return leftType.toType;
       }
       throw error;
     // case BinaryOp.ADD:
@@ -418,6 +403,33 @@ export class Expression extends BaseNode {
       this.left.resolveType(),
       this.right.resolveType()
     );
+  }
+}
+
+export enum UnaryOp {
+  DEREF = '@',
+}
+export class UnaryExpr extends BaseNode {
+  name = 'UnaryExpr';
+  op: UnaryOp;
+  constructor(op: UnaryOp, expr: ASTNode) {
+    super([expr]);
+    this.op = op;
+  }
+  get expr() {
+    return this.children[0];
+  }
+  resolveType() {
+    switch (this.op) {
+      case UnaryOp.DEREF:
+        const exprType = this.expr.resolveType();
+        if (exprType instanceof PointerType) {
+          return exprType.toType;
+        }
+        throw new Error(
+          `DEREF: Don't know the type when dereferencing a ${exprType.name}`
+        );
+    }
   }
 }
 

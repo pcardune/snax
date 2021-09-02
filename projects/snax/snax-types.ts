@@ -83,7 +83,7 @@ class UnknownType extends BaseType {
 }
 
 class BoolType extends BaseType {
-  numBytes = 4;
+  numBytes = 1;
   constructor() {
     super('bool');
   }

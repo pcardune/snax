@@ -1,9 +1,32 @@
 import { ok, Result } from 'neverthrow';
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import loadWabt from 'wabt';
 import { ASTNode } from '../../dist/snax/snax-ast';
 import { SNAXParser } from '../../dist/snax/snax-parser';
 import { compileStr } from '../../dist/snax/wat-compiler';
+
+function WATOutput(props: { wat: string }) {
+  const [formattedWAT, setFormattedWAT] = useState(props.wat);
+  useEffect(() => {
+    (async () => {
+      const wabt = await loadWabt();
+      let wasmModule;
+      try {
+        wasmModule = wabt.parseWat('', props.wat);
+      } catch (e) {
+        return;
+      }
+
+      setFormattedWAT(wasmModule.toText({ foldExprs: true }));
+    })();
+  }, [props.wat]);
+
+  return (
+    <pre>
+      <code>{formattedWAT}</code>
+    </pre>
+  );
+}
 
 function CompilerOutput({ wat }: { wat: string }) {
   const [runOutput, setRunOutput] = useState<any>();
@@ -24,9 +47,7 @@ function CompilerOutput({ wat }: { wat: string }) {
   };
   return (
     <div>
-      <pre>
-        <code>{wat}</code>
-      </pre>
+      <WATOutput wat={wat} />
       <button onClick={onClickRun}>Run</button>
       <div>
         Output: <code>{runOutput}</code>
@@ -52,10 +73,10 @@ function ParseOutput({ ast }: { ast: ASTNode }) {
 
 export function SnaxEditor() {
   const [text, setText] = useState('let x = 3;');
-  const [wat, setWAT] = useState<Result<string, any>>(ok(''));
+  const [wat, setWAT] = useState<Result<string, any> | null>(null);
   const [parse, setParse] = useState<Result<ASTNode, any> | null>(null);
 
-  const onClickCompile = () => {
+  const onClickCompile = async () => {
     setParse(null);
     setWAT(compileStr(text));
   };
@@ -65,12 +86,18 @@ export function SnaxEditor() {
     setParse(SNAXParser.parseStr(text));
   };
 
+  const onChangeText = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    setWAT(ok(''));
+    setParse(null);
+  };
+
   return (
     <div>
       <div>
         <textarea
           style={{ width: '100%', height: 200 }}
-          onChange={(e) => setText(e.target.value)}
+          onChange={onChangeText}
           value={text}
         />
       </div>
@@ -86,10 +113,10 @@ export function SnaxEditor() {
           )}
         </div>
       )}
-      {wat.isOk() ? (
+      {wat && wat.isOk() ? (
         <CompilerOutput wat={wat.value} />
       ) : (
-        <div>{wat.error.toString()}</div>
+        <div>{wat?.error.toString()}</div>
       )}
     </div>
   );

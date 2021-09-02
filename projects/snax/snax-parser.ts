@@ -177,66 +177,6 @@ function peg$padEnd(str: string, targetLength: number, padString: string) {
   return str + padString.slice(0, targetLength);
 }
 
-class EnhancedSyntaxError {
-  public name = 'EnhancedSyntaxError';
-  private error: SyntaxError;
-  constructor(error: SyntaxError) {
-    this.error = error;
-  }
-
-  get message() {
-    return this.error.message;
-  }
-  get location(): IFileRange & { source?: string } {
-    return { source: '', ...this.error.location };
-  }
-  get expected() {
-    return this.error.expected;
-  }
-  get found() {
-    return this.error.found;
-  }
-
-  format(sources: { source: string; text: string }[]): string {
-    var str = 'Error: ' + this.message;
-    if (this.location) {
-      var src = null;
-      var k;
-      for (k = 0; k < sources.length; k++) {
-        if (sources[k].source === this.location.source) {
-          src = sources[k].text.split(/\r\n|\n|\r/g);
-          break;
-        }
-      }
-      var s = this.location.start;
-      var loc = this.location.source + ':' + s.line + ':' + s.column;
-      if (src) {
-        var e = this.location.end;
-        var filler = peg$padEnd('', s.line.toString().length, ' ');
-        var line = src[s.line - 1];
-        var last = s.line === e.line ? e.column : line.length + 1;
-        str +=
-          '\n --> ' +
-          loc +
-          '\n' +
-          filler +
-          ' |\n' +
-          s.line +
-          ' | ' +
-          line +
-          '\n' +
-          filler +
-          ' | ' +
-          peg$padEnd('', s.column - 1, ' ') +
-          peg$padEnd('', last - s.column, '^');
-      } else {
-        str += '\n at ' + loc;
-      }
-    }
-    return str;
-  }
-}
-
 export class SNAXParser {
   static parseStr(
     input: string,
@@ -257,9 +197,7 @@ export class SNAXParser {
       }) as ASTNode;
     } catch (e) {
       if (e instanceof SyntaxError) {
-        const newError = new EnhancedSyntaxError(e);
-        console.error(newError.format([{ source: '', text: input }]));
-        throw newError;
+        console.error(e.format([{ source: '', text: input }]));
       }
       throw e;
     }

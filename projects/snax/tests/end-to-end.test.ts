@@ -421,9 +421,8 @@ describe('arrays', () => {
   it('compiles arrays', async () => {
     const input = '[6,5,4][1];';
     const { exports } = await compileToWasmModule(input);
-    const result = exports.main();
-    const mem = new Int8Array(exports.mem.buffer.slice(0, 12));
-    expect([...mem]).toEqual([6, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0]);
-    expect(result).toBe(5);
+    expect(exports.main()).toBe(5);
+    const mem = new Int32Array(exports.mem.buffer.slice(0, 12));
+    expect([...mem]).toEqual([6, 5, 4]);
   });
 });

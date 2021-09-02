@@ -52,7 +52,7 @@ file "file"
 
 fileStatementList "file statements"
   = head:fileStatement tail:(ws fileStatement)* {
-    return [head, ...tail.map(t=>t[1])];
+    return [head, ...tail.map((t:any)=>t[1])];
   }
 
 fileStatement "file statement"

@@ -226,7 +226,7 @@ export class FuncDeclCompiler {
     const funcType = this.funcDecl.resolveType();
     const params = funcType.argTypes.map((t) => t.toValueType());
     const results =
-      funcType.returnType === Intrinsics.Void
+      funcType.returnType === Intrinsics.void
         ? []
         : [funcType.returnType.toValueType()];
 
@@ -333,7 +333,7 @@ function matchTypes(left: AST.ASTNode, right: AST.ASTNode) {
     if (rightType.interpretation === 'float') {
       targetType = rightType;
     }
-  } else if (leftType === Intrinsics.Bool && rightType === Intrinsics.Bool) {
+  } else if (leftType === Intrinsics.bool && rightType === Intrinsics.bool) {
   } else {
     throw new Error("pushNumberOps: don't know how to cast to number");
   }
@@ -389,12 +389,12 @@ const OpCompilers: Record<
   [AST.BinaryOp.LOGICAL_AND]: (left: AST.ASTNode, right: AST.ASTNode) => [
     ...ASTCompiler.forNode(left).compile(),
     ...ASTCompiler.forNode(right).compile(),
-    new IR.And(Intrinsics.Bool.toValueType()),
+    new IR.And(Intrinsics.bool.toValueType()),
   ],
   [AST.BinaryOp.LOGICAL_OR]: (left: AST.ASTNode, right: AST.ASTNode) => [
     ...ASTCompiler.forNode(left).compile(),
     ...ASTCompiler.forNode(right).compile(),
-    new IR.Or(Intrinsics.Bool.toValueType()),
+    new IR.Or(Intrinsics.bool.toValueType()),
   ],
   [AST.BinaryOp.ASSIGN]: (left: AST.ASTNode, right: AST.ASTNode) => {
     const leftType = left.resolveType();
@@ -515,7 +515,7 @@ class UnaryExprCompiler extends ASTCompiler<AST.UnaryExpr> {
 
 class ExprStatementCompiler extends ASTCompiler<AST.ExprStatement> {
   compile() {
-    if (this.root.expr.resolveType() === Intrinsics.Void) {
+    if (this.root.expr.resolveType() === Intrinsics.void) {
       return compile(this.root.expr);
     }
     return [...compile(this.root.expr), new IR.Drop()];

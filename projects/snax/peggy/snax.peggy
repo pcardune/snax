@@ -223,7 +223,13 @@ number "number"
   / integer
 
 integer "integer"
-  = digits:[0-9]+ { return new AST.NumberLiteral(parseInt(digits.join(''))); }
+  = digits:[0-9]+ type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
+    return new AST.NumberLiteral(
+      parseInt(digits.join('')),
+      AST.NumberLiteralType.Integer,
+      type? type.slice(1).join('') : null
+    );
+  }
 
 float "float"
   = leftDigits:[0-9]+ "." rightDigits:[0-9]+ {

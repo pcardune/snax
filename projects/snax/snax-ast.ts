@@ -78,7 +78,7 @@ export class BooleanLiteral extends BaseNode {
     this.value = value;
   }
   resolveType(): BaseType {
-    return Intrinsics.Bool;
+    return Intrinsics.bool;
   }
 }
 
@@ -90,16 +90,24 @@ export class NumberLiteral extends BaseNode {
   name = 'NumberLiteral';
   readonly value: number;
   readonly numberType: NumberLiteralType;
+  explicitType?: BaseType;
   constructor(
     value: number,
-    numberType: NumberLiteralType = NumberLiteralType.Integer
+    numberType: NumberLiteralType = NumberLiteralType.Integer,
+    explicitType?: string
   ) {
     super([]);
     this.value = value;
     this.numberType = numberType;
+    if (explicitType) {
+      this.explicitType = Intrinsics[explicitType];
+    }
   }
 
   resolveType(): BaseType {
+    if (this.explicitType) {
+      return this.explicitType;
+    }
     switch (this.numberType) {
       case NumberLiteralType.Float:
         return Intrinsics.f32;
@@ -134,14 +142,18 @@ export class TypeRef extends BaseNode {
   }
   resolveType(): BaseType {
     switch (this.symbol) {
+      case 'i8':
+        return Intrinsics.i8;
+      case 'i16':
+        return Intrinsics.i16;
       case 'i32':
         return Intrinsics.i32;
       case 'f32':
         return Intrinsics.f32;
       case 'unknown':
-        return Intrinsics.Unknown;
+        return Intrinsics.unknown;
     }
-    throw new Error(`Can't resolve type ${this.symbol}`);
+    throw new Error(`TypeRef: Can't resolve type ${this.symbol}`);
   }
 }
 
@@ -169,7 +181,7 @@ export class ExprStatement extends BaseNode {
     return this.children[0] as ASTNode;
   }
   resolveType() {
-    return Intrinsics.Void;
+    return Intrinsics.void;
   }
 }
 
@@ -196,7 +208,7 @@ export class GlobalDecl extends VariableDecl {
   name = 'GlobalDecl';
   resolveType() {
     let explicitType = this.typeExpr.resolveType();
-    if (explicitType === Intrinsics.Unknown) {
+    if (explicitType === Intrinsics.unknown) {
       return this.expr.resolveType();
     }
     return explicitType;
@@ -207,7 +219,7 @@ export class LetStatement extends VariableDecl {
   name = 'LetStatement';
   resolveType() {
     let explicitType = this.typeExpr.resolveType();
-    if (explicitType === Intrinsics.Unknown) {
+    if (explicitType === Intrinsics.unknown) {
       return this.expr.resolveType();
     }
     return explicitType;
@@ -250,7 +262,7 @@ export class WhileStatement extends BaseNode {
     return this.children[1] as Block;
   }
   resolveType() {
-    return Intrinsics.Void;
+    return Intrinsics.void;
   }
 }
 
@@ -297,7 +309,7 @@ export class Block extends BaseNode {
   }
 
   resolveType() {
-    return Intrinsics.Void;
+    return Intrinsics.void;
   }
 
   symbolTable?: SymbolTable;
@@ -329,7 +341,7 @@ const getTypeForBinaryOp = (
   leftType: BaseType,
   rightType: BaseType
 ): BaseType => {
-  let { i32, f32, Bool } = Intrinsics;
+  let { i32, f32, bool: Bool } = Intrinsics;
   const error = new Error(
     `TypeError: Can't perform ${leftType} ${op} ${rightType}`
   );
@@ -344,6 +356,9 @@ const getTypeForBinaryOp = (
     // case BinaryOp.ADD:
     //   return Operators.Add.resolveGenerics([leftType, rightType]).returnType;
     default:
+      if (leftType === rightType) {
+        return leftType;
+      }
       switch (leftType) {
         case Bool:
           switch (rightType) {
@@ -440,7 +455,7 @@ export class ArrayLiteral extends BaseNode {
   }
 
   resolveType(): ArrayType {
-    let type = Intrinsics.Void;
+    let type = Intrinsics.void;
     for (const [i, element] of this.children.entries()) {
       if (i == 0) {
         type = element.resolveType();
@@ -507,7 +522,7 @@ export class FuncDecl extends BaseNode {
     }
     return new FuncType(
       this.parameters.map((p) => p.resolveType()),
-      returnType ?? Intrinsics.Void
+      returnType ?? Intrinsics.void
     );
   }
 }
@@ -538,7 +553,7 @@ export class ReturnStatement extends BaseNode {
     return this.children[0] || null;
   }
   resolveType(): BaseType {
-    return this.expr?.resolveType() || Intrinsics.Void;
+    return this.expr?.resolveType() || Intrinsics.void;
   }
 }
 

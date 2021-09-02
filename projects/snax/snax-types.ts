@@ -30,13 +30,17 @@ export class NumericalType extends BaseType {
   // The size in bytes
   numBytes: number;
   interpretation: 'float' | 'int';
-  constructor(name: string, interpretation: 'float' | 'int', size: number) {
+  signed: boolean;
+  constructor(
+    name: string,
+    interpretation: 'float' | 'int',
+    size: number,
+    signed: boolean
+  ) {
     super(name);
     this.interpretation = interpretation;
     this.numBytes = size;
-  }
-  toString() {
-    return `${this.interpretation}${this.numBytes * 8}`;
+    this.signed = signed;
   }
   toValueType(): StackIR.NumberType {
     const { i32, i64, f32, f64 } = StackIR.NumberType;
@@ -221,14 +225,20 @@ export class GenericFuncType extends BaseGenericType {
   }
 }
 
-export const Intrinsics = {
-  i32: new NumericalType('i32', 'int', 4),
-  i64: new NumericalType('i64', 'int', 8),
-  f32: new NumericalType('f32', 'float', 4),
-  f64: new NumericalType('f64', 'float', 8),
-  Void: new VoidType(),
-  Unknown: new UnknownType(),
-  Bool: new BoolType(),
+export const Intrinsics: Record<string, BaseType> = {
+  u8: new NumericalType('u8', 'int', 1, false),
+  u16: new NumericalType('u16', 'int', 2, false),
+  u32: new NumericalType('u32', 'int', 4, false),
+  u64: new NumericalType('u64', 'int', 8, false),
+  i8: new NumericalType('i8', 'int', 1, true),
+  i16: new NumericalType('i16', 'int', 2, true),
+  i32: new NumericalType('i32', 'int', 4, true),
+  i64: new NumericalType('i64', 'int', 8, true),
+  f32: new NumericalType('f32', 'float', 4, true),
+  f64: new NumericalType('f64', 'float', 8, true),
+  void: new VoidType(),
+  unknown: new UnknownType(),
+  bool: new BoolType(),
 };
 const { i32, i64, f32, f64 } = Intrinsics;
 export const Operators = {

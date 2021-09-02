@@ -248,4 +248,7 @@ id "symbol"
 identifier "identifier"
   = prefix:[a-z_]i suffix:[a-z0-9_]i* { return prefix+suffix.join(''); }
 
-ws = [ \n\t\r]*
+ws = ([ \n\t\r] / comment)*
+
+comment = "//" [^\n]*
+

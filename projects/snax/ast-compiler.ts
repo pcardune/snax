@@ -123,11 +123,32 @@ export class BlockCompiler extends ASTCompiler<AST.Block> {
   }
 }
 
-export function resolveSymbols(file: AST.File) {
+export function resolveSymbols(file: AST.File, imports: Wasm.Import[]) {
   if (file.symbolTable) {
     throw new Error('resolveSymbols: Already resolved symbols for block...');
   }
   file.symbolTable = new AST.SymbolTable();
+
+  for (const wasmImport of imports) {
+    const { importdesc } = wasmImport.fields;
+    if (importdesc.kind === 'func' && importdesc.id) {
+      const id = `wasi_${importdesc.id}`;
+      const { results, params } = importdesc.typeuse;
+      if (results.length > 1) {
+        throw new Error(
+          "resolveSymbols: we don't support imports that return multiple values yet."
+        );
+      }
+      let astNode = new AST.FuncDecl(id, {
+        parameters: new AST.ParameterList(
+          params.map((p, i) => new AST.Parameter(`p${i}`, new AST.TypeRef(p)))
+        ),
+        returnType:
+          results.length > 0 ? new AST.TypeRef(results[0]) : undefined,
+      });
+      file.symbolTable.declare(id, astNode);
+    }
+  }
 
   for (const funcDecl of file.funcDecls) {
     file.symbolTable.declare(funcDecl.symbol, funcDecl);
@@ -197,6 +218,24 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     };
   }
   compile(): Wasm.Module {
+    let imports: Wasm.Import[] = [];
+    if (this.options.includeWASI) {
+      const { i32 } = IR.NumberType;
+      imports.push(
+        new Wasm.Import({
+          mod: 'wasi_unstable',
+          nm: 'fd_write',
+          importdesc: {
+            kind: 'func',
+            id: 'fd_write',
+            typeuse: {
+              params: [i32, i32, i32, i32],
+              results: [i32],
+            },
+          },
+        })
+      );
+    }
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
         global next = 0;
@@ -212,7 +251,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       );
     }
 
-    resolveSymbols(this.file);
+    resolveSymbols(this.file, imports);
     let funcOffset = 0;
     let globalOffset = 0;
     for (const record of this.file.symbolTable!.records()) {
@@ -245,6 +284,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     return new Wasm.Module({
       funcs,
       globals,
+      imports: imports.length > 0 ? imports : undefined,
     });
   }
 }
@@ -312,7 +352,7 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
     return new Wasm.Func({
       id: this.funcDecl.symbol,
       body: this.compileChild(this.funcDecl.block),
-      funcType: new Wasm.FuncType({
+      funcType: new Wasm.FuncTypeUse({
         params,
         results,
       }),

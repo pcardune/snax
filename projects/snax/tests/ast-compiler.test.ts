@@ -85,7 +85,7 @@ describe('FuncDeclCompiler', () => {
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
         id: 'foo',
-        funcType: new Wasm.FuncType({
+        funcType: new Wasm.FuncTypeUse({
           params: [IR.NumberType.i32, IR.NumberType.f32],
           results: [IR.NumberType.i32],
         }),
@@ -111,7 +111,7 @@ describe('FuncDeclCompiler', () => {
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
         id: 'foo',
-        funcType: new Wasm.FuncType({
+        funcType: new Wasm.FuncTypeUse({
           params: [IR.NumberType.i32, IR.NumberType.f32],
           results: [],
         }),
@@ -151,7 +151,7 @@ describe('FuncDeclCompiler', () => {
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
         id: 'foo',
-        funcType: new Wasm.FuncType({
+        funcType: new Wasm.FuncTypeUse({
           params: [IR.NumberType.i32, IR.NumberType.f32],
           results: [],
         }),
@@ -201,7 +201,7 @@ describe('file compilation', () => {
     globalDecl = new AST.GlobalDecl('g', null, new AST.NumberLiteral(10));
     funcDecl = new AST.FuncDecl('main', { body: outerBlock });
     file = new AST.File({ funcs: [funcDecl], globals: [globalDecl] });
-    resolveSymbols(file);
+    resolveSymbols(file, []);
   });
 
   describe('resolveSymbols', () => {
@@ -321,7 +321,7 @@ describe('ModuleCompiler', () => {
       new Wasm.Module({
         funcs: [
           new Wasm.Func({
-            funcType: new Wasm.FuncType({
+            funcType: new Wasm.FuncTypeUse({
               params: [],
               results: [],
             }),
@@ -351,7 +351,7 @@ describe('ModuleCompiler', () => {
         funcs: [
           new FuncDeclCompiler(funcDecl).compile(),
           new Wasm.Func({
-            funcType: new Wasm.FuncType({
+            funcType: new Wasm.FuncTypeUse({
               params: [],
               results: [],
             }),

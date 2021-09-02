@@ -490,6 +490,7 @@ export class FuncDecl extends BaseNode {
     symbol: string,
     fields?: {
       parameters?: ParameterList;
+      returnType?: TypeExpr;
       body?: Block;
     }
   ) {

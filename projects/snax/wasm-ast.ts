@@ -7,18 +7,41 @@ abstract class Node<Fields> {
     this.fields = fields;
   }
 }
-
-export class Module
-  extends Node<{ funcs: Func[]; globals: Global[] }>
-  implements HasWAT
-{
-  constructor(fields: { funcs?: Func[]; globals?: Global[] }) {
-    super({ funcs: fields.funcs ?? [], globals: fields.globals ?? [] });
+type ModuleFields = { funcs: Func[]; globals: Global[]; imports: Import[] };
+export class Module extends Node<ModuleFields> implements HasWAT {
+  constructor(fields: Partial<ModuleFields>) {
+    super({
+      funcs: fields.funcs ?? [],
+      globals: fields.globals ?? [],
+      imports: fields.imports ?? [],
+    });
   }
   toWAT() {
     const globals = (this.fields.globals ?? []).map((g) => g.toWAT()).join(' ');
     const body = (this.fields.funcs ?? []).map((f) => f.toWAT()).join('\n');
-    return `(module (memory 1) (export "memory" (memory 0)) ${globals}\n${body}\n)`;
+    const imports = this.fields.imports.map((im) => im.toWAT()).join('\n');
+    return `(module ${imports} (memory 1) (export "memory" (memory 0)) ${globals}\n${body}\n)`;
+  }
+}
+
+function sexpr(...parts: (string | undefined)[]) {
+  return '(' + parts.filter((s) => !!s).join(' ') + ')';
+}
+
+type ImportDesc = { kind: 'func'; id?: string; typeuse: TypeUseFields };
+export class Import extends Node<{
+  mod: string;
+  nm: string;
+  importdesc: ImportDesc;
+}> {
+  toWAT() {
+    const { kind, id, typeuse } = this.fields.importdesc;
+    const importdescStr = sexpr(
+      kind,
+      id ? `$${id}` : '',
+      new FuncTypeUse(typeuse).toWAT()
+    );
+    return `(import "${this.fields.mod}" "${this.fields.nm}" ${importdescStr} )`;
   }
 }
 
@@ -45,15 +68,23 @@ export class GlobalType extends Node<{ valtype: IR.NumberType; mut: boolean }> {
       : this.fields.valtype;
   }
 }
-
-export class FuncType extends Node<{
+type TypeUseFields = {
   params: IR.NumberType[];
   results: IR.NumberType[];
-}> {}
+};
+export class FuncTypeUse extends Node<TypeUseFields> {
+  toWAT() {
+    const { params, results } = this.fields;
+    const paramsStr = params.length > 0 ? `(param ${params.join(' ')})` : '';
+    const resultsStr =
+      results.length > 0 ? `(result ${results.join(' ')})` : '';
+    return `${paramsStr} ${resultsStr}`;
+  }
+}
 
 export class Func
   extends Node<{
-    funcType: FuncType;
+    funcType: FuncTypeUse;
     locals: Local[];
     id?: string;
     body: IR.Instruction[];
@@ -62,14 +93,14 @@ export class Func
   implements HasWAT
 {
   constructor(parts: {
-    funcType?: FuncType;
+    funcType?: FuncTypeUse;
     locals?: Local[];
     id?: string;
     exportName?: string;
     body?: IR.Instruction[];
   }) {
     super({
-      funcType: new FuncType({ params: [], results: [] }),
+      funcType: new FuncTypeUse({ params: [], results: [] }),
       locals: [],
       body: [],
       ...parts,

@@ -5,6 +5,15 @@ import { compileStr } from './wat-compiler';
 import loadWabt from 'wabt';
 import { err, ok } from 'neverthrow';
 import path from 'path';
+import { WASI } from 'wasi';
+
+const wasi = new WASI({
+  args: process.argv,
+  env: process.env,
+  preopens: {
+    '/sandbox': process.cwd(),
+  },
+});
 
 async function compileSnaxFile(file: string) {
   const source = fs.readFileSync(file).toString();
@@ -17,8 +26,7 @@ async function compileSnaxFile(file: string) {
     const wabt = await loadWabt();
     const wasmModule = wabt.parseWat('', wat);
     wasmModule.validate();
-    const result = wasmModule.toBinary({ write_debug_names: true });
-    return ok(result.buffer);
+    return ok(wasmModule);
   } else {
     return err(maybeWAT.error);
   }
@@ -37,17 +45,28 @@ const parser = yargs(hideBin(process.argv))
     handler: async (argv) => {
       let file = argv.file as string;
       console.log('Compiling file', file);
-      const maybeBuffer = await compileSnaxFile(file);
-      if (maybeBuffer.isOk()) {
+      const maybeModule = await compileSnaxFile(file);
+      if (maybeModule.isOk()) {
         let filePath = path.parse(file);
-        let outFile = path.format({
-          dir: filePath.dir,
-          name: filePath.name,
-          ext: '.wasm',
-        });
-        fs.writeFileSync(outFile, maybeBuffer.value);
+        const result = maybeModule.value.toBinary({ write_debug_names: true });
+        fs.writeFileSync(
+          path.format({
+            dir: filePath.dir,
+            name: filePath.name,
+            ext: '.wasm',
+          }),
+          result.buffer
+        );
+        fs.writeFileSync(
+          path.format({
+            dir: filePath.dir,
+            name: filePath.name,
+            ext: '.wat',
+          }),
+          maybeModule.value.toText({})
+        );
       } else {
-        console.error(maybeBuffer.error);
+        console.error(maybeModule.error);
       }
     },
   })
@@ -62,13 +81,17 @@ const parser = yargs(hideBin(process.argv))
         type: 'string',
       }),
     handler: async (argv) => {
-      const maybeBuffer = await compileSnaxFile(argv.file as string);
-      if (maybeBuffer.isOk()) {
-        const module = await WebAssembly.instantiate(maybeBuffer.value);
-        const exports: any = module.instance.exports;
-        console.log(exports._start());
+      const maybeModule = await compileSnaxFile(argv.file as string);
+      if (maybeModule.isOk()) {
+        const result = maybeModule.value.toBinary({ write_debug_names: true });
+        const importObject = { wasi_unstable: wasi.wasiImport };
+        const wasm = await WebAssembly.compile(result.buffer);
+        const module = await WebAssembly.instantiate(wasm, importObject);
+        wasi.start(module);
+        // const exports: any = module.instance.exports;
+        // console.log(exports._start());
       } else {
-        console.error(maybeBuffer.error);
+        console.error(maybeModule.error);
       }
     },
   });

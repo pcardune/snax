@@ -24,8 +24,7 @@ import {
   UnaryExpr,
   UnaryOp,
 } from '../snax-ast';
-import { grammar, lexer, Rule, SNAXParser, Token } from '../snax-parser';
-import { PointerType } from '../snax-types';
+import { grammar, lexer, SNAXParser, Token } from '../snax-parser';
 
 describe('SNAX lexer', () => {
   it('should lex numbers into NUMBER tokens', () => {
@@ -168,6 +167,11 @@ describe('SNAX Parser', () => {
       expect(SNAXParser.parseStrOrThrow('123 + \n456 * \t789', 'expr')).toEqual(
         SNAXParser.parseStrOrThrow('123+456*789', 'expr')
       );
+    });
+    it('should ignore comments', () => {
+      expect(
+        SNAXParser.parseStrOrThrow('123 + // some comment\n456 * \t789', 'expr')
+      ).toEqual(SNAXParser.parseStrOrThrow('123+456*789', 'expr'));
     });
     it('should allow symbols', () => {
       expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(

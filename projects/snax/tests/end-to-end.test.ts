@@ -46,13 +46,27 @@ async function exec(input: string) {
 
 describe('end-to-end test', () => {
   it('compiles an empty program', async () => {
-    expect(compileToWAT('')).toMatchInlineSnapshot(`
+    expect(compileToWAT('', { includeRuntime: true })).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (export \\"mem\\" (memory 0))
+        (global $g0 (mut i32) (i32.const 0))
         (func $main)
         (export \\"main\\" (func 0))
-        (type (;0;) (func)))
+        (func $malloc (param i32) (result i32)
+          (local i32)
+          global.get 0
+          local.set 1
+          global.get 0
+          local.get 0
+          i32.add
+          global.set 0
+          global.get 0
+          drop
+          local.get 1
+          return)
+        (type (;0;) (func))
+        (type (;1;) (func (param i32) (result i32))))
       "
     `);
     expect(await exec('')).toBe(undefined);
@@ -294,7 +308,6 @@ describe('functions', () => {
           (memory (;0;) 1)
           (export \\"mem\\" (memory 0))
           (func $add (param i32 i32) (result i32)
-            (local i32 i32)
             local.get 0
             local.get 1
             i32.add
@@ -427,7 +440,7 @@ describe('pointers', () => {
     const mem = new Int32Array(exports.mem.buffer.slice(0, 12));
     expect([...mem]).toEqual([2, 0, 5]);
   });
-  xit('calculates the value expression only once.', async () => {
+  it('calculates the value expression only once.', async () => {
     const code = `
       let p:&i32 = 0;
       p[0] = 0;

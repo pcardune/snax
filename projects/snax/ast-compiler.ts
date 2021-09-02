@@ -58,6 +58,19 @@ export abstract class ASTCompiler<
   compileChild(child: AST.ASTNode) {
     return this.forNode(child).compile();
   }
+
+  allocateLocal(valueType: IR.NumberType, symbol?: string): LocalAllocation {
+    if (!this.parent) {
+      throw new Error("Don't know how to allocate local in this context");
+    }
+    return this.parent.allocateLocal(valueType, symbol);
+  }
+  deallocateLocal(offset: LocalAllocation): void {
+    if (!this.parent) {
+      throw new Error("Don't know how to deallocate local in this context");
+    }
+    return this.parent.deallocateLocal(offset);
+  }
 }
 
 class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
@@ -70,11 +83,43 @@ class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
 }
 
 export class BlockCompiler extends ASTCompiler<AST.Block> {
+  liveLocals: LocalAllocation[] = [];
+  override allocateLocal(
+    valueType: IR.NumberType,
+    symbol?: string
+  ): LocalAllocation {
+    if (!this.parent) {
+      throw new Error("BlockCompiler: can't allocate local in this context");
+    }
+    let localOffset = this.parent.allocateLocal(valueType);
+    this.liveLocals.push(localOffset);
+    if (symbol && this.root.symbolTable) {
+      let symbolRecord = this.root.symbolTable.get(symbol);
+      if (symbolRecord) {
+        symbolRecord.location = { area: 'locals', offset: localOffset.offset };
+      } else {
+        throw new Error(
+          `BlockCompiler: Can't bind local offset to undeclared symbol ${symbol}`
+        );
+      }
+    }
+    return localOffset;
+  }
+
+  override deallocateLocal(offset: LocalAllocation): void {
+    this.parent?.deallocateLocal(offset);
+    this.liveLocals = this.liveLocals.filter((o) => o !== offset);
+  }
+
   compile(): IR.Instruction[] {
-    return this.root.statements
+    const code = this.root.statements
       .filter((astNode) => !(astNode instanceof AST.FuncDecl))
       .map((astNode) => this.forNode(astNode).compile())
       .flat();
+    for (const offset of this.liveLocals) {
+      this.parent?.deallocateLocal(offset);
+    }
+    return code;
   }
 }
 
@@ -135,39 +180,6 @@ export function resolveSymbols(file: AST.File) {
   recurse(file);
 }
 
-export function assignStorageLocations(file: AST.File) {
-  function recurse(funcDecl: AST.FuncDecl, astNode: AST.ASTNode) {
-    if (astNode instanceof AST.Block || astNode instanceof AST.FuncDecl) {
-      for (const record of astNode.symbolTable!.records()) {
-        if (
-          record.declNode instanceof AST.LetStatement ||
-          record.declNode instanceof AST.Parameter
-        ) {
-          funcDecl.locals?.push(record);
-          record.location = {
-            area: 'locals',
-            offset: funcDecl.locals?.length - 1,
-          };
-          record.declNode.location = record.location;
-          record.valueType = record.declNode.resolveType();
-        }
-      }
-    }
-    astNode.children.forEach((child) => recurse(funcDecl, child));
-  }
-  let funcOffset = 0;
-  let globalOffset = 0;
-  for (const record of file.symbolTable!.records()) {
-    if (record.declNode instanceof AST.FuncDecl) {
-      record.declNode.locals = [];
-      record.location = { area: 'funcs', offset: funcOffset++ };
-      recurse(record.declNode, record.declNode);
-    } else if (record.declNode instanceof AST.GlobalDecl) {
-      record.location = { area: 'globals', offset: globalOffset++ };
-    }
-  }
-}
-
 export type ModuleCompilerOptions = {
   includeRuntime: boolean;
 };
@@ -199,7 +211,15 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     }
 
     resolveSymbols(this.file);
-    assignStorageLocations(this.file);
+    let funcOffset = 0;
+    let globalOffset = 0;
+    for (const record of this.file.symbolTable!.records()) {
+      if (record.declNode instanceof AST.FuncDecl) {
+        record.location = { area: 'funcs', offset: funcOffset++ };
+      } else if (record.declNode instanceof AST.GlobalDecl) {
+        record.location = { area: 'globals', offset: globalOffset++ };
+      }
+    }
 
     const funcs: Wasm.Func[] = this.file.funcDecls.map((func) => {
       const wasmFunc = new FuncDeclCompiler(func).compile();
@@ -227,46 +247,88 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   }
 }
 
+type LocalAllocation = {
+  offset: number;
+  live: boolean;
+  local: Wasm.Local;
+};
+
 export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
   funcDecl: AST.FuncDecl;
+  locals: LocalAllocation[] = [];
+
+  private localsOffset = 0;
+
   constructor(funcDecl: AST.FuncDecl) {
     super(funcDecl, undefined);
     this.funcDecl = funcDecl;
   }
+
+  override allocateLocal(valueType: IR.NumberType): LocalAllocation {
+    let freeLocal = this.locals.find(
+      (l) => !l.live && l.local.fields.valueType === valueType
+    );
+    if (freeLocal) {
+      freeLocal.live = true;
+      return freeLocal;
+    } else {
+      let localAllocation = {
+        offset: this.localsOffset++,
+        live: true,
+        local: new Wasm.Local(valueType),
+      };
+      this.locals.push(localAllocation);
+      return localAllocation;
+    }
+  }
+
+  override deallocateLocal(offset: LocalAllocation): void {
+    let local = this.locals.find((l) => l === offset);
+    if (!local) {
+      throw new Error(
+        "FuncDeclCompiler: can't deallocate local that was never allocated..."
+      );
+    }
+    local.live = false;
+  }
+
   compile(): Wasm.Func {
     const funcType = this.funcDecl.resolveType();
     const params = funcType.argTypes.map((t) => t.toValueType());
+    for (const param of this.root.parameters) {
+      param.location = { area: 'locals', offset: this.localsOffset++ };
+      if (this.root.symbolTable) {
+        this.root.symbolTable.get(param.symbol)!.location = param.location;
+      }
+    }
+
     const results =
       funcType.returnType === Intrinsics.void
         ? []
         : [funcType.returnType.toValueType()];
 
-    const locals: Wasm.Local[] = [];
-    for (const local of this.funcDecl.locals) {
-      locals.push(new Wasm.Local(local.declNode.resolveType().toValueType()));
-    }
     return new Wasm.Func({
       id: this.funcDecl.symbol,
-      body: this.forNode(this.funcDecl.block).compile(),
+      body: this.compileChild(this.funcDecl.block),
       funcType: new Wasm.FuncType({
         params,
         results,
       }),
-      locals,
+      locals: this.locals.map((l) => l.local),
     });
   }
 }
 
 class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
   compile(): IR.Instruction[] {
-    if (!this.root.location) {
-      throw new Error(
-        `LetStatementCompiler: Can't compile let statement ${this.root.symbol} without a data location`
-      );
-    }
+    let localAllocation = this.allocateLocal(
+      this.root.resolveType().toValueType(),
+      this.root.symbol
+    );
+    this.root.location = { area: 'locals', offset: localAllocation.offset };
     return [
       ...this.forNode(this.root.expr).compile(),
-      new IR.LocalSet(this.root.location.offset),
+      new IR.LocalSet(localAllocation.offset),
     ];
   }
 }
@@ -309,7 +371,7 @@ class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
     const location = this.root.symbolRecord?.location;
     if (!location) {
       throw new Error(
-        `SymbolRefCompiler: Can't compile reference to unlocated symbol ${this.root.name}`
+        `SymbolRefCompiler: Can't compile reference to unlocated symbol ${this.root.symbol}`
       );
     }
     switch (location.area) {
@@ -447,11 +509,17 @@ export class ExpressionCompiler extends ASTCompiler<AST.Expression> {
         left instanceof AST.UnaryExpr &&
         left.op === AST.UnaryOp.DEREF
       ) {
-        return [
+        let setup = [
           ...this.compileChild(left.expr),
           ...this.compileChild(right),
+        ];
+        let tempOffset = this.allocateLocal(right.resolveType().toValueType());
+        this.deallocateLocal(tempOffset);
+        return [
+          ...setup,
+          new IR.LocalTee(tempOffset.offset),
           new IR.MemoryStore(rightType.toValueType()),
-          ...this.compileChild(right),
+          new IR.LocalGet(tempOffset.offset),
         ];
       } else if (
         left instanceof AST.Expression &&
@@ -466,11 +534,15 @@ export class ExpressionCompiler extends ASTCompiler<AST.Expression> {
           new IR.Mul(valueType),
           new IR.Add(valueType),
         ];
+        let calcValue = this.compileChild(right);
+        let tempOffset = this.allocateLocal(right.resolveType().toValueType());
+        this.deallocateLocal(tempOffset);
         return [
           ...calcPointer,
-          ...this.compileChild(right),
+          ...calcValue,
+          new IR.LocalTee(tempOffset.offset),
           new IR.MemoryStore(valueType, 0, leftType.numBytes),
-          ...this.compileChild(right),
+          new IR.LocalGet(tempOffset.offset),
         ];
       } else {
         throw new Error(

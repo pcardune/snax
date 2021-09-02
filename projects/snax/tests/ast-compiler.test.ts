@@ -2,7 +2,6 @@ import * as AST from '../snax-ast';
 import * as IR from '../stack-ir';
 import * as Wasm from '../wasm-ast';
 import {
-  assignStorageLocations,
   BooleanLiteralCompiler,
   ExpressionCompiler,
   FuncDeclCompiler,
@@ -94,6 +93,90 @@ describe('FuncDeclCompiler', () => {
       })
     );
   });
+
+  it('allocates locals with offsets that come after parameters', () => {
+    const block = new AST.Block([
+      new AST.LetStatement('foo', null, new AST.NumberLiteral(3)),
+      new AST.LetStatement('bar', null, new AST.NumberLiteral(5)),
+    ]);
+    const compiler = new FuncDeclCompiler(
+      new AST.FuncDecl('foo', {
+        parameters: new AST.ParameterList([
+          new AST.Parameter('a', new AST.TypeRef('i32')),
+          new AST.Parameter('b', new AST.TypeRef('f32')),
+        ]),
+        body: block,
+      })
+    );
+    expect(compiler.compile()).toEqual(
+      new Wasm.Func({
+        id: 'foo',
+        funcType: new Wasm.FuncType({
+          params: [IR.NumberType.i32, IR.NumberType.f32],
+          results: [],
+        }),
+        locals: [
+          new Wasm.Local(IR.NumberType.i32),
+          new Wasm.Local(IR.NumberType.i32),
+        ],
+        body: [
+          new IR.PushConst(IR.NumberType.i32, 3),
+          new IR.LocalSet(2),
+          new IR.PushConst(IR.NumberType.i32, 5),
+          new IR.LocalSet(3),
+        ],
+      })
+    );
+  });
+
+  it('reuses locals when it is safe', () => {
+    const block = new AST.Block([
+      new AST.LetStatement('var1', null, new AST.NumberLiteral(1)),
+      new AST.LetStatement('var2', null, new AST.NumberLiteral(2)),
+      new AST.Block([
+        new AST.LetStatement('var3', null, new AST.NumberLiteral(3)),
+        new AST.LetStatement('var4', null, new AST.NumberLiteral(4)),
+      ]),
+      new AST.LetStatement('var5', null, new AST.NumberLiteral(5)),
+    ]);
+    const compiler = new FuncDeclCompiler(
+      new AST.FuncDecl('foo', {
+        parameters: new AST.ParameterList([
+          new AST.Parameter('a', new AST.TypeRef('i32')),
+          new AST.Parameter('b', new AST.TypeRef('f32')),
+        ]),
+        body: block,
+      })
+    );
+    expect(compiler.compile()).toEqual(
+      new Wasm.Func({
+        id: 'foo',
+        funcType: new Wasm.FuncType({
+          params: [IR.NumberType.i32, IR.NumberType.f32],
+          results: [],
+        }),
+        locals: [
+          new Wasm.Local(IR.NumberType.i32),
+          new Wasm.Local(IR.NumberType.i32),
+          new Wasm.Local(IR.NumberType.i32),
+          new Wasm.Local(IR.NumberType.i32),
+        ],
+        body: [
+          new IR.PushConst(IR.NumberType.i32, 1),
+          new IR.LocalSet(2),
+          new IR.PushConst(IR.NumberType.i32, 2),
+          new IR.LocalSet(3),
+          new IR.PushConst(IR.NumberType.i32, 3),
+          new IR.LocalSet(4),
+          new IR.PushConst(IR.NumberType.i32, 4),
+          new IR.LocalSet(5),
+          // reuses local 4
+          new IR.PushConst(IR.NumberType.i32, 5),
+          new IR.LocalSet(4),
+        ],
+      })
+    );
+  });
 });
 
 describe('file compilation', () => {
@@ -148,36 +231,6 @@ describe('file compilation', () => {
     });
     it('globals appear in the files symbol table', () => {
       expect(file.symbolTable?.has('g')).toBe(true);
-    });
-  });
-
-  describe('assignStorageLocations', () => {
-    beforeEach(() => {
-      assignStorageLocations(file);
-    });
-    it('should assign correct storage locations for variables declared in the outer block', () => {
-      expect(outerBlock.symbolTable?.get('x')?.location).toEqual({
-        area: 'locals',
-        offset: 0,
-      });
-    });
-    it('should attach locations to let statements', () => {
-      expect((outerBlock.children[0] as AST.LetStatement).location).toEqual({
-        area: 'locals',
-        offset: 0,
-      });
-    });
-    it('should give locations to inner block let statements that do not conflict with outer block let statements', () => {
-      expect((innerBlock.children[0] as AST.LetStatement).location).toEqual({
-        area: 'locals',
-        offset: 2,
-      });
-    });
-    it('should assign global storage locations to global variables', () => {
-      expect(file.symbolTable?.get('g')?.location).toEqual({
-        area: 'globals',
-        offset: 0,
-      });
     });
   });
 });

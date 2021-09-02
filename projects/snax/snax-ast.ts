@@ -485,7 +485,6 @@ export class FuncDecl extends BaseNode {
   symbol: string;
 
   symbolTable?: SymbolTable;
-  locals: SymbolRecord[] = [];
 
   constructor(
     symbol: string,

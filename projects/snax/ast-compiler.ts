@@ -433,8 +433,7 @@ const OpCompilers: Record<
         ...compile(left.expr),
         ...compile(right),
         new IR.MemoryStore(rightType.toValueType()),
-        ...compile(left.expr),
-        new IR.MemoryLoad(rightType.toValueType()),
+        ...compile(right),
       ];
     } else if (
       left instanceof AST.Expression &&
@@ -453,8 +452,7 @@ const OpCompilers: Record<
         ...calcPointer,
         ...compile(right),
         new IR.MemoryStore(valueType, 0, leftType.numBytes),
-        ...calcPointer,
-        new IR.MemoryLoad(valueType),
+        ...compile(right),
       ];
     } else {
       throw new Error(

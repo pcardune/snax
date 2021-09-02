@@ -194,7 +194,7 @@ calling "calling"
   / indexing
 
 indexing "indexing"
-  = element:deref ws "[" ws index:deref ws "]" {
+  = element:deref ws "[" ws index:expr ws "]" {
     return new AST.Expression(AST.BinaryOp.ARRAY_INDEX, element, index);
   }
   / deref

@@ -415,6 +415,30 @@ describe('pointers', () => {
     const mem = new Int16Array(exports.mem.buffer.slice(0, 4));
     expect([...mem]).toEqual([12, 13]);
   });
+  it('calculates the indexing expression only once.', async () => {
+    const code = `
+      let p:&i32 = 0;
+      p[0] = 0;
+      p[2] = 5;
+      p[p[0]] = 2;
+    `;
+    const { exports } = await compileToWasmModule(code);
+    expect(exports.main()).toEqual(2);
+    const mem = new Int32Array(exports.mem.buffer.slice(0, 12));
+    expect([...mem]).toEqual([2, 0, 5]);
+  });
+  xit('calculates the value expression only once.', async () => {
+    const code = `
+      let p:&i32 = 0;
+      p[0] = 0;
+      p[2] = 5;
+      p[0] = p[0]+2;
+    `;
+    const { exports } = await compileToWasmModule(code);
+    expect(exports.main()).toEqual(2);
+    const mem = new Int32Array(exports.mem.buffer.slice(0, 12));
+    expect([...mem]).toEqual([2, 0, 5]);
+  });
 });
 
 describe('arrays', () => {

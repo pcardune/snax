@@ -2838,7 +2838,7 @@ function peg$parse(input: string, options?: IParseOptions) {
         if (s3 as any !== peg$FAILED) {
           s4 = peg$parsews();
           if (s4 as any !== peg$FAILED) {
-            s5 = peg$parsederef();
+            s5 = peg$parseexpr();
             if (s5 as any !== peg$FAILED) {
               s6 = peg$parsews();
               if (s6 as any !== peg$FAILED) {

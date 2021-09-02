@@ -4,57 +4,66 @@ import { Intrinsics, NumericalType } from './snax-types';
 import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
 
-export abstract class ASTCompiler<Root extends AST.ASTNode = AST.ASTNode> {
+export abstract class ASTCompiler<
+  Root extends AST.ASTNode = AST.ASTNode,
+  Output = IR.Instruction[]
+> {
   root: Root;
-  constructor(root: Root) {
+  parent?: ASTCompiler<AST.ASTNode, unknown>;
+
+  constructor(
+    root: Root,
+    parent: ASTCompiler<AST.ASTNode, unknown> | undefined
+  ) {
     this.root = root;
+    this.parent = parent;
   }
 
-  abstract compile(): IR.Instruction[];
+  abstract compile(): Output;
 
-  static forNode(node: AST.ASTNode): ASTCompiler {
+  protected forNode(node: AST.ASTNode): ASTCompiler {
     if (node instanceof AST.Expression) {
-      return new ExpressionCompiler(node);
+      return new ExpressionCompiler(node, this);
     } else if (node instanceof AST.ExprStatement) {
-      return new ExprStatementCompiler(node);
+      return new ExprStatementCompiler(node, this);
     } else if (node instanceof AST.NumberLiteral) {
-      return new NumberLiteralCompiler(node);
+      return new NumberLiteralCompiler(node, this);
     } else if (node instanceof AST.Block) {
-      return new BlockCompiler(node);
+      return new BlockCompiler(node, this);
     } else if (node instanceof AST.LetStatement) {
-      return new LetStatementCompiler(node);
+      return new LetStatementCompiler(node, this);
     } else if (node instanceof AST.IfStatement) {
-      return new IfStatementCompiler(node);
+      return new IfStatementCompiler(node, this);
     } else if (node instanceof AST.SymbolRef) {
-      return new SymbolRefCompiler(node);
+      return new SymbolRefCompiler(node, this);
     } else if (node instanceof AST.BooleanLiteral) {
-      return new BooleanLiteralCompiler(node);
+      return new BooleanLiteralCompiler(node, this);
     } else if (node instanceof AST.ArrayLiteral) {
-      return new ArrayLiteralCompiler(node);
+      return new ArrayLiteralCompiler(node, this);
     } else if (node instanceof AST.ArgList) {
-      return new ArgListCompiler(node);
+      return new ArgListCompiler(node, this);
     } else if (node instanceof AST.WhileStatement) {
-      return new WhileStatementCompiler(node);
+      return new WhileStatementCompiler(node, this);
     } else if (node instanceof AST.ReturnStatement) {
-      return new ReturnStatementCompiler(node);
+      return new ReturnStatementCompiler(node, this);
     } else if (node instanceof AST.UnaryExpr) {
-      return new UnaryExprCompiler(node);
+      return new UnaryExprCompiler(node, this);
     } else {
       throw new Error(
         `ASTCompiler: No compiler available for node ${node.toString()}`
       );
     }
   }
-}
 
-export function compile(node: AST.ASTNode) {
-  return ASTCompiler.forNode(node).compile();
+  compileChild(child: AST.ASTNode) {
+    return this.forNode(child).compile();
+  }
 }
 
 class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
   compile() {
     return [
-      ...(this.root.expr ? ASTCompiler.forNode(this.root.expr).compile() : []),
+      ...(this.root.expr ? this.forNode(this.root.expr).compile() : []),
       new IR.Return(),
     ];
   }
@@ -64,7 +73,7 @@ export class BlockCompiler extends ASTCompiler<AST.Block> {
   compile(): IR.Instruction[] {
     return this.root.statements
       .filter((astNode) => !(astNode instanceof AST.FuncDecl))
-      .map((astNode) => ASTCompiler.forNode(astNode).compile())
+      .map((astNode) => this.forNode(astNode).compile())
       .flat();
   }
 }
@@ -162,10 +171,11 @@ export function assignStorageLocations(file: AST.File) {
 export type ModuleCompilerOptions = {
   includeRuntime: boolean;
 };
-export class ModuleCompiler {
+export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   file: AST.File;
   options: ModuleCompilerOptions;
   constructor(file: AST.File, options?: Partial<ModuleCompilerOptions>) {
+    super(file, undefined);
     this.file = file;
     this.options = {
       includeRuntime: false,
@@ -206,7 +216,7 @@ export class ModuleCompiler {
           valtype: global.resolveType().toValueType(),
           mut: true,
         }),
-        expr: compile(global.expr),
+        expr: this.compileChild(global.expr),
       });
     });
 
@@ -217,9 +227,10 @@ export class ModuleCompiler {
   }
 }
 
-export class FuncDeclCompiler {
+export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
   funcDecl: AST.FuncDecl;
   constructor(funcDecl: AST.FuncDecl) {
+    super(funcDecl, undefined);
     this.funcDecl = funcDecl;
   }
   compile(): Wasm.Func {
@@ -236,7 +247,7 @@ export class FuncDeclCompiler {
     }
     return new Wasm.Func({
       id: this.funcDecl.symbol,
-      body: ASTCompiler.forNode(this.funcDecl.block).compile(),
+      body: this.forNode(this.funcDecl.block).compile(),
       funcType: new Wasm.FuncType({
         params,
         results,
@@ -254,34 +265,34 @@ class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
       );
     }
     return [
-      ...ASTCompiler.forNode(this.root.expr).compile(),
+      ...this.forNode(this.root.expr).compile(),
       new IR.LocalSet(this.root.location.offset),
     ];
   }
 }
 
-class IfStatementCompiler extends ASTCompiler<AST.IfStatement> {
+export class IfStatementCompiler extends ASTCompiler<AST.IfStatement> {
   compile(): IR.Instruction[] {
     return [
-      ...ASTCompiler.forNode(this.root.condExpr).compile(),
+      ...this.forNode(this.root.condExpr).compile(),
       new Wasm.IfBlock({
-        then: ASTCompiler.forNode(this.root.thenBlock).compile(),
-        else: ASTCompiler.forNode(this.root.elseBlock).compile(),
+        then: this.forNode(this.root.thenBlock).compile(),
+        else: this.forNode(this.root.elseBlock).compile(),
       }),
     ];
   }
 }
 
-class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
+export class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
   compile() {
     return [
-      ...compile(this.root.condExpr),
+      ...this.compileChild(this.root.condExpr),
       new Wasm.IfBlock({
         then: [
           new Wasm.LoopBlock({
             instr: [
-              ...compile(this.root.thenBlock),
-              ...compile(this.root.condExpr),
+              ...this.compileChild(this.root.thenBlock),
+              ...this.compileChild(this.root.condExpr),
               new IR.BreakIf('while_0'),
             ],
             label: 'while_0',
@@ -340,161 +351,163 @@ function matchTypes(left: AST.ASTNode, right: AST.ASTNode) {
   return targetType.toValueType();
 }
 
-function pushNumberOps(left: AST.ASTNode, right: AST.ASTNode) {
-  let targetType = matchTypes(left, right);
-  return [
-    ...ASTCompiler.forNode(left).compile(),
-    ...convert(left, targetType),
-    ...ASTCompiler.forNode(right).compile(),
-    ...convert(right, targetType),
-  ];
-}
+export class ExpressionCompiler extends ASTCompiler<AST.Expression> {
+  static forNode(root: AST.Expression) {
+    return new ExpressionCompiler(root, undefined);
+  }
+  private pushNumberOps(left: AST.ASTNode, right: AST.ASTNode) {
+    let targetType = matchTypes(left, right);
+    return [
+      ...this.forNode(left).compile(),
+      ...convert(left, targetType),
+      ...this.forNode(right).compile(),
+      ...convert(right, targetType),
+    ];
+  }
 
-const OpCompilers: Record<
-  AST.BinaryOp,
-  (left: AST.ASTNode, right: AST.ASTNode) => IR.Instruction[]
-> = {
-  [AST.BinaryOp.ADD]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.Add(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.SUB]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.Sub(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.MUL]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.Mul(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.DIV]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.Div(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.Equal(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.NOT_EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.NotEqual(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.LESS_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.LessThan(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.GREATER_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...pushNumberOps(left, right),
-    new IR.GreaterThan(matchTypes(left, right)),
-  ],
-  [AST.BinaryOp.LOGICAL_AND]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...ASTCompiler.forNode(left).compile(),
-    ...ASTCompiler.forNode(right).compile(),
-    new IR.And(Intrinsics.bool.toValueType()),
-  ],
-  [AST.BinaryOp.LOGICAL_OR]: (left: AST.ASTNode, right: AST.ASTNode) => [
-    ...ASTCompiler.forNode(left).compile(),
-    ...ASTCompiler.forNode(right).compile(),
-    new IR.Or(Intrinsics.bool.toValueType()),
-  ],
-  [AST.BinaryOp.ASSIGN]: (left: AST.ASTNode, right: AST.ASTNode) => {
-    const leftType = left.resolveType();
-    const rightType = right.resolveType();
-    if (leftType !== rightType) {
-      throw new Error(
-        `Can't assign value of type ${rightType} to symbol of type ${leftType}`
-      );
-    }
-    if (left instanceof AST.SymbolRef) {
-      const location = left.symbolRecord?.location;
-      if (!location) {
+  private OpCompilers: Record<
+    AST.BinaryOp,
+    (left: AST.ASTNode, right: AST.ASTNode) => IR.Instruction[]
+  > = {
+    [AST.BinaryOp.ADD]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.Add(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.SUB]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.Sub(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.MUL]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.Mul(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.DIV]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.Div(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.Equal(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.NOT_EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.NotEqual(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.LESS_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.LessThan(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.GREATER_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.pushNumberOps(left, right),
+      new IR.GreaterThan(matchTypes(left, right)),
+    ],
+    [AST.BinaryOp.LOGICAL_AND]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.forNode(left).compile(),
+      ...this.forNode(right).compile(),
+      new IR.And(Intrinsics.bool.toValueType()),
+    ],
+    [AST.BinaryOp.LOGICAL_OR]: (left: AST.ASTNode, right: AST.ASTNode) => [
+      ...this.forNode(left).compile(),
+      ...this.forNode(right).compile(),
+      new IR.Or(Intrinsics.bool.toValueType()),
+    ],
+    [AST.BinaryOp.ASSIGN]: (left: AST.ASTNode, right: AST.ASTNode) => {
+      const leftType = left.resolveType();
+      const rightType = right.resolveType();
+      if (leftType !== rightType) {
         throw new Error(
-          `ASSIGN: can't compile assignment to unlocated symbol ${left.symbol}`
+          `Can't assign value of type ${rightType} to symbol of type ${leftType}`
         );
       }
-      switch (location.area) {
-        case 'locals':
-          return [
-            ...ASTCompiler.forNode(right).compile(),
-            new IR.LocalTee(location.offset),
-          ];
-        case 'globals':
-          return [
-            ...compile(right),
-            new IR.GlobalSet(location.offset),
-            new IR.GlobalGet(location.offset),
-          ];
-        default:
+      if (left instanceof AST.SymbolRef) {
+        const location = left.symbolRecord?.location;
+        if (!location) {
           throw new Error(
-            `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+            `ASSIGN: can't compile assignment to unlocated symbol ${left.symbol}`
           );
+        }
+        switch (location.area) {
+          case 'locals':
+            return [
+              ...this.forNode(right).compile(),
+              new IR.LocalTee(location.offset),
+            ];
+          case 'globals':
+            return [
+              ...this.compileChild(right),
+              new IR.GlobalSet(location.offset),
+              new IR.GlobalGet(location.offset),
+            ];
+          default:
+            throw new Error(
+              `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+            );
+        }
+      } else if (
+        left instanceof AST.UnaryExpr &&
+        left.op === AST.UnaryOp.DEREF
+      ) {
+        return [
+          ...this.compileChild(left.expr),
+          ...this.compileChild(right),
+          new IR.MemoryStore(rightType.toValueType()),
+          ...this.compileChild(right),
+        ];
+      } else if (
+        left instanceof AST.Expression &&
+        left.op === AST.BinaryOp.ARRAY_INDEX
+      ) {
+        let valueType = leftType.toValueType();
+        const arrayExpr = left;
+        let calcPointer = [
+          ...this.compileChild(arrayExpr.left),
+          ...this.compileChild(arrayExpr.right),
+          new IR.PushConst(valueType, leftType.numBytes),
+          new IR.Mul(valueType),
+          new IR.Add(valueType),
+        ];
+        return [
+          ...calcPointer,
+          ...this.compileChild(right),
+          new IR.MemoryStore(valueType, 0, leftType.numBytes),
+          ...this.compileChild(right),
+        ];
+      } else {
+        throw new Error(
+          `ASSIGN: Can't assign to something that is not a resolved symbol or a memory address`
+        );
       }
-    } else if (left instanceof AST.UnaryExpr && left.op === AST.UnaryOp.DEREF) {
+    },
+    [AST.BinaryOp.ARRAY_INDEX]: (
+      refExpr: AST.ASTNode,
+      indexExpr: AST.ASTNode
+    ) => {
+      const valueType = refExpr.resolveType().toValueType();
       return [
-        ...compile(left.expr),
-        ...compile(right),
-        new IR.MemoryStore(rightType.toValueType()),
-        ...compile(right),
-      ];
-    } else if (
-      left instanceof AST.Expression &&
-      left.op === AST.BinaryOp.ARRAY_INDEX
-    ) {
-      let valueType = leftType.toValueType();
-      const arrayExpr = left;
-      let calcPointer = [
-        ...compile(arrayExpr.left),
-        ...compile(arrayExpr.right),
-        new IR.PushConst(valueType, leftType.numBytes),
-        new IR.Mul(valueType),
+        ...this.forNode(refExpr).compile(),
+        ...this.forNode(indexExpr).compile(),
         new IR.Add(valueType),
+        new IR.PushConst(valueType, 4),
+        new IR.Mul(valueType),
+        new IR.MemoryLoad(refExpr.resolveType().toValueType(), 0),
       ];
-      return [
-        ...calcPointer,
-        ...compile(right),
-        new IR.MemoryStore(valueType, 0, leftType.numBytes),
-        ...compile(right),
-      ];
-    } else {
-      throw new Error(
-        `ASSIGN: Can't assign to something that is not a resolved symbol or a memory address`
-      );
-    }
-  },
-  [AST.BinaryOp.ARRAY_INDEX]: (
-    refExpr: AST.ASTNode,
-    indexExpr: AST.ASTNode
-  ) => {
-    const valueType = refExpr.resolveType().toValueType();
-    return [
-      ...ASTCompiler.forNode(refExpr).compile(),
-      ...ASTCompiler.forNode(indexExpr).compile(),
-      new IR.Add(valueType),
-      new IR.PushConst(valueType, 4),
-      new IR.Mul(valueType),
-      new IR.MemoryLoad(refExpr.resolveType().toValueType(), 0),
-    ];
-  },
-  [AST.BinaryOp.CALL]: (left: AST.ASTNode, right: AST.ASTNode) => {
-    if (left instanceof AST.SymbolRef) {
-      const location = left.symbolRecord?.location;
-      if (!location || location.area !== 'funcs') {
-        throw new Error(`CALL: can't call unlocated function ${left.symbol}`);
+    },
+    [AST.BinaryOp.CALL]: (left: AST.ASTNode, right: AST.ASTNode) => {
+      if (left instanceof AST.SymbolRef) {
+        const location = left.symbolRecord?.location;
+        if (!location || location.area !== 'funcs') {
+          throw new Error(`CALL: can't call unlocated function ${left.symbol}`);
+        }
+        return [...this.forNode(right).compile(), new IR.Call(location.offset)];
+      } else {
+        throw new Error(
+          `ExpressionCompiler: Can't call unresolved symbol ${left}`
+        );
       }
-      return [
-        ...ASTCompiler.forNode(right).compile(),
-        new IR.Call(location.offset),
-      ];
-    } else {
-      throw new Error(
-        `ExpressionCompiler: Can't call unresolved symbol ${left}`
-      );
-    }
-  },
-};
-
-class ExpressionCompiler extends ASTCompiler<AST.Expression> {
+    },
+  };
   compile(): IR.Instruction[] {
-    return OpCompilers[this.root.op](this.root.left, this.root.right);
+    return this.OpCompilers[this.root.op](this.root.left, this.root.right);
   }
 }
 
@@ -504,7 +517,7 @@ class UnaryExprCompiler extends ASTCompiler<AST.UnaryExpr> {
       case AST.UnaryOp.DEREF:
         const exprType = this.root.expr.resolveType();
         return [
-          ...compile(this.root.expr),
+          ...this.compileChild(this.root.expr),
           new IR.MemoryLoad(exprType.toValueType()),
         ];
     }
@@ -514,16 +527,16 @@ class UnaryExprCompiler extends ASTCompiler<AST.UnaryExpr> {
 class ExprStatementCompiler extends ASTCompiler<AST.ExprStatement> {
   compile() {
     if (this.root.expr.resolveType() === Intrinsics.void) {
-      return compile(this.root.expr);
+      return this.compileChild(this.root.expr);
     }
-    return [...compile(this.root.expr), new IR.Drop()];
+    return [...this.compileChild(this.root.expr), new IR.Drop()];
   }
 }
 
 class ArgListCompiler extends ASTCompiler<AST.ArgList> {
   compile() {
     return this.root.children
-      .map((child) => ASTCompiler.forNode(child).compile())
+      .map((child) => this.forNode(child).compile())
       .flat();
   }
 }
@@ -535,7 +548,7 @@ class NumberLiteralCompiler extends ASTCompiler<AST.NumberLiteral> {
   }
 }
 
-class BooleanLiteralCompiler extends ASTCompiler<AST.BooleanLiteral> {
+export class BooleanLiteralCompiler extends ASTCompiler<AST.BooleanLiteral> {
   compile(): IR.Instruction[] {
     const value = this.root.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];
@@ -553,7 +566,7 @@ class ArrayLiteralCompiler extends ASTCompiler<AST.ArrayLiteral> {
         // push memory space offset
         baseAddressInstr,
         // push value from expression
-        ...ASTCompiler.forNode(child).compile(),
+        ...this.forNode(child).compile(),
         // store value
         new IR.MemoryStore(arrayType.elementType.toValueType(), i * 4, 4),
       ]),

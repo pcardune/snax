@@ -3,11 +3,13 @@ import * as IR from '../stack-ir';
 import * as Wasm from '../wasm-ast';
 import {
   assignStorageLocations,
-  ASTCompiler,
+  BooleanLiteralCompiler,
+  ExpressionCompiler,
   FuncDeclCompiler,
+  IfStatementCompiler,
   ModuleCompiler,
   resolveSymbols,
-  compile,
+  WhileStatementCompiler,
 } from '../ast-compiler';
 
 describe('ExpressionCompiler', () => {
@@ -16,10 +18,10 @@ describe('ExpressionCompiler', () => {
     const twenty = new AST.NumberLiteral(20);
     const thirty = new AST.NumberLiteral(30);
     const expr = new AST.Expression(AST.BinaryOp.ADD, twenty, thirty);
-    const compiler = ASTCompiler.forNode(expr);
+    const compiler = ExpressionCompiler.forNode(expr);
     expect(compiler.compile()).toEqual([
-      ...compile(twenty),
-      ...compile(thirty),
+      ...compiler.compileChild(twenty),
+      ...compiler.compileChild(thirty),
       new IR.Add(i32),
     ]);
   });
@@ -29,19 +31,21 @@ describe('ExpressionCompiler', () => {
       12.3,
       AST.NumberLiteralType.Float
     );
-    expect(
-      compile(new AST.Expression(AST.BinaryOp.ADD, ten, twelvePointThree))
-    ).toEqual([
-      ...compile(ten),
+    let compiler = ExpressionCompiler.forNode(
+      new AST.Expression(AST.BinaryOp.ADD, ten, twelvePointThree)
+    );
+    expect(compiler.compile()).toEqual([
+      ...compiler.compileChild(ten),
       new IR.Convert(i32, f32),
-      ...compile(twelvePointThree),
+      ...compiler.compileChild(twelvePointThree),
       new IR.Add(f32),
     ]);
-    expect(
-      compile(new AST.Expression(AST.BinaryOp.ADD, twelvePointThree, ten))
-    ).toEqual([
-      ...compile(twelvePointThree),
-      ...compile(ten),
+    compiler = ExpressionCompiler.forNode(
+      new AST.Expression(AST.BinaryOp.ADD, twelvePointThree, ten)
+    );
+    expect(compiler.compile()).toEqual([
+      ...compiler.compileChild(twelvePointThree),
+      ...compiler.compileChild(ten),
       new IR.Convert(i32, f32),
       new IR.Add(f32),
     ]);
@@ -50,11 +54,17 @@ describe('ExpressionCompiler', () => {
 
 describe('BooleanLiteralCompiler', () => {
   it('compiles booleans to i32 consts', () => {
-    expect(ASTCompiler.forNode(new AST.BooleanLiteral(true)).compile()).toEqual(
-      [new IR.PushConst(IR.NumberType.i32, 1)]
-    );
     expect(
-      ASTCompiler.forNode(new AST.BooleanLiteral(false)).compile()
+      new BooleanLiteralCompiler(
+        new AST.BooleanLiteral(true),
+        undefined
+      ).compile()
+    ).toEqual([new IR.PushConst(IR.NumberType.i32, 1)]);
+    expect(
+      new BooleanLiteralCompiler(
+        new AST.BooleanLiteral(false),
+        undefined
+      ).compile()
     ).toEqual([new IR.PushConst(IR.NumberType.i32, 0)]);
   });
 });
@@ -64,24 +74,23 @@ describe('FuncDeclCompiler', () => {
     const block = new AST.Block([
       new AST.ReturnStatement(new AST.NumberLiteral(3)),
     ]);
-    expect(
-      new FuncDeclCompiler(
-        new AST.FuncDecl('foo', {
-          parameters: new AST.ParameterList([
-            new AST.Parameter('a', new AST.TypeRef('i32')),
-            new AST.Parameter('b', new AST.TypeRef('f32')),
-          ]),
-          body: block,
-        })
-      ).compile()
-    ).toEqual(
+    const compiler = new FuncDeclCompiler(
+      new AST.FuncDecl('foo', {
+        parameters: new AST.ParameterList([
+          new AST.Parameter('a', new AST.TypeRef('i32')),
+          new AST.Parameter('b', new AST.TypeRef('f32')),
+        ]),
+        body: block,
+      })
+    );
+    expect(compiler.compile()).toEqual(
       new Wasm.Func({
         id: 'foo',
         funcType: new Wasm.FuncType({
           params: [IR.NumberType.i32, IR.NumberType.f32],
           results: [IR.NumberType.i32],
         }),
-        body: ASTCompiler.forNode(block).compile(),
+        body: compiler.compileChild(block),
       })
     );
   });
@@ -180,11 +189,12 @@ describe('IfStatementCompiler', () => {
       new AST.Block([new AST.ExprStatement(new AST.NumberLiteral(2))]),
       new AST.Block([new AST.ExprStatement(new AST.NumberLiteral(4))])
     );
-    expect(compile(ifStatement)).toEqual([
-      ...compile(ifStatement.condExpr),
+    const compiler = new IfStatementCompiler(ifStatement, undefined);
+    expect(compiler.compile()).toEqual([
+      ...compiler.compileChild(ifStatement.condExpr),
       new Wasm.IfBlock({
-        then: compile(ifStatement.thenBlock),
-        else: compile(ifStatement.elseBlock),
+        then: compiler.compileChild(ifStatement.thenBlock),
+        else: compiler.compileChild(ifStatement.elseBlock),
       }),
     ]);
   });
@@ -196,14 +206,15 @@ describe('WhileStatementCompiler', () => {
       new AST.BooleanLiteral(true),
       new AST.Block([new AST.ExprStatement(new AST.NumberLiteral(2))])
     );
-    expect(compile(whileStatement)).toEqual([
-      ...compile(whileStatement.condExpr),
+    const compiler = new WhileStatementCompiler(whileStatement, undefined);
+    expect(compiler.compile()).toEqual([
+      ...compiler.compileChild(whileStatement.condExpr),
       new Wasm.IfBlock({
         then: [
           new Wasm.LoopBlock({
             instr: [
-              ...compile(whileStatement.thenBlock),
-              ...compile(whileStatement.condExpr),
+              ...compiler.compileChild(whileStatement.thenBlock),
+              ...compiler.compileChild(whileStatement.condExpr),
               new IR.BreakIf('while_0'),
             ],
             label: 'while_0',
@@ -248,13 +259,12 @@ describe('ModuleCompiler', () => {
   });
   it('compiles functions in the module', () => {
     const num = new AST.NumberLiteral(32);
-    expect(
-      new ModuleCompiler(
-        new AST.File({
-          funcs: [new AST.FuncDecl('main', { body: new AST.Block([num]) })],
-        })
-      ).compile()
-    ).toEqual(
+    const compiler = new ModuleCompiler(
+      new AST.File({
+        funcs: [new AST.FuncDecl('main', { body: new AST.Block([num]) })],
+      })
+    );
+    expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
           new Wasm.Func({
@@ -264,7 +274,7 @@ describe('ModuleCompiler', () => {
             }),
             exportName: 'main',
             id: 'main',
-            body: [...ASTCompiler.forNode(num).compile()],
+            body: [...compiler.compileChild(num)],
           }),
         ],
       })

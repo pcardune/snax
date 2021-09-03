@@ -245,4 +245,17 @@ export class MemoryStore extends Instruction {
   }
 }
 
+export class MemoryInit extends Instruction {
+  dataidx: number;
+
+  constructor(dataidx: number) {
+    super();
+    this.dataidx = dataidx;
+  }
+
+  toWAT(): string {
+    return `memory.init ${this.dataidx}`;
+  }
+}
+
 export type { Instruction };

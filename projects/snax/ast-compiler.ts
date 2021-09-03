@@ -40,6 +40,8 @@ export abstract class ASTCompiler<
       return new BooleanLiteralCompiler(node, this);
     } else if (node instanceof AST.ArrayLiteral) {
       return new ArrayLiteralCompiler(node, this);
+    } else if (node instanceof AST.StringLiteral) {
+      return new StringLiteralCompiler(node, this);
     } else if (node instanceof AST.ArgList) {
       return new ArgListCompiler(node, this);
     } else if (node instanceof AST.WhileStatement) {
@@ -70,6 +72,14 @@ export abstract class ASTCompiler<
       throw new Error("Don't know how to deallocate local in this context");
     }
     return this.parent.deallocateLocal(offset);
+  }
+  registerPassiveData(data: string): number {
+    if (!this.parent) {
+      throw new Error(
+        "Don't know how to register passive data in this context"
+      );
+    }
+    return this.parent.registerPassiveData(data);
   }
 }
 
@@ -208,6 +218,7 @@ export type ModuleCompilerOptions = {
 export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   file: AST.File;
   options: Required<ModuleCompilerOptions>;
+
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);
     this.file = file;
@@ -217,6 +228,19 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       ...options,
     };
   }
+
+  private datas: Wasm.Data[] = [];
+  private dataOffset = 0;
+  override registerPassiveData(data: string) {
+    const wasmData = new Wasm.Data({
+      datastring: data,
+      offset: this.dataOffset,
+    });
+    this.dataOffset += data.length;
+    this.datas.push(wasmData);
+    return wasmData.fields.offset;
+  }
+
   compile(): Wasm.Module {
     let imports: Wasm.Import[] = [];
     if (this.options.includeWASI) {
@@ -263,7 +287,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     }
 
     const funcs: Wasm.Func[] = this.file.funcDecls.map((func) => {
-      const wasmFunc = new FuncDeclCompiler(func).compile();
+      const wasmFunc = new FuncDeclCompiler(func, this).compile();
       if (func.symbol === 'main') {
         wasmFunc.fields.exportName = '_start';
       }
@@ -285,6 +309,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       funcs,
       globals,
       imports: imports.length > 0 ? imports : undefined,
+      datas: this.datas,
     });
   }
 }
@@ -296,15 +321,9 @@ type LocalAllocation = {
 };
 
 export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
-  funcDecl: AST.FuncDecl;
   locals: LocalAllocation[] = [];
 
   private localsOffset = 0;
-
-  constructor(funcDecl: AST.FuncDecl) {
-    super(funcDecl, undefined);
-    this.funcDecl = funcDecl;
-  }
 
   override allocateLocal(valueType: IR.NumberType): LocalAllocation {
     let freeLocal = this.locals.find(
@@ -335,7 +354,7 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
   }
 
   compile(): Wasm.Func {
-    const funcType = this.funcDecl.resolveType();
+    const funcType = this.root.resolveType();
     const params = funcType.argTypes.map((t) => t.toValueType());
     for (const param of this.root.parameters) {
       param.location = { area: 'locals', offset: this.localsOffset++ };
@@ -350,8 +369,8 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
         : [funcType.returnType.toValueType()];
 
     return new Wasm.Func({
-      id: this.funcDecl.symbol,
-      body: this.compileChild(this.funcDecl.block),
+      id: this.root.symbol,
+      body: this.compileChild(this.root.block),
       funcType: new Wasm.FuncTypeUse({
         params,
         results,
@@ -687,5 +706,12 @@ class ArrayLiteralCompiler extends ASTCompiler<AST.ArrayLiteral> {
     ].flat();
     instr.push(baseAddressInstr);
     return instr;
+  }
+}
+
+class StringLiteralCompiler extends ASTCompiler<AST.StringLiteral> {
+  compile() {
+    let offset = this.registerPassiveData(this.root.value);
+    return [new IR.PushConst(IR.NumberType.i32, offset)];
   }
 }

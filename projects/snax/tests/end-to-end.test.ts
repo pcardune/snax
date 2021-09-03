@@ -463,3 +463,16 @@ describe('arrays', () => {
     expect([...mem]).toEqual([6, 5, 4]);
   });
 });
+
+describe('strings', () => {
+  it('compiles strings', async () => {
+    const code = `"hello world";`;
+    const { exports } = await compileToWasmModule(code);
+    expect(exports._start()).toBe(0);
+    const mem = new Int8Array(exports.memory.buffer.slice(0, 11));
+    expect([...mem]).toEqual([
+      104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100,
+    ]);
+    expect(new TextDecoder().decode(mem)).toEqual('hello world');
+  });
+});

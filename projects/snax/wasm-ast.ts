@@ -7,20 +7,35 @@ abstract class Node<Fields> {
     this.fields = fields;
   }
 }
-type ModuleFields = { funcs: Func[]; globals: Global[]; imports: Import[] };
+type ModuleFields = {
+  funcs: Func[];
+  globals: Global[];
+  imports: Import[];
+  datas: Data[];
+};
 export class Module extends Node<ModuleFields> implements HasWAT {
   constructor(fields: Partial<ModuleFields>) {
     super({
       funcs: fields.funcs ?? [],
       globals: fields.globals ?? [],
       imports: fields.imports ?? [],
+      datas: fields.datas ?? [],
     });
   }
   toWAT() {
     const globals = (this.fields.globals ?? []).map((g) => g.toWAT()).join(' ');
     const body = (this.fields.funcs ?? []).map((f) => f.toWAT()).join('\n');
     const imports = this.fields.imports.map((im) => im.toWAT()).join('\n');
-    return `(module ${imports} (memory 1) (export "memory" (memory 0)) ${globals}\n${body}\n)`;
+    const datas = this.fields.datas.map((d) => d.toWAT()).join('\n');
+    return sexpr(
+      'module',
+      imports,
+      '(memory 1)',
+      sexpr('export', '"memory"', '(memory 0)'),
+      datas,
+      globals,
+      body
+    );
   }
 }
 
@@ -42,6 +57,25 @@ export class Import extends Node<{
       new FuncTypeUse(typeuse).toWAT()
     );
     return `(import "${this.fields.mod}" "${this.fields.nm}" ${importdescStr} )`;
+  }
+}
+
+export class Data extends Node<{
+  id?: string;
+  offset: number;
+  datastring: string;
+}> {
+  toWAT() {
+    return sexpr(
+      'data',
+      this.fields.id ? `${this.fields.id}` : '',
+      sexpr('memory', '0'),
+      sexpr(
+        'offset',
+        new IR.PushConst(IR.NumberType.i32, this.fields.offset).toWAT()
+      ),
+      JSON.stringify(this.fields.datastring)
+    );
   }
 }
 

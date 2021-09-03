@@ -154,16 +154,17 @@ export class TypeRef extends BaseNode {
   }
   resolveType(): BaseType {
     switch (this.symbol) {
+      case 'u8':
+      case 'u16':
+      case 'u32':
+      case 'u64':
       case 'i8':
-        return Intrinsics.i8;
       case 'i16':
-        return Intrinsics.i16;
       case 'i32':
-        return Intrinsics.i32;
+      case 'i64':
       case 'f32':
-        return Intrinsics.f32;
       case 'unknown':
-        return Intrinsics.unknown;
+        return Intrinsics[this.symbol];
     }
     throw new Error(`TypeRef: Can't resolve type ${this.symbol}`);
   }

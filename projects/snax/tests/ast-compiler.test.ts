@@ -80,7 +80,8 @@ describe('FuncDeclCompiler', () => {
           new AST.Parameter('b', new AST.TypeRef('f32')),
         ]),
         body: block,
-      })
+      }),
+      undefined
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
@@ -106,7 +107,8 @@ describe('FuncDeclCompiler', () => {
           new AST.Parameter('b', new AST.TypeRef('f32')),
         ]),
         body: block,
-      })
+      }),
+      undefined
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
@@ -146,7 +148,8 @@ describe('FuncDeclCompiler', () => {
           new AST.Parameter('b', new AST.TypeRef('f32')),
         ]),
         body: block,
-      })
+      }),
+      undefined
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
@@ -310,6 +313,7 @@ describe('ModuleCompiler', () => {
       })
     );
   });
+
   it('compiles functions in the module', () => {
     const num = new AST.NumberLiteral(32);
     const compiler = new ModuleCompiler(
@@ -333,6 +337,37 @@ describe('ModuleCompiler', () => {
       })
     );
   });
+
+  it('compiles string literals into data segments', () => {
+    const compiler = new ModuleCompiler(
+      new AST.File({
+        funcs: [
+          new AST.FuncDecl('main', {
+            body: new AST.Block([
+              new AST.ExprStatement(new AST.StringLiteral('hello world!')),
+            ]),
+          }),
+        ],
+      })
+    );
+    expect(compiler.compile()).toEqual(
+      new Wasm.Module({
+        datas: [new Wasm.Data({ datastring: 'hello world!', offset: 0 })],
+        funcs: [
+          new Wasm.Func({
+            funcType: new Wasm.FuncTypeUse({
+              params: [],
+              results: [],
+            }),
+            exportName: '_start',
+            id: 'main',
+            body: [new IR.PushConst(IR.NumberType.i32, 0), new IR.Drop()],
+          }),
+        ],
+      })
+    );
+  });
+
   it('compiles functions in the top-level block to wasm functions', () => {
     const funcDecl = new AST.FuncDecl('foo', {
       parameters: new AST.ParameterList([
@@ -340,16 +375,15 @@ describe('ModuleCompiler', () => {
       ]),
       body: new AST.Block([new AST.ReturnStatement(new AST.SymbolRef('a'))]),
     });
-    expect(
-      new ModuleCompiler(
-        new AST.File({
-          funcs: [funcDecl, new AST.FuncDecl('main')],
-        })
-      ).compile()
-    ).toEqual(
+    const compiler = new ModuleCompiler(
+      new AST.File({
+        funcs: [funcDecl, new AST.FuncDecl('main')],
+      })
+    );
+    expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
-          new FuncDeclCompiler(funcDecl).compile(),
+          new FuncDeclCompiler(funcDecl, compiler).compile(),
           new Wasm.Func({
             funcType: new Wasm.FuncTypeUse({
               params: [],

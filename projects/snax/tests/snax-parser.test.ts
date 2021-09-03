@@ -23,6 +23,7 @@ import {
   PointerTypeExpr,
   UnaryExpr,
   UnaryOp,
+  StringLiteral,
 } from '../snax-ast';
 import { grammar, lexer, SNAXParser, Token } from '../snax-parser';
 
@@ -105,6 +106,18 @@ describe('SNAX Parser', () => {
           new NumberLiteral(5),
         ])
       );
+    });
+  });
+  describe('string literals', () => {
+    it('should parse "foo" into a string literal', () => {
+      expect(SNAXParser.parseStrOrThrow('"foo"', 'expr')).toEqual(
+        new StringLiteral('foo')
+      );
+    });
+    it('should support escaping the quote character', () => {
+      expect(
+        SNAXParser.parseStrOrThrow('"this string has \\"quotes\\"."', 'expr')
+      ).toEqual(new StringLiteral('this string has "quotes".'));
     });
   });
   describe('expression', () => {

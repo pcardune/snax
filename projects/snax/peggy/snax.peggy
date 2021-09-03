@@ -208,9 +208,15 @@ deref "deref"
 factor "factor"
   = "(" inner:expr ")" { return inner; }
   / arrayLiteral
+  / stringLiteral
   / number
   / bool
   / id
+
+stringLiteral "string"
+  = '"' content:(('\\' '"') / [^"])+ '"' {
+    return new AST.StringLiteral(content.map((c:any) => typeof c === "string" ? c : c[1]).join(''));
+  }
 
 arrayLiteral "array"
   = "[" ws items:exprList? ws "]" { return new AST.ArrayLiteral(items || []); }

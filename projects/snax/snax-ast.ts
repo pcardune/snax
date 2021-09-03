@@ -117,6 +117,18 @@ export class NumberLiteral extends BaseNode {
   }
 }
 
+export class StringLiteral extends BaseNode {
+  name = 'StringLiteral';
+  value: string;
+  constructor(value: string) {
+    super([]);
+    this.value = value;
+  }
+  resolveType(): BaseType {
+    return new ArrayType(Intrinsics.u8, this.value.length);
+  }
+}
+
 export class SymbolRef extends BaseNode {
   name = 'SymbolRef';
   readonly symbol: string;

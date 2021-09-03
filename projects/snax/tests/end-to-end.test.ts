@@ -452,6 +452,19 @@ describe('pointers', () => {
     const mem = new Int32Array(exports.memory.buffer.slice(0, 12));
     expect([...mem]).toEqual([2, 0, 5]);
   });
+  it('allows moving pointers around', async () => {
+    const code = `
+      let p:&u8 = 0;
+      p[0] = 1_u8;
+      p[1] = 2_u8;
+      let q:&u8 = p;
+      q[1] = 3_u8;
+    `;
+    const { exports } = await compileToWasmModule(code);
+    expect(exports._start()).toEqual(3);
+    const mem = new Int8Array(exports.memory.buffer.slice(0, 2));
+    expect([...mem]).toEqual([1, 3]);
+  });
 });
 
 describe('arrays', () => {

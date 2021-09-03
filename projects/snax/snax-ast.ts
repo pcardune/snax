@@ -347,6 +347,8 @@ export enum BinaryOp {
   ARRAY_INDEX = '[]',
 
   CALL = 'call',
+
+  CAST = 'as',
 }
 
 const getTypeForBinaryOp = (

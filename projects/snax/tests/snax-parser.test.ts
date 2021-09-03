@@ -250,6 +250,18 @@ describe('SNAX Parser', () => {
         );
       });
     });
+
+    describe('type casting operator', () => {
+      it('should parse type casting operator', () => {
+        expect(SNAXParser.parseStrOrThrow('1 as f64', 'expr')).toEqual(
+          new Expression(
+            BinaryOp.CAST,
+            new NumberLiteral(1),
+            new TypeRef('f64')
+          )
+        );
+      });
+    });
   });
 
   describe('let statements', () => {

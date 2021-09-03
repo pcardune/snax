@@ -539,7 +539,7 @@ export class ExpressionCompiler extends ASTCompiler<AST.Expression> {
       const rightType = right.resolveType();
       if (leftType !== rightType) {
         throw new Error(
-          `Can't assign value of type ${rightType} to symbol of type ${leftType}`
+          `ASSIGN: Can't assign value of type ${rightType} to symbol of type ${leftType}`
         );
       }
       if (left instanceof AST.SymbolRef) {
@@ -637,6 +637,9 @@ export class ExpressionCompiler extends ASTCompiler<AST.Expression> {
           `ExpressionCompiler: Can't call unresolved symbol ${left}`
         );
       }
+    },
+    [AST.BinaryOp.CAST]: (left: AST.ASTNode, right: AST.ASTNode) => {
+      throw new Error(`CAST: don't know how to cast values yet`);
     },
   };
   compile(): IR.Instruction[] {

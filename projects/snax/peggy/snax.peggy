@@ -179,11 +179,17 @@ additive "additive"
   / term
 
 term "term"
-  = left:calling ws right:(ws ("*" / "/") ws calling)* {
+  = left:casting ws right:(ws ("*" / "/") ws casting)* {
     return right.reduce((result: AST.ASTNode, element: any[]) => {
       let op = element[1] === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV;
       return new AST.Expression(op, result, element[3]);
     }, left);
+  }
+  / casting
+
+casting "cast"
+  = value:calling ws "as" ws typeExpr:typeExpr {
+    return new AST.Expression(AST.BinaryOp.CAST, value, typeExpr);
   }
   / calling
 

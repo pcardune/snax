@@ -109,6 +109,11 @@ describe('SNAX Parser', () => {
     });
   });
   describe('string literals', () => {
+    it('should parse "" into an empty string literal', () => {
+      expect(SNAXParser.parseStrOrThrow('""', 'expr')).toEqual(
+        new StringLiteral('')
+      );
+    });
     it('should parse "foo" into a string literal', () => {
       expect(SNAXParser.parseStrOrThrow('"foo"', 'expr')).toEqual(
         new StringLiteral('foo')
@@ -118,6 +123,11 @@ describe('SNAX Parser', () => {
       expect(
         SNAXParser.parseStrOrThrow('"this string has \\"quotes\\"."', 'expr')
       ).toEqual(new StringLiteral('this string has "quotes".'));
+    });
+    it('should support other escaped characters like \\n', () => {
+      expect(
+        SNAXParser.parseStrOrThrow('"this string has a \\n in it"', 'expr')
+      ).toEqual(new StringLiteral('this string has a \n in it'));
     });
   });
   describe('expression', () => {

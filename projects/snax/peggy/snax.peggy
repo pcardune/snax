@@ -214,8 +214,9 @@ factor "factor"
   / id
 
 stringLiteral "string"
-  = '"' content:(('\\' '"') / [^"])+ '"' {
-    return new AST.StringLiteral(content.map((c:any) => typeof c === "string" ? c : c[1]).join(''));
+  = '"' content:(('\\' .) / [^"])* '"' {
+    const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
+    return new AST.StringLiteral(JSON.parse('"'+inner+'"'));
   }
 
 arrayLiteral "array"

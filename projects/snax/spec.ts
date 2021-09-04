@@ -169,6 +169,8 @@ export const nodes: Record<string, NodeSpec> = {
 
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+
 function write() {
   let out: string[] = [];
   const emit = (s: string) => out.push(s);
@@ -186,17 +188,31 @@ function write() {
     });
     emitLn(`};`);
 
-    emitLn(`export type ${name} = {name:"${name}", fields:${name}Fields};`);
-    emitLn(`export function is${name}(node: ASTNode): node is ${name} {
-      return node.name === "${name}";
-    }`);
+    emitLn(`
+      export type ${name} = {
+        name:"${name}",
+        fields:${name}Fields
+      };
+    `);
+    emitLn(`
+      export function is${name}(node: ASTNode): node is ${name} {
+        return node.name === "${name}";
+      }
+    `);
     let args: string[] = [];
     Object.entries(fields).forEach(([fieldName, spec]) => {
       args.push(typeSpec(fieldName, spec));
     });
-    emitLn(`export function make${name}(${args.join(', ')}): ${name} {
-      return {name: "${name}", fields: {${Object.keys(fields).join(', ')}}};
-    }`);
+    emitLn(`
+      export function make${name}(${args.join(', ')}): ${name} {
+        return {
+          name: "${name}",
+          fields: {
+            ${Object.keys(fields).join(', ')}
+          }
+        };
+      }
+    `);
   };
 
   const emitUnionNode = (name: string, union: string[]) => {
@@ -239,6 +255,19 @@ function write() {
       .map((name) => `"${name}"`)
       .join(' | ')};`
   );
-  fs.writeFileSync(path.join(__dirname, 'spec-gen.ts'), out.join(''));
+  let outPath = path.join(__dirname, 'spec-gen.ts');
+  fs.writeFileSync(outPath, out.join(''));
+
+  exec(`npx prettier --write ${outPath}`, (error, stdout, stderr) => {
+    if (error) {
+      console.log(`error: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.log(`stderr: ${stderr}`);
+      return;
+    }
+    console.log(`stdout: ${stdout}`);
+  });
 }
 write();

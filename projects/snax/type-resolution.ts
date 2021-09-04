@@ -61,14 +61,7 @@ function calculateType(node: ASTNode, nodeDataMap: NodeDataMap): BaseType {
     case 'StringLiteral':
       return new ArrayType(Intrinsics.u8, node.fields.value.length);
     case 'SymbolRef': {
-      let symbolTable = nodeDataMap.get(node).symbolTable;
-      if (!symbolTable) {
-        throw new TypeResolutionError(
-          node,
-          `Can't resolve type for symbol ref without an attached symbol table`
-        );
-      }
-      const record = symbolTable.get(node.fields.symbol);
+      const record = nodeDataMap.get(node).symbolRecord;
       if (!record) {
         throw new TypeResolutionError(
           node,

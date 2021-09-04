@@ -10,12 +10,11 @@ import {
 import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
 import { BinaryOp, UnaryOp } from './snax-ast';
-import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { children, dumpData } from './spec-util';
+import { children } from './spec-util';
 import { resolveType } from './type-resolution';
-import { resolveSymbols } from './symbol-resolution';
+import { resolveSymbols, SymbolRecord, SymbolTable } from './symbol-resolution';
 
-class DefaultMap<K, V> extends Map<K, V> {
+export class DefaultMap<K, V> extends Map<K, V> {
   makeDefault: () => V;
   constructor(makeDefault: () => V) {
     super();
@@ -92,11 +91,11 @@ export abstract class ASTCompiler<
     return this.forNode(child).compile();
   }
 
-  allocateLocal(valueType: IR.NumberType, symbol?: string): LocalAllocation {
+  allocateLocal(valueType: IR.NumberType, decl?: AST.ASTNode): LocalAllocation {
     if (!this.parent) {
       throw new Error("Don't know how to allocate local in this context");
     }
-    return this.parent.allocateLocal(valueType, symbol);
+    return this.parent.allocateLocal(valueType, decl);
   }
   deallocateLocal(offset: LocalAllocation): void {
     if (!this.parent) {
@@ -141,7 +140,6 @@ export abstract class ASTCompiler<
   }
 }
 export type NodeData = {
-  symbolTable?: SymbolTable;
   symbolRecord?: SymbolRecord;
   location?: SymbolLocation;
   resolvedType?: BaseType;
@@ -163,22 +161,18 @@ export class BlockCompiler extends ASTCompiler<AST.Block> {
   liveLocals: LocalAllocation[] = [];
   override allocateLocal(
     valueType: IR.NumberType,
-    symbol?: string
+    decl?: AST.ASTNode
   ): LocalAllocation {
     if (!this.parent) {
       throw new Error("BlockCompiler: can't allocate local in this context");
     }
     let localOffset = this.parent.allocateLocal(valueType);
     this.liveLocals.push(localOffset);
-    if (symbol) {
-      let symbolRecord = this.getNodeData().symbolTable?.get(symbol);
-      if (symbolRecord) {
-        symbolRecord.location = { area: 'locals', offset: localOffset.offset };
-      } else {
-        throw new Error(
-          `BlockCompiler: Can't bind local offset to undeclared symbol ${symbol}`
-        );
-      }
+    if (decl) {
+      this.getNodeDataMap().get(decl).location = {
+        area: 'locals',
+        offset: localOffset.offset,
+      };
     }
     return localOffset;
   }
@@ -205,50 +199,15 @@ type SymbolLocation = {
   offset: number;
 };
 
-type SymbolRecord = {
-  location?: SymbolLocation;
-  valueType?: BaseType;
-  declNode: AST.ASTNode;
-};
-
-export class SymbolTable {
-  table: OrderedMap<string, SymbolRecord> = new OrderedMap();
-  parent: SymbolTable | null;
-  readonly id: number;
-  private static nextId = 0;
-  constructor(parent: SymbolTable | null = null) {
-    this.parent = parent;
-    this.id = SymbolTable.nextId++;
-  }
-
-  get(symbol: string): SymbolRecord | undefined {
-    return this.table.get(symbol) ?? this.parent?.get(symbol);
-  }
-
-  has(symbol: string): boolean {
-    return this.table.has(symbol);
-  }
-
-  records() {
-    return this.table.values();
-  }
-
-  declare(symbol: string, declNode: AST.ASTNode) {
-    this.table.set(symbol, { declNode });
-  }
-}
-
 export type ModuleCompilerOptions = {
   includeRuntime?: boolean;
   includeWASI?: boolean;
 };
 export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
-  file: AST.File;
   options: Required<ModuleCompilerOptions>;
 
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);
-    this.file = file;
     this.options = {
       includeRuntime: false,
       includeWASI: false,
@@ -266,42 +225,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     this.dataOffset += data.length;
     this.datas.push(wasmData);
     return wasmData.fields.offset;
-  }
-
-  private nodeDataMap: NodeDataMap = new DefaultMap(() => {
-    return {};
-  });
-  override getNodeDataMap() {
-    return this.nodeDataMap;
-  }
-  resolveSymbols(imports: Wasm.Import[]) {
-    if (this.getNodeData().symbolTable) {
-      throw new Error('resolveSymbols: Already resolved symbols for block...');
-    }
-    let symbolTable = new SymbolTable();
-
-    for (const wasmImport of imports) {
-      const { importdesc } = wasmImport.fields;
-      if (importdesc.kind === 'func' && importdesc.id) {
-        const id = `wasi_${importdesc.id}`;
-        const { results, params } = importdesc.typeuse;
-        if (results.length > 1) {
-          throw new Error(
-            "resolveSymbols: we don't support imports that return multiple values yet."
-          );
-        }
-        let astNode = AST.makeFuncDecl(
-          id,
-          AST.makeParameterList(
-            params.map((p, i) => AST.makeParameter(`p${i}`, AST.makeTypeRef(p)))
-          ),
-          results.length > 0 ? AST.makeTypeRef(results[0]) : null,
-          AST.makeBlock([])
-        );
-        symbolTable.declare(id, astNode);
-      }
-    }
-    resolveSymbols(this.file, this.getNodeDataMap(), symbolTable);
   }
 
   compile(): Wasm.Module {
@@ -332,31 +255,34 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           return startAddress;
         }`);
       if (AST.isFile(runtimeAST)) {
-        this.file.fields.funcs.push(
+        this.root.fields.funcs.push(
           ...runtimeAST.fields.funcs.filter(
             (func) => func.fields.symbol !== 'main'
           )
         );
-        this.file.fields.globals.push(...runtimeAST.fields.globals);
+        this.root.fields.globals.push(...runtimeAST.fields.globals);
       }
     }
-
-    this.resolveSymbols(imports);
+    const { refMap } = resolveSymbols(this.root);
+    refMap.entries().forEach(([i, node, record]) => {
+      this.getNodeDataMap().get(node).symbolRecord = record;
+    });
     let funcOffset = 0;
     let globalOffset = 0;
-    let symbolTable = this.getNodeData().symbolTable;
-    if (!symbolTable) {
-      throw new Error('expected file to have symbol table by now...');
+    for (const func of this.root.fields.funcs) {
+      this.getNodeDataMap().get(func).location = {
+        area: 'funcs',
+        offset: funcOffset++,
+      };
     }
-    for (const record of symbolTable.records()) {
-      if (AST.isFuncDecl(record.declNode)) {
-        record.location = { area: 'funcs', offset: funcOffset++ };
-      } else if (AST.isGlobalDecl(record.declNode)) {
-        record.location = { area: 'globals', offset: globalOffset++ };
-      }
+    for (const global of this.root.fields.globals) {
+      this.getNodeDataMap().get(global).location = {
+        area: 'globals',
+        offset: globalOffset++,
+      };
     }
 
-    const funcs: Wasm.Func[] = this.file.fields.funcs.map((func) => {
+    const funcs: Wasm.Func[] = this.root.fields.funcs.map((func) => {
       const wasmFunc = new FuncDeclCompiler(func, this).compile();
       if (func.fields.symbol === 'main') {
         wasmFunc.fields.exportName = '_start';
@@ -364,7 +290,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       return wasmFunc;
     });
 
-    const globals: Wasm.Global[] = this.file.fields.globals.map((global, i) => {
+    const globals: Wasm.Global[] = this.root.fields.globals.map((global, i) => {
       return new Wasm.Global({
         id: `g${i}`,
         globalType: new Wasm.GlobalType({
@@ -424,7 +350,6 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
   }
 
   compile(): Wasm.Func {
-    resolveSymbols(this.root, this.getNodeDataMap(), null);
     const funcType = this.resolveType(this.root);
     if (!(funcType instanceof FuncType)) {
       throw new Error('unexpected type of function');
@@ -435,19 +360,7 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
         area: 'locals',
         offset: this.localsOffset++,
       };
-      let paramData = this.getNodeDataMap().get(param);
-      paramData.location = location;
-      let symbolTable = paramData.symbolTable;
-      if (symbolTable) {
-        const symbolRecord = symbolTable.get(param.fields.symbol);
-        if (!symbolRecord) {
-          console.log(dumpData(this.root, this.getNodeDataMap()));
-          throw new Error(
-            `FuncDeclCompiler: no symbol record found for ${param.fields.symbol}`
-          );
-        }
-        symbolRecord.location = location;
-      }
+      this.getNodeDataMap().get(param).location = location;
     }
 
     const results =
@@ -471,7 +384,7 @@ class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
   compile(): IR.Instruction[] {
     let localAllocation = this.allocateLocal(
       this.resolveType(this.root).toValueType(),
-      this.root.fields.symbol
+      this.root
     );
     this.getNodeData().location = {
       area: 'locals',
@@ -519,7 +432,13 @@ export class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
 
 class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
   compile(): IR.Instruction[] {
-    const location = this.getNodeData().symbolRecord?.location;
+    const symbolRecord = this.getNodeData().symbolRecord;
+    if (!symbolRecord) {
+      throw new Error(
+        `SymbolRefCompiler can't compile reference to unresolved symbol ${this.root.fields.symbol}`
+      );
+    }
+    const location = this.getNodeDataMap().get(symbolRecord.declNode).location;
     if (!location) {
       throw new Error(
         `SymbolRefCompiler: Can't compile reference to unlocated symbol ${this.root.fields.symbol}`
@@ -634,7 +553,15 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
         );
       }
       if (AST.isSymbolRef(left)) {
-        const location = this.getNodeDataMap().get(left).symbolRecord?.location;
+        const symbolRecord = this.getNodeDataMap().get(left).symbolRecord;
+        if (!symbolRecord) {
+          throw new Error(
+            `ASSIGN; Can't compile assignment to unresolved symbol ${left.fields.symbol}`
+          );
+        }
+        const location = this.getNodeDataMap().get(
+          symbolRecord.declNode
+        ).location;
         if (!location) {
           throw new Error(
             `ASSIGN: can't compile assignment to unlocated symbol ${left.fields.symbol}`
@@ -730,7 +657,15 @@ class CallExprCompiler extends ASTCompiler<AST.CallExpr> {
   compile() {
     const { left, right } = this.root.fields;
     if (AST.isSymbolRef(left)) {
-      const location = this.getNodeDataMap().get(left).symbolRecord?.location;
+      const symbolRecord = this.getNodeDataMap().get(left).symbolRecord;
+      if (!symbolRecord) {
+        throw new Error(
+          `CALL: can't call unresolved symbol ${left.fields.symbol}`
+        );
+      }
+      const location = this.getNodeDataMap().get(
+        symbolRecord.declNode
+      ).location;
       if (!location || location.area !== 'funcs') {
         throw new Error(
           `CALL: can't call unlocated function ${left.fields.symbol}`

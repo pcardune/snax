@@ -1,5 +1,6 @@
-import { NodeDataMap } from './ast-compiler';
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { ASTNode } from './spec-gen';
+import { SymbolTable } from './symbol-resolution';
 
 function isASTNode(node: any): node is ASTNode {
   return typeof node === 'object' && node !== null && node.name && node.fields;
@@ -72,17 +73,20 @@ function elemToString(elem: Elem, indent = '') {
   return s;
 }
 
-function nodeDataToElem(node: ASTNode, nodeDataMap: NodeDataMap) {
+function nodeDataToElem(
+  node: ASTNode,
+  symbolTables: OrderedMap<ASTNode, SymbolTable>
+) {
   let props: Record<string, any> = {};
   let childElems: Elem[] = [];
 
-  let data = nodeDataMap.get(node);
-  if (data.symbolTable) {
+  let symbolTable = symbolTables.get(node);
+  if (symbolTable) {
     childElems.push(
       elem(
         'SymbolTable',
-        { id: data.symbolTable.id, parent: data.symbolTable.parent?.id },
-        data.symbolTable.table
+        { id: symbolTable.id, parent: symbolTable.parent?.id },
+        symbolTable.table
           .entries()
           .map(([i, symbol, record]) => {
             let props = {};
@@ -95,13 +99,13 @@ function nodeDataToElem(node: ASTNode, nodeDataMap: NodeDataMap) {
 
   for (let [fieldName, value] of Object.entries(node.fields)) {
     if (isASTNode(value)) {
-      childElems.push(nodeDataToElem(value, nodeDataMap));
+      childElems.push(nodeDataToElem(value, symbolTables));
     } else if (value instanceof Array) {
       childElems.push(
         elem(
           fieldName,
           {},
-          value.map((v) => nodeDataToElem(v, nodeDataMap))
+          value.map((v) => nodeDataToElem(v, symbolTables))
         )
       );
     } else {
@@ -111,6 +115,9 @@ function nodeDataToElem(node: ASTNode, nodeDataMap: NodeDataMap) {
   return elem(node.name, props, childElems);
 }
 
-export function dumpData(node: ASTNode, nodeDataMap: NodeDataMap) {
-  return elemToString(nodeDataToElem(node, nodeDataMap));
+export function dumpSymbolTables(
+  node: ASTNode,
+  symbolTables: OrderedMap<ASTNode, SymbolTable>
+) {
+  return elemToString(nodeDataToElem(node, symbolTables));
 }

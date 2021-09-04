@@ -12,7 +12,7 @@ import * as Wasm from './wasm-ast';
 import { BinaryOp, UnaryOp } from './snax-ast';
 import { children } from './spec-util';
 import { resolveType } from './type-resolution';
-import { resolveSymbols, SymbolRecord, SymbolTable } from './symbol-resolution';
+import { resolveSymbols, SymbolRecord } from './symbol-resolution';
 
 export class DefaultMap<K, V> extends Map<K, V> {
   makeDefault: () => V;
@@ -137,6 +137,22 @@ export abstract class ASTCompiler<
 
   resolveType(node: AST.ASTNode) {
     return resolveType(node, this.getNodeDataMap());
+  }
+
+  getLocationForSymbolRef(node: AST.SymbolRef) {
+    const symbolRecord = this.getNodeDataMap().get(node).symbolRecord;
+    if (!symbolRecord) {
+      throw new Error(
+        `ASTCompiler: can't compile reference to unresolved symbol ${node.fields.symbol}`
+      );
+    }
+    const location = this.getNodeDataMap().get(symbolRecord.declNode).location;
+    if (!location) {
+      throw new Error(
+        `ASTCompiler: Can't compile reference to unlocated symbol ${node.fields.symbol}`
+      );
+    }
+    return location;
   }
 }
 export type NodeData = {
@@ -432,18 +448,7 @@ export class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
 
 class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
   compile(): IR.Instruction[] {
-    const symbolRecord = this.getNodeData().symbolRecord;
-    if (!symbolRecord) {
-      throw new Error(
-        `SymbolRefCompiler can't compile reference to unresolved symbol ${this.root.fields.symbol}`
-      );
-    }
-    const location = this.getNodeDataMap().get(symbolRecord.declNode).location;
-    if (!location) {
-      throw new Error(
-        `SymbolRefCompiler: Can't compile reference to unlocated symbol ${this.root.fields.symbol}`
-      );
-    }
+    const location = this.getLocationForSymbolRef(this.root);
     switch (location.area) {
       case 'locals':
         return [new IR.LocalGet(location.offset)];
@@ -553,20 +558,7 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
         );
       }
       if (AST.isSymbolRef(left)) {
-        const symbolRecord = this.getNodeDataMap().get(left).symbolRecord;
-        if (!symbolRecord) {
-          throw new Error(
-            `ASSIGN; Can't compile assignment to unresolved symbol ${left.fields.symbol}`
-          );
-        }
-        const location = this.getNodeDataMap().get(
-          symbolRecord.declNode
-        ).location;
-        if (!location) {
-          throw new Error(
-            `ASSIGN: can't compile assignment to unlocated symbol ${left.fields.symbol}`
-          );
-        }
+        const location = this.getLocationForSymbolRef(left);
         switch (location.area) {
           case 'locals':
             return [
@@ -657,20 +649,7 @@ class CallExprCompiler extends ASTCompiler<AST.CallExpr> {
   compile() {
     const { left, right } = this.root.fields;
     if (AST.isSymbolRef(left)) {
-      const symbolRecord = this.getNodeDataMap().get(left).symbolRecord;
-      if (!symbolRecord) {
-        throw new Error(
-          `CALL: can't call unresolved symbol ${left.fields.symbol}`
-        );
-      }
-      const location = this.getNodeDataMap().get(
-        symbolRecord.declNode
-      ).location;
-      if (!location || location.area !== 'funcs') {
-        throw new Error(
-          `CALL: can't call unlocated function ${left.fields.symbol}`
-        );
-      }
+      const location = this.getLocationForSymbolRef(left);
       return [...this.forNode(right).compile(), new IR.Call(location.offset)];
     } else {
       throw new Error(

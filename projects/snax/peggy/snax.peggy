@@ -1,5 +1,6 @@
 {{
   import * as AST from '../snax-ast';
+  import * as spec from '../spec-gen';
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
@@ -16,17 +17,17 @@ start
   / ws block:block ws { return block; }
   / statement
   / expr
-  / ws { return new AST.Block([]); }
+  / ws { return spec.makeBlock([]); }
 
 file "file"
   = ws statements:fileStatementList? ws {
-    let funcs: AST.FuncDecl[] = [];
-    let globals: AST.GlobalDecl[] = [];
+    let funcs: spec.FuncDecl[] = [];
+    let globals: spec.GlobalDecl[] = [];
     let mainFuncBody = [];
     for (const statement of statements??[]) {
-      if (statement instanceof AST.FuncDecl) {
+      if (spec.isFuncDecl(statement)) {
         funcs.push(statement);
-      } else if (statement instanceof AST.GlobalDecl) {
+      } else if (spec.isGlobalDecl(statement)) {
         globals.push(statement);
       } else {
         mainFuncBody.push(statement);
@@ -34,20 +35,18 @@ file "file"
     }
     if (mainFuncBody.length > 0) {
       let lastStatement = mainFuncBody[mainFuncBody.length-1];
-      if (lastStatement instanceof AST.ExprStatement) {
-        mainFuncBody[mainFuncBody.length-1] = new AST.ReturnStatement(
-          lastStatement.expr
+      if (spec.isExprStatement(lastStatement)) {
+        mainFuncBody[mainFuncBody.length-1] = spec.makeReturnStatement(
+          lastStatement.fields.expr
         );
       }
     }
     funcs.push(
-      new AST.FuncDecl('main', {
-        body: new AST.Block(mainFuncBody)
-      }))
-    return new AST.File({
+      spec.makeFuncDecl('main', spec.makeParameterList([]), null, spec.makeBlock(mainFuncBody)))
+    return spec.makeFile(
       funcs,
       globals,
-    })
+    );
   }
 
 fileStatementList "file statements"
@@ -57,14 +56,14 @@ fileStatementList "file statements"
 
 fileStatement "file statement"
   = "global" ws varDecl:varDecl ws ";" ws {
-    return new AST.GlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
+    return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
   }
   / funcDecl
   / statement
 
 block "block"
   = ws head:statement tail:(ws statement)* ws {
-    return new AST.Block([
+    return spec.makeBlock([
       head,
       ...tail.map((els:any[]) => els[1])
     ]);
@@ -72,16 +71,16 @@ block "block"
 
 statement "statement"
   = "let" ws varDecl:varDecl ws ";" ws {
-    return new AST.LetStatement(varDecl.name, varDecl.type, varDecl.expr);
+    return spec.makeLetStatement(varDecl.name, varDecl.type, varDecl.expr);
   }
   / ifStatement
   / whileStatement
   / "return" ws expr:expr? ws ";" ws {
-    return new AST.ReturnStatement(expr);
+    return spec.makeReturnStatement(expr);
   }
   / "{" ws block:block ws "}" ws { return block; }
   / expr:expr ws ";" ws {
-    return new AST.ExprStatement(expr);
+    return spec.makeExprStatement(expr);
   }
 
 varDecl "varDecl"
@@ -92,7 +91,7 @@ varDecl "varDecl"
 whileStatement "while statement"
   = "while" ws "(" ws condExpr:expr ws ")" ws
     "{" ws thenBlock:block ws "}" ws {
-      return new AST.WhileStatement(
+      return spec.makeWhileStatement(
         condExpr,
         thenBlock
       );
@@ -102,56 +101,61 @@ ifStatement "if statement"
   = "if" ws "(" ws condExpr:expr ws ")" ws
     "{" ws thenBlock:block ws "}" ws
     elseBlock:("else" ws "{" ws block ws "}" ws)? {
-    return new AST.IfStatement(
+    return spec.makeIfStatement(
       condExpr,
       thenBlock,
-      elseBlock ? elseBlock[4] : new AST.Block([])
+      elseBlock ? elseBlock[4] : spec.makeBlock([])
     );
   }
 
 funcDecl = "func" ws name:identifier ws "(" ws parameters:parameterList? ws ")" ws "{" ws body:block? ws "}" {
-    return new AST.FuncDecl(name, {parameters, body});
+    return spec.makeFuncDecl(
+      name,
+      parameters || spec.makeParameterList([]),
+      null,
+      body || spec.makeBlock([]),
+    );
   }
 parameterList "parameterList"
   = head:parameter tail:(ws "," ws parameter)* {
-    return new AST.ParameterList([head, ...tail.map((p:any[]) => p[3])])
+    return spec.makeParameterList([head, ...tail.map((p:any[]) => p[3])])
   }
 parameter "parameter"
   = name:identifier ws ":" ws type:typeExpr {
-    return new AST.Parameter(name, type);
+    return spec.makeParameter(name, type);
   }
 
 typeExpr "typeExpr"
-  = "&" expr:typeExpr { return new AST.PointerTypeExpr(expr); }
+  = "&" expr:typeExpr { return spec.makePointerTypeExpr(expr); }
   / typeRef
 
 typeRef "typeRef"
-  = name:identifier { return new AST.TypeRef(name); }
+  = name:identifier { return spec.makeTypeRef(name); }
 
 expr "expr"
   = assignment
 
 assignment "assignment"
   = left:bool_or ws "=" ws right:bool_or {
-    return new AST.Expression(AST.BinaryOp.ASSIGN, left, right);
+    return spec.makeBinaryExpr(AST.BinaryOp.ASSIGN, left, right);
   }
   / bool_or
 
 bool_or "bool or"
   = left:bool_and ws "||" ws right:bool_and {
-    return new AST.Expression(AST.BinaryOp.LOGICAL_OR, left, right);
+    return spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_OR, left, right);
   }
   / bool_and
 
 bool_and "bool and"
   = left:equality ws "&&" ws right:equality {
-    return new AST.Expression(AST.BinaryOp.LOGICAL_AND, left, right);
+    return spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_AND, left, right);
   }
   / equality
 
 equality "equality"
   = left:ordering ws op:("==" / "!=") ws right:ordering {
-    return new AST.Expression(
+    return spec.makeBinaryExpr(
       op === "!=" ? AST.BinaryOp.NOT_EQUAL_TO : AST.BinaryOp.EQUAL_TO,
       left,
       right
@@ -161,7 +165,7 @@ equality "equality"
 
 ordering "ordering"
   = left:additive ws op:("<" / ">") ws right:additive {
-    return new AST.Expression(
+    return spec.makeBinaryExpr(
       op==="<" ? AST.BinaryOp.LESS_THAN : AST.BinaryOp.GREATER_THAN,
       left,
       right
@@ -171,43 +175,43 @@ ordering "ordering"
 
 additive "additive"
   = left:term ws right:(ws ("+" / "-") ws term)* {
-    return right.reduce((result: AST.ASTNode, element: any[]) => {
+    return right.reduce((result: spec.Expression, element: any[]) => {
       let op = element[1] === "+" ? AST.BinaryOp.ADD : AST.BinaryOp.SUB;
-      return new AST.Expression(op, result, element[3]);
+      return spec.makeBinaryExpr(op, result, element[3]);
     }, left);
   }
   / term
 
 term "term"
   = left:casting ws right:(ws ("*" / "/") ws casting)* {
-    return right.reduce((result: AST.ASTNode, element: any[]) => {
+    return right.reduce((result: spec.Expression, element: any[]) => {
       let op = element[1] === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV;
-      return new AST.Expression(op, result, element[3]);
+      return spec.makeBinaryExpr(op, result, element[3]);
     }, left);
   }
   / casting
 
 casting "cast"
   = value:calling ws "as" ws typeExpr:typeExpr {
-    return new AST.Expression(AST.BinaryOp.CAST, value, typeExpr);
+    return spec.makeCastExpr(value, typeExpr);
   }
   / calling
 
 calling "calling"
   = funcExpr:indexing ws "(" ws argList:exprList? ws ")" {
-    return new AST.Expression(AST.BinaryOp.CALL, funcExpr, new AST.ArgList(argList || []));
+    return spec.makeCallExpr(funcExpr, spec.makeArgList(argList || []));
   }
   / indexing
 
 indexing "indexing"
   = element:deref ws "[" ws index:expr ws "]" {
-    return new AST.Expression(AST.BinaryOp.ARRAY_INDEX, element, index);
+    return spec.makeBinaryExpr(AST.BinaryOp.ARRAY_INDEX, element, index);
   }
   / deref
 
 deref "deref"
   = "@" expr:factor {
-    return new AST.UnaryExpr(AST.UnaryOp.DEREF, expr);
+    return spec.makeUnaryExpr(AST.UnaryOp.DEREF, expr);
   }
   / factor
 
@@ -222,11 +226,11 @@ factor "factor"
 stringLiteral "string"
   = '"' content:(('\\' .) / [^"])* '"' {
     const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
-    return new AST.StringLiteral(JSON.parse('"'+inner+'"'));
+    return spec.makeStringLiteral(JSON.parse('"'+inner+'"'));
   }
 
 arrayLiteral "array"
-  = "[" ws items:exprList? ws "]" { return new AST.ArrayLiteral(items || []); }
+  = "[" ws items:exprList? ws "]" { return spec.makeArrayLiteral(items || []); }
 
 exprList "exprList"
   = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map((t:any[])=>t[3])]; }
@@ -237,7 +241,7 @@ number "number"
 
 integer "integer"
   = digits:[0-9]+ type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
-    return new AST.NumberLiteral(
+    return spec.makeNumberLiteral(
       parseInt(digits.join('')),
       AST.NumberLiteralType.Integer,
       type? type.slice(1).join('') : null
@@ -246,17 +250,18 @@ integer "integer"
 
 float "float"
   = leftDigits:[0-9]+ "." rightDigits:[0-9]+ {
-    return new AST.NumberLiteral(
+    return spec.makeNumberLiteral(
       parseFloat(leftDigits.join('') + '.' + rightDigits.join('')),
-      AST.NumberLiteralType.Float
+      AST.NumberLiteralType.Float,
+      null
     )
   }
 
-bool = "true" { return new AST.BooleanLiteral(true); }
-     / "false" { return new AST.BooleanLiteral(false); }
+bool = "true" { return spec.makeBooleanLiteral(true); }
+     / "false" { return spec.makeBooleanLiteral(false); }
 
 id "symbol"
-  = name:identifier { return new AST.SymbolRef(name); }
+  = name:identifier { return spec.makeSymbolRef(name); }
 
 identifier "identifier"
   = prefix:[a-z_]i suffix:[a-z0-9_]i* { return prefix+suffix.join(''); }

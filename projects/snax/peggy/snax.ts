@@ -7,6 +7,7 @@
 
 
   import * as AST from '../snax-ast';
+  import * as spec from '../spec-gen';
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
@@ -223,16 +224,16 @@ function peg$parse(input: string, options?: IParseOptions) {
   let peg$startRuleFunction: () => any = peg$parsestart;
 
   const peg$c0 = function(block: any): any { return block; };
-  const peg$c1 = function(): any { return new AST.Block([]); };
+  const peg$c1 = function(): any { return spec.makeBlock([]); };
   const peg$c2 = peg$otherExpectation("file");
   const peg$c3 = function(statements: any): any {
-      let funcs: AST.FuncDecl[] = [];
-      let globals: AST.GlobalDecl[] = [];
+      let funcs: spec.FuncDecl[] = [];
+      let globals: spec.GlobalDecl[] = [];
       let mainFuncBody = [];
       for (const statement of statements??[]) {
-        if (statement instanceof AST.FuncDecl) {
+        if (spec.isFuncDecl(statement)) {
           funcs.push(statement);
-        } else if (statement instanceof AST.GlobalDecl) {
+        } else if (spec.isGlobalDecl(statement)) {
           globals.push(statement);
         } else {
           mainFuncBody.push(statement);
@@ -240,20 +241,18 @@ function peg$parse(input: string, options?: IParseOptions) {
       }
       if (mainFuncBody.length > 0) {
         let lastStatement = mainFuncBody[mainFuncBody.length-1];
-        if (lastStatement instanceof AST.ExprStatement) {
-          mainFuncBody[mainFuncBody.length-1] = new AST.ReturnStatement(
-            lastStatement.expr
+        if (spec.isExprStatement(lastStatement)) {
+          mainFuncBody[mainFuncBody.length-1] = spec.makeReturnStatement(
+            lastStatement.fields.expr
           );
         }
       }
       funcs.push(
-        new AST.FuncDecl('main', {
-          body: new AST.Block(mainFuncBody)
-        }))
-      return new AST.File({
+        spec.makeFuncDecl('main', spec.makeParameterList([]), null, spec.makeBlock(mainFuncBody)))
+      return spec.makeFile(
         funcs,
         globals,
-      })
+      );
     };
   const peg$c4 = peg$otherExpectation("file statements");
   const peg$c5 = function(head: any, tail: any): any {
@@ -265,11 +264,11 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c9 = ";";
   const peg$c10 = peg$literalExpectation(";", false);
   const peg$c11 = function(varDecl: any): any {
-      return new AST.GlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
+      return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
     };
   const peg$c12 = peg$otherExpectation("block");
   const peg$c13 = function(head: any, tail: any): any {
-      return new AST.Block([
+      return spec.makeBlock([
         head,
         ...tail.map((els:any[]) => els[1])
       ]);
@@ -278,19 +277,19 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c15 = "let";
   const peg$c16 = peg$literalExpectation("let", false);
   const peg$c17 = function(varDecl: any): any {
-      return new AST.LetStatement(varDecl.name, varDecl.type, varDecl.expr);
+      return spec.makeLetStatement(varDecl.name, varDecl.type, varDecl.expr);
     };
   const peg$c18 = "return";
   const peg$c19 = peg$literalExpectation("return", false);
   const peg$c20 = function(expr: any): any {
-      return new AST.ReturnStatement(expr);
+      return spec.makeReturnStatement(expr);
     };
   const peg$c21 = "{";
   const peg$c22 = peg$literalExpectation("{", false);
   const peg$c23 = "}";
   const peg$c24 = peg$literalExpectation("}", false);
   const peg$c25 = function(expr: any): any {
-      return new AST.ExprStatement(expr);
+      return spec.makeExprStatement(expr);
     };
   const peg$c26 = peg$otherExpectation("varDecl");
   const peg$c27 = ":";
@@ -308,7 +307,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c37 = ")";
   const peg$c38 = peg$literalExpectation(")", false);
   const peg$c39 = function(condExpr: any, thenBlock: any): any {
-        return new AST.WhileStatement(
+        return spec.makeWhileStatement(
           condExpr,
           thenBlock
         );
@@ -319,49 +318,54 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c43 = "else";
   const peg$c44 = peg$literalExpectation("else", false);
   const peg$c45 = function(condExpr: any, thenBlock: any, elseBlock: any): any {
-      return new AST.IfStatement(
+      return spec.makeIfStatement(
         condExpr,
         thenBlock,
-        elseBlock ? elseBlock[4] : new AST.Block([])
+        elseBlock ? elseBlock[4] : spec.makeBlock([])
       );
     };
   const peg$c46 = "func";
   const peg$c47 = peg$literalExpectation("func", false);
   const peg$c48 = function(name: any, parameters: any, body: any): any {
-      return new AST.FuncDecl(name, {parameters, body});
+      return spec.makeFuncDecl(
+        name,
+        parameters || spec.makeParameterList([]),
+        null,
+        body || spec.makeBlock([]),
+      );
     };
   const peg$c49 = peg$otherExpectation("parameterList");
   const peg$c50 = ",";
   const peg$c51 = peg$literalExpectation(",", false);
   const peg$c52 = function(head: any, tail: any): any {
-      return new AST.ParameterList([head, ...tail.map((p:any[]) => p[3])])
+      return spec.makeParameterList([head, ...tail.map((p:any[]) => p[3])])
     };
   const peg$c53 = peg$otherExpectation("parameter");
   const peg$c54 = function(name: any, type: any): any {
-      return new AST.Parameter(name, type);
+      return spec.makeParameter(name, type);
     };
   const peg$c55 = peg$otherExpectation("typeExpr");
   const peg$c56 = "&";
   const peg$c57 = peg$literalExpectation("&", false);
-  const peg$c58 = function(expr: any): any { return new AST.PointerTypeExpr(expr); };
+  const peg$c58 = function(expr: any): any { return spec.makePointerTypeExpr(expr); };
   const peg$c59 = peg$otherExpectation("typeRef");
-  const peg$c60 = function(name: any): any { return new AST.TypeRef(name); };
+  const peg$c60 = function(name: any): any { return spec.makeTypeRef(name); };
   const peg$c61 = peg$otherExpectation("expr");
   const peg$c62 = peg$otherExpectation("assignment");
   const peg$c63 = function(left: any, right: any): any {
-      return new AST.Expression(AST.BinaryOp.ASSIGN, left, right);
+      return spec.makeBinaryExpr(AST.BinaryOp.ASSIGN, left, right);
     };
   const peg$c64 = peg$otherExpectation("bool or");
   const peg$c65 = "||";
   const peg$c66 = peg$literalExpectation("||", false);
   const peg$c67 = function(left: any, right: any): any {
-      return new AST.Expression(AST.BinaryOp.LOGICAL_OR, left, right);
+      return spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_OR, left, right);
     };
   const peg$c68 = peg$otherExpectation("bool and");
   const peg$c69 = "&&";
   const peg$c70 = peg$literalExpectation("&&", false);
   const peg$c71 = function(left: any, right: any): any {
-      return new AST.Expression(AST.BinaryOp.LOGICAL_AND, left, right);
+      return spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_AND, left, right);
     };
   const peg$c72 = peg$otherExpectation("equality");
   const peg$c73 = "==";
@@ -369,7 +373,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c75 = "!=";
   const peg$c76 = peg$literalExpectation("!=", false);
   const peg$c77 = function(left: any, op: any, right: any): any {
-      return new AST.Expression(
+      return spec.makeBinaryExpr(
         op === "!=" ? AST.BinaryOp.NOT_EQUAL_TO : AST.BinaryOp.EQUAL_TO,
         left,
         right
@@ -381,7 +385,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c81 = ">";
   const peg$c82 = peg$literalExpectation(">", false);
   const peg$c83 = function(left: any, op: any, right: any): any {
-      return new AST.Expression(
+      return spec.makeBinaryExpr(
         op==="<" ? AST.BinaryOp.LESS_THAN : AST.BinaryOp.GREATER_THAN,
         left,
         right
@@ -393,9 +397,9 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c87 = "-";
   const peg$c88 = peg$literalExpectation("-", false);
   const peg$c89 = function(left: any, right: any): any {
-      return right.reduce((result: AST.ASTNode, element: any[]) => {
+      return right.reduce((result: spec.Expression, element: any[]) => {
         let op = element[1] === "+" ? AST.BinaryOp.ADD : AST.BinaryOp.SUB;
-        return new AST.Expression(op, result, element[3]);
+        return spec.makeBinaryExpr(op, result, element[3]);
       }, left);
     };
   const peg$c90 = peg$otherExpectation("term");
@@ -404,20 +408,20 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c93 = "/";
   const peg$c94 = peg$literalExpectation("/", false);
   const peg$c95 = function(left: any, right: any): any {
-      return right.reduce((result: AST.ASTNode, element: any[]) => {
+      return right.reduce((result: spec.Expression, element: any[]) => {
         let op = element[1] === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV;
-        return new AST.Expression(op, result, element[3]);
+        return spec.makeBinaryExpr(op, result, element[3]);
       }, left);
     };
   const peg$c96 = peg$otherExpectation("cast");
   const peg$c97 = "as";
   const peg$c98 = peg$literalExpectation("as", false);
   const peg$c99 = function(value: any, typeExpr: any): any {
-      return new AST.Expression(AST.BinaryOp.CAST, value, typeExpr);
+      return spec.makeCastExpr(value, typeExpr);
     };
   const peg$c100 = peg$otherExpectation("calling");
   const peg$c101 = function(funcExpr: any, argList: any): any {
-      return new AST.Expression(AST.BinaryOp.CALL, funcExpr, new AST.ArgList(argList || []));
+      return spec.makeCallExpr(funcExpr, spec.makeArgList(argList || []));
     };
   const peg$c102 = peg$otherExpectation("indexing");
   const peg$c103 = "[";
@@ -425,13 +429,13 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c105 = "]";
   const peg$c106 = peg$literalExpectation("]", false);
   const peg$c107 = function(element: any, index: any): any {
-      return new AST.Expression(AST.BinaryOp.ARRAY_INDEX, element, index);
+      return spec.makeBinaryExpr(AST.BinaryOp.ARRAY_INDEX, element, index);
     };
   const peg$c108 = peg$otherExpectation("deref");
   const peg$c109 = "@";
   const peg$c110 = peg$literalExpectation("@", false);
   const peg$c111 = function(expr: any): any {
-      return new AST.UnaryExpr(AST.UnaryOp.DEREF, expr);
+      return spec.makeUnaryExpr(AST.UnaryOp.DEREF, expr);
     };
   const peg$c112 = peg$otherExpectation("factor");
   const peg$c113 = function(inner: any): any { return inner; };
@@ -445,10 +449,10 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c121 = peg$classExpectation(["\""], true, false);
   const peg$c122 = function(content: any): any {
       const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
-      return new AST.StringLiteral(JSON.parse('"'+inner+'"'));
+      return spec.makeStringLiteral(JSON.parse('"'+inner+'"'));
     };
   const peg$c123 = peg$otherExpectation("array");
-  const peg$c124 = function(items: any): any { return new AST.ArrayLiteral(items || []); };
+  const peg$c124 = function(items: any): any { return spec.makeArrayLiteral(items || []); };
   const peg$c125 = peg$otherExpectation("exprList");
   const peg$c126 = function(head: any, tail: any): any { return [head, ...tail.map((t:any[])=>t[3])]; };
   const peg$c127 = peg$otherExpectation("number");
@@ -470,7 +474,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c143 = "64";
   const peg$c144 = peg$literalExpectation("64", false);
   const peg$c145 = function(digits: any, type: any): any {
-      return new AST.NumberLiteral(
+      return spec.makeNumberLiteral(
         parseInt(digits.join('')),
         AST.NumberLiteralType.Integer,
         type? type.slice(1).join('') : null
@@ -480,19 +484,20 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c147 = ".";
   const peg$c148 = peg$literalExpectation(".", false);
   const peg$c149 = function(leftDigits: any, rightDigits: any): any {
-      return new AST.NumberLiteral(
+      return spec.makeNumberLiteral(
         parseFloat(leftDigits.join('') + '.' + rightDigits.join('')),
-        AST.NumberLiteralType.Float
+        AST.NumberLiteralType.Float,
+        null
       )
     };
   const peg$c150 = "true";
   const peg$c151 = peg$literalExpectation("true", false);
-  const peg$c152 = function(): any { return new AST.BooleanLiteral(true); };
+  const peg$c152 = function(): any { return spec.makeBooleanLiteral(true); };
   const peg$c153 = "false";
   const peg$c154 = peg$literalExpectation("false", false);
-  const peg$c155 = function(): any { return new AST.BooleanLiteral(false); };
+  const peg$c155 = function(): any { return spec.makeBooleanLiteral(false); };
   const peg$c156 = peg$otherExpectation("symbol");
-  const peg$c157 = function(name: any): any { return new AST.SymbolRef(name); };
+  const peg$c157 = function(name: any): any { return spec.makeSymbolRef(name); };
   const peg$c158 = peg$otherExpectation("identifier");
   const peg$c159 = /^[a-z_]/i;
   const peg$c160 = peg$classExpectation([["a", "z"], "_"], false, true);

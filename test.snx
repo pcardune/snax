@@ -8,22 +8,15 @@ func sumTo10(i:i32, stepSize:i32) {
 }
 sumTo10(300, 3);
 
-let ram8:&i8 = 0;
-let ram32:&i32 = 0;
-ram8[8] = 104_i8;  // h
-ram8[9] = 101_i8;  // e
-ram8[10] = 108_i8; // l
-ram8[11] = 108_i8; // l
-ram8[12] = 111_i8; // o
-ram8[13] = 32_i8;  //
-ram8[14] = 119_i8; // w 
-ram8[15] = 111_i8; // o
-ram8[16] = 114_i8; // r
-ram8[17] = 108_i8; // l
-ram8[18] = 100_i8; // d
-ram8[19] = 10_i8;  // \n
+let s:&u8 = "yello world\n";
 
-ram32[0] = 8;
-ram32[1] = 12;
+let iovec:&i32 = 400;
+iovec[0] = 0; // this happens to be where s is stored...
+iovec[1] = 12;
 
-wasi_fd_write(1, 0, 1, 20);
+wasi_fd_write(
+  1, // stdout
+  400, // pointer to io vector
+  1, // length of io vector
+  20 // where to store number of bytes written
+);

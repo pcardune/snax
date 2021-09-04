@@ -1,7 +1,8 @@
 import { err, ok, Result } from 'neverthrow';
-import * as AST from './snax-ast';
+import * as spec from './spec-gen';
 import { SNAXParser } from './snax-parser';
 import * as ASTCompiler from './ast-compiler';
+import { isFile } from './spec-gen';
 
 export interface HasWAT {
   toWAT(): string;
@@ -14,7 +15,7 @@ export function compileStr(
   const maybeAST = SNAXParser.parseStr(input);
   if (maybeAST.isOk()) {
     const ast = maybeAST.value;
-    if (!(ast instanceof AST.File)) {
+    if (!isFile(ast)) {
       return err(new Error('parsed input did not yield a file...'));
     }
     try {
@@ -28,7 +29,7 @@ export function compileStr(
 }
 
 export function compileAST(
-  file: AST.File,
+  file: spec.File,
   options?: ASTCompiler.ModuleCompilerOptions
 ): string {
   return new ASTCompiler.ModuleCompiler(file, options).compile().toWAT();

@@ -1,188 +1,98 @@
-import { LexToken } from '../../lexer-gen/lexer-gen';
-import {
-  BinaryOp,
-  Block,
-  Expression,
-  LetStatement,
-  NumberLiteral,
-  SymbolRef,
-  ExprStatement,
-  TypeRef,
-  NumberLiteralType,
-  BooleanLiteral,
-  ArrayLiteral,
-  ParameterList,
-  FuncDecl,
-  Parameter,
-  ReturnStatement,
-  ArgList,
-  IfStatement,
-  WhileStatement,
-  File,
-  GlobalDecl,
-  PointerTypeExpr,
-  UnaryExpr,
-  UnaryOp,
-  StringLiteral,
-} from '../snax-ast';
-import { grammar, lexer, SNAXParser, Token } from '../snax-parser';
-
-describe('SNAX lexer', () => {
-  it('should lex numbers into NUMBER tokens', () => {
-    expect(lexer.parse('123').toArray()).toEqual([
-      new LexToken(Token.NUMBER, { from: 0, to: 3 }, '123'),
-    ]);
-  });
-});
-
-describe('SNAX grammar', () => {
-  it('should look like', () => {
-    expect(grammar.toString()).toMatchInlineSnapshot(`
-      "
-      R_Root →
-        | R_StatementList
-      R_StatementList →
-        | R_Statement R_StatementList
-        | 
-      R_Statement →
-        | R_LetStatement
-        | R_ExprStatement
-      R_LetStatement →
-        | 'let' 'T_ID' ':' 'T_ID' '=' R_Expr ';'
-        | 'let' 'T_ID' '=' R_Expr ';'
-      R_ExprStatement →
-        | R_Expr ';'
-      R_Expr →
-        | R_Term '+' R_Expr
-        | R_Term '-' R_Expr
-        | R_Term
-      R_Term →
-        | R_Factor '*' R_Term
-        | R_Factor '/' R_Term
-        | R_Factor
-      R_Factor →
-        | '(' R_Expr ')'
-        | R_NumberLiteral
-        | 'T_ID'
-      R_NumberLiteral →
-        | 'T_NUMBER'
-        | 'T_FLOAT_NUMBER'
-      "
-    `);
-  });
-});
+import * as spec from '../spec-gen';
+import { BinaryOp, NumberLiteralType, UnaryOp } from '../snax-ast';
+import { SNAXParser } from '../snax-parser';
+import { makeFunc, makeNum } from './ast-util';
 
 describe('SNAX Parser', () => {
   describe('numbers', () => {
     it('should parse a string with a number into a NumberLiteral', () => {
       const literal = SNAXParser.parseStrOrThrow('123', 'expr');
-      expect(literal).toEqual(
-        new NumberLiteral(123, NumberLiteralType.Integer)
-      );
+      expect(literal).toEqual(makeNum(123, NumberLiteralType.Integer));
     });
     it('should parse a string with a floating point number into a NumberLiteral', () => {
       const literal = SNAXParser.parseStrOrThrow('1.23', 'expr');
-      expect(literal).toEqual(new NumberLiteral(1.23, NumberLiteralType.Float));
+      expect(literal).toEqual(makeNum(1.23, NumberLiteralType.Float));
     });
   });
   describe('boolean literals', () => {
     it('should parse true into a BooleanLiteral', () => {
       expect(SNAXParser.parseStrOrThrow('true', 'expr')).toEqual(
-        new BooleanLiteral(true)
+        spec.makeBooleanLiteral(true)
       );
     });
   });
   describe('array literals', () => {
     it('should parse [] into an array literal', () => {
       expect(SNAXParser.parseStrOrThrow('[]', 'expr')).toEqual(
-        new ArrayLiteral([])
+        spec.makeArrayLiteral([])
       );
     });
     it('should parse [3,4,5] into an array literal', () => {
       expect(SNAXParser.parseStrOrThrow('[3, 4, 5]', 'expr')).toEqual(
-        new ArrayLiteral([
-          new NumberLiteral(3),
-          new NumberLiteral(4),
-          new NumberLiteral(5),
-        ])
+        spec.makeArrayLiteral([makeNum(3), makeNum(4), makeNum(5)])
       );
     });
   });
   describe('string literals', () => {
     it('should parse "" into an empty string literal', () => {
       expect(SNAXParser.parseStrOrThrow('""', 'expr')).toEqual(
-        new StringLiteral('')
+        spec.makeStringLiteral('')
       );
     });
     it('should parse "foo" into a string literal', () => {
       expect(SNAXParser.parseStrOrThrow('"foo"', 'expr')).toEqual(
-        new StringLiteral('foo')
+        spec.makeStringLiteral('foo')
       );
     });
     it('should support escaping the quote character', () => {
       expect(
         SNAXParser.parseStrOrThrow('"this string has \\"quotes\\"."', 'expr')
-      ).toEqual(new StringLiteral('this string has "quotes".'));
+      ).toEqual(spec.makeStringLiteral('this string has "quotes".'));
     });
     it('should support other escaped characters like \\n', () => {
       expect(
         SNAXParser.parseStrOrThrow('"this string has a \\n in it"', 'expr')
-      ).toEqual(new StringLiteral('this string has a \n in it'));
+      ).toEqual(spec.makeStringLiteral('this string has a \n in it'));
     });
   });
   describe('expression', () => {
     it('should drop parentheses', () => {
       const expr = SNAXParser.parseStrOrThrow('(123)', 'expr');
-      expect(expr).toEqual(new NumberLiteral(123));
+      expect(expr).toEqual(makeNum(123));
     });
     it('should handle +', () => {
-      const expr = SNAXParser.parseStrOrThrow('123+456', 'expr') as Expression;
-      expect(expr).toBeInstanceOf(Expression);
-      expect(expr.left).toBeInstanceOf(NumberLiteral);
-      expect(expr.right).toBeInstanceOf(NumberLiteral);
-      expect(expr.op).toBe(BinaryOp.ADD);
-      expect((expr.left as NumberLiteral).value).toEqual(123);
-      expect((expr.right as NumberLiteral).value).toEqual(456);
+      const expr = SNAXParser.parseStrOrThrow('123+456', 'expr');
+      expect(expr).toEqual(
+        spec.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456))
+      );
     });
     it("should handle a sequence of +'s", () => {
       const expr = SNAXParser.parseStrOrThrow('123+456+789', 'expr');
 
       expect(expr).toEqual(
-        new Expression(
+        spec.makeBinaryExpr(
           BinaryOp.ADD,
-          new Expression(
-            BinaryOp.ADD,
-            new NumberLiteral(123),
-            new NumberLiteral(456)
-          ),
-          new NumberLiteral(789)
+          spec.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456)),
+          makeNum(789)
         )
       );
     });
     it('should make * operator take precedence over +', () => {
       let expr = SNAXParser.parseStrOrThrow('123+456*789', 'expr');
       expect(expr).toEqual(
-        new Expression(
+        spec.makeBinaryExpr(
           BinaryOp.ADD,
-          new NumberLiteral(123),
-          new Expression(
-            BinaryOp.MUL,
-            new NumberLiteral(456),
-            new NumberLiteral(789)
-          )
+          makeNum(123),
+          spec.makeBinaryExpr(BinaryOp.MUL, makeNum(456), makeNum(789))
         )
       );
 
       expr = SNAXParser.parseStrOrThrow('123*456+789', 'expr');
       expect(expr).toEqual(
-        new Expression(
+        spec.makeBinaryExpr(
           BinaryOp.ADD,
-          new Expression(
-            BinaryOp.MUL,
-            new NumberLiteral(123),
-            new NumberLiteral(456)
-          ),
-          new NumberLiteral(789)
+          spec.makeBinaryExpr(BinaryOp.MUL, makeNum(123), makeNum(456)),
+          makeNum(789)
         )
       );
     });
@@ -198,43 +108,43 @@ describe('SNAX Parser', () => {
     });
     it('should allow symbols', () => {
       expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(
-        new Expression(BinaryOp.ADD, new NumberLiteral(3), new SymbolRef('x'))
+        spec.makeBinaryExpr(BinaryOp.ADD, makeNum(3), spec.makeSymbolRef('x'))
       );
     });
     it('should handle boolean operators', () => {
       expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
-        new Expression(
+        spec.makeBinaryExpr(
           BinaryOp.LOGICAL_AND,
-          new BooleanLiteral(true),
-          new SymbolRef('x')
+          spec.makeBooleanLiteral(true),
+          spec.makeSymbolRef('x')
         )
       );
       expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
-        new Expression(
+        spec.makeBinaryExpr(
           BinaryOp.LOGICAL_OR,
-          new BooleanLiteral(true),
-          new SymbolRef('x')
+          spec.makeBooleanLiteral(true),
+          spec.makeSymbolRef('x')
         )
       );
     });
     it('should handle relational operators', () => {
-      const three = new NumberLiteral(3);
-      const four = new NumberLiteral(4);
+      const three = makeNum(3);
+      const four = makeNum(4);
       expect(SNAXParser.parseStrOrThrow('3 < 4', 'expr')).toEqual(
-        new Expression(BinaryOp.LESS_THAN, three, four)
+        spec.makeBinaryExpr(BinaryOp.LESS_THAN, three, four)
       );
       expect(SNAXParser.parseStrOrThrow('3 > 4', 'expr')).toEqual(
-        new Expression(BinaryOp.GREATER_THAN, three, four)
+        spec.makeBinaryExpr(BinaryOp.GREATER_THAN, three, four)
       );
       expect(SNAXParser.parseStrOrThrow('3 == 4', 'expr')).toEqual(
-        new Expression(BinaryOp.EQUAL_TO, three, four)
+        spec.makeBinaryExpr(BinaryOp.EQUAL_TO, three, four)
       );
     });
 
     describe('dereference operator', () => {
       it('works', () => {
         expect(SNAXParser.parseStrOrThrow('@foo', 'expr')).toEqual(
-          new UnaryExpr(UnaryOp.DEREF, new SymbolRef('foo'))
+          spec.makeUnaryExpr(UnaryOp.DEREF, spec.makeSymbolRef('foo'))
         );
       });
     });
@@ -242,10 +152,10 @@ describe('SNAX Parser', () => {
     describe('array indexing expressions', () => {
       it('should parse array indexing operator', () => {
         expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
-          new Expression(
+          spec.makeBinaryExpr(
             BinaryOp.ARRAY_INDEX,
-            new SymbolRef('x'),
-            new NumberLiteral(1)
+            spec.makeSymbolRef('x'),
+            makeNum(1)
           )
         );
       });
@@ -254,11 +164,7 @@ describe('SNAX Parser', () => {
     describe('type casting operator', () => {
       it('should parse type casting operator', () => {
         expect(SNAXParser.parseStrOrThrow('1 as f64', 'expr')).toEqual(
-          new Expression(
-            BinaryOp.CAST,
-            new NumberLiteral(1),
-            new TypeRef('f64')
-          )
+          spec.makeCastExpr(makeNum(1), spec.makeTypeRef('f64'))
         );
       });
     });
@@ -266,21 +172,13 @@ describe('SNAX Parser', () => {
 
   describe('let statements', () => {
     it('should parse untyped let statements', () => {
-      const letNode = SNAXParser.parseStrOrThrow(
-        'let x = 3;',
-        'statement'
-      ) as LetStatement;
-      expect(letNode).toEqual(
-        new LetStatement('x', null, new NumberLiteral(3))
-      );
+      const letNode = SNAXParser.parseStrOrThrow('let x = 3;', 'statement');
+      expect(letNode).toEqual(spec.makeLetStatement('x', null, makeNum(3)));
     });
     it('should parse typed let statements', () => {
-      const letNode = SNAXParser.parseStrOrThrow(
-        'let x:i32 = 3;',
-        'statement'
-      ) as LetStatement;
+      const letNode = SNAXParser.parseStrOrThrow('let x:i32 = 3;', 'statement');
       expect(letNode).toEqual(
-        new LetStatement('x', new TypeRef('i32'), new NumberLiteral(3))
+        spec.makeLetStatement('x', spec.makeTypeRef('i32'), makeNum(3))
       );
     });
   });
@@ -288,7 +186,7 @@ describe('SNAX Parser', () => {
   describe('type expressions', () => {
     it('parses pointer types', () => {
       expect(SNAXParser.parseStrOrThrow('&i32', 'typeExpr')).toEqual(
-        new PointerTypeExpr(new TypeRef('i32'))
+        spec.makePointerTypeExpr(spec.makeTypeRef('i32'))
       );
     });
   });
@@ -301,14 +199,13 @@ describe('SNAX Parser', () => {
           'statement'
         )
       ).toEqual(
-        new WhileStatement(
-          new BooleanLiteral(true),
-          new Block([
-            new ExprStatement(
-              new Expression(
-                BinaryOp.CALL,
-                new SymbolRef('doSomething'),
-                new ArgList([])
+        spec.makeWhileStatement(
+          spec.makeBooleanLiteral(true),
+          spec.makeBlock([
+            spec.makeExprStatement(
+              spec.makeCallExpr(
+                spec.makeSymbolRef('doSomething'),
+                spec.makeArgList([])
               )
             ),
           ])
@@ -327,9 +224,9 @@ describe('SNAX Parser', () => {
         'block'
       );
       expect(block).toEqual(
-        new Block([
-          new LetStatement('x', null, new NumberLiteral(3)),
-          new LetStatement('y', null, new NumberLiteral(7)),
+        spec.makeBlock([
+          spec.makeLetStatement('x', null, makeNum(3)),
+          spec.makeLetStatement('y', null, makeNum(7)),
         ])
       );
     });
@@ -342,16 +239,16 @@ describe('SNAX Parser', () => {
         'block'
       );
       expect(block).toEqual(
-        new Block([
-          new LetStatement('x', null, new NumberLiteral(3)),
-          new ExprStatement(
-            new Expression(
+        spec.makeBlock([
+          spec.makeLetStatement('x', null, makeNum(3)),
+          spec.makeExprStatement(
+            spec.makeBinaryExpr(
               BinaryOp.ADD,
-              new NumberLiteral(3),
-              new SymbolRef('x')
+              makeNum(3),
+              spec.makeSymbolRef('x')
             )
           ),
-          new ExprStatement(new NumberLiteral(8)),
+          spec.makeExprStatement(makeNum(8)),
         ])
       );
     });
@@ -367,9 +264,9 @@ describe('SNAX Parser', () => {
           'block'
         )
       ).toEqual(
-        new Block([
-          new LetStatement('x', null, new NumberLiteral(1)),
-          new Block([new LetStatement('x', null, new NumberLiteral(2))]),
+        spec.makeBlock([
+          spec.makeLetStatement('x', null, makeNum(1)),
+          spec.makeBlock([spec.makeLetStatement('x', null, makeNum(2))]),
         ])
       );
     });
@@ -385,22 +282,22 @@ describe('SNAX Parser', () => {
           'statement'
         )
       ).toEqual(
-        new IfStatement(
-          new Expression(
+        spec.makeIfStatement(
+          spec.makeBinaryExpr(
             BinaryOp.EQUAL_TO,
-            new SymbolRef('x'),
-            new NumberLiteral(3)
+            spec.makeSymbolRef('x'),
+            makeNum(3)
           ),
-          new Block([
-            new ExprStatement(
-              new Expression(
+          spec.makeBlock([
+            spec.makeExprStatement(
+              spec.makeBinaryExpr(
                 BinaryOp.ASSIGN,
-                new SymbolRef('y'),
-                new NumberLiteral(2)
+                spec.makeSymbolRef('y'),
+                makeNum(2)
               )
             ),
           ]),
-          new Block([])
+          spec.makeBlock([])
         )
       );
     });
@@ -413,27 +310,27 @@ describe('SNAX Parser', () => {
           'statement'
         )
       ).toEqual(
-        new IfStatement(
-          new Expression(
+        spec.makeIfStatement(
+          spec.makeBinaryExpr(
             BinaryOp.EQUAL_TO,
-            new SymbolRef('x'),
-            new NumberLiteral(3)
+            spec.makeSymbolRef('x'),
+            makeNum(3)
           ),
-          new Block([
-            new ExprStatement(
-              new Expression(
+          spec.makeBlock([
+            spec.makeExprStatement(
+              spec.makeBinaryExpr(
                 BinaryOp.ASSIGN,
-                new SymbolRef('y'),
-                new NumberLiteral(2)
+                spec.makeSymbolRef('y'),
+                makeNum(2)
               )
             ),
           ]),
-          new Block([
-            new ExprStatement(
-              new Expression(
+          spec.makeBlock([
+            spec.makeExprStatement(
+              spec.makeBinaryExpr(
                 BinaryOp.ASSIGN,
-                new SymbolRef('y'),
-                new NumberLiteral(4)
+                spec.makeSymbolRef('y'),
+                makeNum(4)
               )
             ),
           ])
@@ -445,19 +342,17 @@ describe('SNAX Parser', () => {
   describe('functions', () => {
     it('should parse an empty function', () => {
       expect(SNAXParser.parseStrOrThrow('func foo() {}', 'funcDecl')).toEqual(
-        new FuncDecl('foo')
+        makeFunc('foo')
       );
     });
     it('should parse a function with parameters', () => {
       expect(
         SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}', 'funcDecl')
       ).toEqual(
-        new FuncDecl('foo', {
-          parameters: new ParameterList([
-            new Parameter('a', new TypeRef('i32')),
-            new Parameter('b', new TypeRef('f32')),
-          ]),
-        })
+        makeFunc('foo', [
+          spec.makeParameter('a', spec.makeTypeRef('i32')),
+          spec.makeParameter('b', spec.makeTypeRef('f32')),
+        ])
       );
     });
     it('should parse a function with a body', () => {
@@ -467,28 +362,26 @@ describe('SNAX Parser', () => {
           'funcDecl'
         )
       ).toEqual(
-        new FuncDecl('foo', {
-          parameters: new ParameterList([
-            new Parameter('a', new TypeRef('i32')),
-          ]),
-          body: new Block([
-            new ReturnStatement(
-              new Expression(
+        makeFunc(
+          'foo',
+          [spec.makeParameter('a', spec.makeTypeRef('i32'))],
+          [
+            spec.makeReturnStatement(
+              spec.makeBinaryExpr(
                 BinaryOp.ADD,
-                new SymbolRef('a'),
-                new NumberLiteral(1)
+                spec.makeSymbolRef('a'),
+                makeNum(1)
               )
             ),
-          ]),
-        })
+          ]
+        )
       );
     });
     it('should parse a function call', () => {
       expect(SNAXParser.parseStrOrThrow('foo(3,4)', 'expr')).toEqual(
-        new Expression(
-          BinaryOp.CALL,
-          new SymbolRef('foo'),
-          new ArgList([new NumberLiteral(3), new NumberLiteral(4)])
+        spec.makeCallExpr(
+          spec.makeSymbolRef('foo'),
+          spec.makeArgList([makeNum(3), makeNum(4)])
         )
       );
     });
@@ -504,16 +397,14 @@ describe('SNAX Parser', () => {
           1;
         `)
       ).toEqual(
-        new File({
-          globals: [new GlobalDecl('counter', null, new NumberLiteral(0))],
-          funcs: [
-            new FuncDecl('foo'),
-            new FuncDecl('bar'),
-            new FuncDecl('main', {
-              body: new Block([new ReturnStatement(new NumberLiteral(1))]),
-            }),
+        spec.makeFile(
+          [
+            makeFunc('foo'),
+            makeFunc('bar'),
+            makeFunc('main', [], [spec.makeReturnStatement(makeNum(1))]),
           ],
-        })
+          [spec.makeGlobalDecl('counter', null, makeNum(0))]
+        )
       );
     });
   });

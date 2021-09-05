@@ -35,8 +35,8 @@ export class SymbolTable {
   }
 }
 
-type SymbolTableMap = OrderedMap<Block | FuncDecl | File, SymbolTable>;
-type SymbolRefMap = OrderedMap<SymbolRef, SymbolRecord>;
+export type SymbolTableMap = OrderedMap<Block | FuncDecl | File, SymbolTable>;
+export type SymbolRefMap = OrderedMap<SymbolRef, SymbolRecord>;
 
 export function resolveSymbols(astNode: ASTNode) {
   const tables: SymbolTableMap = new OrderedMap();

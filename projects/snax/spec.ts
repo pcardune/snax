@@ -154,12 +154,20 @@ export const nodes: Record<string, NodeSpec> = {
     ],
   },
   Expression: {
-    union: ['BinaryExpr', 'UnaryExpr', 'LiteralExpr', 'CallExpr', 'CastExpr'],
+    union: [
+      'BinaryExpr',
+      'UnaryExpr',
+      'LiteralExpr',
+      'CallExpr',
+      'CastExpr',
+      'ArgList',
+    ],
   },
   Statement: {
     union: [
       'ReturnStatement',
       'WhileStatement',
+      'IfStatement',
       'LetStatement',
       'ExprStatement',
       'Block',

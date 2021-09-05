@@ -596,20 +596,23 @@ export type Expression =
   | UnaryExpr
   | LiteralExpr
   | CallExpr
-  | CastExpr;
+  | CastExpr
+  | ArgList;
 export function isExpression(node: ASTNode): node is Expression {
   return (
     isBinaryExpr(node) ||
     isUnaryExpr(node) ||
     isLiteralExpr(node) ||
     isCallExpr(node) ||
-    isCastExpr(node)
+    isCastExpr(node) ||
+    isArgList(node)
   );
 }
 
 export type Statement =
   | ReturnStatement
   | WhileStatement
+  | IfStatement
   | LetStatement
   | ExprStatement
   | Block;
@@ -617,6 +620,7 @@ export function isStatement(node: ASTNode): node is Statement {
   return (
     isReturnStatement(node) ||
     isWhileStatement(node) ||
+    isIfStatement(node) ||
     isLetStatement(node) ||
     isExprStatement(node) ||
     isBlock(node)

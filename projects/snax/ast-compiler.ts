@@ -12,7 +12,12 @@ import * as Wasm from './wasm-ast';
 import { BinaryOp, UnaryOp } from './snax-ast';
 import { children } from './spec-util';
 import { resolveType } from './type-resolution';
-import { resolveSymbols, SymbolRecord } from './symbol-resolution';
+import {
+  resolveSymbols,
+  SymbolRecord,
+  SymbolRefMap,
+} from './symbol-resolution';
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
 export class DefaultMap<K, V> extends Map<K, V> {
   makeDefault: () => V;
@@ -33,63 +38,20 @@ export class DefaultMap<K, V> extends Map<K, V> {
 
 export abstract class ASTCompiler<
   Root extends AST.ASTNode = AST.ASTNode,
-  Output = IR.Instruction[]
+  Output = unknown,
+  Context = unknown
 > {
   root: Root;
-  parent?: ASTCompiler<AST.ASTNode, unknown>;
+  parent?: ASTCompiler;
+  context: Context;
 
-  constructor(
-    root: Root,
-    parent: ASTCompiler<AST.ASTNode, unknown> | undefined
-  ) {
+  constructor(root: Root, parent: ASTCompiler | undefined, context: Context) {
     this.root = root;
     this.parent = parent;
+    this.context = context;
   }
 
   abstract compile(): Output;
-
-  protected forNode(node: AST.ASTNode): ASTCompiler {
-    switch (node.name) {
-      case 'BinaryExpr':
-        return new ExpressionCompiler(node, this);
-      case 'CallExpr':
-        return new CallExprCompiler(node, this);
-      case 'ExprStatement':
-        return new ExprStatementCompiler(node, this);
-      case 'NumberLiteral':
-        return new NumberLiteralCompiler(node, this);
-      case 'Block':
-        return new BlockCompiler(node, this);
-      case 'LetStatement':
-        return new LetStatementCompiler(node, this);
-      case 'IfStatement':
-        return new IfStatementCompiler(node, this);
-      case 'SymbolRef':
-        return new SymbolRefCompiler(node, this);
-      case 'BooleanLiteral':
-        return new BooleanLiteralCompiler(node, this);
-      case 'ArrayLiteral':
-        return new ArrayLiteralCompiler(node, this);
-      case 'StringLiteral':
-        return new StringLiteralCompiler(node, this);
-      case 'ArgList':
-        return new ArgListCompiler(node, this);
-      case 'WhileStatement':
-        return new WhileStatementCompiler(node, this);
-      case 'ReturnStatement':
-        return new ReturnStatementCompiler(node, this);
-      case 'UnaryExpr':
-        return new UnaryExprCompiler(node, this);
-      default:
-        throw new Error(
-          `ASTCompiler: No compiler available for node ${node.toString()}`
-        );
-    }
-  }
-
-  compileChild(child: AST.ASTNode) {
-    return this.forNode(child).compile();
-  }
 
   allocateLocal(valueType: IR.NumberType, decl?: AST.ASTNode): LocalAllocation {
     if (!this.parent) {
@@ -134,13 +96,71 @@ export abstract class ASTCompiler<
     this._dataCache = dataMap.get(this.root);
     return this._dataCache;
   }
-
-  resolveType(node: AST.ASTNode) {
-    return resolveType(node, this.getNodeDataMap());
+}
+export type NodeData = {
+  location?: SymbolLocation;
+  resolvedType?: BaseType;
+};
+export type NodeDataMap = DefaultMap<AST.ASTNode, NodeData>;
+type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
+export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
+  Root,
+  IR.Instruction[],
+  RefMapContext
+> {
+  static forNode(
+    node: CompilesToIR,
+    parent: ASTCompiler<AST.ASTNode, unknown>,
+    context: RefMapContext
+  ): ASTCompiler<AST.ASTNode, IR.Instruction[]> {
+    switch (node.name) {
+      case 'BinaryExpr':
+        return new BinaryExprCompiler(node, parent, context);
+      case 'CallExpr':
+        return new CallExprCompiler(node, parent, context);
+      case 'ExprStatement':
+        return new ExprStatementCompiler(node, parent, context);
+      case 'NumberLiteral':
+        return new NumberLiteralCompiler(node, parent, context);
+      case 'Block':
+        return new BlockCompiler(node, parent, context);
+      case 'LetStatement':
+        return new LetStatementCompiler(node, parent, context);
+      case 'IfStatement':
+        return new IfStatementCompiler(node, parent, context);
+      case 'SymbolRef':
+        return new SymbolRefCompiler(node, parent, context);
+      case 'BooleanLiteral':
+        return new BooleanLiteralCompiler(node);
+      case 'ArrayLiteral':
+        return new ArrayLiteralCompiler(node, parent, context);
+      case 'StringLiteral':
+        return new StringLiteralCompiler(node, parent, context);
+      case 'ArgList':
+        return new ArgListCompiler(node, parent, context);
+      case 'WhileStatement':
+        return new WhileStatementCompiler(node, parent, context);
+      case 'ReturnStatement':
+        return new ReturnStatementCompiler(node, parent, context);
+      case 'UnaryExpr':
+        return new UnaryExprCompiler(node, parent, context);
+      default:
+        throw new Error(
+          `ASTCompiler: No compiler available for node ${node.toString()}`
+        );
+    }
+  }
+  compileChild<N extends AST.Expression | AST.Statement>(child: N) {
+    return this.forNode(child).compile();
+  }
+  protected forNode<N extends AST.Expression | AST.Statement>(
+    node: N
+  ): ASTCompiler<AST.ASTNode, IR.Instruction[]> {
+    return IRCompiler.forNode(node, this, this.context);
   }
 
   getLocationForSymbolRef(node: AST.SymbolRef) {
-    const symbolRecord = this.getNodeDataMap().get(node).symbolRecord;
+    const symbolRecord = this.context.refMap.get(node);
     if (!symbolRecord) {
       throw new Error(
         `ASTCompiler: can't compile reference to unresolved symbol ${node.fields.symbol}`
@@ -154,15 +174,13 @@ export abstract class ASTCompiler<
     }
     return location;
   }
-}
-export type NodeData = {
-  symbolRecord?: SymbolRecord;
-  location?: SymbolLocation;
-  resolvedType?: BaseType;
-};
-export type NodeDataMap = DefaultMap<AST.ASTNode, NodeData>;
 
-class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
+  resolveType(node: AST.ASTNode) {
+    return resolveType(node, this.getNodeDataMap(), this.context.refMap);
+  }
+}
+
+class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
   compile() {
     return [
       ...(this.root.fields.expr
@@ -173,7 +191,7 @@ class ReturnStatementCompiler extends ASTCompiler<AST.ReturnStatement> {
   }
 }
 
-export class BlockCompiler extends ASTCompiler<AST.Block> {
+export class BlockCompiler extends IRCompiler<AST.Block> {
   liveLocals: LocalAllocation[] = [];
   override allocateLocal(
     valueType: IR.NumberType,
@@ -221,9 +239,10 @@ export type ModuleCompilerOptions = {
 };
 export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   options: Required<ModuleCompilerOptions>;
+  refMap?: SymbolRefMap;
 
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
-    super(file, undefined);
+    super(file, undefined, undefined);
     this.options = {
       includeRuntime: false,
       includeWASI: false,
@@ -280,9 +299,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       }
     }
     const { refMap } = resolveSymbols(this.root);
-    refMap.entries().forEach(([i, node, record]) => {
-      this.getNodeDataMap().get(node).symbolRecord = record;
-    });
+    this.refMap = refMap;
     let funcOffset = 0;
     let globalOffset = 0;
     for (const func of this.root.fields.funcs) {
@@ -299,7 +316,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     }
 
     const funcs: Wasm.Func[] = this.root.fields.funcs.map((func) => {
-      const wasmFunc = new FuncDeclCompiler(func, this).compile();
+      const wasmFunc = new FuncDeclCompiler(func, this, { refMap }).compile();
       if (func.fields.symbol === 'main') {
         wasmFunc.fields.exportName = '_start';
       }
@@ -310,10 +327,16 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       return new Wasm.Global({
         id: `g${i}`,
         globalType: new Wasm.GlobalType({
-          valtype: resolveType(global, this.getNodeDataMap()).toValueType(),
+          valtype: resolveType(
+            global,
+            this.getNodeDataMap(),
+            refMap
+          ).toValueType(),
           mut: true,
         }),
-        expr: this.compileChild(global.fields.expr),
+        expr: IRCompiler.forNode(global.fields.expr, this, {
+          refMap,
+        }).compile(),
       });
     });
 
@@ -332,7 +355,11 @@ type LocalAllocation = {
   local: Wasm.Local;
 };
 
-export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
+export class FuncDeclCompiler extends ASTCompiler<
+  AST.FuncDecl,
+  Wasm.Func,
+  RefMapContext
+> {
   locals: LocalAllocation[] = [];
 
   private localsOffset = 0;
@@ -366,7 +393,11 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
   }
 
   compile(): Wasm.Func {
-    const funcType = this.resolveType(this.root);
+    const funcType = resolveType(
+      this.root,
+      this.getNodeDataMap(),
+      this.context.refMap
+    );
     if (!(funcType instanceof FuncType)) {
       throw new Error('unexpected type of function');
     }
@@ -386,7 +417,11 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
 
     return new Wasm.Func({
       id: this.root.fields.symbol,
-      body: this.compileChild(this.root.fields.body),
+      body: new BlockCompiler(
+        this.root.fields.body,
+        this,
+        this.context
+      ).compile(),
       funcType: new Wasm.FuncTypeUse({
         params,
         results,
@@ -396,7 +431,7 @@ export class FuncDeclCompiler extends ASTCompiler<AST.FuncDecl, Wasm.Func> {
   }
 }
 
-class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
+class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
   compile(): IR.Instruction[] {
     let localAllocation = this.allocateLocal(
       this.resolveType(this.root).toValueType(),
@@ -413,7 +448,7 @@ class LetStatementCompiler extends ASTCompiler<AST.LetStatement> {
   }
 }
 
-export class IfStatementCompiler extends ASTCompiler<AST.IfStatement> {
+export class IfStatementCompiler extends IRCompiler<AST.IfStatement> {
   compile(): IR.Instruction[] {
     return [
       ...this.forNode(this.root.fields.condExpr).compile(),
@@ -425,7 +460,7 @@ export class IfStatementCompiler extends ASTCompiler<AST.IfStatement> {
   }
 }
 
-export class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
+export class WhileStatementCompiler extends IRCompiler<AST.WhileStatement> {
   compile() {
     return [
       ...this.compileChild(this.root.fields.condExpr),
@@ -446,7 +481,9 @@ export class WhileStatementCompiler extends ASTCompiler<AST.WhileStatement> {
   }
 }
 
-class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
+type RefMapContext = { refMap: SymbolRefMap };
+
+class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
   compile(): IR.Instruction[] {
     const location = this.getLocationForSymbolRef(this.root);
     switch (location.area) {
@@ -462,11 +499,13 @@ class SymbolRefCompiler extends ASTCompiler<AST.SymbolRef> {
   }
 }
 
-export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
+export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
   static forNode(root: AST.BinaryExpr) {
-    return new ExpressionCompiler(root, undefined);
+    return new BinaryExprCompiler(root, undefined, {
+      refMap: new OrderedMap(),
+    });
   }
-  private pushNumberOps(left: AST.ASTNode, right: AST.ASTNode) {
+  private pushNumberOps(left: AST.Expression, right: AST.Expression) {
     let targetType = this.matchTypes(left, right);
     return [
       ...this.forNode(left).compile(),
@@ -475,7 +514,7 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
       ...this.convert(right, targetType),
     ];
   }
-  private convert(child: AST.ASTNode, targetType: IR.NumberType) {
+  private convert(child: AST.Expression, targetType: IR.NumberType) {
     const childType = this.resolveType(child).toValueType();
     if (childType === targetType) {
       return [];
@@ -486,7 +525,7 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
     throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
   }
 
-  private matchTypes(left: AST.ASTNode, right: AST.ASTNode) {
+  private matchTypes(left: AST.Expression, right: AST.Expression) {
     const leftType = this.resolveType(left);
     const rightType = this.resolveType(right);
     let targetType = leftType;
@@ -505,51 +544,51 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
   }
   private OpCompilers: Record<
     string,
-    (left: AST.ASTNode, right: AST.ASTNode) => IR.Instruction[]
+    (left: AST.Expression, right: AST.Expression) => IR.Instruction[]
   > = {
-    [BinaryOp.ADD]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.ADD]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Add(this.matchTypes(left, right)),
     ],
-    [BinaryOp.SUB]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.SUB]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Sub(this.matchTypes(left, right)),
     ],
-    [BinaryOp.MUL]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.MUL]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Mul(this.matchTypes(left, right)),
     ],
-    [BinaryOp.DIV]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.DIV]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Div(this.matchTypes(left, right)),
     ],
-    [BinaryOp.EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Equal(this.matchTypes(left, right)),
     ],
-    [BinaryOp.NOT_EQUAL_TO]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.NOT_EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.NotEqual(this.matchTypes(left, right)),
     ],
-    [BinaryOp.LESS_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.LESS_THAN]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.LessThan(this.matchTypes(left, right)),
     ],
-    [BinaryOp.GREATER_THAN]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.GREATER_THAN]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.GreaterThan(this.matchTypes(left, right)),
     ],
-    [BinaryOp.LOGICAL_AND]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.LOGICAL_AND]: (left: AST.Expression, right: AST.Expression) => [
       ...this.forNode(left).compile(),
       ...this.forNode(right).compile(),
       new IR.And(Intrinsics.bool.toValueType()),
     ],
-    [BinaryOp.LOGICAL_OR]: (left: AST.ASTNode, right: AST.ASTNode) => [
+    [BinaryOp.LOGICAL_OR]: (left: AST.Expression, right: AST.Expression) => [
       ...this.forNode(left).compile(),
       ...this.forNode(right).compile(),
       new IR.Or(Intrinsics.bool.toValueType()),
     ],
-    [BinaryOp.ASSIGN]: (left: AST.ASTNode, right: AST.ASTNode) => {
+    [BinaryOp.ASSIGN]: (left: AST.Expression, right: AST.Expression) => {
       const leftType = this.resolveType(left);
       const rightType = this.resolveType(right);
       if (leftType !== rightType) {
@@ -622,7 +661,10 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
         );
       }
     },
-    [BinaryOp.ARRAY_INDEX]: (refExpr: AST.ASTNode, indexExpr: AST.ASTNode) => {
+    [BinaryOp.ARRAY_INDEX]: (
+      refExpr: AST.Expression,
+      indexExpr: AST.Expression
+    ) => {
       const valueType = this.resolveType(refExpr).toValueType();
       return [
         ...this.forNode(refExpr).compile(),
@@ -633,7 +675,7 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
         new IR.MemoryLoad(valueType, 0),
       ];
     },
-    [BinaryOp.CAST]: (left: AST.ASTNode, right: AST.ASTNode) => {
+    [BinaryOp.CAST]: (left: AST.Expression, right: AST.Expression) => {
       throw new Error(`CAST: don't know how to cast values yet`);
     },
   };
@@ -645,7 +687,7 @@ export class ExpressionCompiler extends ASTCompiler<AST.BinaryExpr> {
   }
 }
 
-class CallExprCompiler extends ASTCompiler<AST.CallExpr> {
+class CallExprCompiler extends IRCompiler<AST.CallExpr> {
   compile() {
     const { left, right } = this.root.fields;
     if (AST.isSymbolRef(left)) {
@@ -659,7 +701,7 @@ class CallExprCompiler extends ASTCompiler<AST.CallExpr> {
   }
 }
 
-class UnaryExprCompiler extends ASTCompiler<AST.UnaryExpr> {
+class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
   compile() {
     switch (this.root.fields.op) {
       case UnaryOp.DEREF:
@@ -674,7 +716,7 @@ class UnaryExprCompiler extends ASTCompiler<AST.UnaryExpr> {
   }
 }
 
-class ExprStatementCompiler extends ASTCompiler<AST.ExprStatement> {
+class ExprStatementCompiler extends IRCompiler<AST.ExprStatement> {
   compile() {
     if (this.resolveType(this.root.fields.expr) === Intrinsics.void) {
       return this.compileChild(this.root.fields.expr);
@@ -683,29 +725,39 @@ class ExprStatementCompiler extends ASTCompiler<AST.ExprStatement> {
   }
 }
 
-class ArgListCompiler extends ASTCompiler<AST.ArgList> {
+class ArgListCompiler extends IRCompiler<AST.ArgList> {
   compile() {
     return children(this.root)
-      .map((child) => this.forNode(child).compile())
+      .map((child) => this.forNode(child as AST.Expression).compile())
       .flat();
   }
 }
 
-class NumberLiteralCompiler extends ASTCompiler<AST.NumberLiteral> {
+class NumberLiteralCompiler extends IRCompiler<AST.NumberLiteral> {
   compile(): IR.Instruction[] {
     const valueType = this.resolveType(this.root).toValueType();
     return [new IR.PushConst(valueType, this.root.fields.value)];
   }
 }
 
-export class BooleanLiteralCompiler extends ASTCompiler<AST.BooleanLiteral> {
+abstract class LeafCompiler<Root extends AST.ASTNode> extends ASTCompiler<
+  Root,
+  IR.Instruction[],
+  undefined
+> {
+  constructor(root: Root) {
+    super(root, undefined, undefined);
+  }
+}
+
+export class BooleanLiteralCompiler extends LeafCompiler<AST.BooleanLiteral> {
   compile(): IR.Instruction[] {
     const value = this.root.fields.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];
   }
 }
 
-class ArrayLiteralCompiler extends ASTCompiler<AST.ArrayLiteral> {
+class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
   compile(): IR.Instruction[] {
     const arrayType = this.resolveType(this.root);
     if (!(arrayType instanceof ArrayType)) {
@@ -719,7 +771,7 @@ class ArrayLiteralCompiler extends ASTCompiler<AST.ArrayLiteral> {
         // push memory space offset
         baseAddressInstr,
         // push value from expression
-        ...this.forNode(child).compile(),
+        ...this.forNode(child as AST.Expression).compile(),
         // store value
         new IR.MemoryStore(arrayType.elementType.toValueType(), i * 4, 4),
       ]),

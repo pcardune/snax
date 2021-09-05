@@ -1,8 +1,8 @@
-import { SNAXParser } from "../snax-parser";
-import * as AST from "../snax-ast";
-import loadWabt from "wabt";
-import { ModuleCompiler, ModuleCompilerOptions } from "../ast-compiler";
-import { isFile } from "../spec-gen";
+import { SNAXParser } from '../snax-parser';
+import * as AST from '../snax-ast';
+import loadWabt from 'wabt';
+import { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler';
+import { isFile } from '../spec-gen';
 
 type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
@@ -19,7 +19,7 @@ function compileToWAT(input: string, options?: ModuleCompilerOptions) {
   }
   const wat = new ModuleCompiler(ast, options).compile().toWAT();
   try {
-    return wabt.parseWat("", wat).toText({});
+    return wabt.parseWat('', wat).toText({});
   } catch (e) {
     return wat;
   }
@@ -30,7 +30,7 @@ async function compileToWasmModule(
   options?: ModuleCompilerOptions
 ) {
   const wat = compileToWAT(input, options);
-  const wasmModule = wabt.parseWat("", wat);
+  const wasmModule = wabt.parseWat('', wat);
   wasmModule.validate();
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
@@ -45,9 +45,9 @@ async function exec(input: string) {
   return exports._start();
 }
 
-describe("end-to-end test", () => {
-  it("compiles an empty program", async () => {
-    expect(compileToWAT("", { includeRuntime: true })).toMatchInlineSnapshot(`
+describe('end-to-end test', () => {
+  it('compiles an empty program', async () => {
+    expect(compileToWAT('', { includeRuntime: true })).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (export \\"memory\\" (memory 0))
@@ -70,11 +70,11 @@ describe("end-to-end test", () => {
         (type (;1;) (func (param i32) (result i32))))
       "
     `);
-    expect(await exec("")).toBe(undefined);
+    expect(await exec('')).toBe(undefined);
   });
 
-  it("compiles integers", async () => {
-    expect(compileToWAT("123;")).toMatchInlineSnapshot(`
+  it('compiles integers', async () => {
+    expect(compileToWAT('123;')).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (export \\"memory\\" (memory 0))
@@ -85,42 +85,42 @@ describe("end-to-end test", () => {
         (type (;0;) (func (result i32))))
       "
     `);
-    const { exports } = await compileToWasmModule("123;");
+    const { exports } = await compileToWasmModule('123;');
     expect(exports._start()).toEqual(123);
   });
 
-  it("compiles floats", async () => {
-    const { exports } = await compileToWasmModule("1.23;");
+  it('compiles floats', async () => {
+    const { exports } = await compileToWasmModule('1.23;');
     expect(exports._start()).toBeCloseTo(1.23, 4);
   });
 
-  it("compiles booleans", async () => {
-    expect(await exec("true;")).toBe(1);
-    expect(await exec("false;")).toBe(0);
+  it('compiles booleans', async () => {
+    expect(await exec('true;')).toBe(1);
+    expect(await exec('false;')).toBe(0);
   });
 
-  it("compiles boolean expressions", async () => {
-    expect(await exec("true && false;")).toBe(0);
-    expect(await exec("true || false;")).toBe(1);
-    expect(await exec("true && true;")).toBe(1);
-    expect(await exec("false || false;")).toBe(0);
+  it('compiles boolean expressions', async () => {
+    expect(await exec('true && false;')).toBe(0);
+    expect(await exec('true || false;')).toBe(1);
+    expect(await exec('true && true;')).toBe(1);
+    expect(await exec('false || false;')).toBe(0);
   });
 
-  it("compiles relational operators", async () => {
-    expect(await exec("3 < 5;")).toBe(1);
-    expect(await exec("10 < 5;")).toBe(0);
-    expect(await exec("3 > 5;")).toBe(0);
-    expect(await exec("10 > 5;")).toBe(1);
-    expect(await exec("3 == 5;")).toBe(0);
-    expect(await exec("5 == 5;")).toBe(1);
-    expect(await exec("3 != 5;")).toBe(1);
-    expect(await exec("5 != 5;")).toBe(0);
-    expect(await exec("true == false;")).toBe(0);
-    expect(await exec("false == false;")).toBe(1);
+  it('compiles relational operators', async () => {
+    expect(await exec('3 < 5;')).toBe(1);
+    expect(await exec('10 < 5;')).toBe(0);
+    expect(await exec('3 > 5;')).toBe(0);
+    expect(await exec('10 > 5;')).toBe(1);
+    expect(await exec('3 == 5;')).toBe(0);
+    expect(await exec('5 == 5;')).toBe(1);
+    expect(await exec('3 != 5;')).toBe(1);
+    expect(await exec('5 != 5;')).toBe(0);
+    expect(await exec('true == false;')).toBe(0);
+    expect(await exec('false == false;')).toBe(1);
   });
 
-  it("compiles expressions", async () => {
-    const { exports, wasmModule } = await compileToWasmModule("3+5*2-10/10;");
+  it('compiles expressions', async () => {
+    const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10;');
     expect(wasmModule.toText({})).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
@@ -143,8 +143,8 @@ describe("end-to-end test", () => {
     expect(exports._start()).toEqual(12);
   });
 
-  it("converts between ints and floats", async () => {
-    expect(compileToWAT("3+5.2;")).toMatchInlineSnapshot(`
+  it('converts between ints and floats', async () => {
+    expect(compileToWAT('3+5.2;')).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (export \\"memory\\" (memory 0))
@@ -158,14 +158,14 @@ describe("end-to-end test", () => {
         (type (;0;) (func (result f32))))
       "
     `);
-    const { exports, wasmModule } = await compileToWasmModule("3+5.2;");
+    const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
     expect(exports._start()).toBeCloseTo(8.2);
   });
 });
 
-describe("block compilation", () => {
-  it("compiles blocks", async () => {
-    expect(compileToWAT("let x = 3; let y = x+4; y;")).toMatchInlineSnapshot(`
+describe('block compilation', () => {
+  it('compiles blocks', async () => {
+    expect(compileToWAT('let x = 3; let y = x+4; y;')).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (export \\"memory\\" (memory 0))
@@ -184,13 +184,13 @@ describe("block compilation", () => {
       "
     `);
     const { exports, wasmModule } = await compileToWasmModule(
-      "let x = 3; let y = x+4; y;"
+      'let x = 3; let y = x+4; y;'
     );
     expect(exports._start()).toBe(7);
   });
 
-  describe("nested blocks have their own lexical scope", () => {
-    it("assigns to a separate location for a symbol of the same name", async () => {
+  describe('nested blocks have their own lexical scope', () => {
+    it('assigns to a separate location for a symbol of the same name', async () => {
       expect(
         await exec(`
             let x = 1;
@@ -201,7 +201,7 @@ describe("block compilation", () => {
           `)
       ).toEqual(1);
     });
-    it("assigns to a separate location for a symbol of the same name declared after the nested block", async () => {
+    it('assigns to a separate location for a symbol of the same name declared after the nested block', async () => {
       expect(
         await exec(`
             {
@@ -212,7 +212,7 @@ describe("block compilation", () => {
           `)
       ).toEqual(3);
     });
-    it("assigns to the right location for a variable declared in a higher scope", async () => {
+    it('assigns to the right location for a variable declared in a higher scope', async () => {
       const code = `
           let x = 1;
           {
@@ -239,7 +239,7 @@ describe("block compilation", () => {
       `);
       expect(await exec(code)).toEqual(2);
     });
-    it("fails if you try to assign to something that has not yet been declared", async () => {
+    it('fails if you try to assign to something that has not yet been declared', async () => {
       await expect(
         exec(`
             let x = 1;
@@ -256,22 +256,22 @@ describe("block compilation", () => {
   });
 });
 
-describe("assignment operator", () => {
-  it("compiles assignments", async () => {
-    expect(await exec("let x = 3; x = 4; x;")).toBe(4);
+describe('assignment operator', () => {
+  it('compiles assignments', async () => {
+    expect(await exec('let x = 3; x = 4; x;')).toBe(4);
   });
-  it("does not compile invalid assignments", async () => {
-    await expect(exec("let x = 3; y = 4; y;")).rejects.toMatchInlineSnapshot(
+  it('does not compile invalid assignments', async () => {
+    await expect(exec('let x = 3; y = 4; y;')).rejects.toMatchInlineSnapshot(
       `[Error: Reference to undeclared symbol y]`
     );
-    await expect(exec("let x = 3; 5 = 4; x;")).rejects.toMatchInlineSnapshot(
+    await expect(exec('let x = 3; 5 = 4; x;')).rejects.toMatchInlineSnapshot(
       `[Error: ASSIGN: Can't assign to something that is not a resolved symbol or a memory address]`
     );
   });
 });
 
-describe("control flow", () => {
-  it("compiles if statements", async () => {
+describe('control flow', () => {
+  it('compiles if statements', async () => {
     const code = `
         let x=3;
         if (x==4) {
@@ -283,7 +283,7 @@ describe("control flow", () => {
       `;
     expect(await exec(code)).toBe(9);
   });
-  it("compiles while statements", async () => {
+  it('compiles while statements', async () => {
     const code = `
         let i = 0;
         while (i < 10) {
@@ -295,8 +295,8 @@ describe("control flow", () => {
   });
 });
 
-describe("functions", () => {
-  it("compiles functions", async () => {
+describe('functions', () => {
+  it('compiles functions', async () => {
     const wat = compileToWAT(`
           let x = 3;
           add(x, 5);
@@ -338,8 +338,8 @@ describe("functions", () => {
   });
 });
 
-describe("globals", () => {
-  it("supports globals", async () => {
+describe('globals', () => {
+  it('supports globals', async () => {
     const code = `
         global counter = 0;
         func count() {
@@ -375,8 +375,8 @@ describe("globals", () => {
   });
 });
 
-describe("runtime", () => {
-  it("has malloc", async () => {
+describe('runtime', () => {
+  it('has malloc', async () => {
     expect(
       await exec(`
           let x = malloc(3);
@@ -387,8 +387,8 @@ describe("runtime", () => {
   });
 });
 
-describe("pointers", () => {
-  it("has pointers", async () => {
+describe('pointers', () => {
+  it('has pointers', async () => {
     const code = `
         let p:&i32 = 0;
         @p = 10;
@@ -396,7 +396,7 @@ describe("pointers", () => {
       `;
     expect(await exec(code)).toEqual(10);
   });
-  it("allows pointer arithmetic through array indexing", async () => {
+  it('allows pointer arithmetic through array indexing', async () => {
     const code = `
       let p:&i32 = 0;
       let q:&i32 = 4;
@@ -408,7 +408,7 @@ describe("pointers", () => {
     const mem = new Int32Array(exports.memory.buffer.slice(0, 8));
     expect([...mem]).toEqual([0, 175]);
   });
-  it("allows assigning to pointer offsets with array indexing", async () => {
+  it('allows assigning to pointer offsets with array indexing', async () => {
     const code = `
       let p:&i32 = 0;
       p[1] = 174;
@@ -418,7 +418,7 @@ describe("pointers", () => {
     const mem = new Int32Array(exports.memory.buffer.slice(0, 8));
     expect([...mem]).toEqual([0, 174]);
   });
-  it("respects the size of the type being pointed to", async () => {
+  it('respects the size of the type being pointed to', async () => {
     const code = `
       let p:&i16 = 0;
       p[0] = 12_i16;
@@ -429,7 +429,7 @@ describe("pointers", () => {
     const mem = new Int16Array(exports.memory.buffer.slice(0, 4));
     expect([...mem]).toEqual([12, 13]);
   });
-  it("calculates the indexing expression only once.", async () => {
+  it('calculates the indexing expression only once.', async () => {
     const code = `
       let p:&i32 = 0;
       p[0] = 0;
@@ -441,7 +441,7 @@ describe("pointers", () => {
     const mem = new Int32Array(exports.memory.buffer.slice(0, 12));
     expect([...mem]).toEqual([2, 0, 5]);
   });
-  it("calculates the value expression only once.", async () => {
+  it('calculates the value expression only once.', async () => {
     const code = `
       let p:&i32 = 0;
       p[0] = 0;
@@ -453,7 +453,7 @@ describe("pointers", () => {
     const mem = new Int32Array(exports.memory.buffer.slice(0, 12));
     expect([...mem]).toEqual([2, 0, 5]);
   });
-  it("allows moving pointers around", async () => {
+  it('allows moving pointers around', async () => {
     const code = `
       let p:&u8 = 0;
       p[0] = 1_u8;
@@ -468,9 +468,9 @@ describe("pointers", () => {
   });
 });
 
-describe("arrays", () => {
-  it("compiles arrays", async () => {
-    const input = "[6,5,4][1];";
+describe('arrays', () => {
+  it('compiles arrays', async () => {
+    const input = '[6,5,4][1];';
     const { exports } = await compileToWasmModule(input);
     expect(exports._start()).toBe(5);
     const mem = new Int32Array(exports.memory.buffer.slice(0, 12));
@@ -478,8 +478,8 @@ describe("arrays", () => {
   });
 });
 
-describe("strings", () => {
-  it("compiles strings", async () => {
+describe('strings', () => {
+  it('compiles strings', async () => {
     const code = `"hello world";`;
     const { exports } = await compileToWasmModule(code);
     expect(exports._start()).toBe(0);
@@ -487,6 +487,6 @@ describe("strings", () => {
     expect([...mem]).toEqual([
       104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100,
     ]);
-    expect(new TextDecoder().decode(mem)).toEqual("hello world");
+    expect(new TextDecoder().decode(mem)).toEqual('hello world');
   });
 });

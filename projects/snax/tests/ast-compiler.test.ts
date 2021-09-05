@@ -3,14 +3,18 @@ import * as IR from '../stack-ir';
 import * as Wasm from '../wasm-ast';
 import {
   BooleanLiteralCompiler,
-  ExpressionCompiler,
+  BinaryExprCompiler,
   FuncDeclCompiler,
   IfStatementCompiler,
   ModuleCompiler,
   WhileStatementCompiler,
+  BlockCompiler,
+  IRCompiler,
 } from '../ast-compiler';
 import { makeFunc, makeNum } from './ast-util';
 import { BinaryOp } from '../snax-ast';
+import { resolveSymbols, SymbolRefMap } from '../symbol-resolution';
+import { OrderedMap } from '../../utils/data-structures/OrderedMap';
 
 describe('ExpressionCompiler', () => {
   const { i32, f32 } = IR.NumberType;
@@ -18,7 +22,7 @@ describe('ExpressionCompiler', () => {
     const twenty = makeNum(20);
     const thirty = makeNum(30);
     const expr = AST.makeBinaryExpr(BinaryOp.ADD, twenty, thirty);
-    const compiler = ExpressionCompiler.forNode(expr);
+    const compiler = BinaryExprCompiler.forNode(expr);
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(twenty),
       ...compiler.compileChild(thirty),
@@ -28,7 +32,7 @@ describe('ExpressionCompiler', () => {
   it('casts integers to floats', () => {
     const ten = makeNum(10);
     const twelvePointThree = makeNum(12.3, 'float');
-    let compiler = ExpressionCompiler.forNode(
+    let compiler = BinaryExprCompiler.forNode(
       AST.makeBinaryExpr(BinaryOp.ADD, ten, twelvePointThree)
     );
     expect(compiler.compile()).toEqual([
@@ -37,7 +41,7 @@ describe('ExpressionCompiler', () => {
       ...compiler.compileChild(twelvePointThree),
       new IR.Add(f32),
     ]);
-    compiler = ExpressionCompiler.forNode(
+    compiler = BinaryExprCompiler.forNode(
       AST.makeBinaryExpr(BinaryOp.ADD, twelvePointThree, ten)
     );
     expect(compiler.compile()).toEqual([
@@ -52,24 +56,22 @@ describe('ExpressionCompiler', () => {
 describe('BooleanLiteralCompiler', () => {
   it('compiles booleans to i32 consts', () => {
     expect(
-      new BooleanLiteralCompiler(
-        AST.makeBooleanLiteral(true),
-        undefined
-      ).compile()
+      new BooleanLiteralCompiler(AST.makeBooleanLiteral(true)).compile()
     ).toEqual([new IR.PushConst(IR.NumberType.i32, 1)]);
     expect(
-      new BooleanLiteralCompiler(
-        AST.makeBooleanLiteral(false),
-        undefined
-      ).compile()
+      new BooleanLiteralCompiler(AST.makeBooleanLiteral(false)).compile()
     ).toEqual([new IR.PushConst(IR.NumberType.i32, 0)]);
   });
 });
 
+function funcCompiler(func: AST.FuncDecl) {
+  return new FuncDeclCompiler(func, undefined, resolveSymbols(func));
+}
+
 describe('FuncDeclCompiler', () => {
   it('compiles functions', () => {
     const block = AST.makeBlock([AST.makeReturnStatement(makeNum(3))]);
-    const compiler = new FuncDeclCompiler(
+    const compiler = funcCompiler(
       makeFunc(
         'foo',
         [
@@ -77,8 +79,7 @@ describe('FuncDeclCompiler', () => {
           AST.makeParameter('b', AST.makeTypeRef('f32')),
         ],
         block
-      ),
-      undefined
+      )
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
@@ -87,7 +88,7 @@ describe('FuncDeclCompiler', () => {
           params: [IR.NumberType.i32, IR.NumberType.f32],
           results: [IR.NumberType.i32],
         }),
-        body: compiler.compileChild(block),
+        body: new BlockCompiler(block, compiler, compiler.context).compile(),
       })
     );
   });
@@ -97,7 +98,7 @@ describe('FuncDeclCompiler', () => {
       AST.makeLetStatement('foo', null, makeNum(3)),
       AST.makeLetStatement('bar', null, makeNum(5)),
     ]);
-    const compiler = new FuncDeclCompiler(
+    const compiler = funcCompiler(
       makeFunc(
         'someFunc',
         [
@@ -105,8 +106,7 @@ describe('FuncDeclCompiler', () => {
           AST.makeParameter('b', AST.makeTypeRef('f32')),
         ],
         block
-      ),
-      undefined
+      )
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
@@ -139,7 +139,7 @@ describe('FuncDeclCompiler', () => {
       ]),
       AST.makeLetStatement('var5', null, makeNum(5)),
     ]);
-    const compiler = new FuncDeclCompiler(
+    const compiler = funcCompiler(
       makeFunc(
         'foo',
         [
@@ -147,8 +147,7 @@ describe('FuncDeclCompiler', () => {
           AST.makeParameter('b', AST.makeTypeRef('f32')),
         ],
         block
-      ),
-      undefined
+      )
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
@@ -181,6 +180,10 @@ describe('FuncDeclCompiler', () => {
   });
 });
 
+function stubContext() {
+  return { refMap: new OrderedMap() as SymbolRefMap };
+}
+
 describe('IfStatementCompiler', () => {
   it('compiles if statements', () => {
     const ifStatement = AST.makeIfStatement(
@@ -188,7 +191,11 @@ describe('IfStatementCompiler', () => {
       AST.makeBlock([AST.makeExprStatement(makeNum(2))]),
       AST.makeBlock([AST.makeExprStatement(makeNum(4))])
     );
-    const compiler = new IfStatementCompiler(ifStatement, undefined);
+    const compiler = new IfStatementCompiler(
+      ifStatement,
+      undefined,
+      stubContext()
+    );
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(ifStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -205,7 +212,11 @@ describe('WhileStatementCompiler', () => {
       AST.makeBooleanLiteral(true),
       AST.makeBlock([AST.makeExprStatement(makeNum(2))])
     );
-    const compiler = new WhileStatementCompiler(whileStatement, undefined);
+    const compiler = new WhileStatementCompiler(
+      whileStatement,
+      undefined,
+      stubContext()
+    );
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(whileStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -257,9 +268,8 @@ describe('ModuleCompiler', () => {
 
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
-    const compiler = new ModuleCompiler(
-      AST.makeFile([makeFunc('main', [], [num])], [])
-    );
+    const file = AST.makeFile([makeFunc('main', [], [num])], []);
+    const compiler = new ModuleCompiler(file);
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
@@ -270,7 +280,9 @@ describe('ModuleCompiler', () => {
             }),
             exportName: '_start',
             id: 'main',
-            body: [...compiler.compileChild(num)],
+            body: IRCompiler.forNode(num, compiler, {
+              refMap: compiler.refMap!,
+            }).compile(),
           }),
         ],
       })
@@ -314,13 +326,14 @@ describe('ModuleCompiler', () => {
       [AST.makeParameter('a', AST.makeTypeRef('i32'))],
       [AST.makeReturnStatement(AST.makeSymbolRef('a'))]
     );
-    const compiler = new ModuleCompiler(
-      AST.makeFile([funcDecl, makeFunc('main')], [])
-    );
+    const file = AST.makeFile([funcDecl, makeFunc('main')], []);
+    const compiler = new ModuleCompiler(file);
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
-          new FuncDeclCompiler(funcDecl, compiler).compile(),
+          new FuncDeclCompiler(funcDecl, compiler, {
+            refMap: compiler.refMap!,
+          }).compile(),
           new Wasm.Func({
             funcType: new Wasm.FuncTypeUse({
               params: [],

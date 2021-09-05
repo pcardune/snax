@@ -11,7 +11,7 @@ import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
 import { BinaryOp, UnaryOp } from './snax-ast';
 import { children } from './spec-util';
-import { resolveType } from './type-resolution';
+import { ResolvedTypeMap, resolveType } from './type-resolution';
 import {
   resolveSymbols,
   SymbolRecord,
@@ -99,10 +99,11 @@ export abstract class ASTCompiler<
 }
 export type NodeData = {
   location?: SymbolLocation;
-  resolvedType?: BaseType;
 };
 export type NodeDataMap = DefaultMap<AST.ASTNode, NodeData>;
+
 type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
+
 export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   Root,
   IR.Instruction[],
@@ -176,7 +177,7 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   }
 
   resolveType(node: AST.ASTNode) {
-    return resolveType(node, this.getNodeDataMap(), this.context.refMap);
+    return resolveType(node, this.context.typeCache, this.context.refMap);
   }
 }
 
@@ -240,6 +241,7 @@ export type ModuleCompilerOptions = {
 export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   options: Required<ModuleCompilerOptions>;
   refMap?: SymbolRefMap;
+  typeCache?: ResolvedTypeMap;
 
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined, undefined);
@@ -315,8 +317,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       };
     }
 
+    const typeCache: ResolvedTypeMap = new OrderedMap();
+    this.typeCache = typeCache;
+
     const funcs: Wasm.Func[] = this.root.fields.funcs.map((func) => {
-      const wasmFunc = new FuncDeclCompiler(func, this, { refMap }).compile();
+      const wasmFunc = new FuncDeclCompiler(func, this, {
+        refMap,
+        typeCache,
+      }).compile();
       if (func.fields.symbol === 'main') {
         wasmFunc.fields.exportName = '_start';
       }
@@ -327,15 +335,12 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       return new Wasm.Global({
         id: `g${i}`,
         globalType: new Wasm.GlobalType({
-          valtype: resolveType(
-            global,
-            this.getNodeDataMap(),
-            refMap
-          ).toValueType(),
+          valtype: resolveType(global, typeCache, refMap).toValueType(),
           mut: true,
         }),
         expr: IRCompiler.forNode(global.fields.expr, this, {
           refMap,
+          typeCache,
         }).compile(),
       });
     });
@@ -395,7 +400,7 @@ export class FuncDeclCompiler extends ASTCompiler<
   compile(): Wasm.Func {
     const funcType = resolveType(
       this.root,
-      this.getNodeDataMap(),
+      this.context.typeCache,
       this.context.refMap
     );
     if (!(funcType instanceof FuncType)) {
@@ -481,7 +486,10 @@ export class WhileStatementCompiler extends IRCompiler<AST.WhileStatement> {
   }
 }
 
-type RefMapContext = { refMap: SymbolRefMap };
+type RefMapContext = {
+  refMap: SymbolRefMap;
+  typeCache: ResolvedTypeMap;
+};
 
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
   compile(): IR.Instruction[] {
@@ -503,6 +511,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
   static forNode(root: AST.BinaryExpr) {
     return new BinaryExprCompiler(root, undefined, {
       refMap: new OrderedMap(),
+      typeCache: new OrderedMap(),
     });
   }
   private pushNumberOps(left: AST.Expression, right: AST.Expression) {

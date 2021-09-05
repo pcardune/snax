@@ -1,4 +1,4 @@
-import { NodeDataMap } from './ast-compiler';
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { getTypeForBinaryOp, NumberLiteralType, UnaryOp } from './snax-ast';
 import {
   ArrayType,
@@ -8,35 +8,11 @@ import {
   PointerType,
   UnionType,
 } from './snax-types';
-import {
-  ASTNode,
-  BooleanLiteral,
-  isReturnStatement,
-  NumberLiteral,
-} from './spec-gen';
+import { ASTNode, isReturnStatement } from './spec-gen';
 import { depthFirstIter } from './spec-util';
 import { SymbolRefMap } from './symbol-resolution';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
-
-const resolvers = {
-  BooleanLiteral: (f: Fields<BooleanLiteral>) => Intrinsics.bool,
-  NumberLiteral: ({
-    explicitType,
-    numberType,
-  }: Fields<NumberLiteral>): BaseType => {
-    if (explicitType) {
-      return Intrinsics[explicitType];
-    }
-    switch (numberType) {
-      case NumberLiteralType.Float:
-        return Intrinsics.f32;
-      case NumberLiteralType.Integer:
-        return Intrinsics.i32;
-    }
-    throw new Error('panic.');
-  },
-};
 
 class TypeResolutionError extends Error {
   node: ASTNode;
@@ -45,28 +21,41 @@ class TypeResolutionError extends Error {
     this.node = node;
   }
 }
+export type ResolvedTypeMap = OrderedMap<ASTNode, BaseType>;
+
 export function resolveType(
   node: ASTNode,
-  nodeDataMap: NodeDataMap,
+  typeMap: ResolvedTypeMap,
   refMap: SymbolRefMap
 ): BaseType {
-  let resolvedType = nodeDataMap.get(node).resolvedType;
+  let resolvedType = typeMap.get(node);
   if (!resolvedType) {
-    resolvedType = calculateType(node, nodeDataMap, refMap);
-    nodeDataMap.get(node).resolvedType = resolvedType;
+    resolvedType = calculateType(node, typeMap, refMap);
+    typeMap.set(node, resolvedType);
   }
   return resolvedType;
 }
 function calculateType(
   node: ASTNode,
-  nodeDataMap: NodeDataMap,
+  typeMap: ResolvedTypeMap,
   refMap: SymbolRefMap
 ): BaseType {
   switch (node.name) {
     case 'BooleanLiteral':
-      return resolvers[node.name](node.fields);
-    case 'NumberLiteral':
-      return resolvers[node.name](node.fields);
+      return Intrinsics.bool;
+    case 'NumberLiteral': {
+      const { explicitType, numberType } = node.fields;
+      if (explicitType) {
+        return Intrinsics[explicitType];
+      }
+      switch (numberType) {
+        case NumberLiteralType.Float:
+          return Intrinsics.f32;
+        case NumberLiteralType.Integer:
+          return Intrinsics.i32;
+      }
+      throw new Error('panic.');
+    }
     case 'StringLiteral':
       return new ArrayType(Intrinsics.u8, node.fields.value.length);
     case 'SymbolRef': {
@@ -77,7 +66,7 @@ function calculateType(
           `Can't resolve type for undeclard symbol ${node.fields.symbol}`
         );
       }
-      const resolvedType = resolveType(record.declNode, nodeDataMap, refMap);
+      const resolvedType = resolveType(record.declNode, typeMap, refMap);
       if (!resolvedType) {
         throw new TypeResolutionError(
           node,
@@ -106,27 +95,23 @@ function calculateType(
       );
     case 'PointerTypeExpr':
       return new PointerType(
-        resolveType(node.fields.pointerToExpr, nodeDataMap, refMap)
+        resolveType(node.fields.pointerToExpr, typeMap, refMap)
       );
     case 'ExprStatement':
       return Intrinsics.Void;
     case 'GlobalDecl':
     case 'LetStatement': {
       if (node.fields.typeExpr) {
-        let explicitType = resolveType(
-          node.fields.typeExpr,
-          nodeDataMap,
-          refMap
-        );
+        let explicitType = resolveType(node.fields.typeExpr, typeMap, refMap);
         if (explicitType !== Intrinsics.unknown) {
           return explicitType;
         }
       }
-      return resolveType(node.fields.expr, nodeDataMap, refMap);
+      return resolveType(node.fields.expr, typeMap, refMap);
     }
     case 'IfStatement': {
-      const thenType = resolveType(node.fields.thenBlock, nodeDataMap, refMap);
-      const elseType = resolveType(node.fields.elseBlock, nodeDataMap, refMap);
+      const thenType = resolveType(node.fields.thenBlock, typeMap, refMap);
+      const elseType = resolveType(node.fields.elseBlock, typeMap, refMap);
       if (thenType === elseType) {
         return thenType;
       }
@@ -139,11 +124,11 @@ function calculateType(
     case 'BinaryExpr':
       return getTypeForBinaryOp(
         node.fields.op,
-        resolveType(node.fields.left, nodeDataMap, refMap),
-        resolveType(node.fields.right, nodeDataMap, refMap)
+        resolveType(node.fields.left, typeMap, refMap),
+        resolveType(node.fields.right, typeMap, refMap)
       );
     case 'CallExpr': {
-      const leftType = resolveType(node.fields.left, nodeDataMap, refMap);
+      const leftType = resolveType(node.fields.left, typeMap, refMap);
       if (leftType instanceof FuncType) {
         return leftType.returnType;
       } else {
@@ -156,7 +141,7 @@ function calculateType(
     case 'UnaryExpr': {
       switch (node.fields.op) {
         case UnaryOp.DEREF:
-          const exprType = resolveType(node.fields.expr, nodeDataMap, refMap);
+          const exprType = resolveType(node.fields.expr, typeMap, refMap);
           if (exprType instanceof PointerType) {
             return exprType.toType;
           }
@@ -175,8 +160,8 @@ function calculateType(
       let type = Intrinsics.void;
       for (const [i, element] of node.fields.elements.entries()) {
         if (i == 0) {
-          type = resolveType(element, nodeDataMap, refMap);
-        } else if (resolveType(element, nodeDataMap, refMap) !== type) {
+          type = resolveType(element, typeMap, refMap);
+        } else if (resolveType(element, typeMap, refMap) !== type) {
           throw new TypeResolutionError(
             node,
             "Can't have an array with mixed types."
@@ -187,12 +172,12 @@ function calculateType(
     }
     case 'FuncDecl': {
       let paramTypes = node.fields.parameters.fields.parameters.map((p) =>
-        resolveType(p, nodeDataMap, refMap)
+        resolveType(p, typeMap, refMap)
       );
       let returnType: BaseType | null = null;
       for (const child of depthFirstIter(node.fields.body)) {
         if (isReturnStatement(child)) {
-          let alternativeReturnType = resolveType(child, nodeDataMap, refMap);
+          let alternativeReturnType = resolveType(child, typeMap, refMap);
           if (returnType === null) {
             returnType = alternativeReturnType;
           } else if (alternativeReturnType !== returnType) {
@@ -206,10 +191,10 @@ function calculateType(
       return new FuncType(paramTypes, returnType ?? Intrinsics.void);
     }
     case 'Parameter':
-      return resolveType(node.fields.typeExpr, nodeDataMap, refMap);
+      return resolveType(node.fields.typeExpr, typeMap, refMap);
     case 'ReturnStatement':
       return node.fields.expr
-        ? resolveType(node.fields.expr, nodeDataMap, refMap)
+        ? resolveType(node.fields.expr, typeMap, refMap)
         : Intrinsics.void;
     default:
       throw new TypeResolutionError(node, `No type resolution exists`);

@@ -15,6 +15,7 @@ import { makeFunc, makeNum } from './ast-util';
 import { BinaryOp } from '../snax-ast';
 import { resolveSymbols, SymbolRefMap } from '../symbol-resolution';
 import { OrderedMap } from '../../utils/data-structures/OrderedMap';
+import { ResolvedTypeMap } from '../type-resolution';
 
 describe('ExpressionCompiler', () => {
   const { i32, f32 } = IR.NumberType;
@@ -65,7 +66,11 @@ describe('BooleanLiteralCompiler', () => {
 });
 
 function funcCompiler(func: AST.FuncDecl) {
-  return new FuncDeclCompiler(func, undefined, resolveSymbols(func));
+  const refMap = resolveSymbols(func).refMap;
+  return new FuncDeclCompiler(func, undefined, {
+    refMap,
+    typeCache: new OrderedMap(),
+  });
 }
 
 describe('FuncDeclCompiler', () => {
@@ -181,7 +186,10 @@ describe('FuncDeclCompiler', () => {
 });
 
 function stubContext() {
-  return { refMap: new OrderedMap() as SymbolRefMap };
+  return {
+    refMap: new OrderedMap() as SymbolRefMap,
+    typeCache: new OrderedMap() as ResolvedTypeMap,
+  };
 }
 
 describe('IfStatementCompiler', () => {
@@ -282,6 +290,7 @@ describe('ModuleCompiler', () => {
             id: 'main',
             body: IRCompiler.forNode(num, compiler, {
               refMap: compiler.refMap!,
+              typeCache: compiler.typeCache!,
             }).compile(),
           }),
         ],
@@ -333,6 +342,7 @@ describe('ModuleCompiler', () => {
         funcs: [
           new FuncDeclCompiler(funcDecl, compiler, {
             refMap: compiler.refMap!,
+            typeCache: compiler.typeCache!,
           }).compile(),
           new Wasm.Func({
             funcType: new Wasm.FuncTypeUse({

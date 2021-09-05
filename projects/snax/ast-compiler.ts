@@ -5,7 +5,7 @@ import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
 import { BinaryOp, UnaryOp } from './snax-ast';
 import { children } from './spec-util';
-import { ResolvedTypeMap, resolveType } from './type-resolution';
+import { ResolvedTypeMap, resolveTypes } from './type-resolution';
 import { resolveSymbols, SymbolRefMap } from './symbol-resolution';
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 
@@ -105,7 +105,7 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   }
 
   resolveType(node: AST.ASTNode) {
-    return resolveType(node, this.context.typeCache, this.context.refMap);
+    return this.context.typeCache.get(node);
   }
 }
 
@@ -259,7 +259,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       });
     }
 
-    const typeCache: ResolvedTypeMap = new OrderedMap();
+    const typeCache = resolveTypes(this.root, refMap);
     this.typeCache = typeCache;
 
     const funcs: Wasm.Func[] = this.root.fields.funcs.map((func) => {
@@ -279,7 +279,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       return new Wasm.Global({
         id: `g${i}`,
         globalType: new Wasm.GlobalType({
-          valtype: resolveType(global, typeCache, refMap).toValueType(),
+          valtype: typeCache.get(global).toValueType(),
           mut: true,
         }),
         expr: IRCompiler.forNode(global.fields.expr, {
@@ -393,11 +393,7 @@ export class FuncDeclCompiler extends ASTCompiler<
   }
 
   compile(): Wasm.Func {
-    const funcType = resolveType(
-      this.root,
-      this.context.typeCache,
-      this.context.refMap
-    );
+    const funcType = this.context.typeCache.get(this.root);
     if (!(funcType instanceof FuncType)) {
       throw new Error('unexpected type of function');
     }

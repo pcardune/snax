@@ -73,10 +73,8 @@ export class OrderedMap<K, V> {
     return iter(this.keyList);
   }
 
-  *values() {
-    for (const [i, key] of this.keyList.entries()) {
-      yield this.get(key) as V;
-    }
+  values() {
+    return this.keys().map((key) => this.get(key) as V);
   }
 
   entries() {

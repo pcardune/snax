@@ -1,3 +1,4 @@
+import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import * as StackIR from './stack-ir';
 
 export abstract class BaseType {
@@ -120,6 +121,37 @@ export class ArrayType extends BaseType {
   }
 }
 
+export class RecordType extends BaseType {
+  fields: OrderedMap<string, BaseType>;
+
+  constructor(fields: OrderedMap<string, BaseType>) {
+    const name = fields
+      .entries()
+      .map(([i, name, type]) => `${name}: ${type.name}`)
+      .join(', ');
+    super(`{` + name + `}`);
+    this.fields = fields;
+  }
+  get numBytes() {
+    let size = 0;
+    this.fields.values().forEach((t) => {
+      size += t.numBytes;
+    });
+    return size;
+  }
+}
+
+export class TupleType extends BaseType {
+  elements: BaseType[];
+  constructor(elements: BaseType[]) {
+    super(`(${elements.map((e) => e.name).join(', ')})`);
+    this.elements = elements;
+  }
+  get numBytes() {
+    return this.elements.reduce((size, e) => size + e.numBytes, 0);
+  }
+}
+
 export class UnionType extends BaseType {
   memberTypes: BaseType[];
   constructor(memberTypes: BaseType[]) {
@@ -225,7 +257,7 @@ export class GenericFuncType extends BaseGenericType {
   }
 }
 
-export const Intrinsics: Record<string, BaseType> = {
+export const Intrinsics = {
   u8: new NumericalType('u8', 'int', 1, false),
   u16: new NumericalType('u16', 'int', 2, false),
   u32: new NumericalType('u32', 'int', 4, false),

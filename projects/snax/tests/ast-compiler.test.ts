@@ -20,14 +20,16 @@ import { makeFunc, makeNum } from './ast-util';
 import { BinaryOp } from '../snax-ast';
 import { resolveSymbols, SymbolRefMap } from '../symbol-resolution';
 import { OrderedMap } from '../../utils/data-structures/OrderedMap';
-import { ResolvedTypeMap } from '../type-resolution';
+import { ResolvedTypeMap, resolveTypes } from '../type-resolution';
 
 describe('ExpressionCompiler', () => {
   function exprCompiler(root: AST.BinaryExpr) {
     const allocationMap: AllocationMap = new OrderedMap();
+    const refMap: SymbolRefMap = new OrderedMap();
+    const typeCache = resolveTypes(root, refMap);
     return new BinaryExprCompiler(root, {
-      refMap: new OrderedMap(),
-      typeCache: new OrderedMap(),
+      refMap,
+      typeCache,
       locals: new FuncLocalAllocator(allocationMap),
       allocationMap,
       constants: new ConstantAllocator(),
@@ -82,9 +84,10 @@ describe('BooleanLiteralCompiler', () => {
 
 function funcCompiler(func: AST.FuncDecl) {
   const refMap = resolveSymbols(func).refMap;
+  const typeCache = resolveTypes(func, refMap);
   return new FuncDeclCompiler(func, {
     refMap,
-    typeCache: new OrderedMap(),
+    typeCache,
     allocationMap: new OrderedMap(),
     constants: new ConstantAllocator(),
   });
@@ -205,10 +208,14 @@ describe('FuncDeclCompiler', () => {
   });
 });
 
-function stubContext() {
+function stubContext(root?: AST.ASTNode) {
+  const refMap: SymbolRefMap = root
+    ? resolveSymbols(root).refMap
+    : new OrderedMap();
+  const typeCache = root ? resolveTypes(root, refMap) : new ResolvedTypeMap();
   return {
-    refMap: new OrderedMap() as SymbolRefMap,
-    typeCache: new OrderedMap() as ResolvedTypeMap,
+    refMap,
+    typeCache,
     locals: new NeverAllocator(),
     allocationMap: new OrderedMap(),
     constants: new ConstantAllocator(),
@@ -222,7 +229,10 @@ describe('IfStatementCompiler', () => {
       AST.makeBlock([AST.makeExprStatement(makeNum(2))]),
       AST.makeBlock([AST.makeExprStatement(makeNum(4))])
     );
-    const compiler = new IfStatementCompiler(ifStatement, stubContext());
+    const compiler = new IfStatementCompiler(
+      ifStatement,
+      stubContext(ifStatement)
+    );
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(ifStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -239,7 +249,10 @@ describe('WhileStatementCompiler', () => {
       AST.makeBooleanLiteral(true),
       AST.makeBlock([AST.makeExprStatement(makeNum(2))])
     );
-    const compiler = new WhileStatementCompiler(whileStatement, stubContext());
+    const compiler = new WhileStatementCompiler(
+      whileStatement,
+      stubContext(whileStatement)
+    );
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(whileStatement.fields.condExpr),
       new Wasm.IfBlock({

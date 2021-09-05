@@ -10,6 +10,11 @@ import {
   WhileStatementCompiler,
   BlockCompiler,
   IRCompiler,
+  IRCompilerContext,
+  FuncLocalAllocator,
+  AllocationMap,
+  ConstantAllocator,
+  NeverAllocator,
 } from '../ast-compiler';
 import { makeFunc, makeNum } from './ast-util';
 import { BinaryOp } from '../snax-ast';
@@ -18,12 +23,22 @@ import { OrderedMap } from '../../utils/data-structures/OrderedMap';
 import { ResolvedTypeMap } from '../type-resolution';
 
 describe('ExpressionCompiler', () => {
+  function exprCompiler(root: AST.BinaryExpr) {
+    const allocationMap: AllocationMap = new OrderedMap();
+    return new BinaryExprCompiler(root, {
+      refMap: new OrderedMap(),
+      typeCache: new OrderedMap(),
+      locals: new FuncLocalAllocator(allocationMap),
+      allocationMap,
+      constants: new ConstantAllocator(),
+    });
+  }
   const { i32, f32 } = IR.NumberType;
   test('compile() combines the stack IRS of the sub expressions', () => {
     const twenty = makeNum(20);
     const thirty = makeNum(30);
     const expr = AST.makeBinaryExpr(BinaryOp.ADD, twenty, thirty);
-    const compiler = BinaryExprCompiler.forNode(expr);
+    const compiler = exprCompiler(expr);
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(twenty),
       ...compiler.compileChild(thirty),
@@ -33,7 +48,7 @@ describe('ExpressionCompiler', () => {
   it('casts integers to floats', () => {
     const ten = makeNum(10);
     const twelvePointThree = makeNum(12.3, 'float');
-    let compiler = BinaryExprCompiler.forNode(
+    let compiler = exprCompiler(
       AST.makeBinaryExpr(BinaryOp.ADD, ten, twelvePointThree)
     );
     expect(compiler.compile()).toEqual([
@@ -42,7 +57,7 @@ describe('ExpressionCompiler', () => {
       ...compiler.compileChild(twelvePointThree),
       new IR.Add(f32),
     ]);
-    compiler = BinaryExprCompiler.forNode(
+    compiler = exprCompiler(
       AST.makeBinaryExpr(BinaryOp.ADD, twelvePointThree, ten)
     );
     expect(compiler.compile()).toEqual([
@@ -67,9 +82,11 @@ describe('BooleanLiteralCompiler', () => {
 
 function funcCompiler(func: AST.FuncDecl) {
   const refMap = resolveSymbols(func).refMap;
-  return new FuncDeclCompiler(func, undefined, {
+  return new FuncDeclCompiler(func, {
     refMap,
     typeCache: new OrderedMap(),
+    allocationMap: new OrderedMap(),
+    constants: new ConstantAllocator(),
   });
 }
 
@@ -93,7 +110,10 @@ describe('FuncDeclCompiler', () => {
           params: [IR.NumberType.i32, IR.NumberType.f32],
           results: [IR.NumberType.i32],
         }),
-        body: new BlockCompiler(block, compiler, compiler.context).compile(),
+        body: new BlockCompiler(block, {
+          ...compiler.context,
+          locals: compiler.localAllocator,
+        }).compile(),
       })
     );
   });
@@ -189,7 +209,10 @@ function stubContext() {
   return {
     refMap: new OrderedMap() as SymbolRefMap,
     typeCache: new OrderedMap() as ResolvedTypeMap,
-  };
+    locals: new NeverAllocator(),
+    allocationMap: new OrderedMap(),
+    constants: new ConstantAllocator(),
+  } as IRCompilerContext;
 }
 
 describe('IfStatementCompiler', () => {
@@ -199,11 +222,7 @@ describe('IfStatementCompiler', () => {
       AST.makeBlock([AST.makeExprStatement(makeNum(2))]),
       AST.makeBlock([AST.makeExprStatement(makeNum(4))])
     );
-    const compiler = new IfStatementCompiler(
-      ifStatement,
-      undefined,
-      stubContext()
-    );
+    const compiler = new IfStatementCompiler(ifStatement, stubContext());
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(ifStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -220,11 +239,7 @@ describe('WhileStatementCompiler', () => {
       AST.makeBooleanLiteral(true),
       AST.makeBlock([AST.makeExprStatement(makeNum(2))])
     );
-    const compiler = new WhileStatementCompiler(
-      whileStatement,
-      undefined,
-      stubContext()
-    );
+    const compiler = new WhileStatementCompiler(whileStatement, stubContext());
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(whileStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -288,9 +303,12 @@ describe('ModuleCompiler', () => {
             }),
             exportName: '_start',
             id: 'main',
-            body: IRCompiler.forNode(num, compiler, {
+            body: IRCompiler.forNode(num, {
               refMap: compiler.refMap!,
               typeCache: compiler.typeCache!,
+              locals: stubContext().locals,
+              allocationMap: compiler.allocationMap,
+              constants: compiler.staticAllocator,
             }).compile(),
           }),
         ],
@@ -340,9 +358,11 @@ describe('ModuleCompiler', () => {
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
-          new FuncDeclCompiler(funcDecl, compiler, {
+          new FuncDeclCompiler(funcDecl, {
             refMap: compiler.refMap!,
             typeCache: compiler.typeCache!,
+            allocationMap: compiler.allocationMap,
+            constants: compiler.staticAllocator,
           }).compile(),
           new Wasm.Func({
             funcType: new Wasm.FuncTypeUse({

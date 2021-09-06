@@ -432,7 +432,7 @@ export function makeCallExprWith(fields: {
   };
 }
 
-type CastExprFields = { left: Expression; right: TypeExpr };
+type CastExprFields = { expr: Expression; typeExpr: TypeExpr };
 
 export type CastExpr = {
   name: 'CastExpr';
@@ -443,19 +443,19 @@ export function isCastExpr(node: ASTNode): node is CastExpr {
   return node.name === 'CastExpr';
 }
 
-export function makeCastExpr(left: Expression, right: TypeExpr): CastExpr {
+export function makeCastExpr(expr: Expression, typeExpr: TypeExpr): CastExpr {
   return {
     name: 'CastExpr',
     fields: {
-      left,
-      right,
+      expr,
+      typeExpr,
     },
   };
 }
 
 export function makeCastExprWith(fields: {
-  left: Expression;
-  right: TypeExpr;
+  expr: Expression;
+  typeExpr: TypeExpr;
 }): CastExpr {
   return {
     name: 'CastExpr',
@@ -809,6 +809,7 @@ export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
 export type Expression =
   | BinaryExpr
   | UnaryExpr
+  | CastExpr
   | LiteralExpr
   | CallExpr
   | CastExpr
@@ -817,6 +818,7 @@ export function isExpression(node: ASTNode): node is Expression {
   return (
     isBinaryExpr(node) ||
     isUnaryExpr(node) ||
+    isCastExpr(node) ||
     isLiteralExpr(node) ||
     isCallExpr(node) ||
     isCastExpr(node) ||

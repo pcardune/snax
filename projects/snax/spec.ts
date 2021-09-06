@@ -86,8 +86,8 @@ export const nodes: Record<string, NodeSpec> = {
   },
   CastExpr: {
     fields: {
-      left: 'Expression',
-      right: 'TypeExpr',
+      expr: 'Expression',
+      typeExpr: 'TypeExpr',
     },
   },
   UnaryExpr: {
@@ -164,6 +164,7 @@ export const nodes: Record<string, NodeSpec> = {
     union: [
       'BinaryExpr',
       'UnaryExpr',
+      'CastExpr',
       'LiteralExpr',
       'CallExpr',
       'CastExpr',

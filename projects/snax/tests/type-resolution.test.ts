@@ -11,12 +11,22 @@ import {
 import * as AST from '../spec-gen';
 import { resolveTypes } from '../type-resolution';
 import { resolveSymbols } from '../symbol-resolution';
+import { makeNum } from './ast-util';
 
 describe('ParameterList', () => {
   it('types an empty parameter list as a tuple type', () => {
     const params = makeParameterList([]);
     const typeMap = resolveTypes(params, new OrderedMap());
     expect(typeMap.get(params)).toEqual(new TupleType([]));
+  });
+});
+
+describe('CastExpr', () => {
+  it('types a cast expr as the type being casted to', () => {
+    const typeRef = AST.makeTypeRef('f64');
+    let cast = AST.makeCastExpr(makeNum(1), typeRef);
+    const typeCache = resolveTypes(cast, new OrderedMap());
+    expect(typeCache.get(cast)).toEqual(typeCache.get(typeRef));
   });
 });
 

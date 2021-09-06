@@ -19,7 +19,7 @@ export function isFloatType(t: NumberType): t is FloatType {
   return t === NumberType.f32 || t === NumberType.f64;
 }
 
-enum Sign {
+export enum Sign {
   Signed = 's',
   Unsigned = 'u',
 }
@@ -41,22 +41,50 @@ export class PushConst extends Instruction {
   }
 }
 
-export class Convert extends Instruction {
-  sourceType: NumberType;
-  destType: NumberType;
-  sign: Sign;
-  constructor(
-    sourceType: IntegerType,
-    destType: NumberType.f32 | NumberType.f64,
-    sign: Sign = Sign.Signed
-  ) {
+abstract class BaseConversion<
+  Source extends NumberType,
+  Dest extends NumberType
+> extends Instruction {
+  sourceType: Source;
+  destType: Dest;
+  abstract get name(): string;
+
+  constructor(sourceType: Source, destType: Dest) {
     super();
     this.sourceType = sourceType;
     this.destType = destType;
+  }
+  toWAT(): string {
+    return `${this.destType}.${this.name}_${this.sourceType}`;
+  }
+}
+
+export class Convert extends BaseConversion<IntegerType, FloatType> {
+  sign: Sign;
+  name = 'convert';
+  constructor(
+    sourceType: IntegerType,
+    destType: FloatType,
+    sign: Sign = Sign.Signed
+  ) {
+    super(sourceType, destType);
     this.sign = sign;
   }
   toWAT(): string {
-    return `${this.destType}.convert_${this.sourceType}_${this.sign}`;
+    return `${super.toWAT()}_${this.sign}`;
+  }
+}
+
+export class Promote extends BaseConversion<NumberType.f32, NumberType.f64> {
+  name = 'promote';
+  constructor() {
+    super(NumberType.f32, NumberType.f64);
+  }
+}
+
+export class Nop extends Instruction {
+  toWAT() {
+    return 'nop';
   }
 }
 

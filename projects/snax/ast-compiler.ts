@@ -30,7 +30,7 @@ export abstract class ASTCompiler<
   abstract compile(): Output;
 }
 
-type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
+export type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
 
 type AllocationMapContext = {
   allocationMap: AllocationMap;
@@ -48,8 +48,10 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   static forNode(
     node: CompilesToIR,
     context: IRCompilerContext
-  ): ASTCompiler<AST.ASTNode, IR.Instruction[]> {
+  ): IRCompiler<AST.ASTNode> {
     switch (node.name) {
+      case 'CastExpr':
+        return new CastExprCompiler(node, context);
       case 'BinaryExpr':
         return new BinaryExprCompiler(node, context);
       case 'CallExpr':
@@ -67,7 +69,7 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       case 'SymbolRef':
         return new SymbolRefCompiler(node, context);
       case 'BooleanLiteral':
-        return new BooleanLiteralCompiler(node);
+        return new BooleanLiteralCompiler(node, context);
       case 'ArrayLiteral':
         return new ArrayLiteralCompiler(node, context);
       case 'StringLiteral':
@@ -80,11 +82,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         return new ReturnStatementCompiler(node, context);
       case 'UnaryExpr':
         return new UnaryExprCompiler(node, context);
-      default:
-        throw new Error(
-          `ASTCompiler: No compiler available for node ${node.toString()}`
-        );
     }
+    throw new Error(`ASTCompiler: No compiler available for node ${node}`);
   }
   compileChild<N extends AST.Expression | AST.Statement>(child: N) {
     return IRCompiler.forNode(child, this.context).compile();
@@ -156,24 +155,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   }
 
   compile(): Wasm.Module {
-    // let imports: Wasm.Import[] = [];
-    // if (this.options.includeWASI) {
-    //   const { i32 } = IR.NumberType;
-    //   imports.push(
-    //     new Wasm.Import({
-    //       mod: 'wasi_unstable',
-    //       nm: 'fd_write',
-    //       importdesc: {
-    //         kind: 'func',
-    //         id: 'fd_write',
-    //         typeuse: {
-    //           params: [i32, i32, i32, i32],
-    //           results: [i32],
-    //         },
-    //       },
-    //     })
-    //   );
-    // }
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
         global next = 0;
@@ -602,6 +583,57 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
   }
 }
 
+class CastExprCompiler extends IRCompiler<AST.CastExpr> {
+  compile() {
+    const sourceType = this.context.typeCache.get(this.root.fields.expr);
+    const destType = this.context.typeCache.get(this.root.fields.typeExpr);
+    if (!(destType instanceof NumericalType)) {
+      throw new Error(`Don't know how to cast to ${destType.name} yet`);
+    }
+    if (!(sourceType instanceof NumericalType)) {
+      throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
+    }
+
+    const instr = this.compileChild(this.root.fields.expr);
+    const destValueType = destType.toValueType();
+    const sourceValueType = sourceType.toValueType();
+
+    if (IR.isFloatType(destValueType)) {
+      // conversion to floats
+      if (IR.isIntType(sourceValueType)) {
+        instr.push(
+          new IR.Convert(
+            sourceValueType,
+            destValueType,
+            sourceType.signed ? IR.Sign.Signed : IR.Sign.Unsigned
+          )
+        );
+      } else if (destValueType !== sourceValueType) {
+        if (destValueType === 'f64' && sourceValueType === 'f32') {
+          instr.push(new IR.Promote());
+        } else {
+          throw new Error(`I don't implicitly demote floats`);
+        }
+      } else {
+        instr.push(new IR.Nop());
+      }
+    } else {
+      // conversion to integers
+      if (IR.isFloatType(sourceValueType)) {
+        throw new Error(`I don't implicitly truncate floats`);
+      } else if (sourceType.numBytes > destType.numBytes) {
+        throw new Error(`I don't implicitly wrap to smaller sizes`);
+      } else if (sourceType.signed && !destType.signed) {
+        throw new Error(`I don't implicitly drop signs`);
+      } else {
+        instr.push(new IR.Nop());
+      }
+    }
+
+    return instr;
+  }
+}
+
 class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
   compile() {
     switch (this.root.fields.op) {
@@ -644,17 +676,7 @@ class NumberLiteralCompiler extends IRCompiler<AST.NumberLiteral> {
   }
 }
 
-abstract class LeafCompiler<Root extends AST.ASTNode> extends ASTCompiler<
-  Root,
-  IR.Instruction[],
-  undefined
-> {
-  constructor(root: Root) {
-    super(root, undefined);
-  }
-}
-
-export class BooleanLiteralCompiler extends LeafCompiler<AST.BooleanLiteral> {
+export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
   compile(): IR.Instruction[] {
     const value = this.root.fields.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];

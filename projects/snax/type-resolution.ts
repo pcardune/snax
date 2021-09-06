@@ -115,6 +115,7 @@ function calculateType(
         case 'i32':
         case 'i64':
         case 'f32':
+        case 'f64':
         case 'unknown':
           return Intrinsics[node.fields.symbol];
       }
@@ -126,6 +127,8 @@ function calculateType(
       return new PointerType(
         resolveType(node.fields.pointerToExpr, typeMap, refMap)
       );
+    case 'CastExpr':
+      return resolveType(node.fields.typeExpr, typeMap, refMap);
     case 'ExprStatement':
       return Intrinsics.void;
     case 'GlobalDecl':
@@ -259,10 +262,6 @@ function calculateType(
           ),
         ])
       );
-    default:
-      throw new TypeResolutionError(
-        node,
-        `No type resolution exists for ${node.name}`
-      );
   }
+  throw new TypeResolutionError(node, `No type resolution exists for ${node}`);
 }

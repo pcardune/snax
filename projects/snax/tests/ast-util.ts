@@ -4,7 +4,7 @@ export function makeNum(
   value: number,
   interpretation: 'int' | 'float' = 'int'
 ) {
-  return spec.makeNumberLiteral(value, interpretation, null);
+  return spec.makeNumberLiteral(value, interpretation, undefined);
 }
 
 export function makeFunc(
@@ -15,7 +15,7 @@ export function makeFunc(
   return spec.makeFuncDecl(
     name,
     spec.makeParameterList(params ?? []),
-    null,
+    undefined,
     body instanceof Array ? spec.makeBlock(body) : body
   );
 }

@@ -23,14 +23,17 @@ file "file"
   = ws statements:fileStatementList? ws {
     let funcs: spec.FuncDecl[] = [];
     let globals: spec.GlobalDecl[] = [];
+    let decls = [];
     let mainFuncBody = [];
     for (const statement of statements??[]) {
       if (spec.isFuncDecl(statement)) {
         funcs.push(statement);
       } else if (spec.isGlobalDecl(statement)) {
         globals.push(statement);
-      } else {
+      } else if (spec.isStatement(statement)) {
         mainFuncBody.push(statement);
+      } else {
+        decls.push(statement);
       }
     }
     if (mainFuncBody.length > 0) {
@@ -42,11 +45,12 @@ file "file"
       }
     }
     funcs.push(
-      spec.makeFuncDecl('main', spec.makeParameterList([]), null, spec.makeBlock(mainFuncBody)))
-    return spec.makeFile(
+      spec.makeFuncDecl('main', spec.makeParameterList([]), undefined, spec.makeBlock(mainFuncBody)))
+    return spec.makeFileWith({
       funcs,
       globals,
-    );
+      decls,
+    });
   }
 
 fileStatementList "file statements"
@@ -59,6 +63,7 @@ fileStatement "file statement"
     return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
   }
   / funcDecl
+  / externDecl
   / statement
 
 block "block"
@@ -85,7 +90,7 @@ statement "statement"
 
 varDecl "varDecl"
   = name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr {
-    return {name, type:type ? type[2] : null, expr};
+    return {name, type:type ? type[2] : undefined, expr};
   }
 
 whileStatement "while statement"
@@ -108,14 +113,33 @@ ifStatement "if statement"
     );
   }
 
-funcDecl = "func" ws name:identifier ws "(" ws parameters:parameterList? ws ")" ws "{" ws body:block? ws "}" {
+externDecl = "extern" ws name:identifier ws "{" ws decls:externDeclList ws "}" {
+  return spec.makeExternDeclWith({
+    libName: name,
+    funcs: decls.map(begin => {
+      return spec.makeFuncDecl(
+        begin.name,
+        begin.parameters,
+        begin.returnType,
+        spec.makeBlock([]),
+      );
+    })
+  });
+}
+externDeclList = head:funcDeclBegin ws ";" tail:(ws funcDeclBegin ws ";")* {
+  return [head, ...tail.map((p:any[])=> p[1])];
+}
+funcDecl = begin:funcDeclBegin ws "{" ws body:block? ws "}" {
     return spec.makeFuncDecl(
-      name,
-      parameters || spec.makeParameterList([]),
-      null,
+      begin.name,
+      begin.parameters,
+      begin.returnType,
       body || spec.makeBlock([]),
     );
   }
+funcDeclBegin = "func" ws name:identifier ws "(" ws parameters:parameterList? ws ")" {
+  return {name, parameters: parameters || spec.makeParameterList([]), returnType: undefined};
+}
 parameterList "parameterList"
   = head:parameter tail:(ws "," ws parameter)* {
     return spec.makeParameterList([head, ...tail.map((p:any[]) => p[3])])
@@ -244,7 +268,7 @@ integer "integer"
     return spec.makeNumberLiteral(
       parseInt(digits.join('')),
       AST.NumberLiteralType.Integer,
-      type? type.slice(1).join('') : null
+      type? type.slice(1).join('') : undefined
     );
   }
 
@@ -253,7 +277,7 @@ float "float"
     return spec.makeNumberLiteral(
       parseFloat(leftDigits.join('') + '.' + rightDigits.join('')),
       AST.NumberLiteralType.Float,
-      null
+      undefined
     )
   }
 

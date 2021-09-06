@@ -123,8 +123,8 @@ describe('FuncDeclCompiler', () => {
 
   it('allocates locals with offsets that come after parameters', () => {
     const block = AST.makeBlock([
-      AST.makeLetStatement('foo', null, makeNum(3)),
-      AST.makeLetStatement('bar', null, makeNum(5)),
+      AST.makeLetStatement('foo', undefined, makeNum(3)),
+      AST.makeLetStatement('bar', undefined, makeNum(5)),
     ]);
     const compiler = funcCompiler(
       makeFunc(
@@ -159,13 +159,13 @@ describe('FuncDeclCompiler', () => {
 
   it('reuses locals when it is safe', () => {
     const block = AST.makeBlock([
-      AST.makeLetStatement('var1', null, makeNum(1)),
-      AST.makeLetStatement('var2', null, makeNum(2)),
+      AST.makeLetStatement('var1', undefined, makeNum(1)),
+      AST.makeLetStatement('var2', undefined, makeNum(2)),
       AST.makeBlock([
-        AST.makeLetStatement('var3', null, makeNum(3)),
-        AST.makeLetStatement('var4', null, makeNum(4)),
+        AST.makeLetStatement('var3', undefined, makeNum(3)),
+        AST.makeLetStatement('var4', undefined, makeNum(4)),
       ]),
-      AST.makeLetStatement('var5', null, makeNum(5)),
+      AST.makeLetStatement('var5', undefined, makeNum(5)),
     ]);
     const compiler = funcCompiler(
       makeFunc(
@@ -274,7 +274,7 @@ describe('WhileStatementCompiler', () => {
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', () => {
-    expect(new ModuleCompiler(AST.makeFile([], [])).compile()).toEqual(
+    expect(new ModuleCompiler(AST.makeFile([], [], [])).compile()).toEqual(
       new Wasm.Module({
         funcs: [],
         globals: [],
@@ -284,7 +284,7 @@ describe('ModuleCompiler', () => {
   it('compiles globals in the module', () => {
     expect(
       new ModuleCompiler(
-        AST.makeFile([], [AST.makeGlobalDecl('foo', null, makeNum(0))])
+        AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], [])
       ).compile()
     ).toEqual(
       new Wasm.Module({
@@ -304,7 +304,7 @@ describe('ModuleCompiler', () => {
 
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
-    const file = AST.makeFile([makeFunc('main', [], [num])], []);
+    const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
     const compiler = new ModuleCompiler(file);
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
@@ -337,6 +337,7 @@ describe('ModuleCompiler', () => {
             [AST.makeExprStatement(AST.makeStringLiteral('hello world!'))]
           ),
         ],
+        [],
         []
       )
     );
@@ -364,7 +365,11 @@ describe('ModuleCompiler', () => {
       [AST.makeParameter('a', AST.makeTypeRef('i32'))],
       [AST.makeReturnStatement(AST.makeSymbolRef('a'))]
     );
-    const file = AST.makeFile([funcDecl, makeFunc('main')], []);
+    const file = AST.makeFileWith({
+      funcs: [funcDecl, makeFunc('main')],
+      globals: [],
+      decls: [],
+    });
     const compiler = new ModuleCompiler(file);
     expect(compiler.compile()).toEqual(
       new Wasm.Module({

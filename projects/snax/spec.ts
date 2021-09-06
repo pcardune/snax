@@ -139,6 +139,13 @@ export const nodes: Record<string, NodeSpec> = {
     fields: {
       funcs: 'FuncDecl[]',
       globals: 'GlobalDecl[]',
+      decls: 'ExternDecl[]',
+    },
+  },
+  ExternDecl: {
+    fields: {
+      libName: 'string',
+      funcs: 'FuncDecl[]',
     },
   },
   TypeExpr: {
@@ -187,14 +194,18 @@ function write() {
   const emitNode = (name: string, fields: Record<string, FieldSpec>) => {
     emitLn();
 
+    const argTypeSpec = (fieldName: string, spec: FieldSpec) =>
+      `${fieldName}: ${spec.type}${spec.optional ? '|undefined' : ''}`;
     const typeSpec = (fieldName: string, spec: FieldSpec) =>
-      `${fieldName}: ${spec.type}${spec.optional ? '|null' : ''}`;
+      `${fieldName}${spec.optional ? '?' : ''}: ${spec.type}`;
 
-    emitLn(`type ${name}Fields = {`);
+    let fieldType = `{`;
     Object.entries(fields).forEach(([fieldName, spec]) => {
-      emitLn(typeSpec(fieldName, spec), `;`);
+      fieldType += typeSpec(fieldName, spec) + `; `;
     });
-    emitLn(`};`);
+    fieldType += '}';
+
+    emitLn(`type ${name}Fields = ${fieldType};`);
 
     emitLn(`
       export type ${name} = {
@@ -209,7 +220,7 @@ function write() {
     `);
     let args: string[] = [];
     Object.entries(fields).forEach(([fieldName, spec]) => {
-      args.push(typeSpec(fieldName, spec));
+      args.push(argTypeSpec(fieldName, spec));
     });
     emitLn(`
       export function make${name}(${args.join(', ')}): ${name} {
@@ -218,6 +229,15 @@ function write() {
           fields: {
             ${Object.keys(fields).join(', ')}
           }
+        };
+      }
+    `);
+
+    emitLn(`
+      export function make${name}With(fields:${fieldType}): ${name} {
+        return {
+          name: "${name}",
+          fields,
         };
       }
     `);

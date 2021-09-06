@@ -24,7 +24,7 @@ describe('Functions', () => {
     const func = makeFuncDecl(
       'myFunc',
       makeParameterList([]),
-      null,
+      undefined,
       makeBlock([])
     );
     const typeMap = resolveTypes(func, new OrderedMap());
@@ -34,8 +34,8 @@ describe('Functions', () => {
 
 describe('ArgList', () => {
   it('types an arglist as a tuple type', () => {
-    const arg1 = makeNumberLiteral(1, 'int', null);
-    const arg2 = makeNumberLiteral(2.3, 'float', null);
+    const arg1 = makeNumberLiteral(1, 'int', undefined);
+    const arg2 = makeNumberLiteral(2.3, 'float', undefined);
     const argList = makeArgList([arg1, arg2]);
     const typeMap = resolveTypes(argList, new OrderedMap());
     expect(typeMap.get(argList)).toEqual(
@@ -46,7 +46,7 @@ describe('ArgList', () => {
 
 describe('Files', () => {
   it('types an empty file as an empty record type', () => {
-    const file = makeFile([], []);
+    const file = makeFile([], [], []);
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(new RecordType(new OrderedMap()));
   });
@@ -54,10 +54,10 @@ describe('Files', () => {
     const func = makeFuncDecl(
       'myFunc',
       makeParameterList([]),
-      null,
+      undefined,
       makeBlock([])
     );
-    const file = makeFile([func], []);
+    const file = makeFile([func], [], []);
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(
       new RecordType(new OrderedMap([['myFunc', typeMap.get(func)!]]))

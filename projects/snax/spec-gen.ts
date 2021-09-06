@@ -1,6 +1,4 @@
-type BooleanLiteralFields = {
-  value: boolean;
-};
+type BooleanLiteralFields = { value: boolean };
 
 export type BooleanLiteral = {
   name: 'BooleanLiteral';
@@ -20,10 +18,19 @@ export function makeBooleanLiteral(value: boolean): BooleanLiteral {
   };
 }
 
+export function makeBooleanLiteralWith(fields: {
+  value: boolean;
+}): BooleanLiteral {
+  return {
+    name: 'BooleanLiteral',
+    fields,
+  };
+}
+
 type NumberLiteralFields = {
   value: number;
   numberType: 'int' | 'float';
-  explicitType: string | null;
+  explicitType?: string;
 };
 
 export type NumberLiteral = {
@@ -38,7 +45,7 @@ export function isNumberLiteral(node: ASTNode): node is NumberLiteral {
 export function makeNumberLiteral(
   value: number,
   numberType: 'int' | 'float',
-  explicitType: string | null
+  explicitType: string | undefined
 ): NumberLiteral {
   return {
     name: 'NumberLiteral',
@@ -50,9 +57,18 @@ export function makeNumberLiteral(
   };
 }
 
-type StringLiteralFields = {
-  value: string;
-};
+export function makeNumberLiteralWith(fields: {
+  value: number;
+  numberType: 'int' | 'float';
+  explicitType?: string;
+}): NumberLiteral {
+  return {
+    name: 'NumberLiteral',
+    fields,
+  };
+}
+
+type StringLiteralFields = { value: string };
 
 export type StringLiteral = {
   name: 'StringLiteral';
@@ -72,9 +88,16 @@ export function makeStringLiteral(value: string): StringLiteral {
   };
 }
 
-type SymbolRefFields = {
-  symbol: string;
-};
+export function makeStringLiteralWith(fields: {
+  value: string;
+}): StringLiteral {
+  return {
+    name: 'StringLiteral',
+    fields,
+  };
+}
+
+type SymbolRefFields = { symbol: string };
 
 export type SymbolRef = {
   name: 'SymbolRef';
@@ -94,9 +117,14 @@ export function makeSymbolRef(symbol: string): SymbolRef {
   };
 }
 
-type TypeRefFields = {
-  symbol: string;
-};
+export function makeSymbolRefWith(fields: { symbol: string }): SymbolRef {
+  return {
+    name: 'SymbolRef',
+    fields,
+  };
+}
+
+type TypeRefFields = { symbol: string };
 
 export type TypeRef = {
   name: 'TypeRef';
@@ -116,9 +144,14 @@ export function makeTypeRef(symbol: string): TypeRef {
   };
 }
 
-type PointerTypeExprFields = {
-  pointerToExpr: TypeExpr;
-};
+export function makeTypeRefWith(fields: { symbol: string }): TypeRef {
+  return {
+    name: 'TypeRef',
+    fields,
+  };
+}
+
+type PointerTypeExprFields = { pointerToExpr: TypeExpr };
 
 export type PointerTypeExpr = {
   name: 'PointerTypeExpr';
@@ -138,9 +171,18 @@ export function makePointerTypeExpr(pointerToExpr: TypeExpr): PointerTypeExpr {
   };
 }
 
+export function makePointerTypeExprWith(fields: {
+  pointerToExpr: TypeExpr;
+}): PointerTypeExpr {
+  return {
+    name: 'PointerTypeExpr',
+    fields,
+  };
+}
+
 type GlobalDeclFields = {
   symbol: string;
-  typeExpr: TypeExpr | null;
+  typeExpr?: TypeExpr;
   expr: Expression;
 };
 
@@ -155,7 +197,7 @@ export function isGlobalDecl(node: ASTNode): node is GlobalDecl {
 
 export function makeGlobalDecl(
   symbol: string,
-  typeExpr: TypeExpr | null,
+  typeExpr: TypeExpr | undefined,
   expr: Expression
 ): GlobalDecl {
   return {
@@ -168,9 +210,20 @@ export function makeGlobalDecl(
   };
 }
 
+export function makeGlobalDeclWith(fields: {
+  symbol: string;
+  typeExpr?: TypeExpr;
+  expr: Expression;
+}): GlobalDecl {
+  return {
+    name: 'GlobalDecl',
+    fields,
+  };
+}
+
 type LetStatementFields = {
   symbol: string;
-  typeExpr: TypeExpr | null;
+  typeExpr?: TypeExpr;
   expr: Expression;
 };
 
@@ -185,7 +238,7 @@ export function isLetStatement(node: ASTNode): node is LetStatement {
 
 export function makeLetStatement(
   symbol: string,
-  typeExpr: TypeExpr | null,
+  typeExpr: TypeExpr | undefined,
   expr: Expression
 ): LetStatement {
   return {
@@ -195,6 +248,17 @@ export function makeLetStatement(
       typeExpr,
       expr,
     },
+  };
+}
+
+export function makeLetStatementWith(fields: {
+  symbol: string;
+  typeExpr?: TypeExpr;
+  expr: Expression;
+}): LetStatement {
+  return {
+    name: 'LetStatement',
+    fields,
   };
 }
 
@@ -228,10 +292,18 @@ export function makeIfStatement(
   };
 }
 
-type WhileStatementFields = {
+export function makeIfStatementWith(fields: {
   condExpr: Expression;
   thenBlock: Block;
-};
+  elseBlock: Block;
+}): IfStatement {
+  return {
+    name: 'IfStatement',
+    fields,
+  };
+}
+
+type WhileStatementFields = { condExpr: Expression; thenBlock: Block };
 
 export type WhileStatement = {
   name: 'WhileStatement';
@@ -255,9 +327,17 @@ export function makeWhileStatement(
   };
 }
 
-type BlockFields = {
-  statements: Statement[];
-};
+export function makeWhileStatementWith(fields: {
+  condExpr: Expression;
+  thenBlock: Block;
+}): WhileStatement {
+  return {
+    name: 'WhileStatement',
+    fields,
+  };
+}
+
+type BlockFields = { statements: Statement[] };
 
 export type Block = {
   name: 'Block';
@@ -277,11 +357,14 @@ export function makeBlock(statements: Statement[]): Block {
   };
 }
 
-type BinaryExprFields = {
-  op: string;
-  left: Expression;
-  right: Expression;
-};
+export function makeBlockWith(fields: { statements: Statement[] }): Block {
+  return {
+    name: 'Block',
+    fields,
+  };
+}
+
+type BinaryExprFields = { op: string; left: Expression; right: Expression };
 
 export type BinaryExpr = {
   name: 'BinaryExpr';
@@ -307,10 +390,18 @@ export function makeBinaryExpr(
   };
 }
 
-type CallExprFields = {
+export function makeBinaryExprWith(fields: {
+  op: string;
   left: Expression;
-  right: ArgList;
-};
+  right: Expression;
+}): BinaryExpr {
+  return {
+    name: 'BinaryExpr',
+    fields,
+  };
+}
+
+type CallExprFields = { left: Expression; right: ArgList };
 
 export type CallExpr = {
   name: 'CallExpr';
@@ -331,10 +422,17 @@ export function makeCallExpr(left: Expression, right: ArgList): CallExpr {
   };
 }
 
-type CastExprFields = {
+export function makeCallExprWith(fields: {
   left: Expression;
-  right: TypeExpr;
-};
+  right: ArgList;
+}): CallExpr {
+  return {
+    name: 'CallExpr',
+    fields,
+  };
+}
+
+type CastExprFields = { left: Expression; right: TypeExpr };
 
 export type CastExpr = {
   name: 'CastExpr';
@@ -355,10 +453,17 @@ export function makeCastExpr(left: Expression, right: TypeExpr): CastExpr {
   };
 }
 
-type UnaryExprFields = {
-  op: string;
-  expr: Expression;
-};
+export function makeCastExprWith(fields: {
+  left: Expression;
+  right: TypeExpr;
+}): CastExpr {
+  return {
+    name: 'CastExpr',
+    fields,
+  };
+}
+
+type UnaryExprFields = { op: string; expr: Expression };
 
 export type UnaryExpr = {
   name: 'UnaryExpr';
@@ -379,9 +484,17 @@ export function makeUnaryExpr(op: string, expr: Expression): UnaryExpr {
   };
 }
 
-type ArrayLiteralFields = {
-  elements: Expression[];
-};
+export function makeUnaryExprWith(fields: {
+  op: string;
+  expr: Expression;
+}): UnaryExpr {
+  return {
+    name: 'UnaryExpr',
+    fields,
+  };
+}
+
+type ArrayLiteralFields = { elements: Expression[] };
 
 export type ArrayLiteral = {
   name: 'ArrayLiteral';
@@ -401,9 +514,16 @@ export function makeArrayLiteral(elements: Expression[]): ArrayLiteral {
   };
 }
 
-type ParameterListFields = {
-  parameters: Parameter[];
-};
+export function makeArrayLiteralWith(fields: {
+  elements: Expression[];
+}): ArrayLiteral {
+  return {
+    name: 'ArrayLiteral',
+    fields,
+  };
+}
+
+type ParameterListFields = { parameters: Parameter[] };
 
 export type ParameterList = {
   name: 'ParameterList';
@@ -423,10 +543,16 @@ export function makeParameterList(parameters: Parameter[]): ParameterList {
   };
 }
 
-type ParameterFields = {
-  symbol: string;
-  typeExpr: TypeExpr;
-};
+export function makeParameterListWith(fields: {
+  parameters: Parameter[];
+}): ParameterList {
+  return {
+    name: 'ParameterList',
+    fields,
+  };
+}
+
+type ParameterFields = { symbol: string; typeExpr: TypeExpr };
 
 export type Parameter = {
   name: 'Parameter';
@@ -447,10 +573,20 @@ export function makeParameter(symbol: string, typeExpr: TypeExpr): Parameter {
   };
 }
 
+export function makeParameterWith(fields: {
+  symbol: string;
+  typeExpr: TypeExpr;
+}): Parameter {
+  return {
+    name: 'Parameter',
+    fields,
+  };
+}
+
 type FuncDeclFields = {
   symbol: string;
   parameters: ParameterList;
-  returnType: TypeExpr | null;
+  returnType?: TypeExpr;
   body: Block;
 };
 
@@ -466,7 +602,7 @@ export function isFuncDecl(node: ASTNode): node is FuncDecl {
 export function makeFuncDecl(
   symbol: string,
   parameters: ParameterList,
-  returnType: TypeExpr | null,
+  returnType: TypeExpr | undefined,
   body: Block
 ): FuncDecl {
   return {
@@ -480,9 +616,19 @@ export function makeFuncDecl(
   };
 }
 
-type ReturnStatementFields = {
-  expr: Expression;
-};
+export function makeFuncDeclWith(fields: {
+  symbol: string;
+  parameters: ParameterList;
+  returnType?: TypeExpr;
+  body: Block;
+}): FuncDecl {
+  return {
+    name: 'FuncDecl',
+    fields,
+  };
+}
+
+type ReturnStatementFields = { expr: Expression };
 
 export type ReturnStatement = {
   name: 'ReturnStatement';
@@ -502,9 +648,16 @@ export function makeReturnStatement(expr: Expression): ReturnStatement {
   };
 }
 
-type ExprStatementFields = {
+export function makeReturnStatementWith(fields: {
   expr: Expression;
-};
+}): ReturnStatement {
+  return {
+    name: 'ReturnStatement',
+    fields,
+  };
+}
+
+type ExprStatementFields = { expr: Expression };
 
 export type ExprStatement = {
   name: 'ExprStatement';
@@ -524,9 +677,16 @@ export function makeExprStatement(expr: Expression): ExprStatement {
   };
 }
 
-type ArgListFields = {
-  args: Expression[];
-};
+export function makeExprStatementWith(fields: {
+  expr: Expression;
+}): ExprStatement {
+  return {
+    name: 'ExprStatement',
+    fields,
+  };
+}
+
+type ArgListFields = { args: Expression[] };
 
 export type ArgList = {
   name: 'ArgList';
@@ -546,9 +706,17 @@ export function makeArgList(args: Expression[]): ArgList {
   };
 }
 
+export function makeArgListWith(fields: { args: Expression[] }): ArgList {
+  return {
+    name: 'ArgList',
+    fields,
+  };
+}
+
 type FileFields = {
   funcs: FuncDecl[];
   globals: GlobalDecl[];
+  decls: ExternDecl[];
 };
 
 export type File = {
@@ -560,13 +728,60 @@ export function isFile(node: ASTNode): node is File {
   return node.name === 'File';
 }
 
-export function makeFile(funcs: FuncDecl[], globals: GlobalDecl[]): File {
+export function makeFile(
+  funcs: FuncDecl[],
+  globals: GlobalDecl[],
+  decls: ExternDecl[]
+): File {
   return {
     name: 'File',
     fields: {
       funcs,
       globals,
+      decls,
     },
+  };
+}
+
+export function makeFileWith(fields: {
+  funcs: FuncDecl[];
+  globals: GlobalDecl[];
+  decls: ExternDecl[];
+}): File {
+  return {
+    name: 'File',
+    fields,
+  };
+}
+
+type ExternDeclFields = { libName: string; funcs: FuncDecl[] };
+
+export type ExternDecl = {
+  name: 'ExternDecl';
+  fields: ExternDeclFields;
+};
+
+export function isExternDecl(node: ASTNode): node is ExternDecl {
+  return node.name === 'ExternDecl';
+}
+
+export function makeExternDecl(libName: string, funcs: FuncDecl[]): ExternDecl {
+  return {
+    name: 'ExternDecl',
+    fields: {
+      libName,
+      funcs,
+    },
+  };
+}
+
+export function makeExternDeclWith(fields: {
+  libName: string;
+  funcs: FuncDecl[];
+}): ExternDecl {
+  return {
+    name: 'ExternDecl',
+    fields,
   };
 }
 
@@ -650,6 +865,7 @@ export type ASTNode =
   | ExprStatement
   | ArgList
   | File
+  | ExternDecl
   | TypeExpr
   | LiteralExpr
   | Expression
@@ -677,4 +893,5 @@ export type ASTNodeName =
   | 'ReturnStatement'
   | 'ExprStatement'
   | 'ArgList'
-  | 'File';
+  | 'File'
+  | 'ExternDecl';

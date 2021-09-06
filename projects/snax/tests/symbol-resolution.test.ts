@@ -22,20 +22,20 @@ beforeEach(() => {
   innerXRef = AST.makeSymbolRef('x');
   innerYRef = AST.makeSymbolRef('y');
   innerBlock = AST.makeBlock([
-    AST.makeLetStatement('x', null, makeNum(3)),
+    AST.makeLetStatement('x', undefined, makeNum(3)),
     AST.makeExprStatement(innerXRef),
     AST.makeExprStatement(innerYRef),
   ]);
   outerXRef = AST.makeSymbolRef('x');
   outerBlock = AST.makeBlock([
-    AST.makeLetStatement('x', null, makeNum(1)),
-    AST.makeLetStatement('y', null, makeNum(2)),
+    AST.makeLetStatement('x', undefined, makeNum(1)),
+    AST.makeLetStatement('y', undefined, makeNum(2)),
     innerBlock,
     AST.makeExprStatement(outerXRef),
   ]);
-  globalDecl = AST.makeGlobalDecl('g', null, makeNum(10));
+  globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
   funcDecl = makeFunc('main', [], outerBlock);
-  file = AST.makeFile([funcDecl], [globalDecl]);
+  file = AST.makeFile([funcDecl], [globalDecl], []);
   const resolution = resolveSymbols(file);
   tables = resolution.tables;
   refMap = resolution.refMap;
@@ -73,7 +73,7 @@ describe('resolveSymbols', () => {
           <main/>
         </SymbolTable>
         <funcs>
-          <FuncDecl symbol=\\"main\\" returnType=null>
+          <FuncDecl symbol=\\"main\\" returnType=undefined>
             <ParameterList>
               <parameters/>
             </ParameterList>
@@ -83,19 +83,19 @@ describe('resolveSymbols', () => {
                 <y/>
               </SymbolTable>
               <statements>
-                <LetStatement symbol=\\"x\\" typeExpr=null>
-                  <NumberLiteral value=1 numberType=\\"int\\" explicitType=null/>
+                <LetStatement symbol=\\"x\\" typeExpr=undefined>
+                  <NumberLiteral value=1 numberType=\\"int\\" explicitType=undefined/>
                 </LetStatement>
-                <LetStatement symbol=\\"y\\" typeExpr=null>
-                  <NumberLiteral value=2 numberType=\\"int\\" explicitType=null/>
+                <LetStatement symbol=\\"y\\" typeExpr=undefined>
+                  <NumberLiteral value=2 numberType=\\"int\\" explicitType=undefined/>
                 </LetStatement>
                 <Block>
                   <SymbolTable id=19 parent=18>
                     <x/>
                   </SymbolTable>
                   <statements>
-                    <LetStatement symbol=\\"x\\" typeExpr=null>
-                      <NumberLiteral value=3 numberType=\\"int\\" explicitType=null/>
+                    <LetStatement symbol=\\"x\\" typeExpr=undefined>
+                      <NumberLiteral value=3 numberType=\\"int\\" explicitType=undefined/>
                     </LetStatement>
                     <ExprStatement>
                       <SymbolRef symbol=\\"x\\"/>
@@ -113,10 +113,11 @@ describe('resolveSymbols', () => {
           </FuncDecl>
         </funcs>
         <globals>
-          <GlobalDecl symbol=\\"g\\" typeExpr=null>
-            <NumberLiteral value=10 numberType=\\"int\\" explicitType=null/>
+          <GlobalDecl symbol=\\"g\\" typeExpr=undefined>
+            <NumberLiteral value=10 numberType=\\"int\\" explicitType=undefined/>
           </GlobalDecl>
         </globals>
+        <decls/>
       </File>"
     `);
   });

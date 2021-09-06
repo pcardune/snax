@@ -1,5 +1,4 @@
 import { SNAXParser } from '../snax-parser';
-import * as AST from '../snax-ast';
 import loadWabt from 'wabt';
 import { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler';
 import { isFile } from '../spec-gen';

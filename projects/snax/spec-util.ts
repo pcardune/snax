@@ -20,11 +20,16 @@ export function children(node: ASTNode): ASTNode[] {
   return children;
 }
 
+export function* preorderIter(node: ASTNode): Generator<ASTNode> {
+  yield node;
+  for (const child of children(node)) {
+    yield* preorderIter(child);
+  }
+}
+
 export function* depthFirstIter(node: ASTNode): Generator<ASTNode> {
   for (const child of children(node)) {
-    for (const iterNode of depthFirstIter(child)) {
-      yield iterNode;
-    }
+    yield* depthFirstIter(child);
   }
   yield node;
 }

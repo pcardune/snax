@@ -11,16 +11,18 @@ import {
   BlockCompiler,
   IRCompiler,
   IRCompilerContext,
-  FuncLocalAllocator,
-  AllocationMap,
-  ConstantAllocator,
-  NeverAllocator,
 } from '../ast-compiler';
 import { makeFunc, makeNum } from './ast-util';
 import { BinaryOp } from '../snax-ast';
 import { resolveSymbols, SymbolRefMap } from '../symbol-resolution';
 import { OrderedMap } from '../../utils/data-structures/OrderedMap';
 import { ResolvedTypeMap, resolveTypes } from '../type-resolution';
+import {
+  AllocationMap,
+  ModuleAllocator,
+  NeverAllocator,
+  resolveMemory,
+} from '../memory-resolution';
 
 describe('ExpressionCompiler', () => {
   function exprCompiler(root: AST.BinaryExpr) {
@@ -30,9 +32,7 @@ describe('ExpressionCompiler', () => {
     return new BinaryExprCompiler(root, {
       refMap,
       typeCache,
-      locals: new FuncLocalAllocator(allocationMap),
       allocationMap,
-      constants: new ConstantAllocator(),
     });
   }
   const { i32, f32 } = IR.NumberType;
@@ -85,11 +85,12 @@ describe('BooleanLiteralCompiler', () => {
 function funcCompiler(func: AST.FuncDecl) {
   const refMap = resolveSymbols(func).refMap;
   const typeCache = resolveTypes(func, refMap);
+  const moduleAllocator = resolveMemory(func, typeCache);
   return new FuncDeclCompiler(func, {
     refMap,
     typeCache,
-    allocationMap: new OrderedMap(),
-    constants: new ConstantAllocator(),
+    allocationMap: moduleAllocator.allocationMap,
+    locals: moduleAllocator.getLocalsForFunc(func)!,
   });
 }
 
@@ -115,7 +116,6 @@ describe('FuncDeclCompiler', () => {
         }),
         body: new BlockCompiler(block, {
           ...compiler.context,
-          locals: compiler.localAllocator,
         }).compile(),
       })
     );
@@ -218,7 +218,7 @@ function stubContext(root?: AST.ASTNode) {
     typeCache,
     locals: new NeverAllocator(),
     allocationMap: new OrderedMap(),
-    constants: new ConstantAllocator(),
+    constants: new ModuleAllocator(),
   } as IRCompilerContext;
 }
 
@@ -319,9 +319,7 @@ describe('ModuleCompiler', () => {
             body: IRCompiler.forNode(num, {
               refMap: compiler.refMap!,
               typeCache: compiler.typeCache!,
-              locals: stubContext().locals,
-              allocationMap: compiler.allocationMap,
-              constants: compiler.staticAllocator,
+              allocationMap: compiler.moduleAllocator!.allocationMap,
             }).compile(),
           }),
         ],
@@ -374,8 +372,8 @@ describe('ModuleCompiler', () => {
           new FuncDeclCompiler(funcDecl, {
             refMap: compiler.refMap!,
             typeCache: compiler.typeCache!,
-            allocationMap: compiler.allocationMap,
-            constants: compiler.staticAllocator,
+            allocationMap: compiler.moduleAllocator!.allocationMap,
+            locals: compiler.moduleAllocator?.getLocalsForFunc(funcDecl)!,
           }).compile(),
           new Wasm.Func({
             funcType: new Wasm.FuncTypeUse({

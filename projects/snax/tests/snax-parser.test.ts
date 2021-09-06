@@ -1,4 +1,4 @@
-import * as spec from '../spec-gen';
+import * as AST from '../spec-gen';
 import { BinaryOp, NumberLiteralType, UnaryOp } from '../snax-ast';
 import { SNAXParser } from '../snax-parser';
 import { makeFunc, makeNum } from './ast-util';
@@ -16,42 +16,42 @@ describe('numbers', () => {
 describe('boolean literals', () => {
   it('should parse true into a BooleanLiteral', () => {
     expect(SNAXParser.parseStrOrThrow('true', 'expr')).toEqual(
-      spec.makeBooleanLiteral(true)
+      AST.makeBooleanLiteral(true)
     );
   });
 });
 describe('array literals', () => {
   it('should parse [] into an array literal', () => {
     expect(SNAXParser.parseStrOrThrow('[]', 'expr')).toEqual(
-      spec.makeArrayLiteral([])
+      AST.makeArrayLiteral([])
     );
   });
   it('should parse [3,4,5] into an array literal', () => {
     expect(SNAXParser.parseStrOrThrow('[3, 4, 5]', 'expr')).toEqual(
-      spec.makeArrayLiteral([makeNum(3), makeNum(4), makeNum(5)])
+      AST.makeArrayLiteral([makeNum(3), makeNum(4), makeNum(5)])
     );
   });
 });
 describe('string literals', () => {
   it('should parse "" into an empty string literal', () => {
     expect(SNAXParser.parseStrOrThrow('""', 'expr')).toEqual(
-      spec.makeStringLiteral('')
+      AST.makeStringLiteral('')
     );
   });
   it('should parse "foo" into a string literal', () => {
     expect(SNAXParser.parseStrOrThrow('"foo"', 'expr')).toEqual(
-      spec.makeStringLiteral('foo')
+      AST.makeStringLiteral('foo')
     );
   });
   it('should support escaping the quote character', () => {
     expect(
       SNAXParser.parseStrOrThrow('"this string has \\"quotes\\"."', 'expr')
-    ).toEqual(spec.makeStringLiteral('this string has "quotes".'));
+    ).toEqual(AST.makeStringLiteral('this string has "quotes".'));
   });
   it('should support other escaped characters like \\n', () => {
     expect(
       SNAXParser.parseStrOrThrow('"this string has a \\n in it"', 'expr')
-    ).toEqual(spec.makeStringLiteral('this string has a \n in it'));
+    ).toEqual(AST.makeStringLiteral('this string has a \n in it'));
   });
 });
 describe('expression', () => {
@@ -62,16 +62,16 @@ describe('expression', () => {
   it('should handle +', () => {
     const expr = SNAXParser.parseStrOrThrow('123+456', 'expr');
     expect(expr).toEqual(
-      spec.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456))
+      AST.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456))
     );
   });
   it("should handle a sequence of +'s", () => {
     const expr = SNAXParser.parseStrOrThrow('123+456+789', 'expr');
 
     expect(expr).toEqual(
-      spec.makeBinaryExpr(
+      AST.makeBinaryExpr(
         BinaryOp.ADD,
-        spec.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456)),
+        AST.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456)),
         makeNum(789)
       )
     );
@@ -79,18 +79,18 @@ describe('expression', () => {
   it('should make * operator take precedence over +', () => {
     let expr = SNAXParser.parseStrOrThrow('123+456*789', 'expr');
     expect(expr).toEqual(
-      spec.makeBinaryExpr(
+      AST.makeBinaryExpr(
         BinaryOp.ADD,
         makeNum(123),
-        spec.makeBinaryExpr(BinaryOp.MUL, makeNum(456), makeNum(789))
+        AST.makeBinaryExpr(BinaryOp.MUL, makeNum(456), makeNum(789))
       )
     );
 
     expr = SNAXParser.parseStrOrThrow('123*456+789', 'expr');
     expect(expr).toEqual(
-      spec.makeBinaryExpr(
+      AST.makeBinaryExpr(
         BinaryOp.ADD,
-        spec.makeBinaryExpr(BinaryOp.MUL, makeNum(123), makeNum(456)),
+        AST.makeBinaryExpr(BinaryOp.MUL, makeNum(123), makeNum(456)),
         makeNum(789)
       )
     );
@@ -107,22 +107,22 @@ describe('expression', () => {
   });
   it('should allow symbols', () => {
     expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(
-      spec.makeBinaryExpr(BinaryOp.ADD, makeNum(3), spec.makeSymbolRef('x'))
+      AST.makeBinaryExpr(BinaryOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
     );
   });
   it('should handle boolean operators', () => {
     expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
-      spec.makeBinaryExpr(
+      AST.makeBinaryExpr(
         BinaryOp.LOGICAL_AND,
-        spec.makeBooleanLiteral(true),
-        spec.makeSymbolRef('x')
+        AST.makeBooleanLiteral(true),
+        AST.makeSymbolRef('x')
       )
     );
     expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
-      spec.makeBinaryExpr(
+      AST.makeBinaryExpr(
         BinaryOp.LOGICAL_OR,
-        spec.makeBooleanLiteral(true),
-        spec.makeSymbolRef('x')
+        AST.makeBooleanLiteral(true),
+        AST.makeSymbolRef('x')
       )
     );
   });
@@ -130,20 +130,20 @@ describe('expression', () => {
     const three = makeNum(3);
     const four = makeNum(4);
     expect(SNAXParser.parseStrOrThrow('3 < 4', 'expr')).toEqual(
-      spec.makeBinaryExpr(BinaryOp.LESS_THAN, three, four)
+      AST.makeBinaryExpr(BinaryOp.LESS_THAN, three, four)
     );
     expect(SNAXParser.parseStrOrThrow('3 > 4', 'expr')).toEqual(
-      spec.makeBinaryExpr(BinaryOp.GREATER_THAN, three, four)
+      AST.makeBinaryExpr(BinaryOp.GREATER_THAN, three, four)
     );
     expect(SNAXParser.parseStrOrThrow('3 == 4', 'expr')).toEqual(
-      spec.makeBinaryExpr(BinaryOp.EQUAL_TO, three, four)
+      AST.makeBinaryExpr(BinaryOp.EQUAL_TO, three, four)
     );
   });
 
   describe('dereference operator', () => {
     it('works', () => {
       expect(SNAXParser.parseStrOrThrow('@foo', 'expr')).toEqual(
-        spec.makeUnaryExpr(UnaryOp.DEREF, spec.makeSymbolRef('foo'))
+        AST.makeUnaryExpr(UnaryOp.DEREF, AST.makeSymbolRef('foo'))
       );
     });
   });
@@ -151,9 +151,9 @@ describe('expression', () => {
   describe('array indexing expressions', () => {
     it('should parse array indexing operator', () => {
       expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
-        spec.makeBinaryExpr(
+        AST.makeBinaryExpr(
           BinaryOp.ARRAY_INDEX,
-          spec.makeSymbolRef('x'),
+          AST.makeSymbolRef('x'),
           makeNum(1)
         )
       );
@@ -163,7 +163,7 @@ describe('expression', () => {
   describe('type casting operator', () => {
     it('should parse type casting operator', () => {
       expect(SNAXParser.parseStrOrThrow('1 as f64', 'expr')).toEqual(
-        spec.makeCastExpr(makeNum(1), spec.makeTypeRef('f64'))
+        AST.makeCastExpr(makeNum(1), AST.makeTypeRef('f64'))
       );
     });
   });
@@ -172,12 +172,12 @@ describe('expression', () => {
 describe('let statements', () => {
   it('should parse untyped let statements', () => {
     const letNode = SNAXParser.parseStrOrThrow('let x = 3;', 'statement');
-    expect(letNode).toEqual(spec.makeLetStatement('x', undefined, makeNum(3)));
+    expect(letNode).toEqual(AST.makeLetStatement('x', undefined, makeNum(3)));
   });
   it('should parse typed let statements', () => {
     const letNode = SNAXParser.parseStrOrThrow('let x:i32 = 3;', 'statement');
     expect(letNode).toEqual(
-      spec.makeLetStatement('x', spec.makeTypeRef('i32'), makeNum(3))
+      AST.makeLetStatement('x', AST.makeTypeRef('i32'), makeNum(3))
     );
   });
 });
@@ -185,7 +185,7 @@ describe('let statements', () => {
 describe('type expressions', () => {
   it('parses pointer types', () => {
     expect(SNAXParser.parseStrOrThrow('&i32', 'typeExpr')).toEqual(
-      spec.makePointerTypeExpr(spec.makeTypeRef('i32'))
+      AST.makePointerTypeExpr(AST.makeTypeRef('i32'))
     );
   });
 });
@@ -195,13 +195,13 @@ describe('while loops', () => {
     expect(
       SNAXParser.parseStrOrThrow(`while (true) { doSomething(); }`, 'statement')
     ).toEqual(
-      spec.makeWhileStatement(
-        spec.makeBooleanLiteral(true),
-        spec.makeBlock([
-          spec.makeExprStatement(
-            spec.makeCallExpr(
-              spec.makeSymbolRef('doSomething'),
-              spec.makeArgList([])
+      AST.makeWhileStatement(
+        AST.makeBooleanLiteral(true),
+        AST.makeBlock([
+          AST.makeExprStatement(
+            AST.makeCallExpr(
+              AST.makeSymbolRef('doSomething'),
+              AST.makeArgList([])
             )
           ),
         ])
@@ -220,9 +220,9 @@ describe('block', () => {
       'block'
     );
     expect(block).toEqual(
-      spec.makeBlock([
-        spec.makeLetStatement('x', undefined, makeNum(3)),
-        spec.makeLetStatement('y', undefined, makeNum(7)),
+      AST.makeBlock([
+        AST.makeLetStatement('x', undefined, makeNum(3)),
+        AST.makeLetStatement('y', undefined, makeNum(7)),
       ])
     );
   });
@@ -235,12 +235,12 @@ describe('block', () => {
       'block'
     );
     expect(block).toEqual(
-      spec.makeBlock([
-        spec.makeLetStatement('x', undefined, makeNum(3)),
-        spec.makeExprStatement(
-          spec.makeBinaryExpr(BinaryOp.ADD, makeNum(3), spec.makeSymbolRef('x'))
+      AST.makeBlock([
+        AST.makeLetStatement('x', undefined, makeNum(3)),
+        AST.makeExprStatement(
+          AST.makeBinaryExpr(BinaryOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
         ),
-        spec.makeExprStatement(makeNum(8)),
+        AST.makeExprStatement(makeNum(8)),
       ])
     );
   });
@@ -256,9 +256,9 @@ describe('block', () => {
         'block'
       )
     ).toEqual(
-      spec.makeBlock([
-        spec.makeLetStatement('x', undefined, makeNum(1)),
-        spec.makeBlock([spec.makeLetStatement('x', undefined, makeNum(2))]),
+      AST.makeBlock([
+        AST.makeLetStatement('x', undefined, makeNum(1)),
+        AST.makeBlock([AST.makeLetStatement('x', undefined, makeNum(2))]),
       ])
     );
   });
@@ -274,22 +274,22 @@ describe('if statements', () => {
         'statement'
       )
     ).toEqual(
-      spec.makeIfStatement(
-        spec.makeBinaryExpr(
+      AST.makeIfStatement(
+        AST.makeBinaryExpr(
           BinaryOp.EQUAL_TO,
-          spec.makeSymbolRef('x'),
+          AST.makeSymbolRef('x'),
           makeNum(3)
         ),
-        spec.makeBlock([
-          spec.makeExprStatement(
-            spec.makeBinaryExpr(
+        AST.makeBlock([
+          AST.makeExprStatement(
+            AST.makeBinaryExpr(
               BinaryOp.ASSIGN,
-              spec.makeSymbolRef('y'),
+              AST.makeSymbolRef('y'),
               makeNum(2)
             )
           ),
         ]),
-        spec.makeBlock([])
+        AST.makeBlock([])
       )
     );
   });
@@ -302,26 +302,26 @@ describe('if statements', () => {
         'statement'
       )
     ).toEqual(
-      spec.makeIfStatement(
-        spec.makeBinaryExpr(
+      AST.makeIfStatement(
+        AST.makeBinaryExpr(
           BinaryOp.EQUAL_TO,
-          spec.makeSymbolRef('x'),
+          AST.makeSymbolRef('x'),
           makeNum(3)
         ),
-        spec.makeBlock([
-          spec.makeExprStatement(
-            spec.makeBinaryExpr(
+        AST.makeBlock([
+          AST.makeExprStatement(
+            AST.makeBinaryExpr(
               BinaryOp.ASSIGN,
-              spec.makeSymbolRef('y'),
+              AST.makeSymbolRef('y'),
               makeNum(2)
             )
           ),
         ]),
-        spec.makeBlock([
-          spec.makeExprStatement(
-            spec.makeBinaryExpr(
+        AST.makeBlock([
+          AST.makeExprStatement(
+            AST.makeBinaryExpr(
               BinaryOp.ASSIGN,
-              spec.makeSymbolRef('y'),
+              AST.makeSymbolRef('y'),
               makeNum(4)
             )
           ),
@@ -342,8 +342,8 @@ describe('functions', () => {
       SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32) {}', 'funcDecl')
     ).toEqual(
       makeFunc('foo', [
-        spec.makeParameter('a', spec.makeTypeRef('i32')),
-        spec.makeParameter('b', spec.makeTypeRef('f32')),
+        AST.makeParameter('a', AST.makeTypeRef('i32')),
+        AST.makeParameter('b', AST.makeTypeRef('f32')),
       ])
     );
   });
@@ -353,14 +353,10 @@ describe('functions', () => {
     ).toEqual(
       makeFunc(
         'foo',
-        [spec.makeParameter('a', spec.makeTypeRef('i32'))],
+        [AST.makeParameter('a', AST.makeTypeRef('i32'))],
         [
-          spec.makeReturnStatement(
-            spec.makeBinaryExpr(
-              BinaryOp.ADD,
-              spec.makeSymbolRef('a'),
-              makeNum(1)
-            )
+          AST.makeReturnStatement(
+            AST.makeBinaryExpr(BinaryOp.ADD, AST.makeSymbolRef('a'), makeNum(1))
           ),
         ]
       )
@@ -368,9 +364,9 @@ describe('functions', () => {
   });
   it('should parse a function call', () => {
     expect(SNAXParser.parseStrOrThrow('foo(3,4)', 'expr')).toEqual(
-      spec.makeCallExpr(
-        spec.makeSymbolRef('foo'),
-        spec.makeArgList([makeNum(3), makeNum(4)])
+      AST.makeCallExpr(
+        AST.makeSymbolRef('foo'),
+        AST.makeArgList([makeNum(3), makeNum(4)])
       )
     );
   });
@@ -386,13 +382,13 @@ describe('files', () => {
           1;
         `)
     ).toEqual(
-      spec.makeFileWith({
+      AST.makeFileWith({
         funcs: [
           makeFunc('foo'),
           makeFunc('bar'),
-          makeFunc('main', [], [spec.makeReturnStatement(makeNum(1))]),
+          makeFunc('main', [], [AST.makeReturnStatement(makeNum(1))]),
         ],
-        globals: [spec.makeGlobalDecl('counter', undefined, makeNum(0))],
+        globals: [AST.makeGlobalDecl('counter', undefined, makeNum(0))],
         decls: [],
       })
     );
@@ -403,37 +399,38 @@ describe('externals', () => {
   it('should parse an extern declaration', () => {
     expect(
       SNAXParser.parseStrOrThrow(`
-      extern WASI {
-        func fd_write(fileDescriptor:i32, iovPointer:i32, iovLength: i32, numWrittenPointer: i32);
-      }
-    `)
+        extern WASI {
+          func fd_write(fileDescriptor:i32, iovPointer:i32, iovLength: i32, numWrittenPointer: i32):i32;
+        }
+      `)
     ).toEqual(
-      spec.makeFileWith({
+      AST.makeFileWith({
         funcs: [
-          spec.makeFuncDecl(
+          AST.makeFuncDecl(
             'main',
-            spec.makeParameterList([]),
+            AST.makeParameterList([]),
             undefined,
-            spec.makeBlock([])
+            AST.makeBlock([])
           ),
         ],
         globals: [],
         decls: [
-          spec.makeExternDeclWith({
+          AST.makeExternDeclWith({
             libName: 'WASI',
             funcs: [
-              spec.makeFuncDeclWith({
+              AST.makeFuncDeclWith({
                 symbol: 'fd_write',
-                parameters: spec.makeParameterList([
-                  spec.makeParameter('fileDescriptor', spec.makeTypeRef('i32')),
-                  spec.makeParameter('iovPointer', spec.makeTypeRef('i32')),
-                  spec.makeParameter('iovLength', spec.makeTypeRef('i32')),
-                  spec.makeParameter(
+                parameters: AST.makeParameterList([
+                  AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
+                  AST.makeParameter('iovPointer', AST.makeTypeRef('i32')),
+                  AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
+                  AST.makeParameter(
                     'numWrittenPointer',
-                    spec.makeTypeRef('i32')
+                    AST.makeTypeRef('i32')
                   ),
                 ]),
-                body: spec.makeBlock([]),
+                returnType: AST.makeTypeRef('i32'),
+                body: AST.makeBlock([]),
               }),
             ],
           }),

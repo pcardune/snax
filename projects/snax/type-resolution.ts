@@ -1,4 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
+import { FuncDeclCompiler } from './ast-compiler';
 import { getTypeForBinaryOp, NumberLiteralType, UnaryOp } from './snax-ast';
 import {
   ArrayType,
@@ -202,7 +203,9 @@ function calculateType(
       let paramTypes = node.fields.parameters.fields.parameters.map((p) =>
         resolveType(p, typeMap, refMap)
       );
-      let returnType: BaseType | null = null;
+      let returnType: BaseType | null = node.fields.returnType
+        ? resolveType(node.fields.returnType, typeMap, refMap)
+        : null;
       for (const child of depthFirstIter(node.fields.body)) {
         if (isReturnStatement(child)) {
           let alternativeReturnType = resolveType(child, typeMap, refMap);
@@ -233,6 +236,18 @@ function calculateType(
         ? resolveType(node.fields.expr, typeMap, refMap)
         : Intrinsics.void;
     case 'File':
+      return new RecordType(
+        new OrderedMap([
+          ...node.fields.funcs.map(
+            (funcDecl) =>
+              [
+                funcDecl.fields.symbol,
+                resolveType(funcDecl, typeMap, refMap),
+              ] as [string, BaseType]
+          ),
+        ])
+      );
+    case 'ExternDecl':
       return new RecordType(
         new OrderedMap([
           ...node.fields.funcs.map(

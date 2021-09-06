@@ -392,4 +392,50 @@ describe('ModuleCompiler', () => {
       })
     );
   });
+
+  it('compiles extern declarations into wasm imports', () => {
+    const file = AST.makeFileWith({
+      funcs: [],
+      globals: [],
+      decls: [
+        AST.makeExternDeclWith({
+          libName: 'wasi_unstable',
+          funcs: [
+            AST.makeFuncDeclWith({
+              symbol: 'fd_write',
+              parameters: AST.makeParameterList([
+                AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
+                AST.makeParameter('iovPointer', AST.makeTypeRef('i32')),
+                AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
+                AST.makeParameter('numWrittenPointer', AST.makeTypeRef('i32')),
+              ]),
+              returnType: AST.makeTypeRef('i32'),
+              body: AST.makeBlock([]),
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const compiler = new ModuleCompiler(file);
+    const { i32 } = IR.NumberType;
+    expect(compiler.compile()).toEqual(
+      new Wasm.Module({
+        imports: [
+          new Wasm.Import({
+            mod: 'wasi_unstable',
+            nm: 'fd_write',
+            importdesc: {
+              kind: 'func',
+              id: 'wasi_unstable_fd_write',
+              typeuse: {
+                params: [i32, i32, i32, i32],
+                results: [i32],
+              },
+            },
+          }),
+        ],
+      })
+    );
+  });
 });

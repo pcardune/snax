@@ -489,3 +489,49 @@ describe('strings', () => {
     expect(new TextDecoder().decode(mem)).toEqual('hello world');
   });
 });
+
+describe('extern declarations', () => {
+  it('links with external modules', async () => {
+    const code = `
+      extern Printer {
+        func print_num(num:i32):i32;
+      }
+
+      print_num(1);
+    `;
+    const wat = compileToWAT(code);
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (import \\"Printer\\" \\"print_num\\" (func $Printer_print_num (param i32) (result i32)))
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (func $main (result i32)
+    i32.const 1
+    call 0
+    return)
+  (export \\"_start\\" (func 1))
+  (type (;0;) (func (param i32) (result i32)))
+  (type (;1;) (func (result i32))))
+"
+`);
+    const wasmModule = wabt.parseWat('', wat);
+    wasmModule.validate();
+
+    let printedNum: number | undefined = undefined;
+    const module = await WebAssembly.instantiate(
+      wasmModule.toBinary({ write_debug_names: true }).buffer,
+      {
+        Printer: {
+          print_num: (num: number) => {
+            printedNum = num;
+            return num + 5;
+          },
+        },
+      }
+    );
+
+    const result = (module.instance.exports as any)._start();
+    expect(printedNum).toEqual(1);
+    expect(result).toEqual(6);
+  });
+});

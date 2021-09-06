@@ -1,0 +1,70 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`resolveSymbols spits out the right debug info 1`] = `
+"<File>
+  <SymbolTable id=21 parent=20>
+    <externalFunc/>
+    <g/>
+    <main/>
+  </SymbolTable>
+  <funcs>
+    <FuncDecl symbol=\\"main\\" returnType=undefined>
+      <ParameterList>
+        <parameters/>
+      </ParameterList>
+      <Block>
+        <SymbolTable id=22 parent=21>
+          <x/>
+          <y/>
+        </SymbolTable>
+        <statements>
+          <LetStatement symbol=\\"x\\" typeExpr=undefined>
+            <NumberLiteral value=1 numberType=\\"int\\" explicitType=undefined/>
+          </LetStatement>
+          <LetStatement symbol=\\"y\\" typeExpr=undefined>
+            <NumberLiteral value=2 numberType=\\"int\\" explicitType=undefined/>
+          </LetStatement>
+          <Block>
+            <SymbolTable id=23 parent=22>
+              <x/>
+            </SymbolTable>
+            <statements>
+              <LetStatement symbol=\\"x\\" typeExpr=undefined>
+                <NumberLiteral value=3 numberType=\\"int\\" explicitType=undefined/>
+              </LetStatement>
+              <ExprStatement>
+                <SymbolRef symbol=\\"x\\"/>
+              </ExprStatement>
+              <ExprStatement>
+                <SymbolRef symbol=\\"y\\"/>
+              </ExprStatement>
+            </statements>
+          </Block>
+          <ExprStatement>
+            <SymbolRef symbol=\\"x\\"/>
+          </ExprStatement>
+        </statements>
+      </Block>
+    </FuncDecl>
+  </funcs>
+  <globals>
+    <GlobalDecl symbol=\\"g\\" typeExpr=undefined>
+      <NumberLiteral value=10 numberType=\\"int\\" explicitType=undefined/>
+    </GlobalDecl>
+  </globals>
+  <decls>
+    <ExternDecl libName=\\"someLib\\">
+      <funcs>
+        <FuncDecl symbol=\\"externalFunc\\" returnType=undefined>
+          <ParameterList>
+            <parameters/>
+          </ParameterList>
+          <Block>
+            <statements/>
+          </Block>
+        </FuncDecl>
+      </funcs>
+    </ExternDecl>
+  </decls>
+</File>"
+`;

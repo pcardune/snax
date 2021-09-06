@@ -116,7 +116,7 @@ ifStatement "if statement"
 externDecl = "extern" ws name:identifier ws "{" ws decls:externDeclList ws "}" {
   return spec.makeExternDeclWith({
     libName: name,
-    funcs: decls.map(begin => {
+    funcs: decls.map((begin:any) => {
       return spec.makeFuncDecl(
         begin.name,
         begin.parameters,
@@ -137,8 +137,15 @@ funcDecl = begin:funcDeclBegin ws "{" ws body:block? ws "}" {
       body || spec.makeBlock([]),
     );
   }
-funcDeclBegin = "func" ws name:identifier ws "(" ws parameters:parameterList? ws ")" {
-  return {name, parameters: parameters || spec.makeParameterList([]), returnType: undefined};
+funcDeclBegin =
+  "func" ws name:identifier ws
+  "(" ws parameters:parameterList? ws ")" ws
+  returns:(":" ws typeExpr)? {
+  return {
+    name,
+    parameters: parameters || spec.makeParameterList([]),
+    returnType: returns ? returns[2] : undefined,
+  };
 }
 parameterList "parameterList"
   = head:parameter tail:(ws "," ws parameter)* {

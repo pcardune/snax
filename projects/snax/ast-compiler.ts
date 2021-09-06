@@ -126,11 +126,13 @@ export class BlockCompiler extends IRCompiler<AST.Block> {
   liveLocals: LocalAllocation[] = [];
 
   compile(): IR.Instruction[] {
-    const code = this.root.fields.statements
+    const instr: IR.Instruction[] = [];
+    this.root.fields.statements
       .filter((astNode) => !AST.isFuncDecl(astNode))
-      .map((astNode) => IRCompiler.forNode(astNode, this.context).compile())
-      .flat();
-    return code;
+      .forEach((astNode) =>
+        instr.push(...IRCompiler.forNode(astNode, this.context).compile())
+      );
+    return instr;
   }
 }
 
@@ -154,24 +156,24 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   }
 
   compile(): Wasm.Module {
-    let imports: Wasm.Import[] = [];
-    if (this.options.includeWASI) {
-      const { i32 } = IR.NumberType;
-      imports.push(
-        new Wasm.Import({
-          mod: 'wasi_unstable',
-          nm: 'fd_write',
-          importdesc: {
-            kind: 'func',
-            id: 'fd_write',
-            typeuse: {
-              params: [i32, i32, i32, i32],
-              results: [i32],
-            },
-          },
-        })
-      );
-    }
+    // let imports: Wasm.Import[] = [];
+    // if (this.options.includeWASI) {
+    //   const { i32 } = IR.NumberType;
+    //   imports.push(
+    //     new Wasm.Import({
+    //       mod: 'wasi_unstable',
+    //       nm: 'fd_write',
+    //       importdesc: {
+    //         kind: 'func',
+    //         id: 'fd_write',
+    //         typeuse: {
+    //           params: [i32, i32, i32, i32],
+    //           results: [i32],
+    //         },
+    //       },
+    //     })
+    //   );
+    // }
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
         global next = 0;
@@ -241,11 +243,50 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       }
     }
 
+    const imports: Wasm.Import[] = [];
+    for (const decl of this.root.fields.decls) {
+      if (AST.isExternDecl(decl)) {
+        imports.push(...new ExternDeclCompiler(decl, { typeCache }).compile());
+      }
+    }
+
     return new Wasm.Module({
       funcs,
       globals,
       imports: imports.length > 0 ? imports : undefined,
       datas,
+    });
+  }
+}
+
+export class ExternDeclCompiler extends ASTCompiler<
+  AST.ExternDecl,
+  Wasm.Import[],
+  { typeCache: ResolvedTypeMap }
+> {
+  compile(): Wasm.Import[] {
+    return this.root.fields.funcs.map((func) => {
+      const funcType = this.context.typeCache.get(func);
+      if (!(funcType instanceof FuncType)) {
+        throw new Error(`Unexpected type for funcDecl: ${funcType.name}`);
+      }
+      return new Wasm.Import({
+        mod: this.root.fields.libName,
+        nm: func.fields.symbol,
+        importdesc: {
+          kind: 'func',
+          id: this.root.fields.libName + '_' + func.fields.symbol,
+          typeuse: {
+            params: func.fields.parameters.fields.parameters.map((param) =>
+              this.context.typeCache.get(param).toValueType()
+            ),
+            results:
+              funcType.returnType === Intrinsics.void
+                ? []
+                : [funcType.returnType.toValueType()],
+          },
+        },
+      });
     });
   }
 }
@@ -587,9 +628,12 @@ class ExprStatementCompiler extends IRCompiler<AST.ExprStatement> {
 
 class ArgListCompiler extends IRCompiler<AST.ArgList> {
   compile() {
-    return children(this.root)
-      .map((child) => this.compileChild(child as AST.Expression))
-      .flat();
+    let instr: IR.Instruction[] = [];
+
+    children(this.root).forEach((child) =>
+      instr.push(...this.compileChild(child as AST.Expression))
+    );
+    return instr;
   }
 }
 
@@ -626,16 +670,18 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
     // TODO: this should not be zero, otherwise every array literal
     // will overwrite the other array literals...
     const baseAddressInstr = new IR.PushConst(IR.NumberType.i32, 0);
-    const instr: IR.Instruction[] = [
-      ...children(this.root).map((child, i) => [
+    const instr: IR.Instruction[] = [];
+
+    children(this.root).forEach((child, i) =>
+      instr.push(
         // push memory space offset
         baseAddressInstr,
         // push value from expression
         ...this.compileChild(child as AST.Expression),
         // store value
-        new IR.MemoryStore(arrayType.elementType.toValueType(), i * 4, 4),
-      ]),
-    ].flat();
+        new IR.MemoryStore(arrayType.elementType.toValueType(), i * 4, 4)
+      )
+    );
     instr.push(baseAddressInstr);
     return instr;
   }

@@ -4,6 +4,7 @@ import {
   FuncDecl,
   GlobalDecl,
   isBinaryExpr,
+  isExternDecl,
   isUnaryExpr,
   ParameterList,
   StringLiteral,
@@ -215,6 +216,17 @@ function recurse(
   }
 
   switch (root.name) {
+    case 'File': {
+      for (const decl of root.fields.decls) {
+        if (isExternDecl(decl)) {
+          recurse(decl, moduleAllocator, typeMap, localAllocator);
+        }
+      }
+      [...root.fields.globals, ...root.fields.funcs].forEach((child) =>
+        recurse(child, moduleAllocator, typeMap, localAllocator)
+      );
+      return;
+    }
     case 'FuncDecl': {
       const { localAllocator } = moduleAllocator.allocateFunc(root);
       children(root).forEach((child) =>

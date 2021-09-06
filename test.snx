@@ -1,3 +1,7 @@
+extern wasi_unstable {
+  func fd_write(fileDescriptor:i32, iovPointer:i32, iovLength: i32, numWrittenPointer: i32):i32;
+}
+
 func sumTo10(i:i32, stepSize:i32) {
   let n = 0;
   while (i > 0) {
@@ -14,7 +18,7 @@ let iovec:&i32 = 400;
 iovec[0] = 0; // this happens to be where s is stored...
 iovec[1] = 12;
 
-wasi_fd_write(
+fd_write(
   1, // stdout
   400, // pointer to io vector
   1, // length of io vector

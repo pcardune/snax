@@ -35,7 +35,16 @@ beforeEach(() => {
   ]);
   globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
   funcDecl = makeFunc('main', [], outerBlock);
-  file = AST.makeFile([funcDecl], [globalDecl], []);
+  file = AST.makeFileWith({
+    funcs: [funcDecl],
+    globals: [globalDecl],
+    decls: [
+      AST.makeExternDeclWith({
+        libName: 'someLib',
+        funcs: [makeFunc('externalFunc')],
+      }),
+    ],
+  });
   const resolution = resolveSymbols(file);
   tables = resolution.tables;
   refMap = resolution.refMap;
@@ -62,63 +71,13 @@ describe('resolveSymbols', () => {
   it('symbols are resolved to an outer scope when not in the current scope', () => {
     expect(refMap.get(innerYRef)).toBe(tables.get(outerBlock)?.get('y'));
   });
-  it('globals appear in the files symbol table', () => {
+  it('globals appear in the file symbol table', () => {
     expect(tables.get(file)?.has('g')).toBe(true);
   });
+  it('external funcs appear in the file symbol table', () => {
+    expect(tables.get(file)?.has('externalFunc')).toBe(true);
+  });
   it('spits out the right debug info', () => {
-    expect(dumpSymbolTables(file, tables)).toMatchInlineSnapshot(`
-      "<File>
-        <SymbolTable id=17 parent=16>
-          <g/>
-          <main/>
-        </SymbolTable>
-        <funcs>
-          <FuncDecl symbol=\\"main\\" returnType=undefined>
-            <ParameterList>
-              <parameters/>
-            </ParameterList>
-            <Block>
-              <SymbolTable id=18 parent=17>
-                <x/>
-                <y/>
-              </SymbolTable>
-              <statements>
-                <LetStatement symbol=\\"x\\" typeExpr=undefined>
-                  <NumberLiteral value=1 numberType=\\"int\\" explicitType=undefined/>
-                </LetStatement>
-                <LetStatement symbol=\\"y\\" typeExpr=undefined>
-                  <NumberLiteral value=2 numberType=\\"int\\" explicitType=undefined/>
-                </LetStatement>
-                <Block>
-                  <SymbolTable id=19 parent=18>
-                    <x/>
-                  </SymbolTable>
-                  <statements>
-                    <LetStatement symbol=\\"x\\" typeExpr=undefined>
-                      <NumberLiteral value=3 numberType=\\"int\\" explicitType=undefined/>
-                    </LetStatement>
-                    <ExprStatement>
-                      <SymbolRef symbol=\\"x\\"/>
-                    </ExprStatement>
-                    <ExprStatement>
-                      <SymbolRef symbol=\\"y\\"/>
-                    </ExprStatement>
-                  </statements>
-                </Block>
-                <ExprStatement>
-                  <SymbolRef symbol=\\"x\\"/>
-                </ExprStatement>
-              </statements>
-            </Block>
-          </FuncDecl>
-        </funcs>
-        <globals>
-          <GlobalDecl symbol=\\"g\\" typeExpr=undefined>
-            <NumberLiteral value=10 numberType=\\"int\\" explicitType=undefined/>
-          </GlobalDecl>
-        </globals>
-        <decls/>
-      </File>"
-    `);
+    expect(dumpSymbolTables(file, tables)).toMatchSnapshot();
   });
 });

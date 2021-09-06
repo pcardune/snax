@@ -8,8 +8,9 @@ import {
   makeNumberLiteral,
   makeParameterList,
 } from '../spec-gen';
+import * as AST from '../spec-gen';
 import { resolveTypes } from '../type-resolution';
-import { makeNum } from './ast-util';
+import { resolveSymbols } from '../symbol-resolution';
 
 describe('ParameterList', () => {
   it('types an empty parameter list as a tuple type', () => {
@@ -29,6 +30,16 @@ describe('Functions', () => {
     );
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.void));
+  });
+  it('types a function with an explicit return type as a func type with that return type', () => {
+    const func = makeFuncDecl(
+      'myFunc',
+      makeParameterList([]),
+      AST.makeTypeRef('i32'),
+      makeBlock([])
+    );
+    const typeMap = resolveTypes(func, new OrderedMap());
+    expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
   });
 });
 
@@ -61,6 +72,31 @@ describe('Files', () => {
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(
       new RecordType(new OrderedMap([['myFunc', typeMap.get(func)!]]))
+    );
+  });
+});
+
+describe('ExternDecl', () => {
+  it('types an extern decl as a record type', () => {
+    const fdWriteFunc = AST.makeFuncDeclWith({
+      symbol: 'fd_write',
+      parameters: AST.makeParameterList([
+        AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
+        AST.makeParameter('iovPointer', AST.makeTypeRef('i32')),
+        AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
+        AST.makeParameter('numWrittenPointer', AST.makeTypeRef('i32')),
+      ]),
+      returnType: AST.makeTypeRef('i32'),
+      body: AST.makeBlock([]),
+    });
+    const externDecl = AST.makeExternDeclWith({
+      libName: 'wasi_unstable',
+      funcs: [fdWriteFunc],
+    });
+    const { refMap } = resolveSymbols(externDecl);
+    const typeMap = resolveTypes(externDecl, refMap);
+    expect(typeMap.get(externDecl)).toEqual(
+      new RecordType(new OrderedMap([['fd_write', typeMap.get(fdWriteFunc)]]))
     );
   });
 });

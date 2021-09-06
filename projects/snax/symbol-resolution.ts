@@ -1,6 +1,14 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
 import { BaseType } from './snax-types';
-import { ASTNode, Block, FuncDecl, isFile, SymbolRef, File } from './spec-gen';
+import {
+  ASTNode,
+  Block,
+  FuncDecl,
+  isFile,
+  SymbolRef,
+  File,
+  isExternDecl,
+} from './spec-gen';
 import { children as childrenOf } from './spec-util';
 
 export type SymbolRecord = {
@@ -87,6 +95,13 @@ function innerResolveSymbols(
 
   // descend into the child nodes to continue resolving symbols.
   if (isFile(astNode)) {
+    for (const decl of astNode.fields.decls) {
+      if (isExternDecl(decl)) {
+        for (const funcDecl of decl.fields.funcs) {
+          currentTable.declare(funcDecl.fields.symbol, funcDecl);
+        }
+      }
+    }
     for (const globalDecl of astNode.fields.globals) {
       currentTable.declare(globalDecl.fields.symbol, globalDecl);
     }

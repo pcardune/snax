@@ -65,6 +65,7 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       case 'ExprStatement':
         return new ExprStatementCompiler(node, context);
       case 'NumberLiteral':
+      case 'CharLiteral':
         return new NumberLiteralCompiler(node, context);
       case 'Block':
         return new BlockCompiler(node, context);
@@ -690,7 +691,9 @@ class ArgListCompiler extends IRCompiler<AST.ArgList> {
   }
 }
 
-class NumberLiteralCompiler extends IRCompiler<AST.NumberLiteral> {
+class NumberLiteralCompiler extends IRCompiler<
+  AST.NumberLiteral | AST.CharLiteral
+> {
   compile(): IR.Instruction[] {
     const valueType = this.resolveType(this.root).toValueType();
     return [new IR.PushConst(valueType, this.root.fields.value)];

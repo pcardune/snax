@@ -497,6 +497,10 @@ describe('strings', () => {
     ]);
     expect(new TextDecoder().decode(mem)).toEqual('hello world');
   });
+  it('compiles character literals', async () => {
+    const code = `'a';`;
+    expect(await exec(code)).toEqual(97);
+  });
 });
 
 describe('extern declarations', () => {

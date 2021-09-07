@@ -85,6 +85,8 @@ function calculateType(
       }
       throw new Error('panic.');
     }
+    case 'CharLiteral':
+      return Intrinsics.u8;
     case 'StringLiteral':
       return new ArrayType(Intrinsics.u8, node.fields.value.length);
     case 'SymbolRef': {

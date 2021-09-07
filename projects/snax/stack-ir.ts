@@ -262,14 +262,42 @@ export class MemoryStore extends Instruction {
   valueType: NumberType;
   offset: number;
   align: number;
-  constructor(valueType: NumberType, offset: number = 0, align: number = 1) {
+  bytes: 1 | 2 | 4 | 8 = 4;
+  constructor(
+    valueType: NumberType,
+    props: { offset?: number; align?: number; bytes?: number } = {}
+  ) {
     super();
     this.valueType = valueType;
-    this.offset = offset;
-    this.align = align;
+    this.offset = props.offset ?? 0;
+    this.align = props.align ?? 1;
+    const { bytes } = props;
+    if (bytes) {
+      if (
+        bytes !== 1 &&
+        bytes !== 2 &&
+        bytes !== 4 &&
+        !(bytes === 8 && valueType === 'i64')
+      ) {
+        throw new Error(
+          `Can't assign ${bytes} bytes to memory from ${valueType} using store instruction.`
+        );
+      }
+      this.bytes = bytes;
+    } else {
+      switch (valueType) {
+        case 'i32':
+          this.bytes = 4;
+          break;
+        case 'i64':
+          this.bytes = 8;
+          break;
+      }
+    }
   }
   toWAT(): string {
-    return `${this.valueType}.store offset=${this.offset} align=${this.align}`;
+    const bits = this.bytes == 4 ? '' : 8 * this.bytes;
+    return `${this.valueType}.store${bits} offset=${this.offset} align=${this.align}`;
   }
 }
 

@@ -422,11 +422,12 @@ describe('pointers', () => {
       let p:&i16 = 0;
       p[0] = 12_i16;
       p[1] = 13_i16;
+      p[0] = 10_i16;
     `;
     const { exports } = await compileToWasmModule(code);
-    expect(exports._start()).toEqual(13);
+    expect(exports._start()).toEqual(10);
     const mem = new Int16Array(exports.memory.buffer.slice(0, 4));
-    expect([...mem]).toEqual([12, 13]);
+    expect([...mem]).toEqual([10, 13]);
   });
   it('calculates the indexing expression only once.', async () => {
     const code = `

@@ -540,7 +540,11 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           ...calcPointer,
           ...calcValue,
           new IR.LocalTee(tempLocation.offset),
-          new IR.MemoryStore(valueType, 0, leftType.numBytes),
+          new IR.MemoryStore(valueType, {
+            offset: 0,
+            align: leftType.numBytes,
+            bytes: leftType.numBytes,
+          }),
           new IR.LocalGet(tempLocation.offset),
         ];
       } else {
@@ -718,7 +722,10 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
         // push value from expression
         ...this.compileChild(child as AST.Expression),
         // store value
-        new IR.MemoryStore(arrayType.elementType.toValueType(), i * 4, 4)
+        new IR.MemoryStore(arrayType.elementType.toValueType(), {
+          offset: i * 4,
+          align: 4,
+        })
       )
     );
     instr.push(baseAddressInstr);

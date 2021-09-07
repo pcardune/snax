@@ -54,6 +54,28 @@ describe('string literals', () => {
     ).toEqual(AST.makeStringLiteral('this string has a \n in it'));
   });
 });
+describe('char literals', () => {
+  it("should parse 'a' into a character literal", () => {
+    expect(SNAXParser.parseStrOrThrow("'a'", 'expr')).toEqual(
+      AST.makeCharLiteral('a'.charCodeAt(0))
+    );
+  });
+  it("should parse '\\n' into a character literal", () => {
+    expect(SNAXParser.parseStrOrThrow("'\\n'", 'expr')).toEqual(
+      AST.makeCharLiteral('\n'.charCodeAt(0))
+    );
+  });
+  it("should parse '\\'' into a character literal", () => {
+    expect(SNAXParser.parseStrOrThrow("'\\''", 'expr')).toEqual(
+      AST.makeCharLiteral("'".charCodeAt(0))
+    );
+  });
+  it("should parse '\"' into a character literal", () => {
+    expect(SNAXParser.parseStrOrThrow("'\"'", 'expr')).toEqual(
+      AST.makeCharLiteral('"'.charCodeAt(0))
+    );
+  });
+});
 describe('expression', () => {
   it('should drop parentheses', () => {
     const expr = SNAXParser.parseStrOrThrow('(123)', 'expr');

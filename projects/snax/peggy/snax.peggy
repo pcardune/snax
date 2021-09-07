@@ -250,6 +250,7 @@ factor "factor"
   = "(" inner:expr ")" { return inner; }
   / arrayLiteral
   / stringLiteral
+  / charLiteral
   / number
   / bool
   / id
@@ -258,6 +259,17 @@ stringLiteral "string"
   = '"' content:(('\\' .) / [^"])* '"' {
     const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
     return spec.makeStringLiteral(JSON.parse('"'+inner+'"'));
+  }
+
+charLiteral "char"
+  = "'" content:('\\'? .) "'" {
+    let s = (content[0] || '') + content[1];
+    if (s === "\\'") {
+      s = "'";
+    } else if (s === '"') {
+      s = '\\"';
+    }
+    return spec.makeCharLiteral(JSON.parse('"'+s+'"').charCodeAt(0));
   }
 
 arrayLiteral "array"

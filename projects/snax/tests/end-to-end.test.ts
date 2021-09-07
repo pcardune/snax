@@ -465,6 +465,14 @@ describe('pointers', () => {
     const mem = new Int8Array(exports.memory.buffer.slice(0, 2));
     expect([...mem]).toEqual([1, 3]);
   });
+  it('allows casting a pointer to an i32', async () => {
+    const code = `
+      let p:&u8 = 100;
+      let j:i32 = p as i32;
+      j;
+    `;
+    expect(await exec(code)).toEqual(100);
+  });
 });
 
 describe('arrays', () => {

@@ -1,6 +1,12 @@
 import * as AST from './spec-gen';
 import { SNAXParser } from './snax-parser';
-import { ArrayType, FuncType, Intrinsics, NumericalType } from './snax-types';
+import {
+  ArrayType,
+  FuncType,
+  Intrinsics,
+  NumericalType,
+  PointerType,
+} from './snax-types';
 import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
 import { BinaryOp, UnaryOp } from './snax-ast';
@@ -590,44 +596,55 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
     if (!(destType instanceof NumericalType)) {
       throw new Error(`Don't know how to cast to ${destType.name} yet`);
     }
-    if (!(sourceType instanceof NumericalType)) {
-      throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
-    }
 
     const instr = this.compileChild(this.root.fields.expr);
-    const destValueType = destType.toValueType();
-    const sourceValueType = sourceType.toValueType();
 
-    if (IR.isFloatType(destValueType)) {
-      // conversion to floats
-      if (IR.isIntType(sourceValueType)) {
-        instr.push(
-          new IR.Convert(
-            sourceValueType,
-            destValueType,
-            sourceType.signed ? IR.Sign.Signed : IR.Sign.Unsigned
-          )
-        );
-      } else if (destValueType !== sourceValueType) {
-        if (destValueType === 'f64' && sourceValueType === 'f32') {
-          instr.push(new IR.Promote());
+    if (sourceType instanceof NumericalType) {
+      const destValueType = destType.toValueType();
+      const sourceValueType = sourceType.toValueType();
+
+      if (IR.isFloatType(destValueType)) {
+        // conversion to floats
+        if (IR.isIntType(sourceValueType)) {
+          instr.push(
+            new IR.Convert(
+              sourceValueType,
+              destValueType,
+              sourceType.signed ? IR.Sign.Signed : IR.Sign.Unsigned
+            )
+          );
+        } else if (destValueType !== sourceValueType) {
+          if (destValueType === 'f64' && sourceValueType === 'f32') {
+            instr.push(new IR.Promote());
+          } else {
+            throw new Error(`I don't implicitly demote floats`);
+          }
         } else {
-          throw new Error(`I don't implicitly demote floats`);
+          instr.push(new IR.Nop());
         }
+      } else {
+        // conversion to integers
+        if (IR.isFloatType(sourceValueType)) {
+          throw new Error(`I don't implicitly truncate floats`);
+        } else if (sourceType.numBytes > destType.numBytes) {
+          throw new Error(`I don't implicitly wrap to smaller sizes`);
+        } else if (sourceType.signed && !destType.signed) {
+          throw new Error(`I don't implicitly drop signs`);
+        } else {
+          instr.push(new IR.Nop());
+        }
+      }
+    } else if (sourceType instanceof PointerType) {
+      if (
+        destType.interpretation === 'int' &&
+        destType.numBytes < sourceType.numBytes
+      ) {
+        throw new Error(`${destType} doesn't hold enough bytes for a pointer`);
       } else {
         instr.push(new IR.Nop());
       }
     } else {
-      // conversion to integers
-      if (IR.isFloatType(sourceValueType)) {
-        throw new Error(`I don't implicitly truncate floats`);
-      } else if (sourceType.numBytes > destType.numBytes) {
-        throw new Error(`I don't implicitly wrap to smaller sizes`);
-      } else if (sourceType.signed && !destType.signed) {
-        throw new Error(`I don't implicitly drop signs`);
-      } else {
-        instr.push(new IR.Nop());
-      }
+      throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
     }
 
     return instr;

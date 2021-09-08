@@ -204,7 +204,8 @@ function calculateType(
           );
         }
       }
-      return new ArrayType(type, node.fields.elements.length);
+      //new ArrayType(type, node.fields.elements.length)
+      return new PointerType(type);
     }
     case 'FuncDecl': {
       let paramTypes = node.fields.parameters.fields.parameters.map((p) =>

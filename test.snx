@@ -5,9 +5,8 @@ extern wasi_unstable {
 let hello:&u8 = "hello world\n";
 let meow:&u8 = "meowwww\n";
 meow[1] = 'i';
-let iovec:&i32 = 400;
-iovec[0] = meow as i32; // this happens to be where s is stored...
-iovec[1] = 12;
+
+let iovec = [hello as i32, 12];
 
 fd_write(
   1, // stdout

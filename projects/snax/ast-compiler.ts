@@ -19,6 +19,7 @@ import {
   LocalAllocation,
   ModuleAllocator,
   resolveMemory,
+  StorageLocation,
 } from './memory-resolution';
 
 export abstract class ASTCompiler<
@@ -43,9 +44,14 @@ type AllocationMapContext = {
   allocationMap: AllocationMap;
 };
 
+type Runtime = {
+  malloc: StorageLocation;
+};
+
 export type IRCompilerContext = AllocationMapContext & {
   refMap: SymbolRefMap;
   typeCache: ResolvedTypeMap;
+  runtime: Runtime;
 };
 export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   Root,
@@ -156,13 +162,18 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);
     this.options = {
-      includeRuntime: false,
+      includeRuntime: true,
       includeWASI: false,
       ...options,
     };
   }
 
   compile(): Wasm.Module {
+    let heapStartLiteral = AST.makeNumberLiteralWith({
+      value: 0,
+      numberType: 'int',
+    });
+    let mallocDecl: AST.FuncDecl | undefined;
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
         global next = 0;
@@ -172,12 +183,19 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           return startAddress;
         }`);
       if (AST.isFile(runtimeAST)) {
-        this.root.fields.funcs.push(
-          ...runtimeAST.fields.funcs.filter(
-            (func) => func.fields.symbol !== 'main'
-          )
-        );
+        for (const runtimeFunc of runtimeAST.fields.funcs) {
+          const { symbol } = runtimeFunc.fields;
+          if (symbol !== 'main') {
+            this.root.fields.funcs.push(runtimeFunc);
+            if (symbol === 'malloc') {
+              mallocDecl = runtimeFunc;
+            }
+          }
+        }
+        runtimeAST.fields.globals[0].fields.expr = heapStartLiteral;
         this.root.fields.globals.push(...runtimeAST.fields.globals);
+      } else {
+        throw new Error(`this should never happen`);
       }
     }
     const { refMap } = resolveSymbols(this.root);
@@ -188,6 +206,30 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
 
     const moduleAllocator = resolveMemory(this.root, typeCache);
     this.moduleAllocator = moduleAllocator;
+
+    // initialize the heap start pointer to the last memIndex
+    // that got used.
+    heapStartLiteral.fields.value = moduleAllocator.memIndex;
+
+    let runtime: Runtime;
+    if (this.options.includeRuntime) {
+      if (!mallocDecl) {
+        throw new Error(`I need a decl for malloc`);
+      }
+      let malloc = moduleAllocator.allocationMap.get(mallocDecl);
+      if (!malloc) {
+        throw new Error(`I need malloc`);
+      }
+
+      runtime = {
+        malloc,
+      };
+    } else {
+      // TODO, find a better alternative for optional compilation
+      runtime = {
+        malloc: { area: 'funcs', offset: 1000 },
+      };
+    }
 
     const funcs: Wasm.Func[] = this.root.fields.funcs.map((func) => {
       const locals = moduleAllocator.getLocalsForFunc(func);
@@ -201,6 +243,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         typeCache,
         allocationMap: moduleAllocator.allocationMap,
         locals,
+        runtime,
       }).compile();
       if (func.fields.symbol === 'main') {
         wasmFunc.fields.exportName = '_start';
@@ -219,6 +262,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           refMap,
           typeCache,
           allocationMap: moduleAllocator.allocationMap,
+          runtime: runtime,
         }).compile(),
       });
     });
@@ -280,11 +324,11 @@ export class ExternDeclCompiler extends ASTCompiler<
   }
 }
 
-type FuncDeclContext = {
+type FuncDeclContext = AllocationMapContext & {
   refMap: SymbolRefMap;
   typeCache: ResolvedTypeMap;
-  allocationMap: AllocationMap;
   locals: Wasm.Local[];
+  runtime: Runtime;
 };
 
 export class FuncDeclCompiler extends ASTCompiler<
@@ -559,14 +603,20 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
       refExpr: AST.Expression,
       indexExpr: AST.Expression
     ) => {
-      const valueType = this.resolveType(refExpr).toValueType();
+      const refExprType = this.resolveType(refExpr);
+      if (!(refExprType instanceof PointerType)) {
+        throw new Error(
+          `Don't know how to compile indexing operation for a ${refExprType.name}`
+        );
+      }
+      const valueType = refExprType.toValueType();
       return [
         ...this.compileChild(refExpr),
         ...this.compileChild(indexExpr),
-        new IR.Add(valueType),
-        new IR.PushConst(valueType, 4),
+        new IR.PushConst(valueType, refExprType.toType.numBytes),
         new IR.Mul(valueType),
-        new IR.MemoryLoad(valueType, 0),
+        new IR.Add(valueType),
+        new IR.MemoryLoad(valueType, 0, refExprType.toType.numBytes),
       ];
     },
     [BinaryOp.CAST]: (left: AST.Expression, right: AST.Expression) => {
@@ -738,28 +788,45 @@ export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
 class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
   compile(): IR.Instruction[] {
     const arrayType = this.resolveType(this.root);
-    if (!(arrayType instanceof ArrayType)) {
+    if (!(arrayType instanceof PointerType)) {
       throw new Error('unexpected type for array literal');
     }
-    // TODO: this should not be zero, otherwise every array literal
-    // will overwrite the other array literals...
-    const baseAddressInstr = new IR.PushConst(IR.NumberType.i32, 0);
     const instr: IR.Instruction[] = [];
 
-    children(this.root).forEach((child, i) =>
+    let malloc = this.context.runtime.malloc;
+    if (!malloc) {
+      throw new Error(
+        `Array literals depend on malloc function, which was not found in the runtime.`
+      );
+    }
+
+    let location = this.context.allocationMap.get(this.root);
+    if (!location || location.area !== 'locals') {
+      throw new Error(
+        `Array literal didn't have a temporary local allocated for it`
+      );
+    }
+
+    instr.push(
+      new IR.PushConst(IR.NumberType.i32, arrayType.numBytes),
+      new IR.Call(malloc.offset),
+      new IR.LocalSet(location.offset)
+    );
+
+    for (const [i, child] of children(this.root).entries()) {
       instr.push(
         // push memory space offset
-        baseAddressInstr,
+        new IR.LocalGet(location.offset),
         // push value from expression
         ...this.compileChild(child as AST.Expression),
         // store value
-        new IR.MemoryStore(arrayType.elementType.toValueType(), {
+        new IR.MemoryStore(arrayType.toType.toValueType(), {
           offset: i * 4,
           align: 4,
         })
-      )
-    );
-    instr.push(baseAddressInstr);
+      );
+    }
+    instr.push(new IR.LocalGet(location.offset));
     return instr;
   }
 }

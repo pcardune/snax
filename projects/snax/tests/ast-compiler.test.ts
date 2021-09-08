@@ -32,26 +32,17 @@ function irCompiler(node: CompilesToIR) {
     refMap,
     typeCache,
     allocationMap: new OrderedMap(),
+    runtime: { malloc: { area: 'funcs', offset: 1000000 } },
   });
 }
 
 describe('BinaryExprCompiler', () => {
-  function exprCompiler(root: AST.BinaryExpr) {
-    const allocationMap: AllocationMap = new OrderedMap();
-    const refMap: SymbolRefMap = new OrderedMap();
-    const typeCache = resolveTypes(root, refMap);
-    return new BinaryExprCompiler(root, {
-      refMap,
-      typeCache,
-      allocationMap,
-    });
-  }
   const { i32, f32 } = IR.NumberType;
   test('compile() combines the stack IRS of the sub expressions', () => {
     const twenty = makeNum(20);
     const thirty = makeNum(30);
     const expr = AST.makeBinaryExpr(BinaryOp.ADD, twenty, thirty);
-    const compiler = exprCompiler(expr);
+    const compiler = irCompiler(expr);
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(twenty),
       ...compiler.compileChild(thirty),
@@ -61,7 +52,7 @@ describe('BinaryExprCompiler', () => {
   it('casts integers to floats', () => {
     const ten = makeNum(10);
     const twelvePointThree = makeNum(12.3, 'float');
-    let compiler = exprCompiler(
+    let compiler = irCompiler(
       AST.makeBinaryExpr(BinaryOp.ADD, ten, twelvePointThree)
     );
     expect(compiler.compile()).toEqual([
@@ -70,7 +61,7 @@ describe('BinaryExprCompiler', () => {
       ...compiler.compileChild(twelvePointThree),
       new IR.Add(f32),
     ]);
-    compiler = exprCompiler(
+    compiler = irCompiler(
       AST.makeBinaryExpr(BinaryOp.ADD, twelvePointThree, ten)
     );
     expect(compiler.compile()).toEqual([
@@ -235,6 +226,7 @@ function funcCompiler(func: AST.FuncDecl) {
     typeCache,
     allocationMap: moduleAllocator.allocationMap,
     locals: moduleAllocator.getLocalsForFunc(func)!,
+    runtime: { malloc: { area: 'funcs', offset: 1000000 } },
   });
 }
 
@@ -352,20 +344,6 @@ describe('FuncDeclCompiler', () => {
   });
 });
 
-function stubContext(root?: AST.ASTNode) {
-  const refMap: SymbolRefMap = root
-    ? resolveSymbols(root).refMap
-    : new OrderedMap();
-  const typeCache = root ? resolveTypes(root, refMap) : new ResolvedTypeMap();
-  return {
-    refMap,
-    typeCache,
-    locals: new NeverAllocator(),
-    allocationMap: new OrderedMap(),
-    constants: new ModuleAllocator(),
-  } as IRCompilerContext;
-}
-
 describe('IfStatementCompiler', () => {
   it('compiles if statements', () => {
     const ifStatement = AST.makeIfStatement(
@@ -373,10 +351,7 @@ describe('IfStatementCompiler', () => {
       AST.makeBlock([AST.makeExprStatement(makeNum(2))]),
       AST.makeBlock([AST.makeExprStatement(makeNum(4))])
     );
-    const compiler = new IfStatementCompiler(
-      ifStatement,
-      stubContext(ifStatement)
-    );
+    const compiler = irCompiler(ifStatement);
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(ifStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -393,10 +368,7 @@ describe('WhileStatementCompiler', () => {
       AST.makeBooleanLiteral(true),
       AST.makeBlock([AST.makeExprStatement(makeNum(2))])
     );
-    const compiler = new WhileStatementCompiler(
-      whileStatement,
-      stubContext(whileStatement)
-    );
+    const compiler = irCompiler(whileStatement);
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(whileStatement.fields.condExpr),
       new Wasm.IfBlock({
@@ -418,7 +390,11 @@ describe('WhileStatementCompiler', () => {
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', () => {
-    expect(new ModuleCompiler(AST.makeFile([], [], [])).compile()).toEqual(
+    expect(
+      new ModuleCompiler(AST.makeFile([], [], []), {
+        includeRuntime: false,
+      }).compile()
+    ).toEqual(
       new Wasm.Module({
         funcs: [],
         globals: [],
@@ -428,7 +404,12 @@ describe('ModuleCompiler', () => {
   it('compiles globals in the module', () => {
     expect(
       new ModuleCompiler(
-        AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], [])
+        AST.makeFile(
+          [],
+          [AST.makeGlobalDecl('foo', undefined, makeNum(0))],
+          []
+        ),
+        { includeRuntime: false }
       ).compile()
     ).toEqual(
       new Wasm.Module({
@@ -449,7 +430,7 @@ describe('ModuleCompiler', () => {
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
     const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
-    const compiler = new ModuleCompiler(file);
+    const compiler = new ModuleCompiler(file, { includeRuntime: false });
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
@@ -460,11 +441,7 @@ describe('ModuleCompiler', () => {
             }),
             exportName: '_start',
             id: 'main',
-            body: IRCompiler.forNode(num, {
-              refMap: compiler.refMap!,
-              typeCache: compiler.typeCache!,
-              allocationMap: compiler.moduleAllocator!.allocationMap,
-            }).compile(),
+            body: irCompiler(num).compile(),
           }),
         ],
       })
@@ -483,7 +460,8 @@ describe('ModuleCompiler', () => {
         ],
         [],
         []
-      )
+      ),
+      { includeRuntime: false }
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
@@ -514,7 +492,7 @@ describe('ModuleCompiler', () => {
       globals: [],
       decls: [],
     });
-    const compiler = new ModuleCompiler(file);
+    const compiler = new ModuleCompiler(file, { includeRuntime: false });
     expect(compiler.compile()).toEqual(
       new Wasm.Module({
         funcs: [
@@ -523,6 +501,7 @@ describe('ModuleCompiler', () => {
             typeCache: compiler.typeCache!,
             allocationMap: compiler.moduleAllocator!.allocationMap,
             locals: compiler.moduleAllocator?.getLocalsForFunc(funcDecl)!,
+            runtime: { malloc: { area: 'funcs', offset: 10000 } },
           }).compile(),
           new Wasm.Func({
             funcType: new Wasm.FuncTypeUse({
@@ -561,7 +540,7 @@ describe('ModuleCompiler', () => {
       ],
     });
 
-    const compiler = new ModuleCompiler(file);
+    const compiler = new ModuleCompiler(file, { includeRuntime: false });
     const { i32 } = IR.NumberType;
     expect(compiler.compile()).toEqual(
       new Wasm.Module({

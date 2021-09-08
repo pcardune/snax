@@ -15,14 +15,14 @@ import * as IR from './stack-ir';
 import { ResolvedTypeMap } from './type-resolution';
 import { BinaryOp, UnaryOp } from './snax-ast';
 
-type DataLocation = {
+export type DataLocation = {
   area: 'data';
   offset: number;
   data: string;
   memIndex: number;
 };
 
-type StorageLocation =
+export type StorageLocation =
   | {
       area: 'funcs' | 'locals' | 'globals';
       offset: number;
@@ -274,6 +274,15 @@ function recurse(
     }
     case 'StringLiteral':
       moduleAllocator.allocateConstData(root, root.fields.value);
+      break;
+    case 'ArrayLiteral':
+      if (assertLocal(localAllocator)) {
+        let arrayStartPointer = localAllocator.allocateLocal(
+          IR.NumberType.i32,
+          root
+        );
+        localAllocator.deallocateLocal(arrayStartPointer);
+      }
       break;
   }
 

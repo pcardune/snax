@@ -73,17 +73,6 @@ describe('end-to-end test', () => {
   });
 
   it('compiles integers', async () => {
-    expect(compileToWAT('123;')).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (func $main (result i32)
-          i32.const 123
-          return)
-        (export \\"_start\\" (func 0))
-        (type (;0;) (func (result i32))))
-      "
-    `);
     const { exports } = await compileToWasmModule('123;');
     expect(exports._start()).toEqual(123);
   });
@@ -120,43 +109,10 @@ describe('end-to-end test', () => {
 
   it('compiles expressions', async () => {
     const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10;');
-    expect(wasmModule.toText({})).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (func $main (result i32)
-          i32.const 3
-          i32.const 5
-          i32.const 2
-          i32.mul
-          i32.add
-          i32.const 10
-          i32.const 10
-          i32.div_s
-          i32.sub
-          return)
-        (export \\"_start\\" (func 0))
-        (type (;0;) (func (result i32))))
-      "
-    `);
     expect(exports._start()).toEqual(12);
   });
 
   it('converts between ints and floats', async () => {
-    expect(compileToWAT('3+5.2;')).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (func $main (result f32)
-          i32.const 3
-          f32.convert_i32_s
-          f32.const 0x1.4cccccp+2 (;=5.2;)
-          f32.add
-          return)
-        (export \\"_start\\" (func 0))
-        (type (;0;) (func (result f32))))
-      "
-    `);
     // const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
     // expect(exports._start()).toBeCloseTo(8.2);
   });
@@ -164,24 +120,6 @@ describe('end-to-end test', () => {
 
 describe('block compilation', () => {
   it('compiles blocks', async () => {
-    expect(compileToWAT('let x = 3; let y = x+4; y;')).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (func $main (result i32)
-          (local i32 i32)
-          i32.const 3
-          local.set 0
-          local.get 0
-          i32.const 4
-          i32.add
-          local.set 1
-          local.get 1
-          return)
-        (export \\"_start\\" (func 0))
-        (type (;0;) (func (result i32))))
-      "
-    `);
     const { exports, wasmModule } = await compileToWasmModule(
       'let x = 3; let y = x+4; y;'
     );
@@ -219,23 +157,6 @@ describe('block compilation', () => {
           }
           x;
         `;
-      expect(compileToWAT(code)).toMatchInlineSnapshot(`
-        "(module
-          (memory (;0;) 1)
-          (export \\"memory\\" (memory 0))
-          (func $main (result i32)
-            (local i32)
-            i32.const 1
-            local.set 0
-            i32.const 2
-            local.tee 0
-            drop
-            local.get 0
-            return)
-          (export \\"_start\\" (func 0))
-          (type (;0;) (func (result i32))))
-        "
-      `);
       expect(await exec(code)).toEqual(2);
     });
     it('fails if you try to assign to something that has not yet been declared', async () => {
@@ -296,35 +217,6 @@ describe('control flow', () => {
 
 describe('functions', () => {
   it('compiles functions', async () => {
-    const wat = compileToWAT(`
-          let x = 3;
-          add(x, 5);
-          func add(x:i32, y:i32) {
-            return x+y;
-          }
-        `);
-    expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (func $add (param i32 i32) (result i32)
-          local.get 0
-          local.get 1
-          i32.add
-          return)
-        (func $main (result i32)
-          (local i32)
-          i32.const 3
-          local.set 0
-          local.get 0
-          i32.const 5
-          call 0
-          return)
-        (export \\"_start\\" (func 1))
-        (type (;0;) (func (param i32 i32) (result i32)))
-        (type (;1;) (func (result i32))))
-      "
-    `);
     expect(
       await exec(`
           let x = 3;
@@ -348,28 +240,6 @@ describe('globals', () => {
         count();
         counter;
       `;
-    expect(compileToWAT(code)).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (global $g0 (mut i32) (i32.const 0))
-        (func $count
-          global.get 0
-          i32.const 1
-          i32.add
-          global.set 0
-          global.get 0
-          drop)
-        (func $main (result i32)
-          call 0
-          call 0
-          global.get 0
-          return)
-        (export \\"_start\\" (func 1))
-        (type (;0;) (func))
-        (type (;1;) (func (result i32))))
-      "
-    `);
     expect(await exec(code)).toEqual(2);
   });
 });
@@ -478,11 +348,35 @@ describe('pointers', () => {
 
 describe('arrays', () => {
   it('compiles arrays', async () => {
-    const input = '[6,5,4][1];';
+    const input = 'let a = "data"; [6,5,4][1];';
     const { exports } = await compileToWasmModule(input);
-    expect(exports._start()).toBe(5);
-    const mem = new Int32Array(exports.memory.buffer.slice(0, 12));
-    expect([...mem]).toEqual([6, 5, 4]);
+    const result = exports._start();
+    expect(result).toBe(5);
+    const mem = new Int8Array(exports.memory.buffer.slice(0, 20));
+    expect([...mem]).toMatchInlineSnapshot(`
+Array [
+  100,
+  97,
+  116,
+  97,
+  6,
+  0,
+  0,
+  0,
+  5,
+  0,
+  0,
+  0,
+  4,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+]
+`);
   });
 });
 
@@ -509,24 +403,6 @@ describe('tuple structs', () => {
       struct Vector(u8,i32);
       let v = Vector(23_u8, 1234);
     `;
-    expect(compileToWAT(code)).toMatchInlineSnapshot(`
-"(module
-  (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
-  (func $main
-    (local i32)
-    i32.const 0
-    i32.const 23
-    i32.store8
-    i32.const 0
-    i32.const 1234
-    i32.store offset=1
-    i32.const 0
-    local.set 0)
-  (export \\"_start\\" (func 0))
-  (type (;0;) (func)))
-"
-`);
     const { exports } = await compileToWasmModule(code);
     const returnVal = exports._start();
     // expect(returnVal).toBe(5);
@@ -545,20 +421,6 @@ describe('extern declarations', () => {
       print_num(1);
     `;
     const wat = compileToWAT(code);
-    expect(wat).toMatchInlineSnapshot(`
-"(module
-  (import \\"Printer\\" \\"print_num\\" (func $Printer_print_num (param i32) (result i32)))
-  (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
-  (func $main (result i32)
-    i32.const 1
-    call 0
-    return)
-  (export \\"_start\\" (func 1))
-  (type (;0;) (func (param i32) (result i32)))
-  (type (;1;) (func (result i32))))
-"
-`);
     const wasmModule = wabt.parseWat('', wat);
     wasmModule.validate();
 

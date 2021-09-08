@@ -4,13 +4,29 @@
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
-}}
-
-{
-  if (options.multiplier) {
-    input = "(" + input + ")*(" + options.multiplier + ")";
+  function leftAssoc(rest:any[], val:any, func:(p:{operator:any, left:any, right:any})=>any):any {
+    if (rest.length == 0) {
+      return val;
+    }
+    const last = rest.pop();
+    return func({
+      left:leftAssoc(rest, last[0], func),
+      operator:last[last.length-2],
+      right:val
+    });
   }
-}
+  function rightAssoc(val:any, rest:any[], func:(p:{operator:any, left:any, right:any})=>any):any {
+    if (rest.length == 0) {
+      return val;
+    }
+    const first = rest.shift();
+    return func({
+      left:val,
+      operator:first[0],
+      right:rightAssoc(first[first.length-1], rest, func)
+    });
+  }
+}}
 
 start
   = file
@@ -174,60 +190,83 @@ expr "expr"
   = assignment
 
 assignment "assignment"
-  = left:bool_or ws "=" ws right:bool_or {
-    return spec.makeBinaryExpr(AST.BinaryOp.ASSIGN, left, right);
+  = val:bool_or ws rest:(ws "=" ws bool_or)* {
+    return rightAssoc(
+      val,
+      rest,
+      ({left, right}) => spec.makeBinaryExpr(AST.BinaryOp.ASSIGN, left, right)
+    );
   }
-  / bool_or
 
 bool_or "bool or"
-  = left:bool_and ws "||" ws right:bool_and {
-    return spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_OR, left, right);
+  = rest:(bool_and ws "||" ws)* val:bool_and {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right}) => spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_OR, left, right)
+    );
   }
-  / bool_and
 
 bool_and "bool and"
-  = left:equality ws "&&" ws right:equality {
-    return spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_AND, left, right);
+  = rest:(equality ws "&&" ws)* val:equality {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right}) => spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_AND, left, right)
+    );
   }
-  / equality
 
 equality "equality"
-  = left:ordering ws op:("==" / "!=") ws right:ordering {
-    return spec.makeBinaryExpr(
-      op === "!=" ? AST.BinaryOp.NOT_EQUAL_TO : AST.BinaryOp.EQUAL_TO,
-      left,
-      right
+  = rest:(ordering ws ("==" / "!=") ws)* val:ordering {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right, operator}) => spec.makeBinaryExpr(
+        operator === "!=" ? AST.BinaryOp.NOT_EQUAL_TO : AST.BinaryOp.EQUAL_TO,
+        left,
+        right
+      )
     );
   }
-  / ordering
 
 ordering "ordering"
-  = left:additive ws op:("<" / ">") ws right:additive {
-    return spec.makeBinaryExpr(
-      op==="<" ? AST.BinaryOp.LESS_THAN : AST.BinaryOp.GREATER_THAN,
-      left,
-      right
+  = rest:(additive ws ("<" / ">") ws)* val:additive {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right, operator}) => spec.makeBinaryExpr(
+        operator === "<" ? AST.BinaryOp.LESS_THAN : AST.BinaryOp.GREATER_THAN,
+        left,
+        right
+      )
     );
   }
-  / additive
 
 additive "additive"
-  = left:term ws right:(ws ("+" / "-") ws term)* {
-    return right.reduce((result: spec.Expression, element: any[]) => {
-      let op = element[1] === "+" ? AST.BinaryOp.ADD : AST.BinaryOp.SUB;
-      return spec.makeBinaryExpr(op, result, element[3]);
-    }, left);
+  = rest:(term ws ("+" / "-") ws)* val:term {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right, operator}) => spec.makeBinaryExpr(
+        operator === "+" ? AST.BinaryOp.ADD : AST.BinaryOp.SUB,
+        left,
+        right
+      )
+    );
   }
-  / term
 
 term "term"
-  = left:casting ws right:(ws ("*" / "/") ws casting)* {
-    return right.reduce((result: spec.Expression, element: any[]) => {
-      let op = element[1] === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV;
-      return spec.makeBinaryExpr(op, result, element[3]);
-    }, left);
+  = rest:(casting ws ("*" / "/") ws)* val:casting {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right, operator}) => spec.makeBinaryExpr(
+        operator === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV,
+        left,
+        right
+      )
+    );
   }
-  / casting
 
 casting "cast"
   = value:calling ws "as" ws typeExpr:typeExpr {
@@ -248,13 +287,22 @@ indexing "indexing"
   / deref
 
 deref "deref"
-  = "@" expr:factor {
+  = "@" expr:memberAccess {
     return spec.makeUnaryExpr(AST.UnaryOp.DEREF, expr);
   }
-  / factor
+  / memberAccess
+
+memberAccess "memberAccess"
+  = rest:(factor ws (".") ws)* val:factor {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right, operator}) => spec.makeMemberAccessExpr(left, right)
+    );
+  }
 
 factor "factor"
-  = "(" inner:expr ")" { return inner; }
+  = "(" ws inner:expr ws ")" { return inner; }
   / arrayLiteral
   / stringLiteral
   / charLiteral

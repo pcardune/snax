@@ -89,6 +89,12 @@ export const nodes: Record<string, NodeSpec> = {
       right: 'ArgList',
     },
   },
+  MemberAccessExpr: {
+    fields: {
+      left: 'Expression',
+      right: 'Expression',
+    },
+  },
   CastExpr: {
     fields: {
       expr: 'Expression',
@@ -184,6 +190,7 @@ export const nodes: Record<string, NodeSpec> = {
       'CallExpr',
       'CastExpr',
       'ArgList',
+      'MemberAccessExpr',
     ],
   },
   Statement: {

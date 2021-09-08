@@ -132,21 +132,49 @@ describe('expression', () => {
       AST.makeBinaryExpr(BinaryOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
     );
   });
-  it('should handle boolean operators', () => {
-    expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
-      AST.makeBinaryExpr(
-        BinaryOp.LOGICAL_AND,
-        AST.makeBooleanLiteral(true),
-        AST.makeSymbolRef('x')
-      )
-    );
-    expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
-      AST.makeBinaryExpr(
-        BinaryOp.LOGICAL_OR,
-        AST.makeBooleanLiteral(true),
-        AST.makeSymbolRef('x')
-      )
-    );
+  describe('boolean operators', () => {
+    it('should handle boolean operators', () => {
+      expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinaryOp.LOGICAL_AND,
+          AST.makeBooleanLiteral(true),
+          AST.makeSymbolRef('x')
+        )
+      );
+      expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinaryOp.LOGICAL_OR,
+          AST.makeBooleanLiteral(true),
+          AST.makeSymbolRef('x')
+        )
+      );
+    });
+    it('&& takes precendence over ||', () => {
+      expect(SNAXParser.parseStrOrThrow('a || b && c', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinaryOp.LOGICAL_OR,
+          AST.makeSymbolRef('a'),
+          AST.makeBinaryExpr(
+            BinaryOp.LOGICAL_AND,
+            AST.makeSymbolRef('b'),
+            AST.makeSymbolRef('c')
+          )
+        )
+      );
+    });
+    it('&& is left associative', () => {
+      expect(SNAXParser.parseStrOrThrow('a && b && c', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinaryOp.LOGICAL_AND,
+          AST.makeBinaryExpr(
+            BinaryOp.LOGICAL_AND,
+            AST.makeSymbolRef('a'),
+            AST.makeSymbolRef('b')
+          ),
+          AST.makeSymbolRef('c')
+        )
+      );
+    });
   });
   it('should handle relational operators', () => {
     const three = makeNum(3);
@@ -160,6 +188,22 @@ describe('expression', () => {
     expect(SNAXParser.parseStrOrThrow('3 == 4', 'expr')).toEqual(
       AST.makeBinaryExpr(BinaryOp.EQUAL_TO, three, four)
     );
+  });
+
+  describe('assignment', () => {
+    it('should be right associative', () => {
+      expect(SNAXParser.parseStrOrThrow('a = b = c', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinaryOp.ASSIGN,
+          AST.makeSymbolRef('a'),
+          AST.makeBinaryExpr(
+            BinaryOp.ASSIGN,
+            AST.makeSymbolRef('b'),
+            AST.makeSymbolRef('c')
+          )
+        )
+      );
+    });
   });
 
   describe('dereference operator', () => {
@@ -177,6 +221,20 @@ describe('expression', () => {
           BinaryOp.ARRAY_INDEX,
           AST.makeSymbolRef('x'),
           makeNum(1)
+        )
+      );
+    });
+  });
+
+  describe('member access expression', () => {
+    it('should parse the member access operator', () => {
+      expect(SNAXParser.parseStrOrThrow('a.b.0', 'expr')).toEqual(
+        AST.makeMemberAccessExpr(
+          AST.makeMemberAccessExpr(
+            AST.makeSymbolRef('a'),
+            AST.makeSymbolRef('b')
+          ),
+          AST.makeNumberLiteral(0, 'int', undefined)
         )
       );
     });

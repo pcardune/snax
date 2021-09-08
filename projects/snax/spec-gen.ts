@@ -459,6 +459,40 @@ export function makeCallExprWith(fields: {
   };
 }
 
+type MemberAccessExprFields = { left: Expression; right: Expression };
+
+export type MemberAccessExpr = {
+  name: 'MemberAccessExpr';
+  fields: MemberAccessExprFields;
+};
+
+export function isMemberAccessExpr(node: ASTNode): node is MemberAccessExpr {
+  return node.name === 'MemberAccessExpr';
+}
+
+export function makeMemberAccessExpr(
+  left: Expression,
+  right: Expression
+): MemberAccessExpr {
+  return {
+    name: 'MemberAccessExpr',
+    fields: {
+      left,
+      right,
+    },
+  };
+}
+
+export function makeMemberAccessExprWith(fields: {
+  left: Expression;
+  right: Expression;
+}): MemberAccessExpr {
+  return {
+    name: 'MemberAccessExpr',
+    fields,
+  };
+}
+
 type CastExprFields = { expr: Expression; typeExpr: TypeExpr };
 
 export type CastExpr = {
@@ -881,7 +915,8 @@ export type Expression =
   | LiteralExpr
   | CallExpr
   | CastExpr
-  | ArgList;
+  | ArgList
+  | MemberAccessExpr;
 export function isExpression(node: ASTNode): node is Expression {
   return (
     isBinaryExpr(node) ||
@@ -890,7 +925,8 @@ export function isExpression(node: ASTNode): node is Expression {
     isLiteralExpr(node) ||
     isCallExpr(node) ||
     isCastExpr(node) ||
-    isArgList(node)
+    isArgList(node) ||
+    isMemberAccessExpr(node)
   );
 }
 
@@ -926,6 +962,7 @@ export type ASTNode =
   | Block
   | BinaryExpr
   | CallExpr
+  | MemberAccessExpr
   | CastExpr
   | UnaryExpr
   | ArrayLiteral
@@ -958,6 +995,7 @@ export type ASTNodeName =
   | 'Block'
   | 'BinaryExpr'
   | 'CallExpr'
+  | 'MemberAccessExpr'
   | 'CastExpr'
   | 'UnaryExpr'
   | 'ArrayLiteral'

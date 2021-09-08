@@ -275,6 +275,7 @@ function recurse(
     case 'StringLiteral':
       moduleAllocator.allocateConstData(root, root.fields.value);
       break;
+    case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
     case 'ArrayLiteral':
       if (assertLocal(localAllocator)) {
         let arrayStartPointer = localAllocator.allocateLocal(

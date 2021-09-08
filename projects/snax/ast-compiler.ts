@@ -637,11 +637,22 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
     const leftType = this.context.typeCache.get(left);
     if (leftType instanceof TupleType) {
       // we are constructing a tuple
+      let location = this.context.allocationMap.get(this.root);
+      if (!location || location.area !== 'locals') {
+        throw new Error(
+          `CallExpr: Tuple constructor didn't have a temporary local allocated for it`
+        );
+      }
 
-      // TODO: this should not be zero, otherwise every array literal
-      // will overwrite the other array literals...
-      const baseAddressInstr = new IR.PushConst(IR.NumberType.i32, 0);
-      const instr: IR.Instruction[] = [];
+      const instr: IR.Instruction[] = [
+        new IR.PushConst(
+          IR.NumberType.i32,
+          leftType.elements.reduce((numBytes, el) => numBytes + el.numBytes, 0)
+        ),
+        new IR.Call(this.context.runtime.malloc.offset),
+        new IR.LocalSet(location.offset),
+      ];
+
       let offset = 0;
       for (const [i, arg] of right.fields.args.entries()) {
         if (i >= leftType.elements.length) {
@@ -649,7 +660,7 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
         }
         const elemType = leftType.elements[i];
         instr.push(
-          baseAddressInstr,
+          new IR.LocalGet(location.offset),
           ...this.compileChild(arg),
           new IR.MemoryStore(elemType.toValueType(), {
             offset,
@@ -659,7 +670,7 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
         );
         offset += elemType.numBytes;
       }
-      instr.push(baseAddressInstr);
+      instr.push(new IR.LocalGet(location.offset));
       return instr;
     } else if (AST.isSymbolRef(left)) {
       const location = this.getLocationForSymbolRef(left);
@@ -793,13 +804,6 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
     }
     const instr: IR.Instruction[] = [];
 
-    let malloc = this.context.runtime.malloc;
-    if (!malloc) {
-      throw new Error(
-        `Array literals depend on malloc function, which was not found in the runtime.`
-      );
-    }
-
     let location = this.context.allocationMap.get(this.root);
     if (!location || location.area !== 'locals') {
       throw new Error(
@@ -809,7 +813,7 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
 
     instr.push(
       new IR.PushConst(IR.NumberType.i32, arrayType.numBytes),
-      new IR.Call(malloc.offset),
+      new IR.Call(this.context.runtime.malloc.offset),
       new IR.LocalSet(location.offset)
     );
 

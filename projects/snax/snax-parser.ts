@@ -19,7 +19,7 @@ export class SNAXParser {
     try {
       return parse(input, {
         startRule: start,
-        grammarSource: input,
+        grammarSource: '',
       });
     } catch (e) {
       if (e instanceof SyntaxError) {

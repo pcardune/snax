@@ -6,6 +6,7 @@ import {
   Intrinsics,
   NumericalType,
   PointerType,
+  TupleType,
 } from './snax-types';
 import * as IR from './stack-ir';
 import * as Wasm from './wasm-ast';
@@ -583,7 +584,34 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
 class CallExprCompiler extends IRCompiler<AST.CallExpr> {
   compile() {
     const { left, right } = this.root.fields;
-    if (AST.isSymbolRef(left)) {
+    const leftType = this.context.typeCache.get(left);
+    if (leftType instanceof TupleType) {
+      // we are constructing a tuple
+
+      // TODO: this should not be zero, otherwise every array literal
+      // will overwrite the other array literals...
+      const baseAddressInstr = new IR.PushConst(IR.NumberType.i32, 0);
+      const instr: IR.Instruction[] = [];
+      let offset = 0;
+      for (const [i, arg] of right.fields.args.entries()) {
+        if (i >= leftType.elements.length) {
+          throw new Error(`to many arguments specifed for tuple constructor`);
+        }
+        const elemType = leftType.elements[i];
+        instr.push(
+          baseAddressInstr,
+          ...this.compileChild(arg),
+          new IR.MemoryStore(elemType.toValueType(), {
+            offset,
+            align: elemType.numBytes,
+            bytes: elemType.numBytes,
+          })
+        );
+        offset += elemType.numBytes;
+      }
+      instr.push(baseAddressInstr);
+      return instr;
+    } else if (AST.isSymbolRef(left)) {
       const location = this.getLocationForSymbolRef(left);
       return [...this.compileChild(right), new IR.Call(location.offset)];
     } else {

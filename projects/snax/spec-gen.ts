@@ -550,6 +550,40 @@ export function makeArrayLiteralWith(fields: {
   };
 }
 
+type TupleStructDeclFields = { symbol: string; elements: TypeExpr[] };
+
+export type TupleStructDecl = {
+  name: 'TupleStructDecl';
+  fields: TupleStructDeclFields;
+};
+
+export function isTupleStructDecl(node: ASTNode): node is TupleStructDecl {
+  return node.name === 'TupleStructDecl';
+}
+
+export function makeTupleStructDecl(
+  symbol: string,
+  elements: TypeExpr[]
+): TupleStructDecl {
+  return {
+    name: 'TupleStructDecl',
+    fields: {
+      symbol,
+      elements,
+    },
+  };
+}
+
+export function makeTupleStructDeclWith(fields: {
+  symbol: string;
+  elements: TypeExpr[];
+}): TupleStructDecl {
+  return {
+    name: 'TupleStructDecl',
+    fields,
+  };
+}
+
 type ParameterListFields = { parameters: Parameter[] };
 
 export type ParameterList = {
@@ -743,7 +777,7 @@ export function makeArgListWith(fields: { args: Expression[] }): ArgList {
 type FileFields = {
   funcs: FuncDecl[];
   globals: GlobalDecl[];
-  decls: ExternDecl[];
+  decls: TopLevelDecl[];
 };
 
 export type File = {
@@ -758,7 +792,7 @@ export function isFile(node: ASTNode): node is File {
 export function makeFile(
   funcs: FuncDecl[],
   globals: GlobalDecl[],
-  decls: ExternDecl[]
+  decls: TopLevelDecl[]
 ): File {
   return {
     name: 'File',
@@ -773,7 +807,7 @@ export function makeFile(
 export function makeFileWith(fields: {
   funcs: FuncDecl[];
   globals: GlobalDecl[];
-  decls: ExternDecl[];
+  decls: TopLevelDecl[];
 }): File {
   return {
     name: 'File',
@@ -835,6 +869,11 @@ export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
   );
 }
 
+export type TopLevelDecl = ExternDecl | TupleStructDecl;
+export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
+  return isExternDecl(node) || isTupleStructDecl(node);
+}
+
 export type Expression =
   | BinaryExpr
   | UnaryExpr
@@ -890,6 +929,7 @@ export type ASTNode =
   | CastExpr
   | UnaryExpr
   | ArrayLiteral
+  | TupleStructDecl
   | ParameterList
   | Parameter
   | FuncDecl
@@ -900,6 +940,7 @@ export type ASTNode =
   | ExternDecl
   | TypeExpr
   | LiteralExpr
+  | TopLevelDecl
   | Expression
   | Statement;
 export type ASTNodeName =
@@ -920,6 +961,7 @@ export type ASTNodeName =
   | 'CastExpr'
   | 'UnaryExpr'
   | 'ArrayLiteral'
+  | 'TupleStructDecl'
   | 'ParameterList'
   | 'Parameter'
   | 'FuncDecl'

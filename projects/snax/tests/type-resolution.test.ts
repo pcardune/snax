@@ -110,3 +110,18 @@ describe('ExternDecl', () => {
     );
   });
 });
+
+describe('TupleStructDecl', () => {
+  it('types tuple struct declarations as a tuple type', () => {
+    const tupleDecl = AST.makeTupleStructDecl('Vector', [
+      AST.makeTypeRef('u8'),
+      AST.makeTypeRef('i32'),
+    ]);
+
+    const { refMap } = resolveSymbols(tupleDecl);
+    const typeMap = resolveTypes(tupleDecl, refMap);
+    expect(typeMap.get(tupleDecl)).toEqual(
+      new TupleType([Intrinsics.u8, Intrinsics.i32])
+    );
+  });
+});

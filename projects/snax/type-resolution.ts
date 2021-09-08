@@ -165,6 +165,8 @@ function calculateType(
       const leftType = resolveType(node.fields.left, typeMap, refMap);
       if (leftType instanceof FuncType) {
         return leftType.returnType;
+      } else if (leftType instanceof TupleType) {
+        return new PointerType(leftType);
       } else {
         throw new TypeResolutionError(
           node,
@@ -263,6 +265,10 @@ function calculateType(
               ] as [string, BaseType]
           ),
         ])
+      );
+    case 'TupleStructDecl':
+      return new TupleType(
+        node.fields.elements.map((el) => resolveType(el, typeMap, refMap))
       );
   }
   throw new TypeResolutionError(node, `No type resolution exists for ${node}`);

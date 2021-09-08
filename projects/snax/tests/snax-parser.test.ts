@@ -353,6 +353,19 @@ describe('if statements', () => {
   });
 });
 
+describe('structs', () => {
+  it('should parse tuple structs', () => {
+    expect(
+      SNAXParser.parseStrOrThrow('struct Vector(u8,i32);', 'structDecl')
+    ).toEqual(
+      AST.makeTupleStructDecl('Vector', [
+        AST.makeTypeRef('u8'),
+        AST.makeTypeRef('i32'),
+      ])
+    );
+  });
+});
+
 describe('functions', () => {
   it('should parse an empty function', () => {
     expect(SNAXParser.parseStrOrThrow('func foo() {}', 'funcDecl')).toEqual(

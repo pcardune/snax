@@ -503,6 +503,38 @@ describe('strings', () => {
   });
 });
 
+describe('tuple structs', () => {
+  it('lets you declare a new tuple type and construct it', async () => {
+    const code = `
+      struct Vector(u8,i32);
+      let v = Vector(23_u8, 1234);
+    `;
+    expect(compileToWAT(code)).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (func $main
+    (local i32)
+    i32.const 0
+    i32.const 23
+    i32.store8
+    i32.const 0
+    i32.const 1234
+    i32.store offset=1
+    i32.const 0
+    local.set 0)
+  (export \\"_start\\" (func 0))
+  (type (;0;) (func)))
+"
+`);
+    const { exports } = await compileToWasmModule(code);
+    const returnVal = exports._start();
+    // expect(returnVal).toBe(5);
+    expect(new Int8Array(exports.memory.buffer.slice(0, 1))[0]).toEqual(23);
+    expect(new Int32Array(exports.memory.buffer.slice(1, 5))[0]).toEqual(1234);
+  });
+});
+
 describe('extern declarations', () => {
   it('links with external modules', async () => {
     const code = `

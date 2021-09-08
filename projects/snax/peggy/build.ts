@@ -18,6 +18,7 @@ fs.writeFileSync(
       'statement',
       'block',
       'funcDecl',
+      'structDecl',
       'typeExpr',
     ],
   })

@@ -106,6 +106,12 @@ export const nodes: Record<string, NodeSpec> = {
       elements: 'Expression[]',
     },
   },
+  TupleStructDecl: {
+    fields: {
+      symbol: 'string',
+      elements: 'TypeExpr[]',
+    },
+  },
   ParameterList: {
     fields: {
       parameters: 'Parameter[]',
@@ -144,7 +150,7 @@ export const nodes: Record<string, NodeSpec> = {
     fields: {
       funcs: 'FuncDecl[]',
       globals: 'GlobalDecl[]',
-      decls: 'ExternDecl[]',
+      decls: 'TopLevelDecl[]',
     },
   },
   ExternDecl: {
@@ -165,6 +171,9 @@ export const nodes: Record<string, NodeSpec> = {
       'BooleanLiteral',
       'SymbolRef',
     ],
+  },
+  TopLevelDecl: {
+    union: ['ExternDecl', 'TupleStructDecl'],
   },
   Expression: {
     union: [

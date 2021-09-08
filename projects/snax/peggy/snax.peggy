@@ -80,6 +80,7 @@ statement "statement"
   }
   / ifStatement
   / whileStatement
+  / structDecl
   / "return" ws expr:expr? ws ";" ws {
     return spec.makeReturnStatement(expr);
   }
@@ -128,6 +129,12 @@ externDecl = "extern" ws name:identifier ws "{" ws decls:externDeclList ws "}" {
 }
 externDeclList = head:funcDeclBegin ws ";" tail:(ws funcDeclBegin ws ";")* {
   return [head, ...tail.map((p:any[])=> p[1])];
+}
+structDecl = "struct" ws structName:identifier ws "(" ws types:typeList ws ")" ws ";" {
+  return spec.makeTupleStructDecl(structName, types);
+}
+typeList = head:typeExpr tail:(ws "," ws typeExpr)* {
+  return [head, ...tail.map((p:any[]) => p[3])];
 }
 funcDecl = begin:funcDeclBegin ws "{" ws body:block? ws "}" {
     return spec.makeFuncDecl(

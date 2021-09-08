@@ -8,6 +8,7 @@ import {
   SymbolRef,
   File,
   isExternDecl,
+  isTupleStructDecl,
 } from './spec-gen';
 import { children as childrenOf } from './spec-util';
 
@@ -96,9 +97,16 @@ function innerResolveSymbols(
   // descend into the child nodes to continue resolving symbols.
   if (isFile(astNode)) {
     for (const decl of astNode.fields.decls) {
-      if (isExternDecl(decl)) {
-        for (const funcDecl of decl.fields.funcs) {
-          currentTable.declare(funcDecl.fields.symbol, funcDecl);
+      switch (decl.name) {
+        case 'ExternDecl': {
+          for (const funcDecl of decl.fields.funcs) {
+            currentTable.declare(funcDecl.fields.symbol, funcDecl);
+          }
+          break;
+        }
+        case 'TupleStructDecl': {
+          currentTable.declare(decl.fields.symbol, decl);
+          break;
         }
       }
     }

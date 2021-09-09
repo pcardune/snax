@@ -271,6 +271,33 @@ function calculateType(
       return new TupleType(
         node.fields.elements.map((el) => resolveType(el, typeMap, refMap))
       );
+    case 'MemberAccessExpr': {
+      const { left, right } = node.fields;
+      const leftType = resolveType(left, typeMap, refMap);
+      if (leftType instanceof PointerType) {
+        if (leftType.toType instanceof TupleType) {
+          if (right.name === 'NumberLiteral') {
+            let index = right.fields.value;
+            let elem = leftType.toType.elements[index];
+            if (!elem) {
+              throw new TypeResolutionError(
+                node,
+                `${index} is not a valid accessor for ${leftType.name}`
+              );
+            }
+            return elem.type;
+          }
+          throw new TypeResolutionError(
+            node,
+            `${leftType.name} can only be accessed by index`
+          );
+        }
+      }
+      throw new TypeResolutionError(
+        node,
+        `Don't know how to do member access on a ${leftType.name}`
+      );
+    }
   }
   throw new TypeResolutionError(node, `No type resolution exists for ${node}`);
 }

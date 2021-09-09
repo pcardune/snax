@@ -142,13 +142,15 @@ export class RecordType extends BaseType {
 }
 
 export class TupleType extends BaseType {
-  elements: BaseType[];
+  elements: { type: BaseType; offset: number }[];
+  numBytes: number = 0;
   constructor(elements: BaseType[]) {
     super(`(${elements.map((e) => e.name).join(', ')})`);
-    this.elements = elements;
-  }
-  get numBytes() {
-    return this.elements.reduce((size, e) => size + e.numBytes, 0);
+    this.elements = elements.map((type) => {
+      const elem = { type, offset: this.numBytes };
+      this.numBytes += type.numBytes;
+      return elem;
+    });
   }
 }
 

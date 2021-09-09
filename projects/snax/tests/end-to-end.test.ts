@@ -404,10 +404,30 @@ describe('tuple structs', () => {
       let v = Vector(23_u8, 1234);
     `;
     const { exports } = await compileToWasmModule(code);
-    const returnVal = exports._start();
-    // expect(returnVal).toBe(5);
+    exports._start();
     expect(new Int8Array(exports.memory.buffer.slice(0, 1))[0]).toEqual(23);
     expect(new Int32Array(exports.memory.buffer.slice(1, 5))[0]).toEqual(1234);
+  });
+
+  describe('accessing members', () => {
+    it('loads data from the correct offset', async () => {
+      expect(
+        await exec(`
+          struct Vector(u8,i32);
+          let v = Vector(23_u8, 1234);
+          v.1;
+        `)
+      ).toEqual(1234);
+    });
+    it('loads the correct amount of data for each offset', async () => {
+      expect(
+        await exec(`
+        struct Vector(u8,i32);
+        let v = Vector(23_u8, 1234);
+        v.0;
+      `)
+      ).toEqual(23);
+    });
   });
 });
 

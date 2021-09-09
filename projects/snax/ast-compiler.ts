@@ -69,6 +69,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         return new BinaryExprCompiler(node, context);
       case 'CallExpr':
         return new CallExprCompiler(node, context);
+      case 'MemberAccessExpr':
+        return new MemberAccessExprCompiler(node, context);
       case 'ExprStatement':
         return new ExprStatementCompiler(node, context);
       case 'NumberLiteral':
@@ -616,7 +618,10 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         new IR.PushConst(valueType, refExprType.toType.numBytes),
         new IR.Mul(valueType),
         new IR.Add(valueType),
-        new IR.MemoryLoad(valueType, 0, refExprType.toType.numBytes),
+        new IR.MemoryLoad(valueType, {
+          offset: 0,
+          align: refExprType.toType.numBytes,
+        }),
       ];
     },
     [BinaryOp.CAST]: (left: AST.Expression, right: AST.Expression) => {
@@ -627,6 +632,43 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     return this.OpCompilers[this.root.fields.op](
       this.root.fields.left,
       this.root.fields.right
+    );
+  }
+}
+
+class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
+  compile() {
+    const { left, right } = this.root.fields;
+
+    const leftType = this.context.typeCache.get(left);
+    if (leftType instanceof PointerType) {
+      if (leftType.toType instanceof TupleType) {
+        if (right.name === 'NumberLiteral') {
+          const index = right.fields.value;
+          const elem = leftType.toType.elements[index];
+          if (!elem) {
+            throw new Error(
+              `Invalid index ${index} for tuple ${leftType.toType.name}`
+            );
+          }
+          let sign = undefined;
+          if (elem.type instanceof NumericalType) {
+            sign = elem.type.signed ? IR.Sign.Signed : IR.Sign.Unsigned;
+          }
+          return [
+            ...this.compileChild(left),
+            new IR.MemoryLoad(elem.type.toValueType(), {
+              offset: elem.offset,
+              align: elem.type.numBytes,
+              bytes: elem.type.numBytes,
+              sign,
+            }),
+          ];
+        }
+      }
+    }
+    throw new Error(
+      `MemberAccessExprCompiler: don't know how to compile this...`
     );
   }
 }
@@ -645,10 +687,7 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
       }
 
       const instr: IR.Instruction[] = [
-        new IR.PushConst(
-          IR.NumberType.i32,
-          leftType.elements.reduce((numBytes, el) => numBytes + el.numBytes, 0)
-        ),
+        new IR.PushConst(IR.NumberType.i32, leftType.numBytes),
         new IR.Call(this.context.runtime.malloc.offset),
         new IR.LocalSet(location.offset),
       ];
@@ -656,19 +695,19 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
       let offset = 0;
       for (const [i, arg] of right.fields.args.entries()) {
         if (i >= leftType.elements.length) {
-          throw new Error(`to many arguments specifed for tuple constructor`);
+          throw new Error(`too many arguments specifed for tuple constructor`);
         }
-        const elemType = leftType.elements[i];
+        const elem = leftType.elements[i];
         instr.push(
           new IR.LocalGet(location.offset),
           ...this.compileChild(arg),
-          new IR.MemoryStore(elemType.toValueType(), {
+          new IR.MemoryStore(elem.type.toValueType(), {
             offset,
-            align: elemType.numBytes,
-            bytes: elemType.numBytes,
+            align: elem.type.numBytes,
+            bytes: elem.type.numBytes,
           })
         );
-        offset += elemType.numBytes;
+        offset += elem.type.numBytes;
       }
       instr.push(new IR.LocalGet(location.offset));
       return instr;

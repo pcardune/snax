@@ -243,22 +243,7 @@ export class BreakIf extends Instruction {
   }
 }
 
-export class MemoryLoad extends Instruction {
-  valueType: NumberType;
-  offset: number;
-  align: number;
-  constructor(valueType: NumberType, offset: number = 0, align: number = 1) {
-    super();
-    this.valueType = valueType;
-    this.offset = offset;
-    this.align = align;
-  }
-  toWAT(): string {
-    return `${this.valueType}.load offset=${this.offset} align=${this.align}`;
-  }
-}
-
-export class MemoryStore extends Instruction {
+abstract class MemoryInstr extends Instruction {
   valueType: NumberType;
   offset: number;
   align: number;
@@ -280,7 +265,7 @@ export class MemoryStore extends Instruction {
         !(bytes === 8 && valueType === 'i64')
       ) {
         throw new Error(
-          `Can't assign ${bytes} bytes to memory from ${valueType} using store instruction.`
+          `Can't store/load ${bytes} bytes to memory from/to ${valueType} using store/load instruction.`
         );
       }
       this.bytes = bytes;
@@ -295,6 +280,29 @@ export class MemoryStore extends Instruction {
       }
     }
   }
+}
+
+export class MemoryLoad extends MemoryInstr {
+  sign: Sign;
+  constructor(
+    valueType: NumberType,
+    props: { offset?: number; align?: number; bytes?: number; sign?: Sign } = {}
+  ) {
+    const { sign, ...rest } = props;
+    super(valueType, rest);
+    this.sign = sign ?? Sign.Signed;
+  }
+  toWAT(): string {
+    let after = '';
+    if (this.bytes !== 4 || this.sign !== Sign.Signed) {
+      after = `${this.bytes * 8}_${this.sign}`;
+    }
+    const bits = this.bytes == 4 ? '' : 8 * this.bytes;
+    return `${this.valueType}.load${after} offset=${this.offset} align=${this.align}`;
+  }
+}
+
+export class MemoryStore extends MemoryInstr {
   toWAT(): string {
     const bits = this.bytes == 4 ? '' : 8 * this.bytes;
     return `${this.valueType}.store${bits} offset=${this.offset} align=${this.align}`;

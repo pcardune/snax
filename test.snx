@@ -2,15 +2,24 @@ extern wasi_unstable {
   func fd_write(fileDescriptor:i32, iovPointer:i32, iovLength: i32, numWrittenPointer: i32):i32;
 }
 
-let hello:&u8 = "hello world\n";
-let meow:&u8 = "meowwww\n";
-meow[1] = 'i';
+struct String(&u8, i32);
 
-let iovec = [hello as i32, 12];
+func run() {
+  let hello:&u8 = "hello world\n";
+  let meow:&u8 = "meowwww\n";
+  meow[1] = 'i';
 
-fd_write(
-  1, // stdout
-  iovec, // pointer to io vector
-  1, // length of io vector
-  20 // where to store number of bytes written
-);
+  let foobar = String("foobar\n", 7);
+
+  // let iovec = [hello as i32, 12];
+  let iovec = [foobar.0 as i32, foobar.1];
+
+  fd_write(
+    1, // stdout
+    iovec, // pointer to io vector
+    1, // length of io vector
+    20 // where to store number of bytes written
+  );
+}
+
+run();

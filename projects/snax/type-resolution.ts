@@ -1,11 +1,11 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { FuncDeclCompiler } from './ast-compiler';
 import { getTypeForBinaryOp, NumberLiteralType, UnaryOp } from './snax-ast';
 import {
   ArrayType,
   BaseType,
   FuncType,
   Intrinsics,
+  isIntrinsicSymbol,
   PointerType,
   RecordType,
   TupleType,
@@ -107,19 +107,12 @@ function calculateType(
       return resolvedType;
     }
     case 'TypeRef':
-      switch (node.fields.symbol) {
-        case 'u8':
-        case 'u16':
-        case 'u32':
-        case 'u64':
-        case 'i8':
-        case 'i16':
-        case 'i32':
-        case 'i64':
-        case 'f32':
-        case 'f64':
-        case 'unknown':
-          return Intrinsics[node.fields.symbol];
+      if (isIntrinsicSymbol(node.fields.symbol)) {
+        return Intrinsics[node.fields.symbol];
+      }
+      const record = refMap.get(node);
+      if (record) {
+        return resolveType(record.declNode, typeMap, refMap);
       }
       throw new TypeResolutionError(
         node,

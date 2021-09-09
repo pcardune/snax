@@ -259,7 +259,23 @@ export class GenericFuncType extends BaseGenericType {
   }
 }
 
-export const Intrinsics = {
+const instrinsicNames = [
+  'u8',
+  'u16',
+  'u32',
+  'u64',
+  'i8',
+  'i16',
+  'i32',
+  'i64',
+  'f32',
+  'f64',
+  'void',
+  'unknown',
+  'bool',
+] as const;
+
+export const Intrinsics: Record<typeof instrinsicNames[number], BaseType> = {
   u8: new NumericalType('u8', 'int', 1, false),
   u16: new NumericalType('u16', 'int', 2, false),
   u32: new NumericalType('u32', 'int', 4, false),
@@ -274,13 +290,10 @@ export const Intrinsics = {
   unknown: new UnknownType(),
   bool: new BoolType(),
 };
-const { i32, i64, f32, f64 } = Intrinsics;
-export const Operators = {
-  i32Add: new FuncType([i32, i32], i32),
-  Add: new GenericFuncType(
-    { T: new GenericType('T', new UnionType([i32, i64, f32, f64])) },
-    ['T', 'T'],
-    'T'
-  ),
-};
+
+export function isIntrinsicSymbol(
+  symbol: string
+): symbol is typeof instrinsicNames[number] {
+  return instrinsicNames.includes(symbol as any);
+}
 export type { VoidType, UnknownType };

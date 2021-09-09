@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap';
-import { BaseType } from './snax-types';
+import { BaseType, isIntrinsicSymbol } from './snax-types';
 import {
   ASTNode,
   Block,
@@ -7,8 +7,7 @@ import {
   isFile,
   SymbolRef,
   File,
-  isExternDecl,
-  isTupleStructDecl,
+  TypeRef,
 } from './spec-gen';
 import { children as childrenOf } from './spec-util';
 
@@ -45,7 +44,7 @@ export class SymbolTable {
 }
 
 export type SymbolTableMap = OrderedMap<Block | FuncDecl | File, SymbolTable>;
-export type SymbolRefMap = OrderedMap<SymbolRef, SymbolRecord>;
+export type SymbolRefMap = OrderedMap<SymbolRef | TypeRef, SymbolRecord>;
 
 export function resolveSymbols(astNode: ASTNode) {
   const tables: SymbolTableMap = new OrderedMap();
@@ -70,6 +69,18 @@ function innerResolveSymbols(
         );
       }
       currentTable.declare(astNode.fields.symbol, astNode);
+      break;
+    }
+    case 'TypeRef': {
+      if (!isIntrinsicSymbol(astNode.fields.symbol)) {
+        const symbolRecord = currentTable.get(astNode.fields.symbol);
+        if (!symbolRecord) {
+          throw new Error(
+            `Reference to undeclared type ${astNode.fields.symbol}`
+          );
+        }
+        refMap.set(astNode, symbolRecord);
+      }
       break;
     }
     case 'SymbolRef': {

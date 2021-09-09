@@ -422,12 +422,24 @@ describe('tuple structs', () => {
     it('loads the correct amount of data for each offset', async () => {
       expect(
         await exec(`
-        struct Vector(u8,i32);
-        let v = Vector(23_u8, 1234);
-        v.0;
-      `)
+          struct Vector(u8,i32);
+          let v = Vector(23_u8, 1234);
+          v.0;
+        `)
       ).toEqual(23);
     });
+  });
+
+  it('lets you pass structs as function parameters by reference', async () => {
+    const code = `
+      struct Vector(u8,i32);
+      func add(v:&Vector) {
+        return v.0;
+      }
+      let someVec = Vector(18_u8, 324);
+      add(someVec);
+    `;
+    expect(await exec(code)).toEqual(18);
   });
 });
 

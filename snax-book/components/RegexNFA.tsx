@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { RegexParser, RNode } from '../../dist/regex-compiler/parser';
-import NFAGraph from './NFAGraph';
+import { RegexParser, RNode } from '@pcardune/snax/dist/regex-compiler/parser';
+import NFAGraph from './NFAGraph.js';
 
 function useRegex(
   regex: string

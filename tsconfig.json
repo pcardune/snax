@@ -1,18 +1,24 @@
 {
   "compilerOptions": {
     "esModuleInterop": true,
-    "outDir": "dist",
-    "lib": ["ES2021"]
+    "module": "ES2020",
+    "moduleResolution": "Node",
+    // "outDir": "dist",
+    // "lib": ["ES2021"]
   },
-  "include": [],
+  "ts-node": {
+    "transpileOnly": true,
+    "moduleTypes": {
+      "snax/projects/snax/spec.ts": "cjs"
+    }
+  },
+  "files": [],
   "references": [
-    { "path": "./projects/grammar" },
-    { "path": "./projects/lexer-gen" },
-    { "path": "./projects/parser-gen" },
-    { "path": "./projects/nfa-to-dfa" },
-    { "path": "./projects/playground" },
-    { "path": "./projects/regex-compiler" },
-    { "path": "./projects/snax" },
-    { "path": "./projects/utils" }
-  ]
+    {
+      "path": "./snax/tsconfig.json"
+    },
+    {
+      "path": "./snax-book/tsconfig.json"
+    },
+  ],
 }

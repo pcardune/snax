@@ -1,7 +1,7 @@
-import { PatternLexer } from '../../dist/lexer-gen/recognizer';
-import { isImplicit } from '../../dist/parser-gen/dsl';
-import { Terminal } from './GrammarTable';
-import { Table, Td, Tr } from './Table';
+import { PatternLexer } from '@pcardune/snax/dist/lexer-gen/recognizer';
+import { isImplicit } from '@pcardune/snax/dist/parser-gen/dsl';
+import { Terminal } from './GrammarTable.js';
+import { Table, Td, Tr } from './Table.js';
 
 export function LexerTable({ lexer }: { lexer: PatternLexer<any> }) {
   const rows = lexer.patternDescriptions

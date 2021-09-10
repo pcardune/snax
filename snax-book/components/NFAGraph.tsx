@@ -1,5 +1,5 @@
-import { ConstNFA } from '../../dist/nfa-to-dfa/nfa';
-import Cytoscape from './Cytoscape';
+import { ConstNFA } from '@pcardune/snax/dist/nfa-to-dfa/nfa';
+import Cytoscape from './Cytoscape.js';
 
 function getElementsForNFA(nfa: ConstNFA) {
   let elements = [];

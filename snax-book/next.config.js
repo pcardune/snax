@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+const ResolveTypeScriptPlugin = require('resolve-typescript-plugin').default;
 
 const withMDX = require('@next/mdx')({
   extension: /\.mdx$/,
@@ -8,11 +9,12 @@ const withMDX = require('@next/mdx')({
 module.exports = withMDX({
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   reactStrictMode: true,
+  experimental: { esmExternals: true },
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // Important: return the modified config
     config.plugins.push(new NodePolyfillPlugin());
     config.plugins.push(new webpack.IgnorePlugin({ resourceRegExp: /fs/ }));
-
+    config.resolve.plugins.push(new ResolveTypeScriptPlugin());
     config.module.rules.push({
       test: /\.grammar?$/,
       type: 'asset/source',

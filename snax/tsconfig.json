@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "module": "ES2020",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "lib": ["ES2021"]
+  },
+  "include": [],
+  "references": [
+    { "path": "./projects/grammar" },
+    { "path": "./projects/lexer-gen" },
+
+    { "path": "./projects/parser-gen" },
+    
+    { "path": "./projects/nfa-to-dfa" },
+    
+    { "path": "./projects/playground" },
+    
+    { "path": "./projects/regex-compiler" },
+    
+    { "path": "./projects/snax" },
+    { "path": "./projects/utils" }
+  ]
+}

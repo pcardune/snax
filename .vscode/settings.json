@@ -1,11 +1,13 @@
 {
-  "jest.jestCommandLine": "./node_modules/.bin/jest",
+  "jest.jestCommandLine": "node --experimental-vm-modules ./node_modules/.bin/jest",
   "typescript.tsdk": "node_modules/typescript/lib",
+  "javascript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.importModuleSpecifierEnding": "js",
   "emeraldwalk.runonsave": {
     "commands": [
       {
-        "match": "projects/snax/peggy/snax\\.peggy",
-        "cmd": "npx ts-node projects/snax/peggy/build.ts"
+        "match": "snax/projects/snax/peggy/snax\\.peggy",
+        "cmd": "node --loader ts-node/esm snax/projects/snax/peggy/build.ts"
       }
     ]
   }

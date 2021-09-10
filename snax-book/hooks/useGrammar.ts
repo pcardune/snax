@@ -5,7 +5,7 @@ import {
   ConstGrammar,
   Grammar,
   GrammarSpec,
-} from '../../dist/grammar/grammar';
+} from '@pcardune/snax/dist/grammar/grammar';
 
 export type GrammarLike = GrammarSpec | ConstGrammar<any>;
 

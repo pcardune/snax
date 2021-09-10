@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+
+    "composite": true,
+    "declarationMap": true,
+
+    "rootDir": ".",
+    "outDir": "../dist",
+
+    "module": "ES2020",
+    "moduleResolution": "Node",
+    "target": "ES2021",
+    "esModuleInterop": true,
+    "downlevelIteration": true,
+    "strict": true,
+    "strictNullChecks": true
+  }
+}

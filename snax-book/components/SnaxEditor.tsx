@@ -1,9 +1,9 @@
 import { ok, Result } from 'neverthrow';
 import React, { useEffect, useState } from 'react';
 import loadWabt from 'wabt';
-import { ASTNode } from '../../dist/snax/snax-ast';
-import { SNAXParser } from '../../dist/snax/snax-parser';
-import { compileStr } from '../../dist/snax/wat-compiler';
+import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen.js';
+import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser.js';
+import { compileStr } from '@pcardune/snax/dist/snax/wat-compiler.js';
 
 function WATOutput(props: { wat: string }) {
   const [formattedWAT, setFormattedWAT] = useState(props.wat);

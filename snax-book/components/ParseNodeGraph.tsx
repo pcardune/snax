@@ -1,7 +1,7 @@
 import { CSSProperties } from 'react';
-import { ParseNode } from '../../dist/grammar/top-down-parser';
-import { LexToken } from '../../dist/lexer-gen/lexer-gen';
-import Cytoscape from './Cytoscape';
+import { ParseNode } from '@pcardune/snax/dist/grammar/top-down-parser';
+import { LexToken } from '@pcardune/snax/dist/lexer-gen/lexer-gen';
+import Cytoscape from './Cytoscape.js';
 
 const style = [
   {

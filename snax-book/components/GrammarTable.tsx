@@ -1,9 +1,9 @@
-import { ConstGrammar, EOF, EPSILON } from '../../dist/grammar/grammar';
+import { EOF, EPSILON } from '@pcardune/snax/dist/grammar/grammar';
 import styled from 'styled-components';
 import { Table, Td } from './Table';
-import { PatternLexer } from '../../dist/lexer-gen/recognizer';
-import { isImplicit } from '../../dist/parser-gen/dsl';
-import { GrammarLike, useGrammar } from '../hooks/useGrammar';
+import { PatternLexer } from '@pcardune/snax/dist/lexer-gen/recognizer';
+import { isImplicit } from '@pcardune/snax/dist/parser-gen/dsl';
+import { GrammarLike, useGrammar } from '../hooks/useGrammar.js';
 
 export const NonTerminal = styled.span`
   font-style: italic;
@@ -79,7 +79,7 @@ export function GrammarTable(props: {
         return row;
       });
     })
-    .flat();
+    .flat(-1);
   return (
     <Table>
       <tbody>{rows}</tbody>

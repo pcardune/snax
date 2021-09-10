@@ -1,9 +1,9 @@
-import { ParseNode, Parser } from '../../dist/grammar/top-down-parser';
-import { LexToken } from '../../dist/lexer-gen/lexer-gen';
-import * as dsl from '../../dist/parser-gen/dsl';
-import { logger } from '../../dist/utils/debug';
+import { ParseNode, Parser } from '@pcardune/snax/dist/grammar/top-down-parser';
+import { LexToken } from '@pcardune/snax/dist/lexer-gen/lexer-gen';
+import * as dsl from '@pcardune/snax/dist/parser-gen/dsl';
+import { logger } from '@pcardune/snax/dist/utils/debug';
 import { useMemo } from 'react';
-import { PatternLexer } from '../../dist/lexer-gen/recognizer';
+import { PatternLexer } from '@pcardune/snax/dist/lexer-gen/recognizer';
 
 export function useDSLGrammar(dslInput: string) {
   return useMemo(() => {

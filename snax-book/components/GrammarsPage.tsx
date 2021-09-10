@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { buildGrammar } from '../../dist/grammar/grammar';
-import { removeDirectLeftRecursion } from '../../dist/grammar/top-down-parser';
-import { useDSLGrammar } from '../hooks/getDSLGrammar';
-import { GrammarTable, NonTerminal } from './GrammarTable';
-import { LexerTable } from './LexerTable';
+import { buildGrammar } from '@pcardune/snax/dist/grammar/grammar';
+import { removeDirectLeftRecursion } from '@pcardune/snax/dist/grammar/top-down-parser';
+import { useDSLGrammar } from '../hooks/getDSLGrammar.js';
+import { GrammarTable, NonTerminal } from './GrammarTable.js';
+import { LexerTable } from './LexerTable.js';
 
 //prettier-ignore
 const expressionGrammarSpec = {

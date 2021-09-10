@@ -1,4 +1,4 @@
-import { ConstNFA } from '../../dist/nfa-to-dfa/nfa';
+import { ConstNFA } from '@pcardune/snax/dist/nfa-to-dfa/nfa';
 
 function setToString(set: ReadonlySet<number>) {
   if (set.size == 0) {

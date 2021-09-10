@@ -1,0 +1,41 @@
+{
+  "name": "@pcardune/snax",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "snax-parser-gen": "./bin/snax-parser-gen.js",
+    "snax": "./bin/snax.cjs"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
+    "test": "jest",
+    "spec-gen": "node --loader ts-node/esm projects/snax/spec.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^27.0.1",
+    "@types/react": "^17.0.19",
+    "@types/react-dom": "^17.0.9",
+    "@types/yargs": "^17.0.2",
+    "jest": "^27.0.6",
+    "peggy": "^1.2.0",
+    "prettier": "^2.3.2",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "ts-jest": "^27.0.4",
+    "ts-node": "^10.1.0",
+    "ts-pegjs": "^1.1.1",
+    "typescript": "^4.3.5",
+    "jest-ts-webcompat-resolver": "^1.0.0"
+  },
+  "dependencies": {
+    "neverthrow": "^4.2.2",
+    "wabt": "^1.0.24",
+    "yargs": "^17.1.1"
+  }
+}

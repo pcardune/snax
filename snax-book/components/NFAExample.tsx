@@ -1,6 +1,6 @@
-import { NFA } from '../../dist/nfa-to-dfa/nfa';
-import { parseRegex } from '../../dist/regex-compiler/parser';
-import NFAGraph from './NFAGraph';
+import { NFA } from '@pcardune/snax/dist/nfa-to-dfa/nfa';
+import { parseRegex } from '@pcardune/snax/dist/regex-compiler/parser';
+import NFAGraph from './NFAGraph.js';
 
 let nfa = new NFA();
 let s0 = nfa.addState();

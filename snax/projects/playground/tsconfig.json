@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": ["**/*"],
+  "references": [
+    { "path": "../grammar" },
+    { "path": "../utils" },
+    { "path": "../lexer-gen" },
+    { "path": "../regex-compiler" },
+    { "path": "../parser-gen" }
+  ]
+}

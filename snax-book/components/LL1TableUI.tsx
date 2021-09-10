@@ -5,10 +5,10 @@ import {
   EOF,
   EPSILON,
   GrammarSpec,
-} from '../../dist/grammar/grammar';
-import { buildLL1Table } from '../../dist/grammar/LL1-parser';
-import { NonTerminal, Terminal } from './GrammarTable';
-import { Table, TBody, THead, Tr, Td, Th } from './Table';
+} from '@pcardune/snax/dist/grammar/grammar';
+import { buildLL1Table } from '@pcardune/snax/dist/grammar/LL1-parser';
+import { NonTerminal, Terminal } from './GrammarTable.js';
+import { Table, TBody, THead, Tr, Td, Th } from './Table.js';
 
 export function LL1TableUI(props: { grammarSpec: GrammarSpec; start: string }) {
   const { table, grammar } = useMemo(() => {

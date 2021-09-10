@@ -611,16 +611,17 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           `Don't know how to compile indexing operation for a ${refExprType.name}`
         );
       }
+      let align = refExprType.toType.numBytes;
       const valueType = refExprType.toValueType();
       return [
         ...this.compileChild(refExpr),
         ...this.compileChild(indexExpr),
-        new IR.PushConst(valueType, refExprType.toType.numBytes),
+        new IR.PushConst(valueType, align),
         new IR.Mul(valueType),
         new IR.Add(valueType),
         new IR.MemoryLoad(valueType, {
           offset: 0,
-          align: refExprType.toType.numBytes,
+          align,
         }),
       ];
     },
@@ -849,14 +850,14 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
         `Array literal didn't have a temporary local allocated for it`
       );
     }
-
+    const { elements } = this.root.fields;
     instr.push(
-      new IR.PushConst(IR.NumberType.i32, arrayType.numBytes),
+      new IR.PushConst(IR.NumberType.i32, arrayType.numBytes * elements.length),
       new IR.Call(this.context.runtime.malloc.offset),
       new IR.LocalSet(location.offset)
     );
 
-    for (const [i, child] of children(this.root).entries()) {
+    for (const [i, child] of elements.entries()) {
       instr.push(
         // push memory space offset
         new IR.LocalGet(location.offset),

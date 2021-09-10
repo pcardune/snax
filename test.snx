@@ -28,12 +28,12 @@ func run() {
 
 func printStr(s:&String) {
   let iovec = [s.0 as i32, s.1];
-  // let bytesWritten = [0];
+  let bytesWritten = [0];
   fd_write(
     1, // stdout
     iovec, // pointer to io vector
     1, // length of io vector
-    1220 // where to store number of bytes written
+    bytesWritten // where to store number of bytes written
   );
 }
 

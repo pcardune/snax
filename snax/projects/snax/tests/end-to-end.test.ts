@@ -348,7 +348,12 @@ describe('pointers', () => {
 
 describe('arrays', () => {
   it('compiles arrays', async () => {
-    const input = 'let a = "data"; [6,5,4][1];';
+    const input = `
+      let a = "data";
+      let arr = [6,5,4];
+      let arr2 = [7,8,9];
+      arr[1];
+    `;
     const { exports } = await compileToWasmModule(input);
     const result = exports._start();
     expect(result).toBe(5);
@@ -371,7 +376,7 @@ Array [
   0,
   0,
   0,
-  0,
+  7,
   0,
   0,
   0,

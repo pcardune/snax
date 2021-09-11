@@ -520,7 +520,7 @@ export function makeMemberAccessExprWith(fields: {
   };
 }
 
-type CastExprFields = { expr: Expression; typeExpr: TypeExpr };
+type CastExprFields = { expr: Expression; typeExpr: TypeExpr; force: boolean };
 
 export type CastExpr = {
   name: 'CastExpr';
@@ -531,12 +531,17 @@ export function isCastExpr(node: ASTNode): node is CastExpr {
   return node.name === 'CastExpr';
 }
 
-export function makeCastExpr(expr: Expression, typeExpr: TypeExpr): CastExpr {
+export function makeCastExpr(
+  expr: Expression,
+  typeExpr: TypeExpr,
+  force: boolean
+): CastExpr {
   return {
     name: 'CastExpr',
     fields: {
       expr,
       typeExpr,
+      force,
     },
   };
 }
@@ -544,6 +549,7 @@ export function makeCastExpr(expr: Expression, typeExpr: TypeExpr): CastExpr {
 export function makeCastExprWith(fields: {
   expr: Expression;
   typeExpr: TypeExpr;
+  force: boolean;
 }): CastExpr {
   return {
     name: 'CastExpr',

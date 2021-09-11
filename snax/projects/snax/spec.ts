@@ -104,6 +104,7 @@ export const nodes: Record<string, NodeSpec> = {
     fields: {
       expr: 'Expression',
       typeExpr: 'TypeExpr',
+      force: 'boolean',
     },
   },
   UnaryExpr: {

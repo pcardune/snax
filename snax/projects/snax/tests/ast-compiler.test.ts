@@ -90,6 +90,7 @@ describe('CastExprCompiler', () => {
   const noDropSign = new Error("I don't implicitly drop signs");
   const noTruncateFloat = new Error("I don't implicitly truncate floats");
   const noWrapBits = new Error("I don't implicitly wrap to smaller sizes");
+  const noDemote = new Error("I don't implicitly demote floats");
   const cases: [string, string, IR.Instruction | Error][] = [
     // source type, destination type, instruction (or error)
     // convert to f64
@@ -113,7 +114,7 @@ describe('CastExprCompiler', () => {
     ['i32', 'f32', new IR.Convert(i32, f32, Signed)],
     ['i64', 'f32', new IR.Convert(i64, f32, Signed)],
     ['f32', 'f32', new IR.Nop()],
-    ['f64', 'f32', new Error("I don't implicitly demote floats")],
+    ['f64', 'f32', noDemote],
     // convert to i64
     ['u8', 'i64', new IR.Nop()],
     ['u16', 'i64', new IR.Nop()],
@@ -206,7 +207,7 @@ describe('CastExprCompiler', () => {
 
   it.each(cases)('converts from %p to %p', (source, dest, instruction) => {
     const num = AST.makeNumberLiteral(1, 'int', source);
-    let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest));
+    let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest), false);
     const compiler = irCompiler(cast);
     if (instruction instanceof Error) {
       expect(() => compiler.compile()).toThrowError(instruction);

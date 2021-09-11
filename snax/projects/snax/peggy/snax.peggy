@@ -295,8 +295,12 @@ term "term"
   }
 
 casting "cast"
-  = value:calling ws "as" ws typeExpr:typeExpr {
-    return spec.makeCastExpr(value, typeExpr);
+  = expr:calling ws "as" force:"!"? ws typeExpr:typeExpr {
+    return spec.makeCastExprWith({
+      expr,
+      typeExpr,
+      force: Boolean(force),
+    });
   }
   / calling
 

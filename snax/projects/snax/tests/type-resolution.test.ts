@@ -24,7 +24,7 @@ describe('ParameterList', () => {
 describe('CastExpr', () => {
   it('types a cast expr as the type being casted to', () => {
     const typeRef = AST.makeTypeRef('f64');
-    let cast = AST.makeCastExpr(makeNum(1), typeRef);
+    let cast = AST.makeCastExpr(makeNum(1), typeRef, false);
     const typeCache = resolveTypes(cast, new OrderedMap());
     expect(typeCache.get(cast)).toEqual(typeCache.get(typeRef));
   });

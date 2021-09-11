@@ -243,7 +243,12 @@ describe('expression', () => {
   describe('type casting operator', () => {
     it('should parse type casting operator', () => {
       expect(SNAXParser.parseStrOrThrow('1 as f64', 'expr')).toEqual(
-        AST.makeCastExpr(makeNum(1), AST.makeTypeRef('f64'))
+        AST.makeCastExpr(makeNum(1), AST.makeTypeRef('f64'), false)
+      );
+    });
+    it('should parse forced type casting operator', () => {
+      expect(SNAXParser.parseStrOrThrow('14723873 as! u8', 'expr')).toEqual(
+        AST.makeCastExpr(makeNum(14723873), AST.makeTypeRef('u8'), true)
       );
     });
   });

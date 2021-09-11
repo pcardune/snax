@@ -127,6 +127,10 @@ describe('simple expressions', () => {
     expect(await exec('false == false;')).toBe(1);
   });
 
+  it('compiles cast/conversion operators', async () => {
+    expect(await exec('1234 as! u8;')).toBe(210);
+  });
+
   it('compiles remainder operator', async () => {
     expect(await exec('5%3;')).toBe(2);
   });

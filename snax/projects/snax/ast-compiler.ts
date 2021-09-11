@@ -748,6 +748,7 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
 
 class CastExprCompiler extends IRCompiler<AST.CastExpr> {
   compile() {
+    const { force } = this.root.fields;
     const sourceType = this.context.typeCache.get(this.root.fields.expr);
     const destType = this.context.typeCache.get(this.root.fields.typeExpr);
     if (!(destType instanceof NumericalType)) {
@@ -773,6 +774,8 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
         } else if (destValueType !== sourceValueType) {
           if (destValueType === 'f64' && sourceValueType === 'f32') {
             instr.push(new IR.Promote());
+          } else if (force) {
+            throw new Error(`NotImplemented: forced float demotion`);
           } else {
             throw new Error(`I don't implicitly demote floats`);
           }
@@ -782,11 +785,29 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
       } else {
         // conversion to integers
         if (IR.isFloatType(sourceValueType)) {
-          throw new Error(`I don't implicitly truncate floats`);
+          if (force) {
+            throw new Error(`NotImplemented: truncate floats to int`);
+          } else {
+            throw new Error(`I don't implicitly truncate floats`);
+          }
         } else if (sourceType.numBytes > destType.numBytes) {
-          throw new Error(`I don't implicitly wrap to smaller sizes`);
+          if (force) {
+            instr.push(
+              new IR.PushConst(
+                sourceType.toValueType(),
+                (1 << (destType.numBytes * 8)) - 1
+              ),
+              new IR.And(sourceType.toValueType())
+            );
+          } else {
+            throw new Error(`I don't implicitly wrap to smaller sizes`);
+          }
         } else if (sourceType.signed && !destType.signed) {
-          throw new Error(`I don't implicitly drop signs`);
+          if (force) {
+            throw new Error(`NotImplemented: forced dropping of sign`);
+          } else {
+            throw new Error(`I don't implicitly drop signs`);
+          }
         } else {
           instr.push(new IR.Nop());
         }

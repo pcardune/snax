@@ -6,6 +6,7 @@ import loadWabt from 'wabt';
 import { err, ok } from 'neverthrow';
 import path from 'path';
 import { WASI } from 'wasi';
+import { SNAXParser } from './snax-parser.js';
 
 const wasi = new WASI({
   args: process.argv,
@@ -32,7 +33,34 @@ async function compileSnaxFile(file: string) {
   }
 }
 
+function fileWithExtension(file: string, ext: string) {
+  let filePath = path.parse(file);
+  return path.format({
+    dir: filePath.dir,
+    name: filePath.name,
+    ext,
+  });
+}
+
 const parser = yargs(hideBin(process.argv))
+  .command({
+    command: 'parse <file>',
+    describe: 'parse a snax file without compiling it',
+    builder: (yargs) =>
+      yargs.positional('file', {
+        alias: 'file',
+        describe: 'file to parse',
+        type: 'string',
+      }),
+    handler: async (argv) => {
+      let file = argv.file as string;
+      const source = fs.readFileSync(file).toString();
+      const ast = SNAXParser.parseStrOrThrow(source);
+      const outPath = fileWithExtension(file, '.ast.json');
+      fs.writeFileSync(outPath, JSON.stringify(ast));
+      console.log(`wrote ${outPath}`);
+    },
+  })
   .command({
     command: 'compile <file>',
     describe: 'compile a snax file',
@@ -47,22 +75,10 @@ const parser = yargs(hideBin(process.argv))
       console.log('Compiling file', file);
       const maybeModule = await compileSnaxFile(file);
       if (maybeModule.isOk()) {
-        let filePath = path.parse(file);
         const result = maybeModule.value.toBinary({ write_debug_names: true });
+        fs.writeFileSync(fileWithExtension(file, '.wasm'), result.buffer);
         fs.writeFileSync(
-          path.format({
-            dir: filePath.dir,
-            name: filePath.name,
-            ext: '.wasm',
-          }),
-          result.buffer
-        );
-        fs.writeFileSync(
-          path.format({
-            dir: filePath.dir,
-            name: filePath.name,
-            ext: '.wat',
-          }),
+          fileWithExtension(file, '.wat'),
           maybeModule.value.toText({})
         );
       } else {
@@ -88,8 +104,6 @@ const parser = yargs(hideBin(process.argv))
         const wasm = await WebAssembly.compile(result.buffer);
         const module = await WebAssembly.instantiate(wasm, importObject);
         wasi.start(module);
-        // const exports: any = module.instance.exports;
-        // console.log(exports._start());
       } else {
         console.error(maybeModule.error);
       }

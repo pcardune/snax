@@ -297,6 +297,10 @@ export class MemoryLoad extends MemoryInstr {
     if (this.bytes !== 4 || this.sign !== Sign.Signed) {
       after = `${this.bytes * 8}_${this.sign}`;
     }
+    if (this.valueType === 'i32' && after === '32_u') {
+      after = '';
+    }
+
     const bits = this.bytes == 4 ? '' : 8 * this.bytes;
     return `${this.valueType}.load${after} offset=${this.offset} align=${this.align}`;
   }

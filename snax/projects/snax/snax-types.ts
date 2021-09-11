@@ -262,6 +262,7 @@ const instrinsicNames = [
   'u16',
   'u32',
   'u64',
+  'usize',
   'i8',
   'i16',
   'i32',
@@ -278,6 +279,7 @@ export const Intrinsics: Record<typeof instrinsicNames[number], BaseType> = {
   u16: new NumericalType('u16', 'int', 2, false),
   u32: new NumericalType('u32', 'int', 4, false),
   u64: new NumericalType('u64', 'int', 8, false),
+  usize: new NumericalType('u32', 'int', 4, false),
   i8: new NumericalType('i8', 'int', 1, true),
   i16: new NumericalType('i16', 'int', 2, true),
   i32: new NumericalType('i32', 'int', 4, true),
@@ -288,6 +290,8 @@ export const Intrinsics: Record<typeof instrinsicNames[number], BaseType> = {
   unknown: new UnknownType(),
   bool: new BoolType(),
 };
+
+Intrinsics.usize = Intrinsics.u32;
 
 export function isIntrinsicSymbol(
   symbol: string

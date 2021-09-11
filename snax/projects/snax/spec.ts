@@ -24,6 +24,11 @@ export const nodes: Record<string, NodeSpec> = {
       value: 'string',
     },
   },
+  DataLiteral: {
+    fields: {
+      value: 'string',
+    },
+  },
   CharLiteral: {
     fields: {
       value: 'number',
@@ -195,7 +200,7 @@ export const nodes: Record<string, NodeSpec> = {
   LiteralExpr: {
     union: [
       'NumberLiteral',
-      'StringLiteral',
+      'DataLiteral',
       'CharLiteral',
       'ArrayLiteral',
       'BooleanLiteral',

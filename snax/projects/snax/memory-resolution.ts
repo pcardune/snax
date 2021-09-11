@@ -7,7 +7,7 @@ import {
   isExternDecl,
   isUnaryExpr,
   ParameterList,
-  StringLiteral,
+  DataLiteral,
 } from './spec-gen.js';
 import { children } from './spec-util.js';
 import * as Wasm from './wasm-ast.js';
@@ -32,7 +32,7 @@ export type StorageLocation =
 export type AllocationMap = OrderedMap<ASTNode, StorageLocation>;
 
 interface ConstAllocator {
-  allocateConstData(node: StringLiteral, data: string): DataLocation;
+  allocateConstData(node: DataLiteral, data: string): DataLocation;
 }
 
 export class ModuleAllocator implements ConstAllocator {
@@ -44,7 +44,7 @@ export class ModuleAllocator implements ConstAllocator {
   funcAllocatorMap: OrderedMap<FuncDecl, FuncLocalAllocator> = new OrderedMap();
 
   private alloc<Loc extends StorageLocation>(
-    node: FuncDecl | GlobalDecl | StringLiteral,
+    node: FuncDecl | GlobalDecl | DataLiteral,
     location: Loc
   ) {
     this.allocationMap.set(node, location);
@@ -70,7 +70,7 @@ export class ModuleAllocator implements ConstAllocator {
     });
   }
 
-  allocateConstData(node: StringLiteral, data: string) {
+  allocateConstData(node: DataLiteral, data: string) {
     let memIndex = this.memIndex;
     this.memIndex += data.length;
     return this.alloc(node, {
@@ -272,7 +272,7 @@ function recurse(
       }
       break;
     }
-    case 'StringLiteral':
+    case 'DataLiteral':
       moduleAllocator.allocateConstData(root, root.fields.value);
       break;
     case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple

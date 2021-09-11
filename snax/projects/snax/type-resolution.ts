@@ -87,7 +87,7 @@ function calculateType(
     }
     case 'CharLiteral':
       return Intrinsics.u8;
-    case 'StringLiteral':
+    case 'DataLiteral':
       return new ArrayType(Intrinsics.u8, node.fields.value.length);
     case 'SymbolRef': {
       const record = refMap.get(node);
@@ -189,12 +189,13 @@ function calculateType(
     case 'ArrayLiteral': {
       let type = Intrinsics.void;
       for (const [i, element] of node.fields.elements.entries()) {
+        const elemType = resolveType(element, typeMap, refMap);
         if (i == 0) {
-          type = resolveType(element, typeMap, refMap);
-        } else if (resolveType(element, typeMap, refMap) !== type) {
+          type = elemType;
+        } else if (elemType !== type) {
           throw new TypeResolutionError(
             node,
-            "Can't have an array with mixed types."
+            `Can't have an array with mixed types. Expected ${type.name}, found ${elemType.name}`
           );
         }
       }

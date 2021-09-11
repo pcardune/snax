@@ -23,6 +23,7 @@ import {
   resolveMemory,
   StorageLocation,
 } from './memory-resolution.js';
+import { desugar } from './desugar.js';
 
 export abstract class ASTCompiler<
   Root extends AST.ASTNode = AST.ASTNode,
@@ -90,8 +91,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         return new BooleanLiteralCompiler(node, context);
       case 'ArrayLiteral':
         return new ArrayLiteralCompiler(node, context);
-      case 'StringLiteral':
-        return new StringLiteralCompiler(node, context);
+      case 'DataLiteral':
+        return new DataLiteralCompiler(node, context);
       case 'StructLiteral':
         return new StructLiteralCompiler(node, context);
       case 'ArgList':
@@ -189,7 +190,12 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           let startAddress = next;
           next = next + numBytes;
           return startAddress;
-        }`);
+        }
+        struct String {
+          buffer: &u8;
+          length: usize;
+        }
+      `);
       if (AST.isFile(runtimeAST)) {
         for (const runtimeFunc of runtimeAST.fields.funcs) {
           const { symbol } = runtimeFunc.fields;
@@ -202,10 +208,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         }
         runtimeAST.fields.globals[0].fields.expr = heapStartLiteral;
         this.root.fields.globals.push(...runtimeAST.fields.globals);
+        this.root.fields.decls.push(...runtimeAST.fields.decls);
       } else {
         throw new Error(`this should never happen`);
       }
     }
+
+    desugar(this.root);
+
     const { refMap } = resolveSymbols(this.root);
     this.refMap = refMap;
 
@@ -928,17 +938,17 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
   }
 }
 
-class StringLiteralCompiler extends IRCompiler<AST.StringLiteral> {
+class DataLiteralCompiler extends IRCompiler<AST.DataLiteral> {
   compile() {
     const location = this.context.allocationMap.get(this.root);
     if (!location) {
       throw new Error(
-        `StringLiteralCompiler: Can't compiler string literal that hasn't had a storage location assigned to it`
+        `DataLiteralCompiler: Can't compiler string literal that hasn't had a storage location assigned to it`
       );
     }
     if (location.area !== 'data') {
       throw new Error(
-        `StringLiteralCompiler: Don't know how to compile a string literal whose storage isn't in linear memory...`
+        `DataLiteralCompiler: Don't know how to compile a string literal whose storage isn't in linear memory...`
       );
     }
     return [new IR.PushConst(IR.NumberType.i32, location.memIndex)];

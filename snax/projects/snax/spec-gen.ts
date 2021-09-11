@@ -97,6 +97,33 @@ export function makeStringLiteralWith(fields: {
   };
 }
 
+type DataLiteralFields = { value: string };
+
+export type DataLiteral = {
+  name: 'DataLiteral';
+  fields: DataLiteralFields;
+};
+
+export function isDataLiteral(node: ASTNode): node is DataLiteral {
+  return node.name === 'DataLiteral';
+}
+
+export function makeDataLiteral(value: string): DataLiteral {
+  return {
+    name: 'DataLiteral',
+    fields: {
+      value,
+    },
+  };
+}
+
+export function makeDataLiteralWith(fields: { value: string }): DataLiteral {
+  return {
+    name: 'DataLiteral',
+    fields,
+  };
+}
+
 type CharLiteralFields = { value: number };
 
 export type CharLiteral = {
@@ -1020,7 +1047,7 @@ export function isTypeExpr(node: ASTNode): node is TypeExpr {
 
 export type LiteralExpr =
   | NumberLiteral
-  | StringLiteral
+  | DataLiteral
   | CharLiteral
   | ArrayLiteral
   | BooleanLiteral
@@ -1029,7 +1056,7 @@ export type LiteralExpr =
 export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
   return (
     isNumberLiteral(node) ||
-    isStringLiteral(node) ||
+    isDataLiteral(node) ||
     isCharLiteral(node) ||
     isArrayLiteral(node) ||
     isBooleanLiteral(node) ||
@@ -1086,6 +1113,7 @@ export type ASTNode =
   | BooleanLiteral
   | NumberLiteral
   | StringLiteral
+  | DataLiteral
   | CharLiteral
   | SymbolRef
   | TypeRef
@@ -1123,6 +1151,7 @@ export type ASTNodeName =
   | 'BooleanLiteral'
   | 'NumberLiteral'
   | 'StringLiteral'
+  | 'DataLiteral'
   | 'CharLiteral'
   | 'SymbolRef'
   | 'TypeRef'

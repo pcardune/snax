@@ -455,7 +455,7 @@ describe('ModuleCompiler', () => {
           makeFunc(
             'main',
             [],
-            [AST.makeExprStatement(AST.makeStringLiteral('hello world!'))]
+            [AST.makeExprStatement(AST.makeDataLiteral('hello world!'))]
           ),
         ],
         [],

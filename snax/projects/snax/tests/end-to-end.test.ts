@@ -24,6 +24,11 @@ function compileToWAT(input: string, options?: ModuleCompilerOptions) {
   }
 }
 
+type WasiABI = {
+  memory: WebAssembly.Memory;
+  _start: () => any;
+};
+
 async function compileToWasmModule(
   input: string,
   options?: ModuleCompilerOptions
@@ -34,7 +39,7 @@ async function compileToWasmModule(
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
   const exports = module.instance.exports;
-  return { exports: exports as any, wasmModule };
+  return { exports: exports as WasiABI, wasmModule };
 }
 
 async function exec(input: string) {
@@ -42,6 +47,21 @@ async function exec(input: string) {
     includeRuntime: true,
   });
   return exports._start();
+}
+
+/**
+ * Get a 32 bit number out of a memory buffer from the given byte offset
+ */
+function int32(memory: WebAssembly.Memory, offset: number) {
+  return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
+}
+
+/**
+ * get text out of a memory buffer
+ */
+function text(memory: WebAssembly.Memory, offset: number, length: number) {
+  const buffer = new Int8Array(memory.buffer.slice(offset, offset + length));
+  return new TextDecoder().decode(buffer);
 }
 
 describe('end-to-end test', () => {
@@ -352,34 +372,19 @@ describe('arrays', () => {
       let a = "data";
       let arr = [6,5,4];
       let arr2 = [7,8,9];
-      arr[1];
+      arr;
     `;
     const { exports } = await compileToWasmModule(input);
     const result = exports._start();
-    expect(result).toBe(5);
-    const mem = new Int8Array(exports.memory.buffer.slice(0, 20));
+    expect(result).toBe(12);
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 3 * 4)
+    );
     expect([...mem]).toMatchInlineSnapshot(`
 Array [
-  100,
-  97,
-  116,
-  97,
   6,
-  0,
-  0,
-  0,
   5,
-  0,
-  0,
-  0,
   4,
-  0,
-  0,
-  0,
-  7,
-  0,
-  0,
-  0,
 ]
 `);
   });
@@ -387,14 +392,18 @@ Array [
 
 describe('strings', () => {
   it('compiles strings', async () => {
-    const code = `"hello world";`;
-    const { exports } = await compileToWasmModule(code);
-    expect(exports._start()).toBe(0);
-    const mem = new Int8Array(exports.memory.buffer.slice(0, 11));
-    expect([...mem]).toEqual([
-      104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100,
-    ]);
-    expect(new TextDecoder().decode(mem)).toEqual('hello world');
+    const code = `"hello world\\n";`;
+    const {
+      exports: { _start, memory },
+    } = await compileToWasmModule(code);
+    const strPointer = _start();
+    expect(strPointer).toBe(12);
+    const bufferPointer = int32(memory, strPointer);
+    expect(bufferPointer).toEqual(0);
+    const bufferLen = int32(memory, strPointer + 4);
+    expect(bufferLen).toEqual(12);
+
+    expect(text(memory, bufferPointer, bufferLen)).toEqual('hello world\n');
   });
   it('compiles character literals', async () => {
     const code = `'a';`;

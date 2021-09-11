@@ -103,7 +103,12 @@ const parser = yargs(hideBin(process.argv))
         const importObject = { wasi_unstable: wasi.wasiImport };
         const wasm = await WebAssembly.compile(result.buffer);
         const module = await WebAssembly.instantiate(wasm, importObject);
-        wasi.start(module);
+        try {
+          wasi.start(module);
+        } catch (e) {
+          console.error(`error while running ${argv.file}`);
+          console.error(e);
+        }
       } else {
         console.error(maybeModule.error);
       }

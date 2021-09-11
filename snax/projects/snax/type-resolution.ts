@@ -274,7 +274,7 @@ function calculateType(
           } else if (alternativeReturnType !== returnType) {
             throw new TypeResolutionError(
               node,
-              `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types`
+              `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`
             );
           }
         }

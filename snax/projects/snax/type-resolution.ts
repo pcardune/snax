@@ -11,7 +11,7 @@ import {
   TupleType,
   UnionType,
 } from './snax-types.js';
-import { ASTNode, isReturnStatement } from './spec-gen.js';
+import { ASTNode, isFuncDecl, isReturnStatement } from './spec-gen.js';
 import { depthFirstIter } from './spec-util.js';
 import { SymbolRefMap } from './symbol-resolution.js';
 
@@ -92,10 +92,11 @@ function calculateType(
     case 'SymbolRef': {
       const record = refMap.get(node);
       if (!record) {
-        throw new TypeResolutionError(
-          node,
-          `Can't resolve type for undeclard symbol ${node.fields.symbol}`
-        );
+        return Intrinsics.unknown;
+        // throw new TypeResolutionError(
+        //   node,
+        //   `Can't resolve type for undeclard symbol ${node.fields.symbol}`
+        // );
       }
       const resolvedType = resolveType(record.declNode, typeMap, refMap);
       if (!resolvedType) {
@@ -264,6 +265,33 @@ function calculateType(
       return new TupleType(
         node.fields.elements.map((el) => resolveType(el, typeMap, refMap))
       );
+    case 'StructDecl':
+      return new RecordType(
+        new OrderedMap(
+          node.fields.props.map((prop) => {
+            if (isFuncDecl(prop)) {
+              return [prop.fields.symbol, resolveType(prop, typeMap, refMap)];
+            }
+            return [
+              prop.fields.symbol,
+              resolveType(prop.fields.type, typeMap, refMap),
+            ];
+          })
+        )
+      );
+    case 'StructProp':
+      return resolveType(node.fields.type, typeMap, refMap);
+    case 'StructLiteral': {
+      const structDecl = refMap.get(node.fields.symbol)?.declNode;
+      if (!structDecl) {
+        throw new TypeError(
+          `struct ${node.fields.symbol.fields.symbol} not found.`
+        );
+      }
+      return new PointerType(resolveType(structDecl, typeMap, refMap));
+    }
+    case 'StructLiteralProp':
+      return resolveType(node.fields.expr, typeMap, refMap);
     case 'MemberAccessExpr': {
       const { left, right } = node.fields;
       const leftType = resolveType(left, typeMap, refMap);
@@ -284,6 +312,22 @@ function calculateType(
             node,
             `${leftType.name} can only be accessed by index`
           );
+        } else if (leftType.toType instanceof RecordType) {
+          if (right.name === 'SymbolRef') {
+            const propName = right.fields.symbol;
+            const propType = leftType.toType.fields.get(propName);
+            if (!propType) {
+              throw new TypeResolutionError(
+                node,
+                `${propName} is not a valid accessor for ${leftType.name}`
+              );
+            }
+            return propType.type;
+          }
+          throw new TypeResolutionError(
+            node,
+            `${leftType.name} can only be accessed by property names`
+          );
         }
       }
       throw new TypeResolutionError(
@@ -292,5 +336,8 @@ function calculateType(
       );
     }
   }
-  throw new TypeResolutionError(node, `No type resolution exists for ${node}`);
+  throw new TypeResolutionError(
+    node,
+    `No type resolution exists for ${(node as any).name}`
+  );
 }

@@ -122,22 +122,20 @@ export class ArrayType extends BaseType {
 }
 
 export class RecordType extends BaseType {
-  fields: OrderedMap<string, BaseType>;
-
+  fields: OrderedMap<string, { type: BaseType; offset: number }>;
+  numBytes: number;
   constructor(fields: OrderedMap<string, BaseType>) {
     const name = fields
       .entries()
       .map(([i, name, type]) => `${name}: ${type.name}`)
       .join(', ');
     super(`{` + name + `}`);
-    this.fields = fields;
-  }
-  get numBytes() {
-    let size = 0;
-    this.fields.values().forEach((t) => {
-      size += t.numBytes;
+    this.numBytes = 0;
+    this.fields = fields.map((type) => {
+      const elem = { type, offset: this.numBytes };
+      this.numBytes += type.numBytes;
+      return elem;
     });
-    return size;
   }
 }
 

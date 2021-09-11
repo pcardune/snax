@@ -8,6 +8,8 @@ import {
   SymbolRef,
   File,
   TypeRef,
+  isBinaryExpr,
+  isMemberAccessExpr,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -115,6 +117,10 @@ function innerResolveSymbols(
           }
           break;
         }
+        case 'StructDecl': {
+          currentTable.declare(decl.fields.symbol, decl);
+          break;
+        }
         case 'TupleStructDecl': {
           currentTable.declare(decl.fields.symbol, decl);
           break;
@@ -136,6 +142,8 @@ function innerResolveSymbols(
       );
       innerResolveSymbols(funcDecl.fields.body, currentTable, tables, refMap);
     }
+  } else if (isMemberAccessExpr(astNode)) {
+    innerResolveSymbols(astNode.fields.left, currentTable, tables, refMap);
   } else {
     childrenOf(astNode).forEach((node: ASTNode) =>
       innerResolveSymbols(node, currentTable, tables, refMap)

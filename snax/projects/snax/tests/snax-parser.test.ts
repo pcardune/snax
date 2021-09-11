@@ -422,6 +422,39 @@ describe('structs', () => {
       ])
     );
   });
+  it('should parse object structs', () => {
+    expect(
+      SNAXParser.parseStrOrThrow(
+        `struct Vector {
+          x: i32;
+          y: i32;
+          func mag() {}
+        }`,
+        'structDecl'
+      )
+    ).toEqual(
+      AST.makeStructDeclWith({
+        symbol: 'Vector',
+        props: [
+          AST.makeStructProp('x', AST.makeTypeRef('i32')),
+          AST.makeStructProp('y', AST.makeTypeRef('i32')),
+          AST.makeFuncDeclWith({
+            symbol: 'mag',
+            parameters: AST.makeParameterList([]),
+            body: AST.makeBlock([]),
+          }),
+        ],
+      })
+    );
+  });
+  it('should parse object struct literals', () => {
+    expect(SNAXParser.parseStrOrThrow(`Vector::{x:3, y:7}`, 'expr')).toEqual(
+      AST.makeStructLiteral(AST.makeSymbolRef('Vector'), [
+        AST.makeStructLiteralProp('x', makeNum(3)),
+        AST.makeStructLiteralProp('y', makeNum(7)),
+      ])
+    );
+  });
 });
 
 describe('functions', () => {

@@ -80,6 +80,7 @@ fileStatement "file statement"
   }
   / funcDecl
   / externDecl
+  / structDecl
   / statement
 
 block "block"
@@ -96,7 +97,6 @@ statement "statement"
   }
   / ifStatement
   / whileStatement
-  / structDecl
   / "return" ws expr:expr? ws ";" ws {
     return spec.makeReturnStatement(expr);
   }
@@ -146,9 +146,26 @@ externDecl = "extern" ws name:identifier ws "{" ws decls:externDeclList ws "}" {
 externDeclList = head:funcDeclBegin ws ";" tail:(ws funcDeclBegin ws ";")* {
   return [head, ...tail.map((p:any[])=> p[1])];
 }
-structDecl = "struct" ws structName:identifier ws "(" ws types:typeList ws ")" ws ";" {
-  return spec.makeTupleStructDecl(structName, types);
-}
+structDecl "struct declaration"
+  = "struct" ws structName:identifier ws "(" ws types:typeList ws ")" ws ";" {
+    return spec.makeTupleStructDecl(structName, types);
+  }
+  / "struct" ws structName:identifier ws "{" ws props:structPropList? ws "}" {
+    return spec.makeStructDeclWith({
+      symbol: structName,
+      props: props || [],
+    })
+  }
+structPropList "struct props"
+  = head:structProp tail:(ws structProp)* {
+    return [head, ...tail.map((p:any[]) => p[1])]
+  }
+structProp "struct prop"
+  = name:identifier ws ":" ws type:typeExpr ws ";" {
+    return spec.makeStructProp(name, type);
+  }
+  / funcDecl
+
 typeList = head:typeExpr tail:(ws "," ws typeExpr)* {
   return [head, ...tail.map((p:any[]) => p[3])];
 }
@@ -303,12 +320,26 @@ memberAccess "memberAccess"
 
 factor "factor"
   = "(" ws inner:expr ws ")" { return inner; }
+  / structLiteral
   / arrayLiteral
   / stringLiteral
   / charLiteral
   / number
   / bool
   / id
+
+structLiteral "struct literal"
+  = structName:id ws "::" ws "{" ws values:structPropValueList? ws "}" {
+    return spec.makeStructLiteral(structName, values || []);
+  }
+structPropValueList
+  = head:structPropValue tail:(ws "," ws structPropValue)* {
+    return [head, ...tail.map((t:any[]) => t[3])];
+  }
+structPropValue
+  = propName:identifier ws ":" ws expr:expr {
+    return spec.makeStructLiteralProp(propName, expr);
+  }
 
 stringLiteral "string"
   = '"' content:(('\\' .) / [^"])* '"' {
@@ -338,13 +369,16 @@ number "number"
   / integer
 
 integer "integer"
-  = digits:[0-9]+ type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
+  = digits:digits type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
     return spec.makeNumberLiteral(
-      parseInt(digits.join('')),
+      digits,
       AST.NumberLiteralType.Integer,
       type? type.slice(1).join('') : undefined
     );
   }
+
+digits "digits"
+  = digits:[0-9]+ { return parseInt(digits.join('')); }
 
 float "float"
   = leftDigits:[0-9]+ "." rightDigits:[0-9]+ {

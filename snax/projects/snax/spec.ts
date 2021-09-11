@@ -118,6 +118,30 @@ export const nodes: Record<string, NodeSpec> = {
       elements: 'TypeExpr[]',
     },
   },
+  StructDecl: {
+    fields: {
+      symbol: 'string',
+      props: '(StructProp|FuncDecl)[]',
+    },
+  },
+  StructProp: {
+    fields: {
+      symbol: 'string',
+      type: 'TypeExpr',
+    },
+  },
+  StructLiteral: {
+    fields: {
+      symbol: 'SymbolRef',
+      props: 'StructLiteralProp[]',
+    },
+  },
+  StructLiteralProp: {
+    fields: {
+      symbol: 'string',
+      expr: 'Expression',
+    },
+  },
   ParameterList: {
     fields: {
       parameters: 'Parameter[]',
@@ -176,10 +200,11 @@ export const nodes: Record<string, NodeSpec> = {
       'ArrayLiteral',
       'BooleanLiteral',
       'SymbolRef',
+      'StructLiteral',
     ],
   },
   TopLevelDecl: {
-    union: ['ExternDecl', 'TupleStructDecl'],
+    union: ['ExternDecl', 'TupleStructDecl', 'StructDecl'],
   },
   Expression: {
     union: [

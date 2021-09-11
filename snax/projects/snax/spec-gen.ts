@@ -618,6 +618,139 @@ export function makeTupleStructDeclWith(fields: {
   };
 }
 
+type StructDeclFields = { symbol: string; props: (StructProp | FuncDecl)[] };
+
+export type StructDecl = {
+  name: 'StructDecl';
+  fields: StructDeclFields;
+};
+
+export function isStructDecl(node: ASTNode): node is StructDecl {
+  return node.name === 'StructDecl';
+}
+
+export function makeStructDecl(
+  symbol: string,
+  props: (StructProp | FuncDecl)[]
+): StructDecl {
+  return {
+    name: 'StructDecl',
+    fields: {
+      symbol,
+      props,
+    },
+  };
+}
+
+export function makeStructDeclWith(fields: {
+  symbol: string;
+  props: (StructProp | FuncDecl)[];
+}): StructDecl {
+  return {
+    name: 'StructDecl',
+    fields,
+  };
+}
+
+type StructPropFields = { symbol: string; type: TypeExpr };
+
+export type StructProp = {
+  name: 'StructProp';
+  fields: StructPropFields;
+};
+
+export function isStructProp(node: ASTNode): node is StructProp {
+  return node.name === 'StructProp';
+}
+
+export function makeStructProp(symbol: string, type: TypeExpr): StructProp {
+  return {
+    name: 'StructProp',
+    fields: {
+      symbol,
+      type,
+    },
+  };
+}
+
+export function makeStructPropWith(fields: {
+  symbol: string;
+  type: TypeExpr;
+}): StructProp {
+  return {
+    name: 'StructProp',
+    fields,
+  };
+}
+
+type StructLiteralFields = { symbol: SymbolRef; props: StructLiteralProp[] };
+
+export type StructLiteral = {
+  name: 'StructLiteral';
+  fields: StructLiteralFields;
+};
+
+export function isStructLiteral(node: ASTNode): node is StructLiteral {
+  return node.name === 'StructLiteral';
+}
+
+export function makeStructLiteral(
+  symbol: SymbolRef,
+  props: StructLiteralProp[]
+): StructLiteral {
+  return {
+    name: 'StructLiteral',
+    fields: {
+      symbol,
+      props,
+    },
+  };
+}
+
+export function makeStructLiteralWith(fields: {
+  symbol: SymbolRef;
+  props: StructLiteralProp[];
+}): StructLiteral {
+  return {
+    name: 'StructLiteral',
+    fields,
+  };
+}
+
+type StructLiteralPropFields = { symbol: string; expr: Expression };
+
+export type StructLiteralProp = {
+  name: 'StructLiteralProp';
+  fields: StructLiteralPropFields;
+};
+
+export function isStructLiteralProp(node: ASTNode): node is StructLiteralProp {
+  return node.name === 'StructLiteralProp';
+}
+
+export function makeStructLiteralProp(
+  symbol: string,
+  expr: Expression
+): StructLiteralProp {
+  return {
+    name: 'StructLiteralProp',
+    fields: {
+      symbol,
+      expr,
+    },
+  };
+}
+
+export function makeStructLiteralPropWith(fields: {
+  symbol: string;
+  expr: Expression;
+}): StructLiteralProp {
+  return {
+    name: 'StructLiteralProp',
+    fields,
+  };
+}
+
 type ParameterListFields = { parameters: Parameter[] };
 
 export type ParameterList = {
@@ -891,7 +1024,8 @@ export type LiteralExpr =
   | CharLiteral
   | ArrayLiteral
   | BooleanLiteral
-  | SymbolRef;
+  | SymbolRef
+  | StructLiteral;
 export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
   return (
     isNumberLiteral(node) ||
@@ -899,13 +1033,14 @@ export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
     isCharLiteral(node) ||
     isArrayLiteral(node) ||
     isBooleanLiteral(node) ||
-    isSymbolRef(node)
+    isSymbolRef(node) ||
+    isStructLiteral(node)
   );
 }
 
-export type TopLevelDecl = ExternDecl | TupleStructDecl;
+export type TopLevelDecl = ExternDecl | TupleStructDecl | StructDecl;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
-  return isExternDecl(node) || isTupleStructDecl(node);
+  return isExternDecl(node) || isTupleStructDecl(node) || isStructDecl(node);
 }
 
 export type Expression =
@@ -967,6 +1102,10 @@ export type ASTNode =
   | UnaryExpr
   | ArrayLiteral
   | TupleStructDecl
+  | StructDecl
+  | StructProp
+  | StructLiteral
+  | StructLiteralProp
   | ParameterList
   | Parameter
   | FuncDecl
@@ -1000,6 +1139,10 @@ export type ASTNodeName =
   | 'UnaryExpr'
   | 'ArrayLiteral'
   | 'TupleStructDecl'
+  | 'StructDecl'
+  | 'StructProp'
+  | 'StructLiteral'
+  | 'StructLiteralProp'
   | 'ParameterList'
   | 'Parameter'
   | 'FuncDecl'

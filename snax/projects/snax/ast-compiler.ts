@@ -2,10 +2,12 @@ import * as AST from './spec-gen.js';
 import { SNAXParser } from './snax-parser.js';
 import {
   ArrayType,
+  BaseType,
   FuncType,
   Intrinsics,
   NumericalType,
   PointerType,
+  RecordType,
   TupleType,
 } from './snax-types.js';
 import * as IR from './stack-ir.js';
@@ -90,6 +92,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         return new ArrayLiteralCompiler(node, context);
       case 'StringLiteral':
         return new StringLiteralCompiler(node, context);
+      case 'StructLiteral':
+        return new StructLiteralCompiler(node, context);
       case 'ArgList':
         return new ArgListCompiler(node, context);
       case 'WhileStatement':
@@ -99,7 +103,9 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       case 'UnaryExpr':
         return new UnaryExprCompiler(node, context);
     }
-    throw new Error(`ASTCompiler: No compiler available for node ${node}`);
+    throw new Error(
+      `ASTCompiler: No compiler available for node ${(node as any).name}`
+    );
   }
   compileChild<N extends AST.Expression | AST.Statement>(child: N) {
     return IRCompiler.forNode(child, this.context).compile();
@@ -643,30 +649,46 @@ class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
 
     const leftType = this.context.typeCache.get(left);
     if (leftType instanceof PointerType) {
-      if (leftType.toType instanceof TupleType) {
-        if (right.name === 'NumberLiteral') {
-          const index = right.fields.value;
-          const elem = leftType.toType.elements[index];
-          if (!elem) {
-            throw new Error(
-              `Invalid index ${index} for tuple ${leftType.toType.name}`
-            );
-          }
-          let sign = undefined;
-          if (elem.type instanceof NumericalType) {
-            sign = elem.type.signed ? IR.Sign.Signed : IR.Sign.Unsigned;
-          }
-          return [
-            ...this.compileChild(left),
-            new IR.MemoryLoad(elem.type.toValueType(), {
-              offset: elem.offset,
-              align: elem.type.numBytes,
-              bytes: elem.type.numBytes,
-              sign,
-            }),
-          ];
+      let elem: { type: BaseType; offset: number };
+      if (
+        leftType.toType instanceof TupleType &&
+        right.name === 'NumberLiteral'
+      ) {
+        const index = right.fields.value;
+        elem = leftType.toType.elements[index];
+        if (!elem) {
+          throw new Error(
+            `Invalid index ${index} for tuple ${leftType.toType.name}`
+          );
         }
+      } else if (
+        leftType.toType instanceof RecordType &&
+        right.name === 'SymbolRef'
+      ) {
+        elem = leftType.toType.fields.get(right.fields.symbol)!;
+        if (!elem) {
+          throw new Error(
+            `Invalid prop ${right.fields.symbol} for ${leftType.toType.name}`
+          );
+        }
+      } else {
+        throw new Error(
+          `Don't know how to lookup ${right.name} on a ${leftType.name}`
+        );
       }
+      let sign = undefined;
+      if (elem.type instanceof NumericalType) {
+        sign = elem.type.signed ? IR.Sign.Signed : IR.Sign.Unsigned;
+      }
+      return [
+        ...this.compileChild(left),
+        new IR.MemoryLoad(elem.type.toValueType(), {
+          offset: elem.offset,
+          align: elem.type.numBytes,
+          bytes: elem.type.numBytes,
+          sign,
+        }),
+      ];
     }
     throw new Error(
       `MemberAccessExprCompiler: don't know how to compile this...`
@@ -680,20 +702,7 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
     const leftType = this.context.typeCache.get(left);
     if (leftType instanceof TupleType) {
       // we are constructing a tuple
-      let location = this.context.allocationMap.get(this.root);
-      if (!location || location.area !== 'locals') {
-        throw new Error(
-          `CallExpr: Tuple constructor didn't have a temporary local allocated for it`
-        );
-      }
-
-      const instr: IR.Instruction[] = [
-        new IR.PushConst(IR.NumberType.i32, leftType.numBytes),
-        new IR.Call(this.context.runtime.malloc.offset),
-        new IR.LocalSet(location.offset),
-      ];
-
-      let offset = 0;
+      const { location, instr } = compileMalloc(this, leftType.numBytes);
       for (const [i, arg] of right.fields.args.entries()) {
         if (i >= leftType.elements.length) {
           throw new Error(`too many arguments specifed for tuple constructor`);
@@ -703,12 +712,11 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
           new IR.LocalGet(location.offset),
           ...this.compileChild(arg),
           new IR.MemoryStore(elem.type.toValueType(), {
-            offset,
+            offset: elem.offset,
             align: elem.type.numBytes,
             bytes: elem.type.numBytes,
           })
         );
-        offset += elem.type.numBytes;
       }
       instr.push(new IR.LocalGet(location.offset));
       return instr;
@@ -836,27 +844,35 @@ export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
   }
 }
 
+function compileMalloc(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
+  let location = ir.context.allocationMap.get(ir.root);
+  if (!location || location.area !== 'locals') {
+    throw new Error(
+      `${ir.root.name} didn't have a temporary local allocated for it`
+    );
+  }
+  return {
+    location,
+    instr: [
+      new IR.PushConst(IR.NumberType.i32, numBytes),
+      new IR.Call(ir.context.runtime.malloc.offset),
+      new IR.LocalSet(location.offset),
+    ] as IR.Instruction[],
+  };
+}
+
 class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
   compile(): IR.Instruction[] {
     const arrayType = this.resolveType(this.root);
     if (!(arrayType instanceof PointerType)) {
       throw new Error('unexpected type for array literal');
     }
-    const instr: IR.Instruction[] = [];
-
-    let location = this.context.allocationMap.get(this.root);
-    if (!location || location.area !== 'locals') {
-      throw new Error(
-        `Array literal didn't have a temporary local allocated for it`
-      );
-    }
     const { elements } = this.root.fields;
-    instr.push(
-      new IR.PushConst(IR.NumberType.i32, arrayType.numBytes * elements.length),
-      new IR.Call(this.context.runtime.malloc.offset),
-      new IR.LocalSet(location.offset)
-    );
 
+    const { instr, location } = compileMalloc(
+      this,
+      arrayType.numBytes * elements.length
+    );
     for (const [i, child] of elements.entries()) {
       instr.push(
         // push memory space offset
@@ -867,6 +883,43 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
         new IR.MemoryStore(arrayType.toType.toValueType(), {
           offset: i * 4,
           align: 4,
+        })
+      );
+    }
+    instr.push(new IR.LocalGet(location.offset));
+    return instr;
+  }
+}
+
+class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
+  compile(): IR.Instruction[] {
+    const structPointerType = this.resolveType(this.root);
+    if (!(structPointerType instanceof PointerType)) {
+      throw new Error(`unexpected type for struct literal`);
+    }
+    const { toType: structType } = structPointerType;
+    if (!(structType instanceof RecordType)) {
+      throw new Error(
+        `unexpected type for struct literal... should pointer to a record`
+      );
+    }
+
+    const { instr, location } = compileMalloc(this, structType.numBytes);
+
+    for (const [i, prop] of this.root.fields.props.entries()) {
+      const propType = structType.fields.get(prop.fields.symbol);
+      if (!propType) {
+        throw new Error(
+          `prop ${prop.fields.symbol} does not exist on struct ${this.root.fields.symbol.fields.symbol}`
+        );
+      }
+      instr.push(
+        new IR.LocalGet(location.offset),
+        ...this.compileChild(prop.fields.expr),
+        new IR.MemoryStore(propType.type.toValueType(), {
+          offset: propType.offset,
+          align: propType.type.numBytes,
+          bytes: propType.type.numBytes,
         })
       );
     }

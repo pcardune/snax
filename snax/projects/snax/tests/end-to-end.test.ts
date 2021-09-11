@@ -402,6 +402,46 @@ describe('strings', () => {
   });
 });
 
+describe('object structs', () => {
+  it('lets you declare a new struct type and construct it', async () => {
+    const code = `
+      struct Vector {
+        x: i32;
+        y: i32;
+      }
+      let v = Vector::{ x: 3, y: 5 };
+      v;
+    `;
+    const { exports } = await compileToWasmModule(code);
+    const result = exports._start();
+    expect(result).toEqual(0);
+    const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
+    expect([...mem]).toMatchInlineSnapshot(`
+Array [
+  3,
+  5,
+]
+`);
+  });
+
+  it('lets you access members of the struct', async () => {
+    expect(
+      await exec(`
+        struct Vector {x: i32; y: u8;}
+        let v = Vector::{x:3, y:5_u8};
+        v.x;
+      `)
+    ).toEqual(3);
+    expect(
+      await exec(`
+        struct Vector {x: i32; y: u8;}
+        let v = Vector::{x:3, y:5_u8};
+        v.y;
+      `)
+    ).toEqual(5);
+  });
+});
+
 describe('tuple structs', () => {
   it('lets you declare a new tuple type and construct it', async () => {
     const code = `

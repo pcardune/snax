@@ -8,6 +8,7 @@ export enum BinaryOp {
   DIV = '/',
   ADD = '+',
   SUB = '-',
+  REM = '%',
 
   LESS_THAN = '<',
   GREATER_THAN = '>',

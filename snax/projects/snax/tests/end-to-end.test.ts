@@ -64,7 +64,7 @@ function text(memory: WebAssembly.Memory, offset: number, length: number) {
   return new TextDecoder().decode(buffer);
 }
 
-describe('end-to-end test', () => {
+describe('simple expressions', () => {
   it('compiles an empty program', async () => {
     expect(compileToWAT('', { includeRuntime: true })).toMatchInlineSnapshot(`
       "(module
@@ -125,6 +125,10 @@ describe('end-to-end test', () => {
     expect(await exec('5 != 5;')).toBe(0);
     expect(await exec('true == false;')).toBe(0);
     expect(await exec('false == false;')).toBe(1);
+  });
+
+  it('compiles remainder operator', async () => {
+    expect(await exec('5%3;')).toBe(2);
   });
 
   it('compiles expressions', async () => {

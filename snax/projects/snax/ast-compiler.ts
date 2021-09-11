@@ -509,6 +509,10 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
       ...this.pushNumberOps(left, right),
       new IR.Div(this.matchTypes(left, right)),
     ],
+    [BinaryOp.REM]: (left: AST.Expression, right: AST.Expression) => [
+      ...this.pushNumberOps(left, right),
+      new IR.Rem(this.matchTypes(left, right)),
+    ],
     [BinaryOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Equal(this.matchTypes(left, right)),

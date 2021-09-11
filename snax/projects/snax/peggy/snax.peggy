@@ -273,15 +273,24 @@ additive "additive"
   }
 
 term "term"
-  = rest:(casting ws ("*" / "/") ws)* val:casting {
+  = rest:(casting ws ("*" / "/" / "%") ws)* val:casting {
+    const opMap:{[s:string]: AST.BinaryOp} = {
+      "*": AST.BinaryOp.MUL,
+      "/": AST.BinaryOp.DIV,
+      "%": AST.BinaryOp.REM,
+    };
+
     return leftAssoc(
       rest,
       val,
-      ({left, right, operator}) => spec.makeBinaryExpr(
-        operator === "*" ? AST.BinaryOp.MUL : AST.BinaryOp.DIV,
-        left,
-        right
-      )
+      ({left, right, operator}) => {
+        
+        return spec.makeBinaryExpr(
+          opMap[operator],
+          left,
+          right
+        );
+      }
     );
   }
 

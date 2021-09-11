@@ -114,6 +114,10 @@ export class Div extends BinaryOp {
   instruction = 'div_s';
 }
 
+export class Rem extends BinaryOp {
+  instruction = 'rem_s';
+}
+
 export class And extends BinaryOp {
   instruction = 'and';
 }

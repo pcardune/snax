@@ -473,6 +473,16 @@ describe('functions', () => {
       ])
     );
   });
+  it('should allow trailing commas in function parameters', () => {
+    expect(
+      SNAXParser.parseStrOrThrow('func foo(a:i32, b:f32,) {}', 'funcDecl')
+    ).toEqual(
+      makeFunc('foo', [
+        AST.makeParameter('a', AST.makeTypeRef('i32')),
+        AST.makeParameter('b', AST.makeTypeRef('f32')),
+      ])
+    );
+  });
   it('should parse a function with a body', () => {
     expect(
       SNAXParser.parseStrOrThrow('func foo(a:i32) { return a+1; }', 'funcDecl')

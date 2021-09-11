@@ -188,7 +188,7 @@ funcDeclBegin =
   };
 }
 parameterList "parameterList"
-  = head:parameter tail:(ws "," ws parameter)* {
+  = head:parameter tail:(ws "," ws parameter)* ws ","? {
     return spec.makeParameterList([head, ...tail.map((p:any[]) => p[3])])
   }
 parameter "parameter"

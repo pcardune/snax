@@ -181,12 +181,13 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     let heapStartLiteral = AST.makeNumberLiteralWith({
       value: 0,
       numberType: 'int',
+      explicitType: 'usize',
     });
     let mallocDecl: AST.FuncDecl | undefined;
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
         global next = 0;
-        func malloc(numBytes:i32) {
+        func malloc(numBytes:usize) {
           let startAddress = next;
           next = next + numBytes;
           return startAddress;

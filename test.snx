@@ -1,5 +1,17 @@
 extern wasi_unstable {
-  func fd_write(fileDescriptor:i32, iovPointer:i32, iovLength: i32, numWrittenPointer: i32):i32;
+  func fd_write(
+    fileDescriptor:i32,
+    iovPointer:i32,
+    iovLength:i32,
+    numWrittenPointer:i32
+  ):i32;
+
+  func fd_read(
+    fileDescriptor:i32,
+    iovPointer:i32,
+    iovLength:i32,
+    numWrittenPointer:i32,
+  ):void;
 }
 
 func run() {
@@ -8,6 +20,9 @@ func run() {
   meow.buffer[1] = 'i';
   print(meow);
   print("more snax please!\n");
+  print("type something: ");
+  let input = read(100);
+  print(input);
 }
 
 func print(s:&String) {
@@ -15,10 +30,23 @@ func print(s:&String) {
   let bytesWritten = [0];
   fd_write(
     1, // stdout
-    s, // pointer to io vector
+    iovec, // pointer to io vector
     1, // length of io vector
     bytesWritten // where to store number of bytes written
   );
+}
+
+func read(length:usize) {
+  let s = String::{buffer: malloc(length), length: length};
+  let iovec = [s.buffer as usize, s.length];
+  let bytesRead = [0];
+  fd_read(
+    0, // stdin
+    iovec,
+    1,
+    bytesRead
+  );
+  return s;
 }
 
 run();

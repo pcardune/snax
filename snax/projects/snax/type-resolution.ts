@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import { getTypeForBinaryOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
+import { BinaryOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
   BaseType,
@@ -24,6 +24,63 @@ class TypeResolutionError extends Error {
     this.node = node;
   }
 }
+
+export const getTypeForBinaryOp = (
+  op: string,
+  leftType: BaseType,
+  rightType: BaseType
+): BaseType => {
+  let { i32, f32, bool: Bool } = Intrinsics;
+  const error = new Error(
+    `TypeError: Can't perform ${leftType} ${op} ${rightType}`
+  );
+  switch (op) {
+    case BinaryOp.ARRAY_INDEX:
+      if (leftType instanceof ArrayType) {
+        return leftType.elementType;
+      } else if (leftType instanceof PointerType) {
+        return leftType.toType;
+      }
+      throw error;
+    case BinaryOp.LESS_THAN:
+    case BinaryOp.GREATER_THAN:
+    case BinaryOp.EQUAL_TO:
+    case BinaryOp.NOT_EQUAL_TO:
+      return Intrinsics.bool;
+    default:
+      if (leftType === rightType) {
+        return leftType;
+      }
+      switch (leftType) {
+        case Bool:
+          switch (rightType) {
+            case Bool:
+              return Bool;
+            default:
+              throw error;
+          }
+        case i32:
+          switch (rightType) {
+            case i32:
+              return i32;
+            case f32:
+              return f32;
+            default:
+              throw error;
+          }
+        case f32:
+          switch (rightType) {
+            case i32:
+            case f32:
+              return f32;
+            default:
+              throw error;
+          }
+        default:
+          throw error;
+      }
+  }
+};
 
 export class ResolvedTypeMap extends OrderedMap<ASTNode, BaseType> {
   get(key: ASTNode): BaseType {

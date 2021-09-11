@@ -417,6 +417,9 @@ describe('strings', () => {
     const code = `'a';`;
     expect(await exec(code)).toEqual(97);
   });
+  it("lets you index into a string's buffer", async () => {
+    expect(await exec(`"abcdef".buffer[3];`)).toEqual('d'.charCodeAt(0));
+  });
 });
 
 describe('object structs', () => {

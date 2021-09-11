@@ -643,6 +643,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         new IR.MemoryLoad(valueType, {
           offset: 0,
           align,
+          bytes: align,
         }),
       ];
     },

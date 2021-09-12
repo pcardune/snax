@@ -1,4 +1,4 @@
-import { HasWAT } from './wat-compiler.js';
+import type { HasWAT } from './wat-compiler.js';
 
 /**
  * Number Types. Basically the same as:
@@ -164,23 +164,26 @@ export class EqualsZero extends BinaryOp {
   instruction = 'eqz';
 }
 
-abstract class VariableGet extends Instruction {
-  offset: number;
-  constructor(offset: number) {
+abstract class VarInstr extends Instruction {
+  offsetOrId: number | string;
+  abstract get command(): string;
+  constructor(offsetOrId: number | string) {
     super();
-    this.offset = offset;
+    if (typeof offsetOrId === 'string') {
+      offsetOrId = '$' + offsetOrId;
+    }
+    this.offsetOrId = offsetOrId;
+  }
+  toWAT(): string {
+    return `${this.command} ${this.offsetOrId}`;
   }
 }
 
-export class LocalGet extends VariableGet {
-  toWAT(): string {
-    return `local.get ${this.offset}`;
-  }
+export class LocalGet extends VarInstr {
+  command = 'local.get';
 }
-export class GlobalGet extends VariableGet {
-  toWAT(): string {
-    return `global.get ${this.offset}`;
-  }
+export class GlobalGet extends VarInstr {
+  command = 'global.get';
 }
 
 export class Return extends Instruction {
@@ -195,45 +198,17 @@ export class Drop extends Instruction {
   }
 }
 
-export class LocalSet extends Instruction {
-  offset: number;
-  constructor(offset: number) {
-    super();
-    this.offset = offset;
-  }
-  toWAT(): string {
-    return `local.set ${this.offset}`;
-  }
+export class LocalSet extends VarInstr {
+  command = 'local.set';
 }
-export class LocalTee extends Instruction {
-  offset: number;
-  constructor(offset: number) {
-    super();
-    this.offset = offset;
-  }
-  toWAT(): string {
-    return `local.tee ${this.offset}`;
-  }
+export class LocalTee extends VarInstr {
+  command = 'local.tee';
 }
-export class GlobalSet extends Instruction {
-  offset: number;
-  constructor(offset: number) {
-    super();
-    this.offset = offset;
-  }
-  toWAT(): string {
-    return `global.set ${this.offset}`;
-  }
+export class GlobalSet extends VarInstr {
+  command = 'global.set';
 }
-export class Call extends Instruction {
-  offset: number;
-  constructor(offset: number) {
-    super();
-    this.offset = offset;
-  }
-  toWAT() {
-    return `call ${this.offset}`;
-  }
+export class Call extends VarInstr {
+  command = 'call';
 }
 
 export class BreakIf extends Instruction {

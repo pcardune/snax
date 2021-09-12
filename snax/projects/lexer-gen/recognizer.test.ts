@@ -1,5 +1,6 @@
 import { charCodes, collect } from '../utils/iter.js';
-import { buildLexer, LexToken } from './lexer-gen.js';
+import { buildLexer } from './lexer-gen.js';
+import type { LexToken } from './LexToken';
 import { MultiPatternMatcher, PatternLexer } from './recognizer.js';
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { charRange, chars, SingleCharNFA } from '../nfa-to-dfa/regex-nfa.js';

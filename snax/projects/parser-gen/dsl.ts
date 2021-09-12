@@ -1,12 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import {
-  buildParser,
-  ParseNode,
-  Parser,
-  SymbolsOf,
-} from '../grammar/top-down-parser.js';
-import { LexToken } from '../lexer-gen/lexer-gen.js';
-
+import { buildParser, Parser, SymbolsOf } from '../grammar/top-down-parser.js';
 import { lexer, parser, Token, Rules } from './dsl.__generated__';
 import { RegexParser } from '../regex-compiler/parser.js';
 import { charSeq } from '../nfa-to-dfa/regex-nfa.js';
@@ -14,8 +7,10 @@ import { PatternLexer } from '../lexer-gen/recognizer.js';
 import { err, ok, Result } from 'neverthrow';
 import { HashMap } from '../utils/sets.js';
 import { flatten } from '../utils/result.js';
-import { ConstNFA } from '../nfa-to-dfa/nfa.js';
-import { GrammarSpec } from '../grammar/grammar.js';
+import type { ConstNFA } from '../nfa-to-dfa/nfa.js';
+import type { GrammarSpec } from '../grammar/grammar.js';
+import type { ParseNode } from '../grammar/ParseNode.js';
+import type { LexToken } from '../lexer-gen/LexToken.js';
 export { lexer, parser, Token };
 
 export type Symbol = SymbolsOf<typeof parser>;

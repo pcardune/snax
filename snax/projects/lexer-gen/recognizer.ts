@@ -5,9 +5,9 @@ import {
   rewindable,
   RewindableIterator,
 } from '../utils/iter.js';
-import { ConstNFA } from '../nfa-to-dfa/nfa.js';
+import type { ConstNFA } from '../nfa-to-dfa/nfa.js';
 import { charSeq, CombinedDFA } from '../nfa-to-dfa/regex-nfa.js';
-import { LexToken } from './lexer-gen.js';
+import { LexToken } from './LexToken';
 
 export class MultiPatternMatcher<T> {
   private dfa: CombinedDFA;

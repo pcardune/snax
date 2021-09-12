@@ -6,6 +6,7 @@ import { compileStr } from './wat-compiler.js';
 import loadWabt from 'wabt';
 import { err, ok } from 'neverthrow';
 import path from 'path';
+// eslint-disable-next-line import/no-unresolved
 import { WASI } from 'wasi';
 import { SNAXParser } from './snax-parser.js';
 

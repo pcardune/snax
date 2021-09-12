@@ -1,7 +1,6 @@
 import { err, ok, Result } from 'neverthrow';
-import { LexToken } from '../lexer-gen/lexer-gen.js';
+import { LexToken } from '../lexer-gen/LexToken.js';
 import {
-  ActionFunction,
   BacktrackFreeGrammar,
   Eof,
   EOF,

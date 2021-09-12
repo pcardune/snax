@@ -1,5 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import { BinaryOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
+import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
   BaseType,
@@ -13,7 +13,7 @@ import {
 } from './snax-types.js';
 import { ASTNode, isFuncDecl, isReturnStatement } from './spec-gen.js';
 import { depthFirstIter } from './spec-util.js';
-import { SymbolRefMap } from './symbol-resolution.js';
+import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
 
@@ -35,17 +35,17 @@ export const getTypeForBinaryOp = (
     `TypeError: Can't perform ${leftType} ${op} ${rightType}`
   );
   switch (op) {
-    case BinaryOp.ARRAY_INDEX:
+    case BinOp.ARRAY_INDEX:
       if (leftType instanceof ArrayType) {
         return leftType.elementType;
       } else if (leftType instanceof PointerType) {
         return leftType.toType;
       }
       throw error;
-    case BinaryOp.LESS_THAN:
-    case BinaryOp.GREATER_THAN:
-    case BinaryOp.EQUAL_TO:
-    case BinaryOp.NOT_EQUAL_TO:
+    case BinOp.LESS_THAN:
+    case BinOp.GREATER_THAN:
+    case BinOp.EQUAL_TO:
+    case BinOp.NOT_EQUAL_TO:
       return Intrinsics.bool;
     default:
       if (leftType === rightType) {

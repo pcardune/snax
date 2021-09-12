@@ -19,6 +19,7 @@ class Logger {
   private listeners: Set<Listener> = new Set();
   private debugFile: any = undefined;
 
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private constructor() {}
 
   subscribe(listener: Listener) {
@@ -37,6 +38,7 @@ class Logger {
     if (process.env.DEBUG) {
       console.log(...args);
     } else if (process.env.DEBUG_FILE) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const fs = require('fs');
       if (!this.debugFile) {
         this.debugFile = fs.openSync(process.env.DEBUG_FILE, 'w');

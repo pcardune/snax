@@ -1,7 +1,8 @@
 import { lexer, Rules, Token } from './numbers.__generated__';
-import { parseFlow, ParseNode } from '../top-down-parser.js';
+import { parseFlow } from '../top-down-parser.js';
 import { Grammar } from '../grammar.js';
-import { LexToken } from '../../lexer-gen/lexer-gen.js';
+import { LexToken } from '../../lexer-gen/LexToken.js';
+import { ParseNode } from '../ParseNode.js';
 
 describe('attribute grammar', () => {
   test('other stuff', () => {

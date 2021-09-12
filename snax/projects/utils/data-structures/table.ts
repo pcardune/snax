@@ -1,4 +1,4 @@
-import { IHaveDebugStr } from '../debug.js';
+import type { IHaveDebugStr } from '../debug.js';
 
 export interface ConstTable<D> extends IHaveDebugStr {
   numRows: number;

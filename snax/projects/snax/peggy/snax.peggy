@@ -1,4 +1,5 @@
 {{
+  // eslint-ignore-file
   import * as AST from '../snax-ast.js';
   import * as spec from '../spec-gen.js';
   function makeInteger(o:string[]) {
@@ -211,7 +212,7 @@ assignment "assignment"
     return rightAssoc(
       val,
       rest,
-      ({left, right}) => spec.makeBinaryExpr(AST.BinaryOp.ASSIGN, left, right)
+      ({left, right}) => spec.makeBinaryExpr(AST.BinOp.ASSIGN, left, right)
     );
   }
 
@@ -220,7 +221,7 @@ bool_or "bool or"
     return leftAssoc(
       rest,
       val,
-      ({left, right}) => spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_OR, left, right)
+      ({left, right}) => spec.makeBinaryExpr(AST.BinOp.LOGICAL_OR, left, right)
     );
   }
 
@@ -229,7 +230,7 @@ bool_and "bool and"
     return leftAssoc(
       rest,
       val,
-      ({left, right}) => spec.makeBinaryExpr(AST.BinaryOp.LOGICAL_AND, left, right)
+      ({left, right}) => spec.makeBinaryExpr(AST.BinOp.LOGICAL_AND, left, right)
     );
   }
 
@@ -239,7 +240,7 @@ equality "equality"
       rest,
       val,
       ({left, right, operator}) => spec.makeBinaryExpr(
-        operator === "!=" ? AST.BinaryOp.NOT_EQUAL_TO : AST.BinaryOp.EQUAL_TO,
+        operator === "!=" ? AST.BinOp.NOT_EQUAL_TO : AST.BinOp.EQUAL_TO,
         left,
         right
       )
@@ -252,7 +253,7 @@ ordering "ordering"
       rest,
       val,
       ({left, right, operator}) => spec.makeBinaryExpr(
-        operator === "<" ? AST.BinaryOp.LESS_THAN : AST.BinaryOp.GREATER_THAN,
+        operator === "<" ? AST.BinOp.LESS_THAN : AST.BinOp.GREATER_THAN,
         left,
         right
       )
@@ -265,7 +266,7 @@ additive "additive"
       rest,
       val,
       ({left, right, operator}) => spec.makeBinaryExpr(
-        operator === "+" ? AST.BinaryOp.ADD : AST.BinaryOp.SUB,
+        operator === "+" ? AST.BinOp.ADD : AST.BinOp.SUB,
         left,
         right
       )
@@ -274,10 +275,10 @@ additive "additive"
 
 term "term"
   = rest:(casting ws ("*" / "/" / "%") ws)* val:casting {
-    const opMap:{[s:string]: AST.BinaryOp} = {
-      "*": AST.BinaryOp.MUL,
-      "/": AST.BinaryOp.DIV,
-      "%": AST.BinaryOp.REM,
+    const opMap:{[s:string]: AST.BinOp} = {
+      "*": AST.BinOp.MUL,
+      "/": AST.BinOp.DIV,
+      "%": AST.BinOp.REM,
     };
 
     return leftAssoc(
@@ -312,7 +313,7 @@ calling "calling"
 
 indexing "indexing"
   = element:deref ws "[" ws index:expr ws "]" {
-    return spec.makeBinaryExpr(AST.BinaryOp.ARRAY_INDEX, element, index);
+    return spec.makeBinaryExpr(AST.BinOp.ARRAY_INDEX, element, index);
   }
   / deref
 

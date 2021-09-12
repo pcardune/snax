@@ -1,5 +1,5 @@
 import { err, ok, Result } from 'neverthrow';
-import * as spec from './spec-gen.js';
+import type * as spec from './spec-gen.js';
 import { SNAXParser } from './snax-parser.js';
 import * as ASTCompiler from './ast-compiler.js';
 import { isFile } from './spec-gen.js';

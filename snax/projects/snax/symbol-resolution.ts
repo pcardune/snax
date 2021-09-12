@@ -8,7 +8,6 @@ import {
   SymbolRef,
   File,
   TypeRef,
-  isBinaryExpr,
   isMemberAccessExpr,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';

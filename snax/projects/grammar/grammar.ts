@@ -1,6 +1,6 @@
-import { LexToken } from '../lexer-gen/lexer-gen.js';
+import type { LexToken } from '../lexer-gen/LexToken.js';
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import { ParseNode } from './top-down-parser.js';
+import { ParseNode } from './ParseNode';
 
 export const EPSILON = Symbol('ϵ');
 export const EOF = Symbol('EOF');

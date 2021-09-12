@@ -1,7 +1,7 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { RegexParser } from '../regex-compiler/parser.js';
 import { charSeq } from '../nfa-to-dfa/regex-nfa.js';
-import { ConstNFA } from '../nfa-to-dfa/nfa.js';
+import type { ConstNFA } from '../nfa-to-dfa/nfa.js';
 
 const re = (s: string) => RegexParser.parseOrThrow(s).nfa();
 
@@ -35,7 +35,7 @@ const patterns: OrderedMap<Token, { nfa: ConstNFA; ignore: boolean }> =
 import { PatternLexer } from '../lexer-gen/recognizer.js';
 export const lexer = new PatternLexer(patterns);
 
-import { buildParser, ParseNode } from '../grammar/top-down-parser.js';
+import { buildParser } from '../grammar/top-down-parser.js';
 
 export enum Rules {
   Root = 'Root',

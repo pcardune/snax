@@ -1,4 +1,4 @@
-import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
+import type { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import * as StackIR from './stack-ir.js';
 
 export abstract class BaseType {

@@ -1,6 +1,6 @@
-import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import { ASTNode } from './spec-gen.js';
-import { SymbolTable } from './symbol-resolution.js';
+import type { OrderedMap } from '../utils/data-structures/OrderedMap.js';
+import type { ASTNode } from './spec-gen.js';
+import type { SymbolTable } from './symbol-resolution.js';
 
 function isASTNode(node: any): node is ASTNode {
   return typeof node === 'object' && node !== null && node.name && node.fields;

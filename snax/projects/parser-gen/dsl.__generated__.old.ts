@@ -1,7 +1,7 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { parseRegex } from '../regex-compiler/parser.js';
 import { charSeq } from '../nfa-to-dfa/regex-nfa.js';
-import { ConstNFA } from '../nfa-to-dfa/nfa.js';
+import type { ConstNFA } from '../nfa-to-dfa/nfa.js';
 
 const re = (s: string) => parseRegex(s).nfa();
 

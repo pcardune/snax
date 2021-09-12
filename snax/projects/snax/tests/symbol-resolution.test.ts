@@ -1,12 +1,12 @@
 import * as AST from '../spec-gen.js';
-import { makeFunc, makeNum } from './ast-util.js';
+import { makeFunc, makeNum } from '../ast-util.js';
 import { dumpSymbolTables } from '../spec-util.js';
 import {
   resolveSymbols,
   SymbolRecord,
   SymbolTable,
 } from '../symbol-resolution.js';
-import { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
+import type { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
 
 let file: AST.File;
 let funcDecl: AST.FuncDecl;

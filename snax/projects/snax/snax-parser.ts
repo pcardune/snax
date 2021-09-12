@@ -1,4 +1,4 @@
-import * as spec from './spec-gen.js';
+import type { ASTNode } from './spec-gen.js';
 import { err, ok, Result } from 'neverthrow';
 
 import { parse, SyntaxError } from './peggy/snax.js';
@@ -7,7 +7,7 @@ export class SNAXParser {
   static parseStr(
     input: string,
     start: string = 'start'
-  ): Result<spec.ASTNode, any> {
+  ): Result<ASTNode, any> {
     try {
       return ok(SNAXParser.parseStrOrThrow(input, start));
     } catch (e) {
@@ -15,7 +15,7 @@ export class SNAXParser {
     }
   }
 
-  static parseStrOrThrow(input: string, start: string = 'start'): spec.ASTNode {
+  static parseStrOrThrow(input: string, start: string = 'start'): ASTNode {
     try {
       return parse(input, {
         startRule: start,

@@ -1,5 +1,5 @@
 import * as IR from './stack-ir.js';
-import { HasWAT } from './wat-compiler.js';
+import type { HasWAT } from './wat-compiler.js';
 
 abstract class Node<Fields> {
   fields: Fields;
@@ -68,7 +68,7 @@ export class Data extends Node<{
   toWAT() {
     return sexpr(
       'data',
-      this.fields.id ? `${this.fields.id}` : '',
+      this.fields.id ? `$${this.fields.id}` : '',
       sexpr('memory', '0'),
       sexpr(
         'offset',
@@ -103,13 +103,17 @@ export class GlobalType extends Node<{ valtype: IR.NumberType; mut: boolean }> {
   }
 }
 type TypeUseFields = {
-  params: IR.NumberType[];
+  params: { valtype: IR.NumberType; id?: string }[];
   results: IR.NumberType[];
 };
 export class FuncTypeUse extends Node<TypeUseFields> {
   toWAT() {
     const { params, results } = this.fields;
-    const paramsStr = params.length > 0 ? `(param ${params.join(' ')})` : '';
+    const paramsStr = params
+      .map((param) =>
+        sexpr('param', param.id ? '$' + param.id : undefined, param.valtype)
+      )
+      .join(' ');
     const resultsStr =
       results.length > 0 ? `(result ${results.join(' ')})` : '';
     return `${paramsStr} ${resultsStr}`;
@@ -148,11 +152,15 @@ export class Func
     const inlineExport = this.fields.exportName
       ? `(export "${this.fields.exportName}")`
       : '';
-    const { params, results } = this.fields.funcType.fields;
-    const paramsStr = params.length > 0 ? `(param ${params.join(' ')})` : '';
-    const resultsStr =
-      results.length > 0 ? `(result ${results.join(' ')})` : '';
-    return `(func ${id} ${inlineExport} ${paramsStr} ${resultsStr} ${locals}\n${body}\n)`;
+
+    return sexpr(
+      'func',
+      id,
+      inlineExport,
+      this.fields.funcType.toWAT(),
+      locals,
+      body
+    );
   }
 }
 
@@ -164,8 +172,8 @@ export class Local
     super({ valueType, id });
   }
   toWAT() {
-    let id = this.fields.id ? `"${this.fields.id}"` : '';
-    return `(local ${id} ${this.fields.valueType})`;
+    let id = this.fields.id ? `$${this.fields.id}` : undefined;
+    return sexpr('local', id, this.fields.valueType);
   }
 }
 

@@ -2,28 +2,26 @@ import * as AST from '../spec-gen.js';
 import * as IR from '../stack-ir.js';
 import * as Wasm from '../wasm-ast.js';
 import {
-  BooleanLiteralCompiler,
-  BinaryExprCompiler,
   FuncDeclCompiler,
-  IfStatementCompiler,
   ModuleCompiler,
-  WhileStatementCompiler,
   BlockCompiler,
   IRCompiler,
-  IRCompilerContext,
   CompilesToIR,
+  Runtime,
 } from '../ast-compiler.js';
-import { makeFunc, makeNum } from './ast-util.js';
-import { BinaryOp } from '../snax-ast.js';
-import { resolveSymbols, SymbolRefMap } from '../symbol-resolution.js';
+import { makeFunc, makeNum } from '../ast-util.js';
+import { makeCompileToWAT, WabtModule } from './test-util';
+import { BinOp } from '../snax-ast.js';
+import { resolveSymbols } from '../symbol-resolution.js';
 import { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
-import { ResolvedTypeMap, resolveTypes } from '../type-resolution.js';
-import {
-  AllocationMap,
-  ModuleAllocator,
-  NeverAllocator,
-  resolveMemory,
-} from '../memory-resolution.js';
+import { resolveTypes } from '../type-resolution.js';
+import { Area, resolveMemory } from '../memory-resolution.js';
+import loadWabt from 'wabt';
+
+const runtimeStub: Runtime = {
+  malloc: { area: Area.FUNCS, offset: 1000, id: 'f1000:malloc' },
+  stackPointer: { area: Area.GLOBALS, offset: 1000, id: 'g1000:#SP' },
+};
 
 function irCompiler(node: CompilesToIR) {
   const { refMap } = resolveSymbols(node);
@@ -32,16 +30,23 @@ function irCompiler(node: CompilesToIR) {
     refMap,
     typeCache,
     allocationMap: new OrderedMap(),
-    runtime: { malloc: { area: 'funcs', offset: 1000000 } },
+    runtime: runtimeStub,
   });
 }
+
+let wabt: WabtModule;
+let compileToWAT: ReturnType<typeof makeCompileToWAT>;
+beforeAll(async () => {
+  wabt = await loadWabt();
+  compileToWAT = makeCompileToWAT(wabt);
+});
 
 describe('BinaryExprCompiler', () => {
   const { i32, f32 } = IR.NumberType;
   test('compile() combines the stack IRS of the sub expressions', () => {
     const twenty = makeNum(20);
     const thirty = makeNum(30);
-    const expr = AST.makeBinaryExpr(BinaryOp.ADD, twenty, thirty);
+    const expr = AST.makeBinaryExpr(BinOp.ADD, twenty, thirty);
     const compiler = irCompiler(expr);
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(twenty),
@@ -53,7 +58,7 @@ describe('BinaryExprCompiler', () => {
     const ten = makeNum(10);
     const twelvePointThree = makeNum(12.3, 'float');
     let compiler = irCompiler(
-      AST.makeBinaryExpr(BinaryOp.ADD, ten, twelvePointThree)
+      AST.makeBinaryExpr(BinOp.ADD, ten, twelvePointThree)
     );
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(ten),
@@ -61,9 +66,7 @@ describe('BinaryExprCompiler', () => {
       ...compiler.compileChild(twelvePointThree),
       new IR.Add(f32),
     ]);
-    compiler = irCompiler(
-      AST.makeBinaryExpr(BinaryOp.ADD, twelvePointThree, ten)
-    );
+    compiler = irCompiler(AST.makeBinaryExpr(BinOp.ADD, twelvePointThree, ten));
     expect(compiler.compile()).toEqual([
       ...compiler.compileChild(twelvePointThree),
       ...compiler.compileChild(ten),
@@ -227,7 +230,7 @@ function funcCompiler(func: AST.FuncDecl) {
     typeCache,
     allocationMap: moduleAllocator.allocationMap,
     locals: moduleAllocator.getLocalsForFunc(func)!,
-    runtime: { malloc: { area: 'funcs', offset: 1000000 } },
+    runtime: runtimeStub,
   });
 }
 
@@ -246,9 +249,12 @@ describe('FuncDeclCompiler', () => {
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
-        id: 'foo',
+        id: 'f0:foo',
         funcType: new Wasm.FuncTypeUse({
-          params: [IR.NumberType.i32, IR.NumberType.f32],
+          params: [
+            { valtype: IR.NumberType.i32, id: 'p0:a' },
+            { valtype: IR.NumberType.f32, id: 'p1:b' },
+          ],
           results: [IR.NumberType.i32],
         }),
         body: new BlockCompiler(block, {
@@ -275,20 +281,23 @@ describe('FuncDeclCompiler', () => {
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
-        id: 'someFunc',
+        id: 'f0:someFunc',
         funcType: new Wasm.FuncTypeUse({
-          params: [IR.NumberType.i32, IR.NumberType.f32],
+          params: [
+            { valtype: IR.NumberType.i32, id: 'p0:a' },
+            { valtype: IR.NumberType.f32, id: 'p1:b' },
+          ],
           results: [],
         }),
         locals: [
-          new Wasm.Local(IR.NumberType.i32),
-          new Wasm.Local(IR.NumberType.i32),
+          new Wasm.Local(IR.NumberType.i32, 'l2'),
+          new Wasm.Local(IR.NumberType.i32, 'l3'),
         ],
         body: [
           new IR.PushConst(IR.NumberType.i32, 3),
-          new IR.LocalSet(2),
+          new IR.LocalSet('l2'),
           new IR.PushConst(IR.NumberType.i32, 5),
-          new IR.LocalSet(3),
+          new IR.LocalSet('l3'),
         ],
       })
     );
@@ -316,29 +325,32 @@ describe('FuncDeclCompiler', () => {
     );
     expect(compiler.compile()).toEqual(
       new Wasm.Func({
-        id: 'foo',
+        id: 'f0:foo',
         funcType: new Wasm.FuncTypeUse({
-          params: [IR.NumberType.i32, IR.NumberType.f32],
+          params: [
+            { valtype: IR.NumberType.i32, id: 'p0:a' },
+            { valtype: IR.NumberType.f32, id: 'p1:b' },
+          ],
           results: [],
         }),
         locals: [
-          new Wasm.Local(IR.NumberType.i32),
-          new Wasm.Local(IR.NumberType.i32),
-          new Wasm.Local(IR.NumberType.i32),
-          new Wasm.Local(IR.NumberType.i32),
+          new Wasm.Local(IR.NumberType.i32, 'l2'),
+          new Wasm.Local(IR.NumberType.i32, 'l3'),
+          new Wasm.Local(IR.NumberType.i32, 'l4'),
+          new Wasm.Local(IR.NumberType.i32, 'l5'),
         ],
         body: [
           new IR.PushConst(IR.NumberType.i32, 1),
-          new IR.LocalSet(2),
+          new IR.LocalSet('l2'),
           new IR.PushConst(IR.NumberType.i32, 2),
-          new IR.LocalSet(3),
+          new IR.LocalSet('l3'),
           new IR.PushConst(IR.NumberType.i32, 3),
-          new IR.LocalSet(4),
+          new IR.LocalSet('l4'),
           new IR.PushConst(IR.NumberType.i32, 4),
-          new IR.LocalSet(5),
+          new IR.LocalSet('l5'),
           // reuses local 4
           new IR.PushConst(IR.NumberType.i32, 5),
-          new IR.LocalSet(4),
+          new IR.LocalSet('l4'),
         ],
       })
     );
@@ -391,66 +403,47 @@ describe('WhileStatementCompiler', () => {
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', () => {
-    expect(
-      new ModuleCompiler(AST.makeFile([], [], []), {
-        includeRuntime: false,
-      }).compile()
-    ).toEqual(
-      new Wasm.Module({
-        funcs: [],
-        globals: [],
-      })
-    );
+    const wat = new ModuleCompiler(AST.makeFile([], [], []), {
+      includeRuntime: false,
+    })
+      .compile()
+      .toWAT();
+    expect(wabt.parseWat('', wat).toText({})).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (export \\"memory\\" (memory 0))
+        (global $g0:#SP (mut i32) (i32.const 0)))
+      "
+    `);
   });
   it('compiles globals in the module', () => {
-    expect(
-      new ModuleCompiler(
-        AST.makeFile(
-          [],
-          [AST.makeGlobalDecl('foo', undefined, makeNum(0))],
-          []
-        ),
-        { includeRuntime: false }
-      ).compile()
-    ).toEqual(
-      new Wasm.Module({
-        globals: [
-          new Wasm.Global({
-            id: 'g0',
-            globalType: new Wasm.GlobalType({
-              valtype: IR.NumberType.i32,
-              mut: true,
-            }),
-            expr: [new IR.PushConst(IR.NumberType.i32, 0)],
-          }),
-        ],
-      })
-    );
+    const wasmModule = new ModuleCompiler(
+      AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], []),
+      { includeRuntime: false }
+    ).compile();
+    expect(wasmModule.fields.globals.map((g) => g.toWAT()))
+      .toMatchInlineSnapshot(`
+      Array [
+        "(global $g0:foo (mut i32) i32.const 0)",
+        "(global $g1:#SP (mut i32) i32.const 0)",
+      ]
+    `);
   });
-
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
     const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
     const compiler = new ModuleCompiler(file, { includeRuntime: false });
-    expect(compiler.compile()).toEqual(
-      new Wasm.Module({
-        funcs: [
-          new Wasm.Func({
-            funcType: new Wasm.FuncTypeUse({
-              params: [],
-              results: [],
-            }),
-            exportName: '_start',
-            id: 'main',
-            body: irCompiler(num).compile(),
-          }),
-        ],
-      })
-    );
+    expect(compiler.compile().fields.funcs.map((f) => f.toWAT()))
+      .toMatchInlineSnapshot(`
+      Array [
+        "(func $f0:main (export \\"_start\\")     i32.const 32
+        drop)",
+      ]
+    `);
   });
 
   it('compiles string literals into data segments', () => {
-    const compiler = new ModuleCompiler(
+    const wat = compileToWAT(
       AST.makeFile(
         [
           makeFunc(
@@ -464,22 +457,19 @@ describe('ModuleCompiler', () => {
       ),
       { includeRuntime: false }
     );
-    expect(compiler.compile()).toEqual(
-      new Wasm.Module({
-        datas: [new Wasm.Data({ datastring: 'hello world!', offset: 0 })],
-        funcs: [
-          new Wasm.Func({
-            funcType: new Wasm.FuncTypeUse({
-              params: [],
-              results: [],
-            }),
-            exportName: '_start',
-            id: 'main',
-            body: [new IR.PushConst(IR.NumberType.i32, 0), new IR.Drop()],
-          }),
-        ],
-      })
-    );
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (data $d0 (i32.const 0) \\"hello world!\\")
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (func $f0:main
+    (drop
+      (i32.const 0)))
+  (export \\"_start\\" (func $f0:main))
+  (type (;0;) (func)))
+"
+`);
   });
 
   it('compiles functions in the top-level block to wasm functions', () => {
@@ -493,28 +483,21 @@ describe('ModuleCompiler', () => {
       globals: [],
       decls: [],
     });
-    const compiler = new ModuleCompiler(file, { includeRuntime: false });
-    expect(compiler.compile()).toEqual(
-      new Wasm.Module({
-        funcs: [
-          new FuncDeclCompiler(funcDecl, {
-            refMap: compiler.refMap!,
-            typeCache: compiler.typeCache!,
-            allocationMap: compiler.moduleAllocator!.allocationMap,
-            locals: compiler.moduleAllocator?.getLocalsForFunc(funcDecl)!,
-            runtime: { malloc: { area: 'funcs', offset: 10000 } },
-          }).compile(),
-          new Wasm.Func({
-            funcType: new Wasm.FuncTypeUse({
-              params: [],
-              results: [],
-            }),
-            id: 'main',
-            exportName: '_start',
-          }),
-        ],
-      })
-    );
+    const wat = compileToWAT(file, { includeRuntime: false });
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (func $f0:foo (param $p0:a i32) (result i32)
+    (return
+      (local.get $p0:a)))
+  (func $f1:main)
+  (export \\"_start\\" (func $f1:main))
+  (type (;0;) (func (param i32) (result i32)))
+  (type (;1;) (func)))
+"
+`);
   });
 
   it('compiles extern declarations into wasm imports', () => {
@@ -541,25 +524,15 @@ describe('ModuleCompiler', () => {
       ],
     });
 
-    const compiler = new ModuleCompiler(file, { includeRuntime: false });
-    const { i32 } = IR.NumberType;
-    expect(compiler.compile()).toEqual(
-      new Wasm.Module({
-        imports: [
-          new Wasm.Import({
-            mod: 'wasi_unstable',
-            nm: 'fd_write',
-            importdesc: {
-              kind: 'func',
-              id: 'wasi_unstable_fd_write',
-              typeuse: {
-                params: [i32, i32, i32, i32],
-                results: [i32],
-              },
-            },
-          }),
-        ],
-      })
-    );
+    const wat = compileToWAT(file, { includeRuntime: false });
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (import \\"wasi_unstable\\" \\"fd_write\\" (func $f0:fd_write (param i32 i32 i32 i32) (result i32)))
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (type (;0;) (func (param i32 i32 i32 i32) (result i32))))
+"
+`);
   });
 });

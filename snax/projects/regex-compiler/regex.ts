@@ -1,6 +1,6 @@
 import { charCodes } from '../utils/iter.js';
-import { DFA } from '../nfa-to-dfa/dfa.js';
-import { parseRegex, RegexParser } from './parser.js';
+import type { DFA } from '../nfa-to-dfa/dfa.js';
+import { RegexParser } from './parser.js';
 
 export class Regex {
   pattern: string;

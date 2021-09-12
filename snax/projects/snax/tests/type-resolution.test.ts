@@ -11,7 +11,7 @@ import {
 import * as AST from '../spec-gen.js';
 import { resolveTypes } from '../type-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
-import { makeNum } from './ast-util.js';
+import { makeNum } from '../ast-util.js';
 
 describe('ParameterList', () => {
   it('types an empty parameter list as a tuple type', () => {

@@ -1,14 +1,15 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { charCodes, peakable } from '../utils/iter.js';
-import { buildLexer, LexToken } from '../lexer-gen/lexer-gen.js';
-import { PatternLexer, NewTokenIterator } from '../lexer-gen/recognizer.js';
-import { ConstNFA } from '../nfa-to-dfa/nfa.js';
+import { buildLexer } from '../lexer-gen/lexer-gen.js';
+import type { NewTokenIterator } from '../lexer-gen/recognizer.js';
+import type { ConstNFA } from '../nfa-to-dfa/nfa.js';
 import {
   asciiChars,
   notChars,
   SingleCharNFA,
 } from '../nfa-to-dfa/regex-nfa.js';
 import { memoize } from '../utils/utils.js';
+import type { LexToken } from '../lexer-gen/LexToken.js';
 
 export enum Token {
   PLUS,

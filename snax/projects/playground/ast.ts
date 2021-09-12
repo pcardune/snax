@@ -1,8 +1,7 @@
-import { Grammar } from '../grammar/grammar.js';
-import { ParseNode } from '../grammar/top-down-parser.js';
-import { buildLexer, LexToken } from '../lexer-gen/lexer-gen.js';
-import { PatternLexer } from '../lexer-gen/recognizer.js';
-import { ConstNFA } from '../nfa-to-dfa/nfa.js';
+import type { ParseNode } from '../grammar/ParseNode.js';
+import { buildLexer } from '../lexer-gen/lexer-gen.js';
+import type { LexToken } from '../lexer-gen/LexToken.js';
+import type { ConstNFA } from '../nfa-to-dfa/nfa.js';
 import { charRange, chars, charSeq } from '../nfa-to-dfa/regex-nfa.js';
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { iter, Iter } from '../utils/iter.js';

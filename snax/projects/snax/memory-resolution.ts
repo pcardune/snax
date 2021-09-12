@@ -12,21 +12,38 @@ import {
 import { children } from './spec-util.js';
 import * as Wasm from './wasm-ast.js';
 import * as IR from './stack-ir.js';
-import { ResolvedTypeMap } from './type-resolution.js';
-import { BinaryOp, UnaryOp } from './snax-ast.js';
+import type { ResolvedTypeMap } from './type-resolution.js';
+import { BinOp, UnaryOp } from './snax-ast.js';
 
-export type DataLocation = {
-  area: 'data';
+export enum Area {
+  FUNCS = 'funcs',
+  LOCALS = 'locals',
+  GLOBALS = 'globals',
+  DATA = 'data',
+}
+const { FUNCS, LOCALS, GLOBALS, DATA } = Area;
+
+type BaseStorageLocation<T extends Area> = {
+  area: T;
   offset: number;
+  id: string;
+};
+
+export type GlobalStorageLocation = BaseStorageLocation<Area.GLOBALS>;
+
+export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS>;
+
+export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS>;
+
+export type DataLocation = BaseStorageLocation<Area.DATA> & {
   data: string;
   memIndex: number;
 };
 
 export type StorageLocation =
-  | {
-      area: 'funcs' | 'locals' | 'globals';
-      offset: number;
-    }
+  | FuncStorageLocation
+  | GlobalStorageLocation
+  | LocalStorageLocation
   | DataLocation;
 
 export type AllocationMap = OrderedMap<ASTNode, StorageLocation>;
@@ -57,25 +74,34 @@ export class ModuleAllocator implements ConstAllocator {
       node.fields.parameters
     );
     this.funcAllocatorMap.set(node, funcLocalAllocator);
+    const id = `f${this.funcOffset}:${node.fields.symbol}`;
     return {
-      location: this.alloc(node, { area: 'funcs', offset: this.funcOffset++ }),
+      location: this.alloc(node, {
+        area: FUNCS,
+        offset: this.funcOffset++,
+        id,
+      }),
       localAllocator: funcLocalAllocator,
     };
   }
 
   allocateGlobal(node: GlobalDecl) {
+    const id = `g${this.globalOffset}:${node.fields.symbol}`;
     return this.alloc(node, {
-      area: 'globals',
+      area: GLOBALS,
       offset: this.globalOffset++,
+      id,
     });
   }
 
   allocateConstData(node: DataLiteral, data: string) {
+    const id = `d${this.dataOffset}`;
     let memIndex = this.memIndex;
     this.memIndex += data.length;
     return this.alloc(node, {
-      area: 'data',
+      area: DATA,
       offset: this.dataOffset++,
+      id,
       data,
       memIndex,
     });
@@ -123,9 +149,11 @@ class FuncLocalAllocator implements ILocalAllocator {
     this.allocationMap = allocationMap;
 
     for (const param of params.fields.parameters) {
+      const id = `p${this.localsOffset}:${param.fields.symbol}`;
       this.allocationMap.set(param, {
-        area: 'locals',
+        area: LOCALS,
         offset: this.localsOffset++,
+        id,
       });
     }
   }
@@ -140,18 +168,21 @@ class FuncLocalAllocator implements ILocalAllocator {
       freeLocal.live = true;
       localAllocation = freeLocal;
     } else {
+      const id = `l${this.localsOffset}`;
       localAllocation = {
         offset: this.localsOffset++,
         live: true,
-        local: new Wasm.Local(valueType),
+        local: new Wasm.Local(valueType, id),
       };
       this.locals.push(localAllocation);
     }
 
     if (decl) {
+      const id = `l${localAllocation.offset}`;
       this.allocationMap.set(decl, {
-        area: 'locals',
+        area: LOCALS,
         offset: localAllocation.offset,
+        id,
       });
     }
     return localAllocation;
@@ -255,11 +286,11 @@ function recurse(
       break;
     }
     case 'BinaryExpr': {
-      if (root.fields.op === BinaryOp.ASSIGN) {
+      if (root.fields.op === BinOp.ASSIGN) {
         const { left } = root.fields;
         if (
           (isUnaryExpr(left) && left.fields.op === UnaryOp.DEREF) ||
-          (isBinaryExpr(left) && left.fields.op === BinaryOp.ARRAY_INDEX)
+          (isBinaryExpr(left) && left.fields.op === BinOp.ARRAY_INDEX)
         ) {
           if (assertLocal(localAllocator)) {
             let tempLocation = localAllocator.allocateLocal(

@@ -6,8 +6,8 @@ import {
   SingleCharNFA,
 } from '../nfa-to-dfa/regex-nfa.js';
 import { Lexeme, Lexer, Token } from './lexer.js';
-import { LexToken } from '../lexer-gen/lexer-gen.js';
 import { err, ok, Result } from 'neverthrow';
+import { LexToken } from '../lexer-gen/LexToken.js';
 
 enum CharacterClass {
   DIGIT = 'd',

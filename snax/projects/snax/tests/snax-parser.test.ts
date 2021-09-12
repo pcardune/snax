@@ -1,7 +1,7 @@
 import * as AST from '../spec-gen.js';
-import { BinaryOp, NumberLiteralType, UnaryOp } from '../snax-ast.js';
+import { BinOp, NumberLiteralType, UnaryOp } from '../snax-ast.js';
 import { SNAXParser } from '../snax-parser.js';
-import { makeFunc, makeNum } from './ast-util.js';
+import { makeFunc, makeNum } from '../ast-util.js';
 
 describe('numbers', () => {
   it('should parse a string with a number into a NumberLiteral', () => {
@@ -84,7 +84,7 @@ describe('expression', () => {
   it('should handle +', () => {
     const expr = SNAXParser.parseStrOrThrow('123+456', 'expr');
     expect(expr).toEqual(
-      AST.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456))
+      AST.makeBinaryExpr(BinOp.ADD, makeNum(123), makeNum(456))
     );
   });
   it("should handle a sequence of +'s", () => {
@@ -92,8 +92,8 @@ describe('expression', () => {
 
     expect(expr).toEqual(
       AST.makeBinaryExpr(
-        BinaryOp.ADD,
-        AST.makeBinaryExpr(BinaryOp.ADD, makeNum(123), makeNum(456)),
+        BinOp.ADD,
+        AST.makeBinaryExpr(BinOp.ADD, makeNum(123), makeNum(456)),
         makeNum(789)
       )
     );
@@ -102,17 +102,17 @@ describe('expression', () => {
     let expr = SNAXParser.parseStrOrThrow('123+456*789', 'expr');
     expect(expr).toEqual(
       AST.makeBinaryExpr(
-        BinaryOp.ADD,
+        BinOp.ADD,
         makeNum(123),
-        AST.makeBinaryExpr(BinaryOp.MUL, makeNum(456), makeNum(789))
+        AST.makeBinaryExpr(BinOp.MUL, makeNum(456), makeNum(789))
       )
     );
 
     expr = SNAXParser.parseStrOrThrow('123*456+789', 'expr');
     expect(expr).toEqual(
       AST.makeBinaryExpr(
-        BinaryOp.ADD,
-        AST.makeBinaryExpr(BinaryOp.MUL, makeNum(123), makeNum(456)),
+        BinOp.ADD,
+        AST.makeBinaryExpr(BinOp.MUL, makeNum(123), makeNum(456)),
         makeNum(789)
       )
     );
@@ -129,21 +129,21 @@ describe('expression', () => {
   });
   it('should allow symbols', () => {
     expect(SNAXParser.parseStrOrThrow('3+x', 'expr')).toEqual(
-      AST.makeBinaryExpr(BinaryOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
+      AST.makeBinaryExpr(BinOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
     );
   });
   describe('boolean operators', () => {
     it('should handle boolean operators', () => {
       expect(SNAXParser.parseStrOrThrow('true && x', 'expr')).toEqual(
         AST.makeBinaryExpr(
-          BinaryOp.LOGICAL_AND,
+          BinOp.LOGICAL_AND,
           AST.makeBooleanLiteral(true),
           AST.makeSymbolRef('x')
         )
       );
       expect(SNAXParser.parseStrOrThrow('true || x', 'expr')).toEqual(
         AST.makeBinaryExpr(
-          BinaryOp.LOGICAL_OR,
+          BinOp.LOGICAL_OR,
           AST.makeBooleanLiteral(true),
           AST.makeSymbolRef('x')
         )
@@ -152,10 +152,10 @@ describe('expression', () => {
     it('&& takes precendence over ||', () => {
       expect(SNAXParser.parseStrOrThrow('a || b && c', 'expr')).toEqual(
         AST.makeBinaryExpr(
-          BinaryOp.LOGICAL_OR,
+          BinOp.LOGICAL_OR,
           AST.makeSymbolRef('a'),
           AST.makeBinaryExpr(
-            BinaryOp.LOGICAL_AND,
+            BinOp.LOGICAL_AND,
             AST.makeSymbolRef('b'),
             AST.makeSymbolRef('c')
           )
@@ -165,9 +165,9 @@ describe('expression', () => {
     it('&& is left associative', () => {
       expect(SNAXParser.parseStrOrThrow('a && b && c', 'expr')).toEqual(
         AST.makeBinaryExpr(
-          BinaryOp.LOGICAL_AND,
+          BinOp.LOGICAL_AND,
           AST.makeBinaryExpr(
-            BinaryOp.LOGICAL_AND,
+            BinOp.LOGICAL_AND,
             AST.makeSymbolRef('a'),
             AST.makeSymbolRef('b')
           ),
@@ -180,13 +180,13 @@ describe('expression', () => {
     const three = makeNum(3);
     const four = makeNum(4);
     expect(SNAXParser.parseStrOrThrow('3 < 4', 'expr')).toEqual(
-      AST.makeBinaryExpr(BinaryOp.LESS_THAN, three, four)
+      AST.makeBinaryExpr(BinOp.LESS_THAN, three, four)
     );
     expect(SNAXParser.parseStrOrThrow('3 > 4', 'expr')).toEqual(
-      AST.makeBinaryExpr(BinaryOp.GREATER_THAN, three, four)
+      AST.makeBinaryExpr(BinOp.GREATER_THAN, three, four)
     );
     expect(SNAXParser.parseStrOrThrow('3 == 4', 'expr')).toEqual(
-      AST.makeBinaryExpr(BinaryOp.EQUAL_TO, three, four)
+      AST.makeBinaryExpr(BinOp.EQUAL_TO, three, four)
     );
   });
 
@@ -194,10 +194,10 @@ describe('expression', () => {
     it('should be right associative', () => {
       expect(SNAXParser.parseStrOrThrow('a = b = c', 'expr')).toEqual(
         AST.makeBinaryExpr(
-          BinaryOp.ASSIGN,
+          BinOp.ASSIGN,
           AST.makeSymbolRef('a'),
           AST.makeBinaryExpr(
-            BinaryOp.ASSIGN,
+            BinOp.ASSIGN,
             AST.makeSymbolRef('b'),
             AST.makeSymbolRef('c')
           )
@@ -218,7 +218,7 @@ describe('expression', () => {
     it('should parse array indexing operator', () => {
       expect(SNAXParser.parseStrOrThrow('x[1]', 'expr')).toEqual(
         AST.makeBinaryExpr(
-          BinaryOp.ARRAY_INDEX,
+          BinOp.ARRAY_INDEX,
           AST.makeSymbolRef('x'),
           makeNum(1)
         )
@@ -323,7 +323,7 @@ describe('block', () => {
       AST.makeBlock([
         AST.makeLetStatement('x', undefined, makeNum(3)),
         AST.makeExprStatement(
-          AST.makeBinaryExpr(BinaryOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
+          AST.makeBinaryExpr(BinOp.ADD, makeNum(3), AST.makeSymbolRef('x'))
         ),
         AST.makeExprStatement(makeNum(8)),
       ])
@@ -360,18 +360,10 @@ describe('if statements', () => {
       )
     ).toEqual(
       AST.makeIfStatement(
-        AST.makeBinaryExpr(
-          BinaryOp.EQUAL_TO,
-          AST.makeSymbolRef('x'),
-          makeNum(3)
-        ),
+        AST.makeBinaryExpr(BinOp.EQUAL_TO, AST.makeSymbolRef('x'), makeNum(3)),
         AST.makeBlock([
           AST.makeExprStatement(
-            AST.makeBinaryExpr(
-              BinaryOp.ASSIGN,
-              AST.makeSymbolRef('y'),
-              makeNum(2)
-            )
+            AST.makeBinaryExpr(BinOp.ASSIGN, AST.makeSymbolRef('y'), makeNum(2))
           ),
         ]),
         AST.makeBlock([])
@@ -388,27 +380,15 @@ describe('if statements', () => {
       )
     ).toEqual(
       AST.makeIfStatement(
-        AST.makeBinaryExpr(
-          BinaryOp.EQUAL_TO,
-          AST.makeSymbolRef('x'),
-          makeNum(3)
-        ),
+        AST.makeBinaryExpr(BinOp.EQUAL_TO, AST.makeSymbolRef('x'), makeNum(3)),
         AST.makeBlock([
           AST.makeExprStatement(
-            AST.makeBinaryExpr(
-              BinaryOp.ASSIGN,
-              AST.makeSymbolRef('y'),
-              makeNum(2)
-            )
+            AST.makeBinaryExpr(BinOp.ASSIGN, AST.makeSymbolRef('y'), makeNum(2))
           ),
         ]),
         AST.makeBlock([
           AST.makeExprStatement(
-            AST.makeBinaryExpr(
-              BinaryOp.ASSIGN,
-              AST.makeSymbolRef('y'),
-              makeNum(4)
-            )
+            AST.makeBinaryExpr(BinOp.ASSIGN, AST.makeSymbolRef('y'), makeNum(4))
           ),
         ])
       )
@@ -497,7 +477,7 @@ describe('functions', () => {
         [AST.makeParameter('a', AST.makeTypeRef('i32'))],
         [
           AST.makeReturnStatement(
-            AST.makeBinaryExpr(BinaryOp.ADD, AST.makeSymbolRef('a'), makeNum(1))
+            AST.makeBinaryExpr(BinOp.ADD, AST.makeSymbolRef('a'), makeNum(1))
           ),
         ]
       )

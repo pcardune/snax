@@ -1,7 +1,6 @@
 import * as AST from './spec-gen.js';
 import { SNAXParser } from './snax-parser.js';
 import {
-  ArrayType,
   BaseType,
   FuncType,
   Intrinsics,
@@ -12,16 +11,19 @@ import {
 } from './snax-types.js';
 import * as IR from './stack-ir.js';
 import * as Wasm from './wasm-ast.js';
-import { BinaryOp, UnaryOp } from './snax-ast.js';
+import { BinOp, UnaryOp } from './snax-ast.js';
 import { children } from './spec-util.js';
 import { ResolvedTypeMap, resolveTypes } from './type-resolution.js';
 import { resolveSymbols, SymbolRefMap } from './symbol-resolution.js';
 import {
   AllocationMap,
+  Area,
+  FuncStorageLocation,
+  GlobalStorageLocation,
   LocalAllocation,
+  LocalStorageLocation,
   ModuleAllocator,
   resolveMemory,
-  StorageLocation,
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
 
@@ -47,8 +49,9 @@ type AllocationMapContext = {
   allocationMap: AllocationMap;
 };
 
-type Runtime = {
-  malloc: StorageLocation;
+export type Runtime = {
+  malloc: FuncStorageLocation;
+  stackPointer: GlobalStorageLocation;
 };
 
 export type IRCompilerContext = AllocationMapContext & {
@@ -178,6 +181,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   }
 
   compile(): Wasm.Module {
+    desugar(this.root);
+
+    let stackPointerGlobal = AST.makeGlobalDeclWith({
+      symbol: '#SP',
+      expr: AST.makeNumberLiteral(0, 'int', 'usize'),
+    });
+    this.root.fields.globals.push(stackPointerGlobal);
+
     let heapStartLiteral = AST.makeNumberLiteralWith({
       value: 0,
       numberType: 'int',
@@ -215,8 +226,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       }
     }
 
-    desugar(this.root);
-
     const { refMap } = resolveSymbols(this.root);
     this.refMap = refMap;
 
@@ -231,22 +240,29 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     heapStartLiteral.fields.value = moduleAllocator.memIndex;
 
     let runtime: Runtime;
+
     if (this.options.includeRuntime) {
+      const stackPointer =
+        moduleAllocator.allocationMap.get(stackPointerGlobal);
+      if (!stackPointer || stackPointer.area !== Area.GLOBALS) {
+        throw new Error(`I need a global stack pointer`);
+      }
       if (!mallocDecl) {
         throw new Error(`I need a decl for malloc`);
       }
       let malloc = moduleAllocator.allocationMap.get(mallocDecl);
-      if (!malloc) {
-        throw new Error(`I need malloc`);
+      if (!malloc || malloc.area !== Area.FUNCS) {
+        throw new Error(`I need malloc func`);
       }
-
       runtime = {
         malloc,
+        stackPointer,
       };
     } else {
       // TODO, find a better alternative for optional compilation
       runtime = {
-        malloc: { area: 'funcs', offset: 1000 },
+        malloc: { area: Area.FUNCS, offset: 1000, id: 'f1000:malloc' },
+        stackPointer: { area: Area.GLOBALS, offset: 1000, id: 'g1000:#SP' },
       };
     }
 
@@ -271,8 +287,12 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     });
 
     const globals: Wasm.Global[] = this.root.fields.globals.map((global, i) => {
+      const location = moduleAllocator.allocationMap.get(global);
+      if (!location || location.area !== Area.GLOBALS) {
+        throw new Error(`Expected global in ast to have global location`);
+      }
       return new Wasm.Global({
-        id: `g${i}`,
+        id: location.id,
         globalType: new Wasm.GlobalType({
           valtype: typeCache.get(global).toValueType(),
           mut: true,
@@ -290,7 +310,11 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     for (const loc of moduleAllocator.allocationMap.values()) {
       if (loc.area === 'data') {
         datas.push(
-          new Wasm.Data({ datastring: loc.data, offset: loc.memIndex })
+          new Wasm.Data({
+            id: loc.id,
+            datastring: loc.data,
+            offset: loc.memIndex,
+          })
         );
       }
     }
@@ -298,7 +322,12 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     const imports: Wasm.Import[] = [];
     for (const decl of this.root.fields.decls) {
       if (AST.isExternDecl(decl)) {
-        imports.push(...new ExternDeclCompiler(decl, { typeCache }).compile());
+        imports.push(
+          ...new ExternDeclCompiler(decl, {
+            typeCache,
+            allocationMap: moduleAllocator.allocationMap,
+          }).compile()
+        );
       }
     }
 
@@ -314,7 +343,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
 export class ExternDeclCompiler extends ASTCompiler<
   AST.ExternDecl,
   Wasm.Import[],
-  { typeCache: ResolvedTypeMap }
+  { typeCache: ResolvedTypeMap } & AllocationMapContext
 > {
   compile(): Wasm.Import[] {
     return this.root.fields.funcs.map((func) => {
@@ -322,16 +351,22 @@ export class ExternDeclCompiler extends ASTCompiler<
       if (!(funcType instanceof FuncType)) {
         throw new Error(`Unexpected type for funcDecl: ${funcType.name}`);
       }
+      const location = this.context.allocationMap.get(func);
+      if (!location || location.area !== Area.FUNCS) {
+        throw new Error(
+          `Imported func should have a location in the funcs area`
+        );
+      }
       return new Wasm.Import({
         mod: this.root.fields.libName,
         nm: func.fields.symbol,
         importdesc: {
           kind: 'func',
-          id: this.root.fields.libName + '_' + func.fields.symbol,
+          id: location.id,
           typeuse: {
-            params: func.fields.parameters.fields.parameters.map((param) =>
-              this.context.typeCache.get(param).toValueType()
-            ),
+            params: func.fields.parameters.fields.parameters.map((param) => ({
+              valtype: this.context.typeCache.get(param).toValueType(),
+            })),
             results:
               funcType.returnType === Intrinsics.void
                 ? []
@@ -361,7 +396,18 @@ export class FuncDeclCompiler extends ASTCompiler<
       throw new Error('unexpected type of function');
     }
 
-    const params = funcType.argTypes.map((t) => t.toValueType());
+    const params = this.root.fields.parameters.fields.parameters.map(
+      (param) => {
+        const paramType = this.context.typeCache.get(param);
+        const location = this.context.allocationMap.get(param);
+        if (!location || location.area !== Area.LOCALS) {
+          throw new Error(
+            `Expected local allocation for param ${param.fields.symbol}`
+          );
+        }
+        return { valtype: paramType.toValueType(), id: location.id };
+      }
+    );
 
     const results =
       funcType.returnType === Intrinsics.void
@@ -372,8 +418,12 @@ export class FuncDeclCompiler extends ASTCompiler<
       this.root.fields.body,
       this.context
     ).compile();
+    const location = this.context.allocationMap.get(this.root);
+    if (!location || location.area !== Area.FUNCS) {
+      throw new Error(`Expected func to have been allocation to func area`);
+    }
     return new Wasm.Func({
-      id: this.root.fields.symbol,
+      id: location.id,
       body,
       funcType: new Wasm.FuncTypeUse({
         params,
@@ -395,10 +445,7 @@ class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
         `Don't know how to assign let statement to non-local area`
       );
     }
-    return [
-      ...this.compileChild(this.root.fields.expr),
-      new IR.LocalSet(location.offset),
-    ];
+    return [...this.compileChild(this.root.fields.expr), localSet(location)];
   }
 }
 
@@ -440,9 +487,9 @@ class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
     const location = this.getLocationForSymbolRef(this.root);
     switch (location.area) {
       case 'locals':
-        return [new IR.LocalGet(location.offset)];
+        return [localGet(location)];
       case 'globals':
-        return [new IR.GlobalGet(location.offset)];
+        return [globalGet(location)];
       default:
         throw new Error(
           `SymbolRefCompiler: don't know how to compile reference to a location in ${location.area}`
@@ -493,53 +540,53 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     string,
     (left: AST.Expression, right: AST.Expression) => IR.Instruction[]
   > = {
-    [BinaryOp.ADD]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.ADD]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Add(this.matchTypes(left, right)),
     ],
-    [BinaryOp.SUB]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.SUB]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Sub(this.matchTypes(left, right)),
     ],
-    [BinaryOp.MUL]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.MUL]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Mul(this.matchTypes(left, right)),
     ],
-    [BinaryOp.DIV]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.DIV]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Div(this.matchTypes(left, right)),
     ],
-    [BinaryOp.REM]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.REM]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Rem(this.matchTypes(left, right)),
     ],
-    [BinaryOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.Equal(this.matchTypes(left, right)),
     ],
-    [BinaryOp.NOT_EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.NOT_EQUAL_TO]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.NotEqual(this.matchTypes(left, right)),
     ],
-    [BinaryOp.LESS_THAN]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.LESS_THAN]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.LessThan(this.matchTypes(left, right)),
     ],
-    [BinaryOp.GREATER_THAN]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.GREATER_THAN]: (left: AST.Expression, right: AST.Expression) => [
       ...this.pushNumberOps(left, right),
       new IR.GreaterThan(this.matchTypes(left, right)),
     ],
-    [BinaryOp.LOGICAL_AND]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.LOGICAL_AND]: (left: AST.Expression, right: AST.Expression) => [
       ...this.compileChild(left),
       ...this.compileChild(right),
       new IR.And(Intrinsics.bool.toValueType()),
     ],
-    [BinaryOp.LOGICAL_OR]: (left: AST.Expression, right: AST.Expression) => [
+    [BinOp.LOGICAL_OR]: (left: AST.Expression, right: AST.Expression) => [
       ...this.compileChild(left),
       ...this.compileChild(right),
       new IR.Or(Intrinsics.bool.toValueType()),
     ],
-    [BinaryOp.ASSIGN]: (left: AST.Expression, right: AST.Expression) => {
+    [BinOp.ASSIGN]: (left: AST.Expression, right: AST.Expression) => {
       const leftType = this.resolveType(left);
       const rightType = this.resolveType(right);
       if (leftType !== rightType) {
@@ -551,15 +598,12 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         const location = this.getLocationForSymbolRef(left);
         switch (location.area) {
           case 'locals':
-            return [
-              ...this.compileChild(right),
-              new IR.LocalTee(location.offset),
-            ];
+            return [...this.compileChild(right), localTee(location)];
           case 'globals':
             return [
               ...this.compileChild(right),
-              new IR.GlobalSet(location.offset),
-              new IR.GlobalGet(location.offset),
+              globalSet(location),
+              globalGet(location),
             ];
           default:
             throw new Error(
@@ -580,13 +624,13 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         }
         return [
           ...setup,
-          new IR.LocalTee(tempLocation.offset),
+          localTee(tempLocation),
           new IR.MemoryStore(rightType.toValueType()),
-          new IR.LocalGet(tempLocation.offset),
+          localGet(tempLocation),
         ];
       } else if (
         AST.isBinaryExpr(left) &&
-        left.fields.op === BinaryOp.ARRAY_INDEX
+        left.fields.op === BinOp.ARRAY_INDEX
       ) {
         let valueType = leftType.toValueType();
         const arrayExpr = left;
@@ -608,13 +652,13 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         return [
           ...calcPointer,
           ...calcValue,
-          new IR.LocalTee(tempLocation.offset),
+          localTee(tempLocation),
           new IR.MemoryStore(valueType, {
             offset: 0,
             align: leftType.numBytes,
             bytes: leftType.numBytes,
           }),
-          new IR.LocalGet(tempLocation.offset),
+          localGet(tempLocation),
         ];
       } else {
         throw new Error(
@@ -622,7 +666,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         );
       }
     },
-    [BinaryOp.ARRAY_INDEX]: (
+    [BinOp.ARRAY_INDEX]: (
       refExpr: AST.Expression,
       indexExpr: AST.Expression
     ) => {
@@ -647,7 +691,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         }),
       ];
     },
-    [BinaryOp.CAST]: (left: AST.Expression, right: AST.Expression) => {
+    [BinOp.CAST]: (left: AST.Expression, right: AST.Expression) => {
       throw new Error(`CAST: don't know how to cast values yet`);
     },
   };
@@ -718,14 +762,14 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
     const leftType = this.context.typeCache.get(left);
     if (leftType instanceof TupleType) {
       // we are constructing a tuple
-      const { location, instr } = compileMalloc(this, leftType.numBytes);
+      const { location, instr } = compileStackPush(this, leftType.numBytes);
       for (const [i, arg] of right.fields.args.entries()) {
         if (i >= leftType.elements.length) {
           throw new Error(`too many arguments specifed for tuple constructor`);
         }
         const elem = leftType.elements[i];
         instr.push(
-          new IR.LocalGet(location.offset),
+          localGet(location),
           ...this.compileChild(arg),
           new IR.MemoryStore(elem.type.toValueType(), {
             offset: elem.offset,
@@ -734,11 +778,16 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
           })
         );
       }
-      instr.push(new IR.LocalGet(location.offset));
+      instr.push(localGet(location));
       return instr;
     } else if (AST.isSymbolRef(left)) {
       const location = this.getLocationForSymbolRef(left);
-      return [...this.compileChild(right), new IR.Call(location.offset)];
+      if (location.area !== Area.FUNCS) {
+        throw new Error(
+          `Expected ${left.fields.symbol} to resolve to a function`
+        );
+      }
+      return [...this.compileChild(right), call(location)];
     } else {
       throw new Error(
         `ExpressionCompiler: Can't call unresolved symbol ${left}`
@@ -881,19 +930,48 @@ export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
   }
 }
 
-function compileMalloc(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
+function globalGet(global: GlobalStorageLocation) {
+  return new IR.GlobalGet(global.id);
+}
+function globalSet(global: GlobalStorageLocation) {
+  return new IR.GlobalSet(global.id);
+}
+function localTee(local: LocalStorageLocation) {
+  return new IR.LocalTee(local.id);
+}
+function localGet(local: LocalStorageLocation) {
+  return new IR.LocalGet(local.id);
+}
+function localSet(local: LocalStorageLocation) {
+  return new IR.LocalSet(local.id);
+}
+function call(func: FuncStorageLocation) {
+  return new IR.Call(func.id);
+}
+
+function compileStackPush(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
   let location = ir.context.allocationMap.get(ir.root);
   if (!location || location.area !== 'locals') {
     throw new Error(
       `${ir.root.name} didn't have a temporary local allocated for it`
     );
   }
+  // return {
+  //   location,
+  //   instr: [
+  //     globalGet(ir.context.runtime.stackPointer),
+  //     localTee(location),
+  //     new IR.PushConst(IR.NumberType.i32, numBytes),
+  //     new IR.Add(IR.NumberType.i32),
+  //     globalSet(ir.context.runtime.stackPointer),
+  //   ] as IR.Instruction[],
+  // };
   return {
     location,
     instr: [
       new IR.PushConst(IR.NumberType.i32, numBytes),
-      new IR.Call(ir.context.runtime.malloc.offset),
-      new IR.LocalSet(location.offset),
+      call(ir.context.runtime.malloc),
+      localSet(location),
     ] as IR.Instruction[],
   };
 }
@@ -906,14 +984,14 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
     }
     const { elements } = this.root.fields;
 
-    const { instr, location } = compileMalloc(
+    const { instr, location } = compileStackPush(
       this,
       arrayType.numBytes * elements.length
     );
     for (const [i, child] of elements.entries()) {
       instr.push(
         // push memory space offset
-        new IR.LocalGet(location.offset),
+        localGet(location),
         // push value from expression
         ...this.compileChild(child as AST.Expression),
         // store value
@@ -923,7 +1001,7 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
         })
       );
     }
-    instr.push(new IR.LocalGet(location.offset));
+    instr.push(localGet(location));
     return instr;
   }
 }
@@ -941,7 +1019,7 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
       );
     }
 
-    const { instr, location } = compileMalloc(this, structType.numBytes);
+    const { instr, location } = compileStackPush(this, structType.numBytes);
 
     for (const [i, prop] of this.root.fields.props.entries()) {
       const propType = structType.fields.get(prop.fields.symbol);
@@ -951,7 +1029,7 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
         );
       }
       instr.push(
-        new IR.LocalGet(location.offset),
+        localGet(location),
         ...this.compileChild(prop.fields.expr),
         new IR.MemoryStore(propType.type.toValueType(), {
           offset: propType.offset,
@@ -960,7 +1038,7 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
         })
       );
     }
-    instr.push(new IR.LocalGet(location.offset));
+    instr.push(localGet(location));
     return instr;
   }
 }

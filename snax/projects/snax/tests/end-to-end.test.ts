@@ -1,28 +1,13 @@
-import { SNAXParser } from '../snax-parser.js';
 import loadWabt from 'wabt';
-import { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler.js';
-import { isFile } from '../spec-gen.js';
+import type { ModuleCompilerOptions } from '../ast-compiler.js';
+import { WabtModule, makeCompileToWAT } from './test-util';
 
-type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
-
-let wabt: ThenArg<ReturnType<typeof loadWabt>>;
+let wabt: WabtModule;
+let compileToWAT: ReturnType<typeof makeCompileToWAT>;
 beforeAll(async () => {
   wabt = await loadWabt();
+  compileToWAT = makeCompileToWAT(wabt);
 });
-
-function compileToWAT(input: string, options?: ModuleCompilerOptions) {
-  const ast = SNAXParser.parseStrOrThrow(input);
-
-  if (!isFile(ast)) {
-    throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
-  }
-  const wat = new ModuleCompiler(ast, options).compile().toWAT();
-  try {
-    return wabt.parseWat('', wat).toText({});
-  } catch (e) {
-    return wat;
-  }
-}
 
 type WasiABI = {
   memory: WebAssembly.Memory;
@@ -67,28 +52,29 @@ function text(memory: WebAssembly.Memory, offset: number, length: number) {
 describe('simple expressions', () => {
   it('compiles an empty program', async () => {
     expect(compileToWAT('', { includeRuntime: true })).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (global $g0 (mut i32) (i32.const 0))
-        (func $main)
-        (export \\"_start\\" (func 0))
-        (func $malloc (param i32) (result i32)
-          (local i32)
-          global.get 0
-          local.set 1
-          global.get 0
-          local.get 0
-          i32.add
-          global.set 0
-          global.get 0
-          drop
-          local.get 1
-          return)
-        (type (;0;) (func))
-        (type (;1;) (func (param i32) (result i32))))
-      "
-    `);
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g1:next (mut i32) (i32.const 0))
+  (func $f0:main)
+  (export \\"_start\\" (func $f0:main))
+  (func $f1:malloc (param $p0:numBytes i32) (result i32)
+    (local $l1 i32)
+    (local.set $l1
+      (global.get $g1:next))
+    (global.set $g1:next
+      (i32.add
+        (global.get $g1:next)
+        (local.get $p0:numBytes)))
+    (drop
+      (global.get $g1:next))
+    (return
+      (local.get $l1)))
+  (type (;0;) (func))
+  (type (;1;) (func (param i32) (result i32))))
+"
+`);
     expect(await exec('')).toBe(undefined);
   });
 
@@ -382,6 +368,73 @@ describe('arrays', () => {
       let arr2 = [7,8,9];
       arr;
     `;
+    expect(compileToWAT(input)).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (data $d0 (i32.const 0) \\"data\\")
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g1:next (mut i32) (i32.const 4))
+  (func $f0:main (result i32)
+    (local $l0 i32) (local $l1 i32) (local $l2 i32) (local $l3 i32)
+    (local.set $l1
+      (call $f1:malloc
+        (i32.const 8)))
+    (i32.store
+      (local.get $l1)
+      (i32.const 0))
+    (i32.store offset=4
+      (local.get $l1)
+      (i32.const 4))
+    (local.set $l0
+      (local.get $l1))
+    (local.set $l2
+      (call $f1:malloc
+        (i32.const 12)))
+    (i32.store
+      (local.get $l2)
+      (i32.const 6))
+    (i32.store offset=4
+      (local.get $l2)
+      (i32.const 5))
+    (i32.store offset=8
+      (local.get $l2)
+      (i32.const 4))
+    (local.set $l1
+      (local.get $l2))
+    (local.set $l3
+      (call $f1:malloc
+        (i32.const 12)))
+    (i32.store
+      (local.get $l3)
+      (i32.const 7))
+    (i32.store offset=4
+      (local.get $l3)
+      (i32.const 8))
+    (i32.store offset=8
+      (local.get $l3)
+      (i32.const 9))
+    (local.set $l2
+      (local.get $l3))
+    (return
+      (local.get $l1)))
+  (export \\"_start\\" (func $f0:main))
+  (func $f1:malloc (param $p0:numBytes i32) (result i32)
+    (local $l1 i32)
+    (local.set $l1
+      (global.get $g1:next))
+    (global.set $g1:next
+      (i32.add
+        (global.get $g1:next)
+        (local.get $p0:numBytes)))
+    (drop
+      (global.get $g1:next))
+    (return
+      (local.get $l1)))
+  (type (;0;) (func (result i32)))
+  (type (;1;) (func (param i32) (result i32))))
+"
+`);
     const { exports } = await compileToWasmModule(input);
     const result = exports._start();
     expect(result).toBe(12);
@@ -518,6 +571,35 @@ describe('extern declarations', () => {
       print_num(1);
     `;
     const wat = compileToWAT(code);
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (import \\"Printer\\" \\"print_num\\" (func $f0:print_num (param i32) (result i32)))
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g1:next (mut i32) (i32.const 0))
+  (func $f1:main (result i32)
+    (local $l0 i32)
+    (return
+      (call $f0:print_num
+        (i32.const 1))))
+  (export \\"_start\\" (func $f1:main))
+  (func $f2:malloc (param $p0:numBytes i32) (result i32)
+    (local $l1 i32)
+    (local.set $l1
+      (global.get $g1:next))
+    (global.set $g1:next
+      (i32.add
+        (global.get $g1:next)
+        (local.get $p0:numBytes)))
+    (drop
+      (global.get $g1:next))
+    (return
+      (local.get $l1)))
+  (type (;0;) (func (param i32) (result i32)))
+  (type (;1;) (func (result i32))))
+"
+`);
     const wasmModule = wabt.parseWat('', wat);
     wasmModule.validate();
 

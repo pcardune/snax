@@ -1,5 +1,5 @@
 import { DefaultTable } from '../utils/data-structures/table.js';
-import { IHaveDebugStr } from '../utils/debug.js';
+import type { IHaveDebugStr } from '../utils/debug.js';
 import { toCharCode } from './util.js';
 
 export interface ConstNFA extends IHaveDebugStr {

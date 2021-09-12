@@ -3,7 +3,7 @@ export enum NumberLiteralType {
   Float = 'float',
 }
 
-export enum BinaryOp {
+export enum BinOp {
   MUL = '*',
   DIV = '/',
   ADD = '+',
@@ -27,7 +27,7 @@ export enum BinaryOp {
   CAST = 'as',
 }
 
-export type ExprOp = Exclude<BinaryOp, BinaryOp.CALL>;
+export type ExprOp = Exclude<BinOp, BinOp.CALL>;
 export enum UnaryOp {
   DEREF = '@',
 }

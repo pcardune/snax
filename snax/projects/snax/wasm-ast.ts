@@ -1,6 +1,8 @@
 import * as IR from './stack-ir.js';
 import type { HasWAT } from './wat-compiler.js';
 
+export const PAGE_SIZE = 65536;
+
 abstract class Node<Fields> {
   fields: Fields;
   constructor(fields: Fields) {
@@ -11,6 +13,7 @@ type ModuleFields = {
   funcs: Func[];
   globals: Global[];
   imports: Import[];
+  memory: { min: number; max?: number };
   datas: Data[];
 };
 export class Module extends Node<ModuleFields> implements HasWAT {
@@ -19,6 +22,7 @@ export class Module extends Node<ModuleFields> implements HasWAT {
       funcs: fields.funcs ?? [],
       globals: fields.globals ?? [],
       imports: fields.imports ?? [],
+      memory: fields.memory ?? { min: 1 },
       datas: fields.datas ?? [],
     });
   }
@@ -30,7 +34,7 @@ export class Module extends Node<ModuleFields> implements HasWAT {
     return sexpr(
       'module',
       imports,
-      '(memory 1)',
+      sexpr('memory', this.fields.memory.min, this.fields.memory.max),
       sexpr('export', '"memory"', '(memory 0)'),
       datas,
       globals,
@@ -39,8 +43,8 @@ export class Module extends Node<ModuleFields> implements HasWAT {
   }
 }
 
-function sexpr(...parts: (string | undefined)[]) {
-  return '(' + parts.filter((s) => !!s).join(' ') + ')';
+function sexpr(...parts: (string | number | undefined)[]) {
+  return '(' + parts.filter((s) => s !== undefined && s !== '').join(' ') + ')';
 }
 
 type ImportDesc = { kind: 'func'; id?: string; typeuse: TypeUseFields };

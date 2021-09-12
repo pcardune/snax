@@ -183,9 +183,10 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   compile(): Wasm.Module {
     desugar(this.root);
 
+    const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
     let stackPointerGlobal = AST.makeGlobalDeclWith({
       symbol: '#SP',
-      expr: AST.makeNumberLiteral(0, 'int', 'usize'),
+      expr: stackPointerLiteral,
     });
     this.root.fields.globals.push(stackPointerGlobal);
 
@@ -237,7 +238,9 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
 
     // initialize the heap start pointer to the last memIndex
     // that got used.
+    const numPagesOfMemory = 1;
     heapStartLiteral.fields.value = moduleAllocator.memIndex;
+    stackPointerLiteral.fields.value = numPagesOfMemory * Wasm.PAGE_SIZE;
 
     let runtime: Runtime;
 
@@ -335,6 +338,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       funcs,
       globals,
       imports: imports.length > 0 ? imports : undefined,
+      memory: { min: numPagesOfMemory },
       datas,
     });
   }
@@ -414,10 +418,9 @@ export class FuncDeclCompiler extends ASTCompiler<
         ? []
         : [funcType.returnType.toValueType()];
 
-    const body = new BlockCompiler(
-      this.root.fields.body,
-      this.context
-    ).compile();
+    const body = [
+      ...new BlockCompiler(this.root.fields.body, this.context).compile(),
+    ];
     const location = this.context.allocationMap.get(this.root);
     if (!location || location.area !== Area.FUNCS) {
       throw new Error(`Expected func to have been allocation to func area`);
@@ -956,24 +959,24 @@ function compileStackPush(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
       `${ir.root.name} didn't have a temporary local allocated for it`
     );
   }
-  // return {
-  //   location,
-  //   instr: [
-  //     globalGet(ir.context.runtime.stackPointer),
-  //     localTee(location),
-  //     new IR.PushConst(IR.NumberType.i32, numBytes),
-  //     new IR.Add(IR.NumberType.i32),
-  //     globalSet(ir.context.runtime.stackPointer),
-  //   ] as IR.Instruction[],
-  // };
   return {
     location,
     instr: [
+      globalGet(ir.context.runtime.stackPointer),
       new IR.PushConst(IR.NumberType.i32, numBytes),
-      call(ir.context.runtime.malloc),
-      localSet(location),
+      new IR.Sub(IR.NumberType.i32),
+      localTee(location),
+      globalSet(ir.context.runtime.stackPointer),
     ] as IR.Instruction[],
   };
+  // return {
+  //   location,
+  //   instr: [
+  //     new IR.PushConst(IR.NumberType.i32, numBytes),
+  //     call(ir.context.runtime.malloc),
+  //     localSet(location),
+  //   ] as IR.Instruction[],
+  // };
 }
 
 class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {

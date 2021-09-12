@@ -412,7 +412,7 @@ describe('ModuleCompiler', () => {
       "(module
         (memory (;0;) 1)
         (export \\"memory\\" (memory 0))
-        (global $g0:#SP (mut i32) (i32.const 0)))
+        (global $g0:#SP (mut i32) (i32.const 65536)))
       "
     `);
   });
@@ -425,7 +425,7 @@ describe('ModuleCompiler', () => {
       .toMatchInlineSnapshot(`
       Array [
         "(global $g0:foo (mut i32) i32.const 0)",
-        "(global $g1:#SP (mut i32) i32.const 0)",
+        "(global $g1:#SP (mut i32) i32.const 65536)",
       ]
     `);
   });
@@ -462,7 +462,7 @@ describe('ModuleCompiler', () => {
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
   (data $d0 (i32.const 0) \\"hello world!\\")
-  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g0:#SP (mut i32) (i32.const 65536))
   (func $f0:main
     (drop
       (i32.const 0)))
@@ -488,7 +488,7 @@ describe('ModuleCompiler', () => {
 "(module
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g0:#SP (mut i32) (i32.const 65536))
   (func $f0:foo (param $p0:a i32) (result i32)
     (return
       (local.get $p0:a)))
@@ -530,7 +530,7 @@ describe('ModuleCompiler', () => {
   (import \\"wasi_unstable\\" \\"fd_write\\" (func $f0:fd_write (param i32 i32 i32 i32) (result i32)))
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g0:#SP (mut i32) (i32.const 65536))
   (type (;0;) (func (param i32 i32 i32 i32) (result i32))))
 "
 `);

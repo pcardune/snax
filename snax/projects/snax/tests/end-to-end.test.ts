@@ -1,5 +1,6 @@
 import loadWabt from 'wabt';
 import type { ModuleCompilerOptions } from '../ast-compiler.js';
+import { PAGE_SIZE } from '../wasm-ast.js';
 import { WabtModule, makeCompileToWAT } from './test-util';
 
 let wabt: WabtModule;
@@ -38,7 +39,20 @@ async function exec(input: string) {
  * Get a 32 bit number out of a memory buffer from the given byte offset
  */
 function int32(memory: WebAssembly.Memory, offset: number) {
+  if (offset < 0) {
+    offset = memory.buffer.byteLength + offset;
+  }
   return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
+}
+
+/**
+ * Get an 8 bit number out of a memory buffer from the given byte offset
+ */
+function int8(memory: WebAssembly.Memory, offset: number) {
+  if (offset < 0) {
+    offset = memory.buffer.byteLength + offset;
+  }
+  return new Int8Array(memory.buffer.slice(offset, offset + 1))[0];
 }
 
 /**
@@ -55,7 +69,7 @@ describe('simple expressions', () => {
 "(module
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 0))
+  (global $g0:#SP (mut i32) (i32.const 65536))
   (global $g1:next (mut i32) (i32.const 0))
   (func $f0:main)
   (export \\"_start\\" (func $f0:main))
@@ -368,86 +382,19 @@ describe('arrays', () => {
       let arr2 = [7,8,9];
       arr;
     `;
-    expect(compileToWAT(input)).toMatchInlineSnapshot(`
-"(module
-  (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
-  (data $d0 (i32.const 0) \\"data\\")
-  (global $g0:#SP (mut i32) (i32.const 0))
-  (global $g1:next (mut i32) (i32.const 4))
-  (func $f0:main (result i32)
-    (local $l0 i32) (local $l1 i32) (local $l2 i32) (local $l3 i32)
-    (local.set $l1
-      (call $f1:malloc
-        (i32.const 8)))
-    (i32.store
-      (local.get $l1)
-      (i32.const 0))
-    (i32.store offset=4
-      (local.get $l1)
-      (i32.const 4))
-    (local.set $l0
-      (local.get $l1))
-    (local.set $l2
-      (call $f1:malloc
-        (i32.const 12)))
-    (i32.store
-      (local.get $l2)
-      (i32.const 6))
-    (i32.store offset=4
-      (local.get $l2)
-      (i32.const 5))
-    (i32.store offset=8
-      (local.get $l2)
-      (i32.const 4))
-    (local.set $l1
-      (local.get $l2))
-    (local.set $l3
-      (call $f1:malloc
-        (i32.const 12)))
-    (i32.store
-      (local.get $l3)
-      (i32.const 7))
-    (i32.store offset=4
-      (local.get $l3)
-      (i32.const 8))
-    (i32.store offset=8
-      (local.get $l3)
-      (i32.const 9))
-    (local.set $l2
-      (local.get $l3))
-    (return
-      (local.get $l1)))
-  (export \\"_start\\" (func $f0:main))
-  (func $f1:malloc (param $p0:numBytes i32) (result i32)
-    (local $l1 i32)
-    (local.set $l1
-      (global.get $g1:next))
-    (global.set $g1:next
-      (i32.add
-        (global.get $g1:next)
-        (local.get $p0:numBytes)))
-    (drop
-      (global.get $g1:next))
-    (return
-      (local.get $l1)))
-  (type (;0;) (func (result i32)))
-  (type (;1;) (func (param i32) (result i32))))
-"
-`);
     const { exports } = await compileToWasmModule(input);
     const result = exports._start();
-    expect(result).toBe(12);
+    expect(result).toBe(PAGE_SIZE - 8 - 12);
     const mem = new Int32Array(
       exports.memory.buffer.slice(result, result + 3 * 4)
     );
     expect([...mem]).toMatchInlineSnapshot(`
-Array [
-  6,
-  5,
-  4,
-]
-`);
+      Array [
+        6,
+        5,
+        4,
+      ]
+    `);
   });
 });
 
@@ -458,7 +405,7 @@ describe('strings', () => {
       exports: { _start, memory },
     } = await compileToWasmModule(code);
     const strPointer = _start();
-    expect(strPointer).toBe(12);
+    expect(strPointer).toBe(PAGE_SIZE - 8);
     const bufferPointer = int32(memory, strPointer);
     expect(bufferPointer).toEqual(0);
     const bufferLen = int32(memory, strPointer + 4);
@@ -487,14 +434,14 @@ describe('object structs', () => {
     `;
     const { exports } = await compileToWasmModule(code);
     const result = exports._start();
-    expect(result).toEqual(0);
+    expect(result).toEqual(PAGE_SIZE - 8);
     const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
     expect([...mem]).toMatchInlineSnapshot(`
-Array [
-  3,
-  5,
-]
-`);
+      Array [
+        0,
+        0,
+      ]
+    `);
   });
 
   it('lets you access members of the struct', async () => {
@@ -523,8 +470,8 @@ describe('tuple structs', () => {
     `;
     const { exports } = await compileToWasmModule(code);
     exports._start();
-    expect(new Int8Array(exports.memory.buffer.slice(0, 1))[0]).toEqual(23);
-    expect(new Int32Array(exports.memory.buffer.slice(1, 5))[0]).toEqual(1234);
+    expect(int8(exports.memory, -5)).toEqual(23);
+    expect(int32(exports.memory, -4)).toEqual(1234);
   });
 
   describe('accessing members', () => {
@@ -559,6 +506,19 @@ describe('tuple structs', () => {
     `;
     expect(await exec(code)).toEqual(18);
   });
+
+  xit('allocates structs on the stack, so returning them is invalid', async () => {
+    const code = `
+      struct Pair(i32,i32);
+      func makePair(a:i32, b:i32) {
+        return Pair(a, b);
+      }
+      let p = makePair(1,2);
+      makePair(3, 4);
+      p.0;
+    `;
+    expect(await exec(code)).toEqual(3);
+  });
 });
 
 describe('extern declarations', () => {
@@ -571,35 +531,6 @@ describe('extern declarations', () => {
       print_num(1);
     `;
     const wat = compileToWAT(code);
-    expect(wat).toMatchInlineSnapshot(`
-"(module
-  (import \\"Printer\\" \\"print_num\\" (func $f0:print_num (param i32) (result i32)))
-  (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 0))
-  (global $g1:next (mut i32) (i32.const 0))
-  (func $f1:main (result i32)
-    (local $l0 i32)
-    (return
-      (call $f0:print_num
-        (i32.const 1))))
-  (export \\"_start\\" (func $f1:main))
-  (func $f2:malloc (param $p0:numBytes i32) (result i32)
-    (local $l1 i32)
-    (local.set $l1
-      (global.get $g1:next))
-    (global.set $g1:next
-      (i32.add
-        (global.get $g1:next)
-        (local.get $p0:numBytes)))
-    (drop
-      (global.get $g1:next))
-    (return
-      (local.get $l1)))
-  (type (;0;) (func (param i32) (result i32)))
-  (type (;1;) (func (result i32))))
-"
-`);
     const wasmModule = wabt.parseWat('', wat);
     wasmModule.validate();
 

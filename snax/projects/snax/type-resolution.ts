@@ -271,7 +271,10 @@ function calculateType(
           let alternativeReturnType = resolveType(child, typeMap, refMap);
           if (returnType === null) {
             returnType = alternativeReturnType;
-          } else if (alternativeReturnType !== returnType) {
+          } else if (
+            alternativeReturnType !== returnType &&
+            alternativeReturnType.name !== returnType.name
+          ) {
             throw new TypeResolutionError(
               node,
               `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`

@@ -125,3 +125,34 @@ describe('TupleStructDecl', () => {
     );
   });
 });
+
+describe('StructDecl', () => {
+  it('types tuple struct declarations as a tuple type', () => {
+    const structDecl = AST.makeStructDeclWith({
+      symbol: 'Vector',
+      props: [
+        AST.makeStructProp('x', AST.makeTypeRef('i32')),
+        AST.makeStructProp('y', AST.makeTypeRef('i32')),
+        AST.makeFuncDeclWith({
+          symbol: 'mag',
+          parameters: AST.makeParameterList([]),
+          body: AST.makeBlock([]),
+        }),
+      ],
+    });
+
+    const { refMap } = resolveSymbols(structDecl);
+    const typeMap = resolveTypes(structDecl, refMap);
+    const resolved = typeMap.get(structDecl);
+    expect(resolved).toEqual(
+      new RecordType(
+        new OrderedMap([
+          ['x', Intrinsics.i32],
+          ['y', Intrinsics.i32],
+          ['mag', new FuncType([], Intrinsics.void)],
+        ])
+      )
+    );
+    expect(resolved.name).toEqual('{x: i32, y: i32, mag: func():void}');
+  });
+});

@@ -128,6 +128,7 @@ export class RecordType extends BaseType {
     const name = fields
       .entries()
       .map(([i, name, type]) => `${name}: ${type.name}`)
+      .toArray()
       .join(', ');
     super(`{` + name + `}`);
     this.numBytes = 0;

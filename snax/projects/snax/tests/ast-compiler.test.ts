@@ -3,7 +3,6 @@ import * as IR from '../stack-ir.js';
 import * as Wasm from '../wasm-ast.js';
 import {
   FuncDeclCompiler,
-  ModuleCompiler,
   BlockCompiler,
   IRCompiler,
   CompilesToIR,
@@ -13,9 +12,8 @@ import { makeFunc, makeNum } from '../ast-util.js';
 import { makeCompileToWAT, WabtModule } from './test-util';
 import { BinOp } from '../snax-ast.js';
 import { resolveSymbols } from '../symbol-resolution.js';
-import { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
 import { resolveTypes } from '../type-resolution.js';
-import { Area, resolveMemory } from '../memory-resolution.js';
+import { AllocationMap, Area, resolveMemory } from '../memory-resolution.js';
 import loadWabt from 'wabt';
 
 const runtimeStub: Runtime = {
@@ -29,7 +27,7 @@ function irCompiler(node: CompilesToIR) {
   return IRCompiler.forNode(node, {
     refMap,
     typeCache,
-    allocationMap: new OrderedMap(),
+    allocationMap: new AllocationMap(),
     runtime: runtimeStub,
   });
 }

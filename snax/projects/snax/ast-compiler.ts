@@ -242,19 +242,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     heapStartLiteral.fields.value = moduleAllocator.memIndex;
 
     let runtime: Runtime;
-    const stackPointer = moduleAllocator.allocationMap.get(stackPointerGlobal);
-    if (!stackPointer || stackPointer.area !== Area.GLOBALS) {
-      throw new Error(`I need a global stack pointer`);
-    }
+    const stackPointer =
+      moduleAllocator.allocationMap.getGlobalOrThrow(stackPointerGlobal);
 
     if (this.options.includeRuntime) {
       if (!mallocDecl) {
         throw new Error(`I need a decl for malloc`);
       }
-      let malloc = moduleAllocator.allocationMap.get(mallocDecl);
-      if (!malloc || malloc.area !== Area.FUNCS) {
-        throw new Error(`I need malloc func`);
-      }
+      let malloc = moduleAllocator.allocationMap.getFuncOrThrow(mallocDecl);
       runtime = {
         malloc,
         stackPointer,
@@ -290,10 +285,9 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       funcs.push(wasmFunc);
     }
     if (mainFunc) {
-      const mainFuncLocation = moduleAllocator.allocationMap.get(mainFunc.decl);
-      if (!mainFuncLocation || mainFuncLocation.area !== Area.FUNCS) {
-        throw new Error(`main function has no location`);
-      }
+      const mainFuncLocation = moduleAllocator.allocationMap.getFuncOrThrow(
+        mainFunc.decl
+      );
       funcs.push(
         new Wasm.Func({
           funcType: new Wasm.FuncTypeUse({
@@ -314,10 +308,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     }
 
     const globals: Wasm.Global[] = this.root.fields.globals.map((global, i) => {
-      const location = moduleAllocator.allocationMap.get(global);
-      if (!location || location.area !== Area.GLOBALS) {
-        throw new Error(`Expected global in ast to have global location`);
-      }
+      const location = moduleAllocator.allocationMap.getGlobalOrThrow(global);
       return new Wasm.Global({
         id: location.id,
         globalType: new Wasm.GlobalType({
@@ -379,12 +370,7 @@ export class ExternDeclCompiler extends ASTCompiler<
       if (!(funcType instanceof FuncType)) {
         throw new Error(`Unexpected type for funcDecl: ${funcType.name}`);
       }
-      const location = this.context.allocationMap.get(func);
-      if (!location || location.area !== Area.FUNCS) {
-        throw new Error(
-          `Imported func should have a location in the funcs area`
-        );
-      }
+      const location = this.context.allocationMap.getFuncOrThrow(func);
       return new Wasm.Import({
         mod: this.root.fields.libName,
         nm: func.fields.symbol,
@@ -427,12 +413,7 @@ export class FuncDeclCompiler extends ASTCompiler<
     const params = this.root.fields.parameters.fields.parameters.map(
       (param) => {
         const paramType = this.context.typeCache.get(param);
-        const location = this.context.allocationMap.get(param);
-        if (!location || location.area !== Area.LOCALS) {
-          throw new Error(
-            `Expected local allocation for param ${param.fields.symbol}`
-          );
-        }
+        const location = this.context.allocationMap.getLocalOrThrow(param);
         return { valtype: paramType.toValueType(), id: location.id };
       }
     );
@@ -445,10 +426,7 @@ export class FuncDeclCompiler extends ASTCompiler<
     const body = [
       ...new BlockCompiler(this.root.fields.body, this.context).compile(),
     ];
-    const location = this.context.allocationMap.get(this.root);
-    if (!location || location.area !== Area.FUNCS) {
-      throw new Error(`Expected func to have been allocation to func area`);
-    }
+    const location = this.context.allocationMap.getFuncOrThrow(this.root);
     return new Wasm.Func({
       id: location.id,
       body,
@@ -463,15 +441,10 @@ export class FuncDeclCompiler extends ASTCompiler<
 
 class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
   compile(): IR.Instruction[] {
-    const location = this.context.allocationMap.get(this.root);
-    if (!location) {
-      throw new Error(`Storage location hasn't been assigned to LetStatement`);
-    }
-    if (location.area !== 'locals') {
-      throw new Error(
-        `Don't know how to assign let statement to non-local area`
-      );
-    }
+    const location = this.context.allocationMap.getLocalOrThrow(
+      this.root,
+      'let statements need a local'
+    );
     return [...this.compileChild(this.root.fields.expr), localSet(location)];
   }
 }
@@ -642,13 +615,10 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           ...this.compileChild(left.fields.expr),
           ...this.compileChild(right),
         ];
-        let tempLocation = this.context.allocationMap.get(this.root);
-        if (!tempLocation) {
-          throw new Error(`DEREF operator requires a temporary`);
-        }
-        if (tempLocation.area !== 'locals') {
-          throw new Error(`Don't know how to use non-local temporary`);
-        }
+        let tempLocation = this.context.allocationMap.getLocalOrThrow(
+          this.root,
+          `DEREF operator requires a temporary`
+        );
         return [
           ...setup,
           localTee(tempLocation),
@@ -669,13 +639,10 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           new IR.Add(valueType),
         ];
         let calcValue = this.compileChild(right);
-        let tempLocation = this.context.allocationMap.get(this.root);
-        if (!tempLocation) {
-          throw new Error(`DEREF operator requires a temporary`);
-        }
-        if (tempLocation.area !== 'locals') {
-          throw new Error(`Don't know how to use non-local temporary`);
-        }
+        let tempLocation = this.context.allocationMap.getLocalOrThrow(
+          this.root,
+          'Array Indexing requires a temporary'
+        );
         return [
           ...calcPointer,
           ...calcValue,
@@ -1072,17 +1039,7 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
 
 class DataLiteralCompiler extends IRCompiler<AST.DataLiteral> {
   compile() {
-    const location = this.context.allocationMap.get(this.root);
-    if (!location) {
-      throw new Error(
-        `DataLiteralCompiler: Can't compiler string literal that hasn't had a storage location assigned to it`
-      );
-    }
-    if (location.area !== 'data') {
-      throw new Error(
-        `DataLiteralCompiler: Don't know how to compile a string literal whose storage isn't in linear memory...`
-      );
-    }
+    const location = this.context.allocationMap.getDataOrThrow(this.root);
     return [new IR.PushConst(IR.NumberType.i32, location.memIndex)];
   }
 }

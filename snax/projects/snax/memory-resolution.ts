@@ -46,7 +46,38 @@ export type StorageLocation =
   | LocalStorageLocation
   | DataLocation;
 
-export type AllocationMap = OrderedMap<ASTNode, StorageLocation>;
+export class AllocationMap extends OrderedMap<ASTNode, StorageLocation> {
+  getFuncOrThrow(func: FuncDecl): FuncStorageLocation {
+    const loc = this.get(func);
+    if (!loc || loc.area !== Area.FUNCS) {
+      throw new Error(
+        `No funcs location found for function ${func.fields.symbol}`
+      );
+    }
+    return loc;
+  }
+  getDataOrThrow(data: DataLiteral): DataLocation {
+    const loc = this.get(data);
+    if (!loc || loc.area !== Area.DATA) {
+      throw new Error(`No data location found for data literal`);
+    }
+    return loc;
+  }
+  getLocalOrThrow(node: ASTNode, message?: string): LocalStorageLocation {
+    const loc = this.get(node);
+    if (!loc || loc.area !== Area.LOCALS) {
+      throw new Error(`No locals location found for ${node.name}: ${message}`);
+    }
+    return loc;
+  }
+  getGlobalOrThrow(node: ASTNode, message?: string): GlobalStorageLocation {
+    const loc = this.get(node);
+    if (!loc || loc.area !== Area.GLOBALS) {
+      throw new Error(`No globals location found for ${node.name}: ${message}`);
+    }
+    return loc;
+  }
+}
 
 interface ConstAllocator {
   allocateConstData(node: DataLiteral, data: string): DataLocation;
@@ -57,7 +88,7 @@ export class ModuleAllocator implements ConstAllocator {
   globalOffset = 0;
   dataOffset = 0;
   memIndex = 0;
-  allocationMap: AllocationMap = new OrderedMap();
+  allocationMap = new AllocationMap();
   funcAllocatorMap: OrderedMap<FuncDecl, FuncLocalAllocator> = new OrderedMap();
 
   private alloc<Loc extends StorageLocation>(

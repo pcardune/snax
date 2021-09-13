@@ -1,36 +1,19 @@
 import * as AST from '../spec-gen.js';
 import * as IR from '../stack-ir.js';
 import * as Wasm from '../wasm-ast.js';
-import {
-  FuncDeclCompiler,
-  BlockCompiler,
-  IRCompiler,
-  CompilesToIR,
-  Runtime,
-} from '../ast-compiler.js';
+import { FuncDeclCompiler, BlockCompiler } from '../ast-compiler.js';
 import { makeFunc, makeNum } from '../ast-util.js';
-import { makeCompileToWAT, WabtModule } from './test-util';
+import {
+  irCompiler,
+  makeCompileToWAT,
+  runtimeStub,
+  WabtModule,
+} from './test-util';
 import { BinOp } from '../snax-ast.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
-import { AllocationMap, Area, resolveMemory } from '../memory-resolution.js';
+import { resolveMemory } from '../memory-resolution.js';
 import loadWabt from 'wabt';
-
-const runtimeStub: Runtime = {
-  malloc: { area: Area.FUNCS, offset: 1000, id: 'f1000:malloc' },
-  stackPointer: { area: Area.GLOBALS, offset: 1000, id: 'g1000:#SP' },
-};
-
-function irCompiler(node: CompilesToIR) {
-  const { refMap } = resolveSymbols(node);
-  const typeCache = resolveTypes(node, refMap);
-  return IRCompiler.forNode(node, {
-    refMap,
-    typeCache,
-    allocationMap: new AllocationMap(),
-    runtime: runtimeStub,
-  });
-}
 
 let wabt: WabtModule;
 let compileToWAT: ReturnType<typeof makeCompileToWAT>;
@@ -85,140 +68,6 @@ describe('BooleanLiteralCompiler', () => {
   });
 });
 
-describe('CastExprCompiler', () => {
-  const { i32, i64, f32, f64 } = IR.NumberType;
-  const { Signed, Unsigned } = IR.Sign;
-  const noDropSign = new Error("I don't implicitly drop signs");
-  const noTruncateFloat = new Error("I don't implicitly truncate floats");
-  const noWrapBits = new Error("I don't implicitly wrap to smaller sizes");
-  const noDemote = new Error("I don't implicitly demote floats");
-  const cases: [string, string, IR.Instruction | Error][] = [
-    // source type, destination type, instruction (or error)
-    // convert to f64
-    ['u8', 'f64', new IR.Convert(i32, f64, Unsigned)],
-    ['u16', 'f64', new IR.Convert(i32, f64, Unsigned)],
-    ['u32', 'f64', new IR.Convert(i32, f64, Unsigned)],
-    ['u64', 'f64', new IR.Convert(i64, f64, Unsigned)],
-    ['i8', 'f64', new IR.Convert(i32, f64, Signed)],
-    ['i16', 'f64', new IR.Convert(i32, f64, Signed)],
-    ['i32', 'f64', new IR.Convert(i32, f64, Signed)],
-    ['i64', 'f64', new IR.Convert(i64, f64, Signed)],
-    ['f32', 'f64', new IR.Promote()],
-    ['f64', 'f64', new IR.Nop()],
-    // convert to f32
-    ['u8', 'f32', new IR.Convert(i32, f32, Unsigned)],
-    ['u16', 'f32', new IR.Convert(i32, f32, Unsigned)],
-    ['u32', 'f32', new IR.Convert(i32, f32, Unsigned)],
-    ['u64', 'f32', new IR.Convert(i64, f32, Unsigned)],
-    ['i8', 'f32', new IR.Convert(i32, f32, Signed)],
-    ['i16', 'f32', new IR.Convert(i32, f32, Signed)],
-    ['i32', 'f32', new IR.Convert(i32, f32, Signed)],
-    ['i64', 'f32', new IR.Convert(i64, f32, Signed)],
-    ['f32', 'f32', new IR.Nop()],
-    ['f64', 'f32', noDemote],
-    // convert to i64
-    ['u8', 'i64', new IR.Nop()],
-    ['u16', 'i64', new IR.Nop()],
-    ['u32', 'i64', new IR.Nop()],
-    ['u64', 'i64', new IR.Nop()],
-    ['i8', 'i64', new IR.Nop()],
-    ['i16', 'i64', new IR.Nop()],
-    ['i32', 'i64', new IR.Nop()],
-    ['i64', 'i64', new IR.Nop()],
-    ['f32', 'i64', noTruncateFloat],
-    ['f64', 'i64', noTruncateFloat],
-    // convert to u64
-    ['u8', 'u64', new IR.Nop()],
-    ['u16', 'u64', new IR.Nop()],
-    ['u32', 'u64', new IR.Nop()],
-    ['u64', 'u64', new IR.Nop()],
-    ['i8', 'u64', noDropSign],
-    ['i16', 'u64', noDropSign],
-    ['i32', 'u64', noDropSign],
-    ['i64', 'u64', noDropSign],
-    ['f32', 'u64', noTruncateFloat],
-    ['f64', 'u64', noTruncateFloat],
-    // convert to i32
-    ['u8', 'i32', new IR.Nop()],
-    ['u16', 'i32', new IR.Nop()],
-    ['u32', 'i32', new IR.Nop()],
-    ['u64', 'i32', noWrapBits],
-    ['i8', 'i32', new IR.Nop()],
-    ['i16', 'i32', new IR.Nop()],
-    ['i32', 'i32', new IR.Nop()],
-    ['i64', 'i32', noWrapBits],
-    ['f32', 'i32', noTruncateFloat],
-    ['f64', 'i32', noTruncateFloat],
-    // convert to u32
-    ['u8', 'u32', new IR.Nop()],
-    ['u16', 'u32', new IR.Nop()],
-    ['u32', 'u32', new IR.Nop()],
-    ['u64', 'u32', noWrapBits],
-    ['i8', 'u32', noDropSign],
-    ['i16', 'u32', noDropSign],
-    ['i32', 'u32', noDropSign],
-    ['i64', 'u32', noWrapBits],
-    ['f32', 'u32', noTruncateFloat],
-    ['f64', 'u32', noTruncateFloat],
-    // convert to i16
-    ['u8', 'i16', new IR.Nop()],
-    ['u16', 'i16', new IR.Nop()],
-    ['u32', 'i16', noWrapBits],
-    ['u64', 'i16', noWrapBits],
-    ['i8', 'i16', new IR.Nop()],
-    ['i16', 'i16', new IR.Nop()],
-    ['i32', 'i16', noWrapBits],
-    ['i64', 'i16', noWrapBits],
-    ['f32', 'i16', noTruncateFloat],
-    ['f64', 'i16', noTruncateFloat],
-    // convert to u16
-    ['u8', 'u16', new IR.Nop()],
-    ['u16', 'u16', new IR.Nop()],
-    ['u32', 'u16', noWrapBits],
-    ['u64', 'u16', noWrapBits],
-    ['i8', 'u16', noDropSign],
-    ['i16', 'u16', noDropSign],
-    ['i32', 'u16', noWrapBits],
-    ['i64', 'u16', noWrapBits],
-    ['f32', 'u16', noTruncateFloat],
-    ['f64', 'u16', noTruncateFloat],
-    // convert to i8
-    ['u8', 'i8', new IR.Nop()],
-    ['u16', 'i8', noWrapBits],
-    ['u32', 'i8', noWrapBits],
-    ['u64', 'i8', noWrapBits],
-    ['i8', 'i8', new IR.Nop()],
-    ['i16', 'i8', noWrapBits],
-    ['i32', 'i8', noWrapBits],
-    ['i64', 'i8', noWrapBits],
-    ['f32', 'i8', noTruncateFloat],
-    ['f64', 'i8', noTruncateFloat],
-    // convert to u8
-    ['u8', 'u8', new IR.Nop()],
-    ['u16', 'u8', noWrapBits],
-    ['u32', 'u8', noWrapBits],
-    ['u64', 'u8', noWrapBits],
-    ['i8', 'u8', noDropSign],
-    ['i16', 'u8', noWrapBits],
-    ['i32', 'u8', noWrapBits],
-    ['i64', 'u8', noWrapBits],
-    ['f32', 'u8', noTruncateFloat],
-    ['f64', 'u8', noTruncateFloat],
-  ];
-
-  it.each(cases)('converts from %p to %p', (source, dest, instruction) => {
-    const num = AST.makeNumberLiteral(1, 'int', source);
-    let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest), false);
-    const compiler = irCompiler(cast);
-    if (instruction instanceof Error) {
-      expect(() => compiler.compile()).toThrowError(instruction);
-    } else {
-      const ir = compiler.compile();
-      expect(ir).toEqual([...compiler.compileChild(num), instruction]);
-    }
-  });
-});
-
 function funcCompiler(func: AST.FuncDecl) {
   const refMap = resolveSymbols(func).refMap;
   const typeCache = resolveTypes(func, refMap);
@@ -245,20 +94,21 @@ describe('FuncDeclCompiler', () => {
         block
       )
     );
-    expect(compiler.compile()).toEqual(
-      new Wasm.Func({
-        id: 'f0:foo',
-        funcType: new Wasm.FuncTypeUse({
-          params: [
-            { valtype: IR.NumberType.i32, id: 'p0:a' },
-            { valtype: IR.NumberType.f32, id: 'p1:b' },
-          ],
-          results: [IR.NumberType.i32],
-        }),
-        body: new BlockCompiler(block, {
-          ...compiler.context,
-        }).compile(),
+    const func = compiler.compile();
+    expect(func.fields.id).toEqual('f0:foo');
+    expect(func.fields.funcType).toEqual(
+      new Wasm.FuncTypeUse({
+        params: [
+          { valtype: IR.NumberType.i32, id: 'p0:a' },
+          { valtype: IR.NumberType.f32, id: 'p1:b' },
+        ],
+        results: [IR.NumberType.i32],
       })
+    );
+    expect(func.fields.body).toEqual(
+      new BlockCompiler(block, {
+        ...compiler.context,
+      }).compile()
     );
   });
 
@@ -277,28 +127,20 @@ describe('FuncDeclCompiler', () => {
         block
       )
     );
-    expect(compiler.compile()).toEqual(
-      new Wasm.Func({
-        id: 'f0:someFunc',
-        funcType: new Wasm.FuncTypeUse({
-          params: [
-            { valtype: IR.NumberType.i32, id: 'p0:a' },
-            { valtype: IR.NumberType.f32, id: 'p1:b' },
-          ],
-          results: [],
-        }),
-        locals: [
-          new Wasm.Local(IR.NumberType.i32, 'l2'),
-          new Wasm.Local(IR.NumberType.i32, 'l3'),
-        ],
-        body: [
-          new IR.PushConst(IR.NumberType.i32, 3),
-          new IR.LocalSet('l2'),
-          new IR.PushConst(IR.NumberType.i32, 5),
-          new IR.LocalSet('l3'),
-        ],
-      })
-    );
+    const func = compiler.compile();
+    expect(func.fields.locals.map((l) => l.fields.id)).toMatchInlineSnapshot(`
+      Array [
+        "arp",
+        "l0:i32",
+        "l1:i32",
+      ]
+    `);
+    expect(func.fields.body).toEqual([
+      new IR.PushConst(IR.NumberType.i32, 3),
+      new IR.LocalSet('l0:i32'),
+      new IR.PushConst(IR.NumberType.i32, 5),
+      new IR.LocalSet('l1:i32'),
+    ]);
   });
 
   it('reuses locals when it is safe', () => {
@@ -321,37 +163,28 @@ describe('FuncDeclCompiler', () => {
         block
       )
     );
-    expect(compiler.compile()).toEqual(
-      new Wasm.Func({
-        id: 'f0:foo',
-        funcType: new Wasm.FuncTypeUse({
-          params: [
-            { valtype: IR.NumberType.i32, id: 'p0:a' },
-            { valtype: IR.NumberType.f32, id: 'p1:b' },
-          ],
-          results: [],
-        }),
-        locals: [
-          new Wasm.Local(IR.NumberType.i32, 'l2'),
-          new Wasm.Local(IR.NumberType.i32, 'l3'),
-          new Wasm.Local(IR.NumberType.i32, 'l4'),
-          new Wasm.Local(IR.NumberType.i32, 'l5'),
-        ],
-        body: [
-          new IR.PushConst(IR.NumberType.i32, 1),
-          new IR.LocalSet('l2'),
-          new IR.PushConst(IR.NumberType.i32, 2),
-          new IR.LocalSet('l3'),
-          new IR.PushConst(IR.NumberType.i32, 3),
-          new IR.LocalSet('l4'),
-          new IR.PushConst(IR.NumberType.i32, 4),
-          new IR.LocalSet('l5'),
-          // reuses local 4
-          new IR.PushConst(IR.NumberType.i32, 5),
-          new IR.LocalSet('l4'),
-        ],
-      })
-    );
+    const func = compiler.compile();
+    expect(func.fields.locals.map((i) => i.toWAT()).join('\n'))
+      .toMatchInlineSnapshot(`
+      "(local $arp i32)
+      (local $l0:i32 i32)
+      (local $l1:i32 i32)
+      (local $l2:i32 i32)
+      (local $l3:i32 i32)"
+    `);
+    expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
+      .toMatchInlineSnapshot(`
+      "i32.const 1
+      local.set $l0:i32
+      i32.const 2
+      local.set $l1:i32
+      i32.const 3
+      local.set $l2:i32
+      i32.const 4
+      local.set $l3:i32
+      i32.const 5
+      local.set $l2:i32"
+    `);
   });
 });
 
@@ -436,6 +269,7 @@ describe('ModuleCompiler', () => {
   (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:main
+    (local $arp i32)
     (drop
       (i32.const 32)))
   (func (;1;)
@@ -470,6 +304,7 @@ describe('ModuleCompiler', () => {
   (data $d0 (i32.const 0) \\"hello world!\\")
   (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:main
+    (local $arp i32)
     (drop
       (i32.const 0)))
   (func (;1;)
@@ -500,9 +335,11 @@ describe('ModuleCompiler', () => {
   (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:foo (param $p0:a i32) (result i32)
+    (local $arp i32)
     (return
       (local.get $p0:a)))
-  (func $f1:main)
+  (func $f1:main
+    (local $arp i32))
   (func (;2;)
     (global.set $g0:#SP
       (i32.const 65536))

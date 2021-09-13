@@ -169,10 +169,10 @@ export class Func
 }
 
 export class Local
-  extends Node<{ id?: string; valueType: IR.NumberType }>
+  extends Node<{ id: string; valueType: IR.NumberType }>
   implements HasWAT
 {
-  constructor(valueType: IR.NumberType, id?: string) {
+  constructor(valueType: IR.NumberType, id: string) {
     super({ valueType, id });
   }
   toWAT() {

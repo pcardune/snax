@@ -71,10 +71,11 @@ describe('simple expressions', () => {
   (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
   (global $g1:next (mut i32) (i32.const 0))
-  (func $f0:main)
+  (func $f0:main
+    (local $arp i32))
   (func $f1:malloc (param $p0:numBytes i32) (result i32)
-    (local $l1 i32)
-    (local.set $l1
+    (local $arp i32) (local $l0:i32 i32)
+    (local.set $l0:i32
       (global.get $g1:next))
     (global.set $g1:next
       (i32.add
@@ -83,7 +84,7 @@ describe('simple expressions', () => {
     (drop
       (global.get $g1:next))
     (return
-      (local.get $l1)))
+      (local.get $l0:i32)))
   (func (;2;)
     (global.set $g0:#SP
       (i32.const 65536))

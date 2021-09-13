@@ -173,8 +173,10 @@ export class NeverAllocator implements ILocalAllocator {
 class FuncLocalAllocator implements ILocalAllocator {
   private allocationMap: AllocationMap;
   private localsOffset = 0;
+  private localIdCounter = 0;
 
   locals: LocalAllocation[] = [];
+  arp: LocalAllocation;
 
   constructor(allocationMap: AllocationMap, params: ParameterList) {
     this.allocationMap = allocationMap;
@@ -187,11 +189,24 @@ class FuncLocalAllocator implements ILocalAllocator {
         id,
       });
     }
+    this.arp = this.makeLocalAllocation(IR.NumberType.i32, 'arp');
+  }
+
+  private makeLocalAllocation(valueType: IR.NumberType, id?: string) {
+    if (!id) {
+      id = `l${this.localIdCounter++}:${valueType}`;
+    }
+    const localAllocation = {
+      offset: this.localsOffset++,
+      live: true,
+      local: new Wasm.Local(valueType, id),
+    };
+    this.locals.push(localAllocation);
+    return localAllocation;
   }
 
   allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation {
     let localAllocation: LocalAllocation;
-
     let freeLocal = this.locals.find(
       (l) => !l.live && l.local.fields.valueType === valueType
     );
@@ -199,21 +214,14 @@ class FuncLocalAllocator implements ILocalAllocator {
       freeLocal.live = true;
       localAllocation = freeLocal;
     } else {
-      const id = `l${this.localsOffset}`;
-      localAllocation = {
-        offset: this.localsOffset++,
-        live: true,
-        local: new Wasm.Local(valueType, id),
-      };
-      this.locals.push(localAllocation);
+      localAllocation = this.makeLocalAllocation(valueType);
     }
 
     if (decl) {
-      const id = `l${localAllocation.offset}`;
       this.allocationMap.set(decl, {
         area: LOCALS,
         offset: localAllocation.offset,
-        id,
+        id: localAllocation.local.fields.id,
       });
     }
     return localAllocation;

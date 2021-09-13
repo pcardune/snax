@@ -403,43 +403,51 @@ describe('WhileStatementCompiler', () => {
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', () => {
-    const wat = new ModuleCompiler(AST.makeFile([], [], []), {
+    const wat = compileToWAT(AST.makeFile([], [], []), {
       includeRuntime: false,
-    })
-      .compile()
-      .toWAT();
+    });
     expect(wabt.parseWat('', wat).toText({})).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (export \\"memory\\" (memory 0))
-        (global $g0:#SP (mut i32) (i32.const 65536)))
-      "
-    `);
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:#SP (mut i32) (i32.const 0)))
+"
+`);
   });
   it('compiles globals in the module', () => {
-    const wasmModule = new ModuleCompiler(
+    const wat = compileToWAT(
       AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], []),
       { includeRuntime: false }
-    ).compile();
-    expect(wasmModule.fields.globals.map((g) => g.toWAT()))
-      .toMatchInlineSnapshot(`
-      Array [
-        "(global $g0:foo (mut i32) i32.const 0)",
-        "(global $g1:#SP (mut i32) i32.const 65536)",
-      ]
-    `);
+    );
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:foo (mut i32) (i32.const 0))
+  (global $g1:#SP (mut i32) (i32.const 0)))
+"
+`);
   });
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
     const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
-    const compiler = new ModuleCompiler(file, { includeRuntime: false });
-    expect(compiler.compile().fields.funcs.map((f) => f.toWAT()))
-      .toMatchInlineSnapshot(`
-      Array [
-        "(func $f0:main (export \\"_start\\")     i32.const 32
-        drop)",
-      ]
-    `);
+    const wat = compileToWAT(file, { includeRuntime: false });
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (export \\"memory\\" (memory 0))
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (func $f0:main
+    (drop
+      (i32.const 32)))
+  (func (;1;)
+    (global.set $g0:#SP
+      (i32.const 65536))
+    (call $f0:main))
+  (export \\"_start\\" (func 1))
+  (type (;0;) (func)))
+"
+`);
   });
 
   it('compiles string literals into data segments', () => {
@@ -462,11 +470,15 @@ describe('ModuleCompiler', () => {
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
   (data $d0 (i32.const 0) \\"hello world!\\")
-  (global $g0:#SP (mut i32) (i32.const 65536))
+  (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:main
     (drop
       (i32.const 0)))
-  (export \\"_start\\" (func $f0:main))
+  (func (;1;)
+    (global.set $g0:#SP
+      (i32.const 65536))
+    (call $f0:main))
+  (export \\"_start\\" (func 1))
   (type (;0;) (func)))
 "
 `);
@@ -488,12 +500,16 @@ describe('ModuleCompiler', () => {
 "(module
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 65536))
+  (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:foo (param $p0:a i32) (result i32)
     (return
       (local.get $p0:a)))
   (func $f1:main)
-  (export \\"_start\\" (func $f1:main))
+  (func (;2;)
+    (global.set $g0:#SP
+      (i32.const 65536))
+    (call $f1:main))
+  (export \\"_start\\" (func 2))
   (type (;0;) (func (param i32) (result i32)))
   (type (;1;) (func)))
 "
@@ -530,7 +546,7 @@ describe('ModuleCompiler', () => {
   (import \\"wasi_unstable\\" \\"fd_write\\" (func $f0:fd_write (param i32 i32 i32 i32) (result i32)))
   (memory (;0;) 1)
   (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 65536))
+  (global $g0:#SP (mut i32) (i32.const 0))
   (type (;0;) (func (param i32 i32 i32 i32) (result i32))))
 "
 `);

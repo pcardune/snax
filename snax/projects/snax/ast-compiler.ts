@@ -240,16 +240,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     // that got used.
     const numPagesOfMemory = 1;
     heapStartLiteral.fields.value = moduleAllocator.memIndex;
-    stackPointerLiteral.fields.value = numPagesOfMemory * Wasm.PAGE_SIZE;
 
     let runtime: Runtime;
+    const stackPointer = moduleAllocator.allocationMap.get(stackPointerGlobal);
+    if (!stackPointer || stackPointer.area !== Area.GLOBALS) {
+      throw new Error(`I need a global stack pointer`);
+    }
 
     if (this.options.includeRuntime) {
-      const stackPointer =
-        moduleAllocator.allocationMap.get(stackPointerGlobal);
-      if (!stackPointer || stackPointer.area !== Area.GLOBALS) {
-        throw new Error(`I need a global stack pointer`);
-      }
       if (!mallocDecl) {
         throw new Error(`I need a decl for malloc`);
       }
@@ -265,11 +263,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       // TODO, find a better alternative for optional compilation
       runtime = {
         malloc: { area: Area.FUNCS, offset: 1000, id: 'f1000:malloc' },
-        stackPointer: { area: Area.GLOBALS, offset: 1000, id: 'g1000:#SP' },
+        stackPointer,
       };
     }
 
-    const funcs: Wasm.Func[] = this.root.fields.funcs.map((func) => {
+    let mainFunc: { decl: AST.FuncDecl; wasmFunc: Wasm.Func } | undefined =
+      undefined;
+    const funcs: Wasm.Func[] = [];
+    for (const func of this.root.fields.funcs) {
       const locals = moduleAllocator.getLocalsForFunc(func);
       if (!locals) {
         throw new Error(
@@ -284,10 +285,33 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         runtime,
       }).compile();
       if (func.fields.symbol === 'main') {
-        wasmFunc.fields.exportName = '_start';
+        mainFunc = { decl: func, wasmFunc };
       }
-      return wasmFunc;
-    });
+      funcs.push(wasmFunc);
+    }
+    if (mainFunc) {
+      const mainFuncLocation = moduleAllocator.allocationMap.get(mainFunc.decl);
+      if (!mainFuncLocation || mainFuncLocation.area !== Area.FUNCS) {
+        throw new Error(`main function has no location`);
+      }
+      funcs.push(
+        new Wasm.Func({
+          funcType: new Wasm.FuncTypeUse({
+            params: [],
+            results: mainFunc.wasmFunc.fields.funcType.fields.results,
+          }),
+          exportName: '_start',
+          body: [
+            new IR.PushConst(
+              IR.NumberType.i32,
+              numPagesOfMemory * Wasm.PAGE_SIZE
+            ),
+            globalSet(runtime.stackPointer),
+            call(mainFuncLocation),
+          ],
+        })
+      );
+    }
 
     const globals: Wasm.Global[] = this.root.fields.globals.map((global, i) => {
       const location = moduleAllocator.allocationMap.get(global);

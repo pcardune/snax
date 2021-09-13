@@ -16,12 +16,8 @@ export function makeCompileToWAT(wabt: WabtModule) {
       throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
     }
     const wat = new ModuleCompiler(ast, options).compile().toWAT();
-    try {
-      const module = wabt.parseWat('', wat);
-      module.applyNames();
-      return module.toText({ foldExprs: true });
-    } catch (e) {
-      return wat;
-    }
+    const module = wabt.parseWat('', wat);
+    module.applyNames();
+    return module.toText({ foldExprs: true });
   };
 }

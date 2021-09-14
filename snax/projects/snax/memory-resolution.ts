@@ -138,12 +138,22 @@ export class ModuleAllocator implements ConstAllocator {
     });
   }
 
-  getLocalsForFunc(node: FuncDecl): Wasm.Local[] {
+  getLocalsForFunc(node: FuncDecl): {
+    locals: Wasm.Local[];
+    arp: LocalStorageLocation;
+  } {
     let funcAllocator = this.funcAllocatorMap.get(node);
     if (!funcAllocator) {
-      throw 'bad';
+      throw new Error(`No func allocator found for ${node.fields.symbol}`);
     }
-    return funcAllocator.locals.map((l) => l.local);
+    return {
+      locals: funcAllocator.locals.map((l) => l.local),
+      arp: {
+        area: Area.LOCALS,
+        offset: funcAllocator.arp.offset,
+        id: funcAllocator.arp.local.fields.id,
+      },
+    };
   }
 }
 
@@ -328,7 +338,7 @@ function recurse(
       if (root.fields.op === BinOp.ASSIGN) {
         const { left } = root.fields;
         if (
-          (isUnaryExpr(left) && left.fields.op === UnaryOp.DEREF) ||
+          (isUnaryExpr(left) && left.fields.op === UnaryOp.ADDR_OF) ||
           (isBinaryExpr(left) && left.fields.op === BinOp.ARRAY_INDEX)
         ) {
           if (assertLocal(localAllocator)) {

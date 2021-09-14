@@ -209,7 +209,7 @@ describe('expression', () => {
   describe('dereference operator', () => {
     it('works', () => {
       expect(SNAXParser.parseStrOrThrow('@foo', 'expr')).toEqual(
-        AST.makeUnaryExpr(UnaryOp.DEREF, AST.makeSymbolRef('foo'))
+        AST.makeUnaryExpr(UnaryOp.ADDR_OF, AST.makeSymbolRef('foo'))
       );
     });
   });

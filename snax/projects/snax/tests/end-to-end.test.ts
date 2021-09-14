@@ -1,6 +1,6 @@
 import loadWabt from 'wabt';
 import type { ModuleCompilerOptions } from '../ast-compiler.js';
-import { PAGE_SIZE } from '../wasm-ast.js';
+import { Module, PAGE_SIZE } from '../wasm-ast.js';
 import { WabtModule, makeCompileToWAT } from './test-util';
 
 let wabt: WabtModule;
@@ -10,8 +10,9 @@ beforeAll(async () => {
   compileToWAT = makeCompileToWAT(wabt);
 });
 
-type WasiABI = {
+type SnaxExports = {
   memory: WebAssembly.Memory;
+  stackPointer: WebAssembly.Global;
   _start: () => any;
 };
 
@@ -25,7 +26,7 @@ async function compileToWasmModule(
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
   const exports = module.instance.exports;
-  return { exports: exports as WasiABI, wasmModule };
+  return { exports: exports as SnaxExports, wasmModule };
 }
 
 async function exec(input: string) {
@@ -55,6 +56,19 @@ function int8(memory: WebAssembly.Memory, offset: number) {
   return new Int8Array(memory.buffer.slice(offset, offset + 1))[0];
 }
 
+function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {
+  const slice = exports.memory.buffer.slice(
+    exports.stackPointer.value,
+    PAGE_SIZE
+  );
+  switch (bytes) {
+    case 1:
+      return [...new Int8Array(slice)];
+    case 4:
+      return [...new Int32Array(slice)];
+  }
+}
+
 /**
  * get text out of a memory buffer
  */
@@ -68,13 +82,16 @@ describe('simple expressions', () => {
     expect(compileToWAT('', { includeRuntime: true })).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
   (global $g1:next (mut i32) (i32.const 0))
   (func $f0:main
-    (local $arp i32))
+    (local $arp i32)
+    (local.set $arp
+      (global.get $g0:#SP)))
   (func $f1:malloc (param $p0:numBytes i32) (result i32)
     (local $arp i32) (local $l0:i32 i32)
+    (local.set $arp
+      (global.get $g0:#SP))
     (local.set $l0:i32
       (global.get $g1:next))
     (global.set $g1:next
@@ -90,6 +107,8 @@ describe('simple expressions', () => {
       (i32.const 65536))
     (call $f0:main))
   (export \\"_start\\" (func 2))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 0))
   (type (;0;) (func))
   (type (;1;) (func (param i32) (result i32))))
 "
@@ -293,8 +312,8 @@ describe('pointers', () => {
   it('has pointers', async () => {
     const code = `
         let p:&i32 = 0;
-        @p = 10;
-        @p;
+        p[0] = 10;
+        p[0];
       `;
     expect(await exec(code)).toEqual(10);
   });
@@ -302,7 +321,7 @@ describe('pointers', () => {
     const code = `
       let p:&i32 = 0;
       let q:&i32 = 4;
-      @q = 175;
+      q[0] = 175;
       p[1];
     `;
     const { exports } = await compileToWasmModule(code);
@@ -317,8 +336,8 @@ describe('pointers', () => {
     `;
     const { exports } = await compileToWasmModule(code);
     expect(exports._start()).toEqual(174);
-    const mem = new Int32Array(exports.memory.buffer.slice(0, 8));
-    expect([...mem]).toEqual([0, 174]);
+    expect(int32(exports.memory, 0)).toEqual(0);
+    expect(int32(exports.memory, 4)).toEqual(174);
   });
   it('respects the size of the type being pointed to', async () => {
     const code = `
@@ -376,6 +395,16 @@ describe('pointers', () => {
       j;
     `;
     expect(await exec(code)).toEqual(100);
+  });
+
+  xit('puts values that are accessed through pointers on the stack', async () => {
+    const code = `
+      let p = 100;
+      let j:&i32 = @p;
+      j[0] = 200;
+      p;
+    `;
+    expect(await exec(code)).toEqual(200);
   });
 });
 
@@ -468,15 +497,34 @@ describe('object structs', () => {
 });
 
 describe('tuple structs', () => {
-  it('lets you declare a new tuple type and construct it', async () => {
-    const code = `
-      struct Vector(u8,i32);
-      let v = Vector(23_u8, 1234);
-    `;
-    const { exports } = await compileToWasmModule(code);
-    exports._start();
-    expect(int8(exports.memory, -5)).toEqual(23);
-    expect(int32(exports.memory, -4)).toEqual(1234);
+  describe('construction', () => {
+    let snax: SnaxExports;
+    beforeEach(async () => {
+      const code = `
+        struct Vector(u8,i32);
+        let v = Vector(23_u8, 1234);
+      `;
+      snax = (await compileToWasmModule(code)).exports;
+    });
+    it('lets you declare a new tuple type and construct it', async () => {
+      snax._start();
+      expect(int8(snax.memory, -5)).toEqual(23);
+      expect(int32(snax.memory, -4)).toEqual(1234);
+      expect(stackDump(snax)).toMatchInlineSnapshot(`
+Array [
+  23,
+  -46,
+  4,
+  0,
+  0,
+]
+`);
+    });
+
+    it('allocates structs on the stack', async () => {
+      snax._start();
+      expect(snax.stackPointer.value - PAGE_SIZE).toEqual(-5);
+    });
   });
 
   describe('accessing members', () => {
@@ -512,7 +560,7 @@ describe('tuple structs', () => {
     expect(await exec(code)).toEqual(18);
   });
 
-  xit('allocates structs on the stack, so returning them is invalid', async () => {
+  it('allocates structs on the stack, so returning them is invalid', async () => {
     const code = `
       struct Pair(i32,i32);
       func makePair(a:i32, b:i32) {
@@ -521,8 +569,19 @@ describe('tuple structs', () => {
       let p = makePair(1,2);
       makePair(3, 4);
       p.0;
+      
     `;
-    expect(await exec(code)).toEqual(3);
+    const snax = (await compileToWasmModule(code)).exports;
+    const result = snax._start();
+    expect(stackDump(snax, 4)).toMatchInlineSnapshot(`
+Array [
+  3,
+  4,
+  1,
+  2,
+]
+`);
+    expect(result).toEqual(1);
   });
 });
 

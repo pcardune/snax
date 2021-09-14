@@ -319,7 +319,7 @@ indexing "indexing"
 
 deref "deref"
   = "@" expr:memberAccess {
-    return spec.makeUnaryExpr(AST.UnaryOp.DEREF, expr);
+    return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
   }
   / memberAccess
 

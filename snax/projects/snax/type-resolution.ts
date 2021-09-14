@@ -227,15 +227,9 @@ function calculateType(
     }
     case 'UnaryExpr': {
       switch (node.fields.op) {
-        case UnaryOp.DEREF:
+        case UnaryOp.ADDR_OF:
           const exprType = resolveType(node.fields.expr, typeMap, refMap);
-          if (exprType instanceof PointerType) {
-            return exprType.toType;
-          }
-          throw new TypeResolutionError(
-            node,
-            `DEREF: Don't know the type when dereferencing a ${exprType.name}`
-          );
+          return new PointerType(exprType);
         default:
           throw new TypeResolutionError(
             node,

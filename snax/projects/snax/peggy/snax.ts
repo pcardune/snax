@@ -592,7 +592,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c128 = '@';
   const peg$c129 = peg$literalExpectation('@', false);
   const peg$c130 = function (expr: any): any {
-    return spec.makeUnaryExpr(AST.UnaryOp.DEREF, expr);
+    return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
   };
   const peg$c131 = peg$otherExpectation('memberAccess');
   const peg$c132 = '.';

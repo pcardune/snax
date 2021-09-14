@@ -266,17 +266,13 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       undefined;
     const funcs: Wasm.Func[] = [];
     for (const func of this.root.fields.funcs) {
-      const locals = moduleAllocator.getLocalsForFunc(func);
-      if (!locals) {
-        throw new Error(
-          `Expected resolveMemory to create func allocators for all functions`
-        );
-      }
+      const { locals, arp } = moduleAllocator.getLocalsForFunc(func);
       const wasmFunc = new FuncDeclCompiler(func, {
         refMap,
         typeCache,
         allocationMap: moduleAllocator.allocationMap,
         locals,
+        arp,
         runtime,
       }).compile();
       if (func.fields.symbol === 'main') {
@@ -353,6 +349,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       funcs,
       globals,
       imports: imports.length > 0 ? imports : undefined,
+      exports: [
+        new Wasm.Export({ name: 'memory', exportType: 'memory', idOrIndex: 0 }),
+        new Wasm.Export({
+          name: 'stackPointer',
+          exportType: 'global',
+          idOrIndex: stackPointer.id,
+        }),
+      ],
       memory: { min: numPagesOfMemory },
       datas,
     });
@@ -395,6 +399,7 @@ export class ExternDeclCompiler extends ASTCompiler<
 type FuncDeclContext = AllocationMapContext & {
   refMap: SymbolRefMap;
   typeCache: ResolvedTypeMap;
+  arp: LocalStorageLocation;
   locals: Wasm.Local[];
   runtime: Runtime;
 };
@@ -404,6 +409,13 @@ export class FuncDeclCompiler extends ASTCompiler<
   Wasm.Func,
   FuncDeclContext
 > {
+  preamble(): IR.Instruction[] {
+    return [
+      globalGet(this.context.runtime.stackPointer),
+      localSet(this.context.arp),
+    ];
+  }
+
   compile(): Wasm.Func {
     const funcType = this.context.typeCache.get(this.root);
     if (!(funcType instanceof FuncType)) {
@@ -424,6 +436,7 @@ export class FuncDeclCompiler extends ASTCompiler<
         : [funcType.returnType.toValueType()];
 
     const body = [
+      ...this.preamble(),
       ...new BlockCompiler(this.root.fields.body, this.context).compile(),
     ];
     const location = this.context.allocationMap.getFuncOrThrow(this.root);
@@ -610,7 +623,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
               `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
             );
         }
-      } else if (AST.isUnaryExpr(left) && left.fields.op === UnaryOp.DEREF) {
+      } else if (AST.isUnaryExpr(left) && left.fields.op === UnaryOp.ADDR_OF) {
         let setup = [
           ...this.compileChild(left.fields.expr),
           ...this.compileChild(right),
@@ -876,7 +889,7 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
 class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
   compile() {
     switch (this.root.fields.op) {
-      case UnaryOp.DEREF:
+      case UnaryOp.ADDR_OF:
         const exprType = this.resolveType(this.root.fields.expr);
         return [
           ...this.compileChild(this.root.fields.expr),

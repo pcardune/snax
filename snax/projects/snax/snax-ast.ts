@@ -29,5 +29,5 @@ export enum BinOp {
 
 export type ExprOp = Exclude<BinOp, BinOp.CALL>;
 export enum UnaryOp {
-  DEREF = '@',
+  ADDR_OF = '@',
 }

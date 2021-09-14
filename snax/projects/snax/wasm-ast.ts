@@ -14,6 +14,7 @@ type ModuleFields = {
   globals: Global[];
   imports: Import[];
   memory: { min: number; max?: number };
+  exports: Export[];
   datas: Data[];
 };
 export class Module extends Node<ModuleFields> implements HasWAT {
@@ -23,6 +24,7 @@ export class Module extends Node<ModuleFields> implements HasWAT {
       globals: fields.globals ?? [],
       imports: fields.imports ?? [],
       memory: fields.memory ?? { min: 1 },
+      exports: fields.exports ?? [],
       datas: fields.datas ?? [],
     });
   }
@@ -31,20 +33,42 @@ export class Module extends Node<ModuleFields> implements HasWAT {
     const body = (this.fields.funcs ?? []).map((f) => f.toWAT()).join('\n');
     const imports = this.fields.imports.map((im) => im.toWAT()).join('\n');
     const datas = this.fields.datas.map((d) => d.toWAT()).join('\n');
+    const exports = this.fields.exports.map((e) => e.toWAT()).join('\n');
     return sexpr(
       'module',
       imports,
       sexpr('memory', this.fields.memory.min, this.fields.memory.max),
-      sexpr('export', '"memory"', '(memory 0)'),
       datas,
       globals,
-      body
+      body,
+      exports
+    );
+  }
+}
+type ExportFields = {
+  name: string;
+  exportType: 'func' | 'table' | 'memory' | 'global';
+  idOrIndex: string | number;
+};
+export class Export extends Node<ExportFields> {
+  toWAT() {
+    return sexpr(
+      'export',
+      JSON.stringify(this.fields.name),
+      sexpr(this.fields.exportType, idexpr(this.fields.idOrIndex))
     );
   }
 }
 
 function sexpr(...parts: (string | number | undefined)[]) {
   return '(' + parts.filter((s) => s !== undefined && s !== '').join(' ') + ')';
+}
+
+function idexpr(idOrIndex: string | number) {
+  if (typeof idOrIndex === 'string') {
+    return `$${idOrIndex}`;
+  }
+  return String(idOrIndex);
 }
 
 type ImportDesc = { kind: 'func'; id?: string; typeuse: TypeUseFields };

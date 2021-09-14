@@ -22,6 +22,14 @@ beforeAll(async () => {
   compileToWAT = makeCompileToWAT(wabt);
 });
 
+type WATable = { toWAT(): string };
+function toWAT(els: WATable | WATable[]) {
+  if (els instanceof Array) {
+    return els.map((el) => el.toWAT()).join('\n');
+  }
+  return els.toWAT();
+}
+
 describe('BinaryExprCompiler', () => {
   const { i32, f32 } = IR.NumberType;
   test('compile() combines the stack IRS of the sub expressions', () => {
@@ -72,19 +80,24 @@ function funcCompiler(func: AST.FuncDecl) {
   const refMap = resolveSymbols(func).refMap;
   const typeCache = resolveTypes(func, refMap);
   const moduleAllocator = resolveMemory(func, typeCache);
+  const funcLocals = moduleAllocator.getLocalsForFunc(func);
   return new FuncDeclCompiler(func, {
     refMap,
     typeCache,
     allocationMap: moduleAllocator.allocationMap,
-    locals: moduleAllocator.getLocalsForFunc(func)!,
+    locals: funcLocals.locals,
+    arp: funcLocals.arp,
     runtime: runtimeStub,
   });
 }
 
 describe('FuncDeclCompiler', () => {
-  it('compiles functions', () => {
-    const block = AST.makeBlock([AST.makeReturnStatement(makeNum(3))]);
-    const compiler = funcCompiler(
+  let func: Wasm.Func;
+  let compiler: FuncDeclCompiler;
+  let block: AST.Block;
+  beforeAll(() => {
+    block = AST.makeBlock([AST.makeReturnStatement(makeNum(3))]);
+    compiler = funcCompiler(
       makeFunc(
         'foo',
         [
@@ -94,21 +107,30 @@ describe('FuncDeclCompiler', () => {
         block
       )
     );
-    const func = compiler.compile();
+    func = compiler.compile();
+  });
+  it('attaches an id to the function', () => {
     expect(func.fields.id).toEqual('f0:foo');
-    expect(func.fields.funcType).toEqual(
-      new Wasm.FuncTypeUse({
-        params: [
-          { valtype: IR.NumberType.i32, id: 'p0:a' },
-          { valtype: IR.NumberType.f32, id: 'p1:b' },
-        ],
-        results: [IR.NumberType.i32],
-      })
+  });
+  it('specifies the correct function typeuse', () => {
+    expect(toWAT(func.fields.funcType)).toMatchInlineSnapshot(
+      `"(param $p0:a i32) (param $p1:b f32) (result i32)"`
     );
-    expect(func.fields.body).toEqual(
-      new BlockCompiler(block, {
-        ...compiler.context,
-      }).compile()
+  });
+  it('has a preamble that stores the stack pointer into the arp', () => {
+    expect(toWAT(compiler.preamble())).toMatchInlineSnapshot(`
+      "global.get $g1000:#SP
+      local.set $arp"
+    `);
+  });
+  it('compiles functions', () => {
+    expect(toWAT(func.fields.body)).toEqual(
+      toWAT([
+        ...compiler.preamble(),
+        ...new BlockCompiler(block, {
+          ...compiler.context,
+        }).compile(),
+      ])
     );
   });
 
@@ -135,12 +157,15 @@ describe('FuncDeclCompiler', () => {
         "l1:i32",
       ]
     `);
-    expect(func.fields.body).toEqual([
-      new IR.PushConst(IR.NumberType.i32, 3),
-      new IR.LocalSet('l0:i32'),
-      new IR.PushConst(IR.NumberType.i32, 5),
-      new IR.LocalSet('l1:i32'),
-    ]);
+    expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
+      .toMatchInlineSnapshot(`
+      "global.get $g1000:#SP
+      local.set $arp
+      i32.const 3
+      local.set $l0:i32
+      i32.const 5
+      local.set $l1:i32"
+    `);
   });
 
   it('reuses locals when it is safe', () => {
@@ -174,7 +199,9 @@ describe('FuncDeclCompiler', () => {
     `);
     expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
       .toMatchInlineSnapshot(`
-      "i32.const 1
+      "global.get $g1000:#SP
+      local.set $arp
+      i32.const 1
       local.set $l0:i32
       i32.const 2
       local.set $l1:i32
@@ -240,8 +267,9 @@ describe('ModuleCompiler', () => {
     expect(wabt.parseWat('', wat).toText({})).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
+  (global $g0:#SP (mut i32) (i32.const 0))
   (export \\"memory\\" (memory 0))
-  (global $g0:#SP (mut i32) (i32.const 0)))
+  (export \\"stackPointer\\" (global 0)))
 "
 `);
   });
@@ -253,9 +281,10 @@ describe('ModuleCompiler', () => {
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
   (global $g0:foo (mut i32) (i32.const 0))
-  (global $g1:#SP (mut i32) (i32.const 0)))
+  (global $g1:#SP (mut i32) (i32.const 0))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 1)))
 "
 `);
   });
@@ -266,10 +295,11 @@ describe('ModuleCompiler', () => {
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:main
     (local $arp i32)
+    (local.set $arp
+      (global.get $g0:#SP))
     (drop
       (i32.const 32)))
   (func (;1;)
@@ -277,6 +307,8 @@ describe('ModuleCompiler', () => {
       (i32.const 65536))
     (call $f0:main))
   (export \\"_start\\" (func 1))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 0))
   (type (;0;) (func)))
 "
 `);
@@ -300,11 +332,12 @@ describe('ModuleCompiler', () => {
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
   (data $d0 (i32.const 0) \\"hello world!\\")
   (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:main
     (local $arp i32)
+    (local.set $arp
+      (global.get $g0:#SP))
     (drop
       (i32.const 0)))
   (func (;1;)
@@ -312,6 +345,8 @@ describe('ModuleCompiler', () => {
       (i32.const 65536))
     (call $f0:main))
   (export \\"_start\\" (func 1))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 0))
   (type (;0;) (func)))
 "
 `);
@@ -332,19 +367,24 @@ describe('ModuleCompiler', () => {
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
   (func $f0:foo (param $p0:a i32) (result i32)
     (local $arp i32)
+    (local.set $arp
+      (global.get $g0:#SP))
     (return
       (local.get $p0:a)))
   (func $f1:main
-    (local $arp i32))
+    (local $arp i32)
+    (local.set $arp
+      (global.get $g0:#SP)))
   (func (;2;)
     (global.set $g0:#SP
       (i32.const 65536))
     (call $f1:main))
   (export \\"_start\\" (func 2))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 0))
   (type (;0;) (func (param i32) (result i32)))
   (type (;1;) (func)))
 "
@@ -380,8 +420,9 @@ describe('ModuleCompiler', () => {
 "(module
   (import \\"wasi_unstable\\" \\"fd_write\\" (func $f0:fd_write (param i32 i32 i32 i32) (result i32)))
   (memory (;0;) 1)
-  (export \\"memory\\" (memory 0))
   (global $g0:#SP (mut i32) (i32.const 0))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 0))
   (type (;0;) (func (param i32 i32 i32 i32) (result i32))))
 "
 `);

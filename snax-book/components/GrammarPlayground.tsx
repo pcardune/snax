@@ -1,6 +1,4 @@
 import { combine, Result } from 'neverthrow';
-import { ParseNode } from '@pcardune/snax/dist/grammar/top-down-parser';
-import { LexToken } from '@pcardune/snax/dist/lexer-gen/lexer-gen';
 import { charCodes } from '@pcardune/snax/dist/utils/iter';
 import { ParseNodeGraph } from './ParseNodeGraph.js';
 import { logger } from '@pcardune/snax/dist/utils/debug';
@@ -8,6 +6,8 @@ import { useState } from 'react';
 import { useDSLGrammar } from '../hooks/getDSLGrammar.js';
 import { GrammarTable } from './GrammarTable.js';
 import { LexerTable } from './LexerTable.js';
+import { LexToken } from '@pcardune/snax/dist/lexer-gen/LexToken';
+import { ParseNode } from '@pcardune/snax/dist/grammar/ParseNode';
 
 type $TSFixMe = any;
 function TokenList(props: { tokens: Result<LexToken<any>, any>[] }) {

@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react';
-import {
-  BacktrackFreeGrammar,
-  SemanticAction,
-} from '@pcardune/snax/dist/grammar/grammar';
+import { BacktrackFreeGrammar } from '@pcardune/snax/dist/grammar/grammar';
 import { LL1Parser, StackAction } from '@pcardune/snax/dist/grammar/LL1-parser';
-import { ParseNode } from '@pcardune/snax/dist/grammar/top-down-parser';
-import { LexToken } from '@pcardune/snax/dist/lexer-gen/lexer-gen';
 import { PatternLexer } from '@pcardune/snax/dist/lexer-gen/recognizer';
 import { GrammarLike, useGrammar } from '../hooks/useGrammar.js';
 import { ParseNodeGraph } from './ParseNodeGraph.js';
 import { Table, THead, TBody, Th, Tr, Td } from './Table.js';
+import { LexToken } from '@pcardune/snax/dist/lexer-gen/LexToken';
+import { ParseNode } from '@pcardune/snax/dist/grammar/ParseNode';
 
 type GeneratorYield<T> = T extends Generator<infer Y> ? Y : never;
 type Result<I> = I extends IteratorResult<infer T> ? T : never;

@@ -85,8 +85,7 @@ function funcCompiler(func: AST.FuncDecl) {
     refMap,
     typeCache,
     allocationMap: moduleAllocator.allocationMap,
-    locals: funcLocals.locals,
-    arp: funcLocals.arp,
+    funcAllocs: funcLocals,
     runtime: runtimeStub,
   });
 }
@@ -153,18 +152,22 @@ describe('FuncDeclCompiler', () => {
     expect(func.fields.locals.map((l) => l.fields.id)).toMatchInlineSnapshot(`
       Array [
         "arp",
-        "l0:i32",
-        "l1:i32",
       ]
     `);
     expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
       .toMatchInlineSnapshot(`
       "global.get $g1000:#SP
+      i32.const 8
+      i32.sub
+      global.set $g1000:#SP
+      global.get $g1000:#SP
       local.set $arp
+      local.get $arp
       i32.const 3
-      local.set $l0:i32
+      i32.store offset=0 align=4
+      local.get $arp
       i32.const 5
-      local.set $l1:i32"
+      i32.store offset=4 align=4"
     `);
   });
 
@@ -189,28 +192,32 @@ describe('FuncDeclCompiler', () => {
       )
     );
     const func = compiler.compile();
-    expect(func.fields.locals.map((i) => i.toWAT()).join('\n'))
-      .toMatchInlineSnapshot(`
-      "(local $arp i32)
-      (local $l0:i32 i32)
-      (local $l1:i32 i32)
-      (local $l2:i32 i32)
-      (local $l3:i32 i32)"
-    `);
+    expect(
+      func.fields.locals.map((i) => i.toWAT()).join('\n')
+    ).toMatchInlineSnapshot(`"(local $arp i32)"`);
     expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
       .toMatchInlineSnapshot(`
       "global.get $g1000:#SP
+      i32.const 20
+      i32.sub
+      global.set $g1000:#SP
+      global.get $g1000:#SP
       local.set $arp
+      local.get $arp
       i32.const 1
-      local.set $l0:i32
+      i32.store offset=0 align=4
+      local.get $arp
       i32.const 2
-      local.set $l1:i32
+      i32.store offset=4 align=4
+      local.get $arp
       i32.const 3
-      local.set $l2:i32
+      i32.store offset=8 align=4
+      local.get $arp
       i32.const 4
-      local.set $l3:i32
+      i32.store offset=12 align=4
+      local.get $arp
       i32.const 5
-      local.set $l2:i32"
+      i32.store offset=16 align=4"
     `);
   });
 });
@@ -261,7 +268,7 @@ describe('WhileStatementCompiler', () => {
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', () => {
-    const wat = compileToWAT(AST.makeFile([], [], []), {
+    const { wat } = compileToWAT(AST.makeFile([], [], []), {
       includeRuntime: false,
     });
     expect(wabt.parseWat('', wat).toText({})).toMatchInlineSnapshot(`
@@ -274,7 +281,7 @@ describe('ModuleCompiler', () => {
 `);
   });
   it('compiles globals in the module', () => {
-    const wat = compileToWAT(
+    const { wat } = compileToWAT(
       AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], []),
       { includeRuntime: false }
     );
@@ -291,7 +298,7 @@ describe('ModuleCompiler', () => {
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
     const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
-    const wat = compileToWAT(file, { includeRuntime: false });
+    const { wat } = compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
@@ -315,7 +322,7 @@ describe('ModuleCompiler', () => {
   });
 
   it('compiles string literals into data segments', () => {
-    const wat = compileToWAT(
+    const { wat } = compileToWAT(
       AST.makeFile(
         [
           makeFunc(
@@ -363,7 +370,7 @@ describe('ModuleCompiler', () => {
       globals: [],
       decls: [],
     });
-    const wat = compileToWAT(file, { includeRuntime: false });
+    const { wat } = compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
@@ -415,7 +422,7 @@ describe('ModuleCompiler', () => {
       ],
     });
 
-    const wat = compileToWAT(file, { includeRuntime: false });
+    const { wat } = compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (import \\"wasi_unstable\\" \\"fd_write\\" (func $f0:fd_write (param i32 i32 i32 i32) (result i32)))

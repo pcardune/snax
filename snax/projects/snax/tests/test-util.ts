@@ -8,7 +8,7 @@ import {
 } from '../ast-compiler.js';
 import { SNAXParser } from '../snax-parser.js';
 import type loadWabt from 'wabt';
-import { AllocationMap, Area } from '../memory-resolution.js';
+import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 
@@ -24,10 +24,11 @@ export function makeCompileToWAT(wabt: WabtModule) {
     if (!spec.isFile(ast)) {
       throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
     }
-    const wat = new ModuleCompiler(ast, options).compile().toWAT();
+    const compiler = new ModuleCompiler(ast, options);
+    const wat = compiler.compile().toWAT();
     const module = wabt.parseWat('', wat);
     module.applyNames();
-    return module.toText({ foldExprs: true });
+    return { wat: module.toText({ foldExprs: true }), ast, compiler };
   };
 }
 
@@ -44,5 +45,8 @@ export function irCompiler(node: CompilesToIR) {
     typeCache,
     allocationMap: new AllocationMap(),
     runtime: runtimeStub,
+    get funcAllocs(): FuncAllocations {
+      throw new Error(`test-util context stuff doesn't support arp yet`);
+    },
   });
 }

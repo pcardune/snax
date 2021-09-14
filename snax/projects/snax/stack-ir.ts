@@ -234,7 +234,6 @@ abstract class MemoryInstr extends Instruction {
     super();
     this.valueType = valueType;
     this.offset = props.offset ?? 0;
-    this.align = props.align ?? 1;
     const { bytes } = props;
     if (bytes) {
       if (
@@ -258,6 +257,7 @@ abstract class MemoryInstr extends Instruction {
           break;
       }
     }
+    this.align = props.align ?? this.bytes;
   }
 }
 

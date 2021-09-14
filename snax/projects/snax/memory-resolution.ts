@@ -14,14 +14,25 @@ import * as Wasm from './wasm-ast.js';
 import * as IR from './stack-ir.js';
 import type { ResolvedTypeMap } from './type-resolution.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
+import type { BaseType } from './snax-types.js';
 
 export enum Area {
+  // corresponds directly to web assembly functions
   FUNCS = 'funcs',
+
+  // corresponds directly to web assmebly locals, which only exist in the context of a web assembly function
   LOCALS = 'locals',
+
+  // corresponds directly to web assembly gloabls
   GLOBALS = 'globals',
+
+  // corresponds directly to web assembly data
   DATA = 'data',
+
+  // corresponds to dynamically allocated area in the function call stack
+  STACK = 'stack',
 }
-const { FUNCS, LOCALS, GLOBALS, DATA } = Area;
+const { FUNCS, LOCALS, GLOBALS, DATA, STACK } = Area;
 
 type BaseStorageLocation<T extends Area> = {
   area: T;
@@ -35,6 +46,10 @@ export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS>;
 
 export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS>;
 
+export type StackStorageLocation = BaseStorageLocation<Area.STACK> & {
+  dataType: BaseType;
+};
+
 export type DataLocation = BaseStorageLocation<Area.DATA> & {
   data: string;
   memIndex: number;
@@ -44,9 +59,17 @@ export type StorageLocation =
   | FuncStorageLocation
   | GlobalStorageLocation
   | LocalStorageLocation
-  | DataLocation;
+  | DataLocation
+  | StackStorageLocation;
 
 export class AllocationMap extends OrderedMap<ASTNode, StorageLocation> {
+  getOrThrow(node: ASTNode, message?: string): StorageLocation {
+    const loc = this.get(node);
+    if (!loc) {
+      throw new Error(`No location found for ${node.name}: ${message}`);
+    }
+    return loc;
+  }
   getFuncOrThrow(func: FuncDecl): FuncStorageLocation {
     const loc = this.get(func);
     if (!loc || loc.area !== Area.FUNCS) {
@@ -70,6 +93,13 @@ export class AllocationMap extends OrderedMap<ASTNode, StorageLocation> {
     }
     return loc;
   }
+  getStackOrThrow(node: ASTNode, message?: string): StackStorageLocation {
+    const loc = this.get(node);
+    if (!loc || loc.area !== Area.STACK) {
+      throw new Error(`No stack location found for ${node.name}: ${message}`);
+    }
+    return loc;
+  }
   getGlobalOrThrow(node: ASTNode, message?: string): GlobalStorageLocation {
     const loc = this.get(node);
     if (!loc || loc.area !== Area.GLOBALS) {
@@ -82,6 +112,12 @@ export class AllocationMap extends OrderedMap<ASTNode, StorageLocation> {
 interface ConstAllocator {
   allocateConstData(node: DataLiteral, data: string): DataLocation;
 }
+
+export type FuncAllocations = {
+  locals: Wasm.Local[];
+  arp: LocalStorageLocation;
+  stack: StackStorageLocation[];
+};
 
 export class ModuleAllocator implements ConstAllocator {
   funcOffset = 0;
@@ -138,10 +174,7 @@ export class ModuleAllocator implements ConstAllocator {
     });
   }
 
-  getLocalsForFunc(node: FuncDecl): {
-    locals: Wasm.Local[];
-    arp: LocalStorageLocation;
-  } {
+  getLocalsForFunc(node: FuncDecl): FuncAllocations {
     let funcAllocator = this.funcAllocatorMap.get(node);
     if (!funcAllocator) {
       throw new Error(`No func allocator found for ${node.fields.symbol}`);
@@ -153,6 +186,7 @@ export class ModuleAllocator implements ConstAllocator {
         offset: funcAllocator.arp.offset,
         id: funcAllocator.arp.local.fields.id,
       },
+      stack: funcAllocator.stack,
     };
   }
 }
@@ -166,6 +200,7 @@ export type LocalAllocation = {
 interface ILocalAllocator {
   allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation;
   deallocateLocal(offset: LocalAllocation): void;
+  allocateStack(dataType: BaseType, decl: ASTNode): StackStorageLocation;
 }
 
 export class NeverAllocator implements ILocalAllocator {
@@ -173,6 +208,9 @@ export class NeverAllocator implements ILocalAllocator {
     throw new Error('this should never be used. please refactor');
   }
   deallocateLocal() {
+    throw new Error('this should never be used. please refactor');
+  }
+  allocateStack(): StackStorageLocation {
     throw new Error('this should never be used. please refactor');
   }
   get parentAllocator() {
@@ -184,8 +222,10 @@ class FuncLocalAllocator implements ILocalAllocator {
   private allocationMap: AllocationMap;
   private localsOffset = 0;
   private localIdCounter = 0;
+  private stackOffset = 0;
 
   locals: LocalAllocation[] = [];
+  stack: StackStorageLocation[] = [];
   arp: LocalAllocation;
 
   constructor(allocationMap: AllocationMap, params: ParameterList) {
@@ -213,6 +253,19 @@ class FuncLocalAllocator implements ILocalAllocator {
     };
     this.locals.push(localAllocation);
     return localAllocation;
+  }
+
+  allocateStack(type: BaseType, decl: ASTNode) {
+    const stackLoc: StackStorageLocation = {
+      area: STACK,
+      offset: this.stackOffset,
+      dataType: type,
+      id: 'who-knows...',
+    };
+    this.allocationMap.set(decl, stackLoc);
+    this.stack.push(stackLoc);
+    this.stackOffset += type.numBytes;
+    return stackLoc;
   }
 
   allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation {
@@ -254,6 +307,10 @@ class BlockAllocator implements ILocalAllocator {
 
   constructor(funcAllocator: ILocalAllocator) {
     this.parentAllocator = funcAllocator;
+  }
+
+  allocateStack(dataType: BaseType, decl: ASTNode): StackStorageLocation {
+    return this.parentAllocator.allocateStack(dataType, decl);
   }
 
   allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation {
@@ -330,7 +387,7 @@ function recurse(
     }
     case 'LetStatement': {
       if (assertLocal(localAllocator)) {
-        localAllocator.allocateLocal(typeMap.get(root).toValueType(), root);
+        localAllocator.allocateStack(typeMap.get(root), root);
       }
       break;
     }

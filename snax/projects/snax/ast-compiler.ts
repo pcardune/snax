@@ -18,12 +18,14 @@ import { resolveSymbols, SymbolRefMap } from './symbol-resolution.js';
 import {
   AllocationMap,
   Area,
+  FuncAllocations,
   FuncStorageLocation,
   GlobalStorageLocation,
   LocalAllocation,
   LocalStorageLocation,
   ModuleAllocator,
   resolveMemory,
+  StackStorageLocation,
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
 
@@ -54,11 +56,17 @@ export type Runtime = {
   stackPointer: GlobalStorageLocation;
 };
 
-export type IRCompilerContext = AllocationMapContext & {
+type FuncDeclContext = AllocationMapContext & {
   refMap: SymbolRefMap;
   typeCache: ResolvedTypeMap;
+  funcAllocs: FuncAllocations;
   runtime: Runtime;
 };
+
+export type IRCompilerContext = Pick<
+  FuncDeclContext,
+  'refMap' | 'typeCache' | 'runtime' | 'allocationMap' | 'funcAllocs'
+>;
 export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   Root,
   IR.Instruction[],
@@ -266,13 +274,11 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       undefined;
     const funcs: Wasm.Func[] = [];
     for (const func of this.root.fields.funcs) {
-      const { locals, arp } = moduleAllocator.getLocalsForFunc(func);
       const wasmFunc = new FuncDeclCompiler(func, {
         refMap,
         typeCache,
         allocationMap: moduleAllocator.allocationMap,
-        locals,
-        arp,
+        funcAllocs: moduleAllocator.getLocalsForFunc(func),
         runtime,
       }).compile();
       if (func.fields.symbol === 'main') {
@@ -315,6 +321,11 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           refMap,
           typeCache,
           allocationMap: moduleAllocator.allocationMap,
+          get funcAllocs(): FuncAllocations {
+            throw new Error(
+              `global expressions should not be attempting to access stack variables`
+            );
+          },
           runtime: runtime,
         }).compile(),
       });
@@ -396,23 +407,34 @@ export class ExternDeclCompiler extends ASTCompiler<
   }
 }
 
-type FuncDeclContext = AllocationMapContext & {
-  refMap: SymbolRefMap;
-  typeCache: ResolvedTypeMap;
-  arp: LocalStorageLocation;
-  locals: Wasm.Local[];
-  runtime: Runtime;
-};
-
 export class FuncDeclCompiler extends ASTCompiler<
   AST.FuncDecl,
   Wasm.Func,
   FuncDeclContext
 > {
   preamble(): IR.Instruction[] {
+    let stackSpace = 0;
+    let last =
+      this.context.funcAllocs.stack[this.context.funcAllocs.stack.length - 1];
+    if (last) {
+      stackSpace = last.offset + last.dataType.numBytes;
+    }
+    const instr: IR.Instruction[] = [];
+    if (stackSpace > 0) {
+      // allocate space for stack variables
+      instr.push(
+        globalGet(this.context.runtime.stackPointer),
+        new IR.PushConst(IR.NumberType.i32, stackSpace),
+        new IR.Sub(IR.NumberType.i32),
+        globalSet(this.context.runtime.stackPointer)
+      );
+    }
     return [
+      ...instr,
+
+      // set arp local to the stack pointer
       globalGet(this.context.runtime.stackPointer),
-      localSet(this.context.arp),
+      localSet(this.context.funcAllocs.arp),
     ];
   }
 
@@ -447,18 +469,27 @@ export class FuncDeclCompiler extends ASTCompiler<
         params,
         results,
       }),
-      locals: this.context.locals,
+      locals: this.context.funcAllocs.locals,
     });
   }
 }
 
 class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
   compile(): IR.Instruction[] {
-    const location = this.context.allocationMap.getLocalOrThrow(
+    const location = this.context.allocationMap.getStackOrThrow(
       this.root,
       'let statements need a local'
     );
-    return [...this.compileChild(this.root.fields.expr), localSet(location)];
+    const { expr } = this.root.fields;
+    const exprType = this.resolveType(expr);
+    return [
+      localGet(this.context.funcAllocs.arp),
+      ...this.compileChild(expr),
+      new IR.MemoryStore(exprType.toValueType(), {
+        offset: location.offset,
+        bytes: exprType.numBytes,
+      }),
+    ];
   }
 }
 
@@ -498,11 +529,17 @@ export class WhileStatementCompiler extends IRCompiler<AST.WhileStatement> {
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
   compile(): IR.Instruction[] {
     const location = this.getLocationForSymbolRef(this.root);
+    const type = this.resolveType(this.root);
     switch (location.area) {
       case 'locals':
         return [localGet(location)];
       case 'globals':
         return [globalGet(location)];
+      case 'stack':
+        return [
+          localGet(this.context.funcAllocs.arp),
+          new IR.MemoryLoad(type.toValueType(), { offset: location.offset }),
+        ];
       default:
         throw new Error(
           `SymbolRefCompiler: don't know how to compile reference to a location in ${location.area}`
@@ -617,6 +654,18 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
               ...this.compileChild(right),
               globalSet(location),
               globalGet(location),
+            ];
+          case 'stack':
+            return [
+              localGet(this.context.funcAllocs.arp),
+              ...this.compileChild(right),
+              new IR.MemoryStore(rightType.toValueType(), {
+                offset: location.offset,
+              }),
+              localGet(this.context.funcAllocs.arp),
+              new IR.MemoryLoad(rightType.toValueType(), {
+                offset: location.offset,
+              }),
             ];
           default:
             throw new Error(
@@ -779,7 +828,12 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
           `Expected ${left.fields.symbol} to resolve to a function`
         );
       }
-      return [...this.compileChild(right), call(location)];
+      return [
+        ...this.compileChild(right),
+        call(location),
+        localGet(this.context.funcAllocs.arp),
+        globalSet(this.context.runtime.stackPointer),
+      ];
     } else {
       throw new Error(
         `ExpressionCompiler: Can't call unresolved symbol ${left}`
@@ -877,6 +931,7 @@ class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
       case UnaryOp.ADDR_OF: {
         const { expr } = this.root.fields;
         const exprType = this.resolveType(expr);
+
         let location = this.context.allocationMap.get(expr);
         const instr: IR.Instruction[] = [];
         if (!location) {
@@ -895,6 +950,8 @@ class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
             localGet(location)
           );
           return instr;
+        } else {
+          throw new Error('lfdkalfkdja');
         }
 
         return [

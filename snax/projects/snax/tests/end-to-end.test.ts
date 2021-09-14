@@ -397,14 +397,41 @@ describe('pointers', () => {
     expect(await exec(code)).toEqual(100);
   });
 
-  xit('puts values that are accessed through pointers on the stack', async () => {
-    const code = `
-      let p = 100;
-      let j:&i32 = @p;
-      j[0] = 200;
-      p;
-    `;
-    expect(await exec(code)).toEqual(200);
+  describe('@ operator', () => {
+    it('gets the address in linear memory where the value is stored, even for an immediate', async () => {
+      const code = `
+        let p:&i32 = @100;
+        p;
+      `;
+      const { exports } = await compileToWasmModule(code);
+      const result = exports._start();
+      expect(int32(exports.memory, result)).toEqual(100);
+      expect(stackDump(exports, 4)).toMatchInlineSnapshot(`
+Array [
+  100,
+]
+`);
+    });
+
+    xit('Gets the address in linear memory where a non-immediate is stored', async () => {
+      const code = `
+        let p = 100;
+        @p;
+      `;
+      const { exports } = await compileToWasmModule(code);
+      const result = exports._start();
+      expect(int32(exports.memory, result)).toEqual(200);
+    });
+
+    xit('puts values that are accessed through pointers on the stack', async () => {
+      const code = `
+        let p = 100;
+        let j:&i32 = @p;
+        j[0] = 200;
+        p;
+      `;
+      expect(await exec(code)).toEqual(200);
+    });
   });
 });
 

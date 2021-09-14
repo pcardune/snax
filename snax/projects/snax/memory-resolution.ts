@@ -352,6 +352,19 @@ function recurse(
       }
       break;
     }
+    case 'UnaryExpr': {
+      if (root.fields.op === UnaryOp.ADDR_OF) {
+        if (assertLocal(localAllocator)) {
+          root.fields.expr;
+          let tempLocation = localAllocator.allocateLocal(
+            typeMap.get(root).toValueType(),
+            root
+          );
+          localAllocator.deallocateLocal(tempLocation);
+        }
+      }
+      break;
+    }
     case 'DataLiteral':
       moduleAllocator.allocateConstData(root, root.fields.value);
       break;

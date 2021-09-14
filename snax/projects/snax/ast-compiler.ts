@@ -623,21 +623,6 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
               `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
             );
         }
-      } else if (AST.isUnaryExpr(left) && left.fields.op === UnaryOp.ADDR_OF) {
-        let setup = [
-          ...this.compileChild(left.fields.expr),
-          ...this.compileChild(right),
-        ];
-        let tempLocation = this.context.allocationMap.getLocalOrThrow(
-          this.root,
-          `DEREF operator requires a temporary`
-        );
-        return [
-          ...setup,
-          localTee(tempLocation),
-          new IR.MemoryStore(rightType.toValueType()),
-          localGet(tempLocation),
-        ];
       } else if (
         AST.isBinaryExpr(left) &&
         left.fields.op === BinOp.ARRAY_INDEX
@@ -889,12 +874,34 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
 class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
   compile() {
     switch (this.root.fields.op) {
-      case UnaryOp.ADDR_OF:
-        const exprType = this.resolveType(this.root.fields.expr);
+      case UnaryOp.ADDR_OF: {
+        const { expr } = this.root.fields;
+        const exprType = this.resolveType(expr);
+        let location = this.context.allocationMap.get(expr);
+        const instr: IR.Instruction[] = [];
+        if (!location) {
+          // the expr doesn't resolve to a location, so it must be a literal?
+          // TODO: maybe make a location called "immediate" for items that are
+          // in web assembly's implicit stack?
+
+          // We need to put it into the linear memory stack
+          const stackPush = compileStackPush(this, exprType.numBytes);
+          location = stackPush.location;
+          instr.push(...stackPush.instr);
+          instr.push(
+            localGet(location),
+            ...this.compileChild(expr),
+            new IR.MemoryStore(exprType.toValueType()),
+            localGet(location)
+          );
+          return instr;
+        }
+
         return [
           ...this.compileChild(this.root.fields.expr),
           new IR.MemoryLoad(exprType.toValueType()),
         ];
+      }
       default:
         throw new Error(`UnaryExprCompiler: unknown op ${this.root.fields.op}`);
     }
@@ -956,6 +963,15 @@ function call(func: FuncStorageLocation) {
   return new IR.Call(func.id);
 }
 
+/**
+ * Generates a sequence of instructions that allocates
+ * space in the stack area of linear memory, incrementing
+ * the stack pointer
+ *
+ * @param ir
+ * @param numBytes
+ * @returns the instructions, and the local where the temporary address is stored
+ */
 function compileStackPush(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
   let location = ir.context.allocationMap.get(ir.root);
   if (!location || location.area !== 'locals') {

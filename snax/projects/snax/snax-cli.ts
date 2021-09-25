@@ -44,6 +44,48 @@ function fileWithExtension(file: string, ext: string) {
   });
 }
 
+/**
+ * Load a wasm module from the given file path, compiling if necessary.
+ * Supports the following file extensions: .snx, .wat, .wasm
+ *
+ * @param inPath The file path to load
+ * @param opts options
+ * @returns The WebAssembly.Module instance
+ */
+async function loadWasmModuleFromPath(
+  inPath: string,
+  opts: { verbose: boolean }
+): Promise<WebAssembly.Module> {
+  const { ext } = path.parse(inPath);
+  switch (ext) {
+    case '.snx': {
+      const label = `compiling ${inPath}`;
+      if (opts.verbose) console.time(label);
+      const maybeModule = await compileSnaxFile(inPath);
+      if (opts.verbose) console.timeEnd(label);
+      if (maybeModule.isOk()) {
+        const result = maybeModule.value.toBinary({
+          write_debug_names: true,
+        });
+        return await WebAssembly.compile(result.buffer);
+      } else {
+        throw maybeModule.error;
+      }
+    }
+    case '.wasm': {
+      return await WebAssembly.compile(await readFile(inPath));
+    }
+    case '.wat': {
+      const wabt = await loadWabt();
+      const wasmModule = wabt.parseWat('', await readFile(inPath));
+      wasmModule.validate();
+      const result = wasmModule.toBinary({ write_debug_names: true });
+      return await WebAssembly.compile(result.buffer);
+    }
+  }
+  throw new Error(`Unrecognized extension ${ext}`);
+}
+
 function builder<T>(yargs: yargs.Argv<T>) {
   return yargs
     .positional('file', {
@@ -101,33 +143,12 @@ const parser = yargs(hideBin(process.argv))
     builder,
     handler: async (args) => {
       const inPath = args.file;
-      const { ext } = path.parse(inPath);
+      const wasm = await loadWasmModuleFromPath(inPath, args);
+
       const importObject = {
         wasi_unstable: wasi.wasiImport,
         wasi_snapshot_preview1: wasi.wasiImport,
       };
-      let wasm: WebAssembly.Module;
-      if (ext === '.snx') {
-        const label = `compiling ${inPath}`;
-        if (args.verbose) console.time(label);
-        const maybeModule = await compileSnaxFile(inPath);
-        if (args.verbose) console.timeEnd(label);
-        if (maybeModule.isOk()) {
-          const result = maybeModule.value.toBinary({
-            write_debug_names: true,
-          });
-          wasm = await WebAssembly.compile(result.buffer);
-        } else {
-          console.error(maybeModule.error);
-          return;
-        }
-      } else if (ext === '.wasm') {
-        wasm = await WebAssembly.compile(await readFile(inPath));
-      } else {
-        console.error(`Unrecognized extension ${ext}`);
-        return;
-      }
-
       const module = await WebAssembly.instantiate(wasm, importObject);
       try {
         const label = `running ${inPath}`;

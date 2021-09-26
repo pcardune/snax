@@ -131,7 +131,7 @@ describe('LetStatement', () => {
       expr: AST.makeNumberLiteral(3, 'int', 'f64'),
     });
     expect(() => getType(badLetStatement)).toThrowErrorMatchingInlineSnapshot(
-      `"LetStatement has explicit type i32 but is being initialized to incompatible type f64."`
+      `"TypeResolutionError: LetStatement has explicit type i32 but is being initialized to incompatible type f64."`
     );
   });
 });

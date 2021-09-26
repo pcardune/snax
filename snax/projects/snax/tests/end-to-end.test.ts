@@ -319,7 +319,7 @@ describe('assignment operator', () => {
       `[Error: Reference to undeclared symbol y]`
     );
     await expect(exec('let x = 3; 5 = 4; x;')).rejects.toMatchInlineSnapshot(
-      `[Error: ASSIGN: Can't assign to something that is not a resolved symbol or a memory address]`
+      `[Error: ASSIGN: Can't assign to NumberLiteral: something that is not a resolved symbol or a memory address]`
     );
   });
 });
@@ -575,7 +575,7 @@ describe('object structs', () => {
       }
       let v:Vector;
     `;
-    const { exports, wat, compiler } = await compileToWasmModule(code, {
+    const { wat, compiler } = await compileToWasmModule(code, {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
@@ -617,6 +617,16 @@ describe('object structs', () => {
     expect(stackLocation.dataType.name).toMatchInlineSnapshot(
       `"{x: i32, y: i32}"`
     );
+  });
+  xit('allows assigning values to stack allocated struct fields', async () => {
+    const code = `
+      struct Vector {x: i32; y: i32;}
+      let v:Vector;
+      v.x = 3;
+      v.y = 5;
+    `;
+    const { wat } = await compileToWasmModule(code, { includeRuntime: false });
+    expect(wat).toMatchInlineSnapshot();
   });
   it('lets you declare a new struct type and construct it', async () => {
     const code = `

@@ -743,7 +743,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         ];
       } else {
         throw new Error(
-          `ASSIGN: Can't assign to something that is not a resolved symbol or a memory address`
+          `ASSIGN: Can't assign to ${left.name}: something that is not a resolved symbol or a memory address`
         );
       }
     },

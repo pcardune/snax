@@ -20,7 +20,7 @@ type Fields<N> = N extends { fields: infer F } ? F : never;
 class TypeResolutionError extends Error {
   node: ASTNode;
   constructor(node: ASTNode, message: string) {
-    super(message);
+    super(`TypeResolutionError: ${message}`);
     this.node = node;
   }
 }
@@ -366,46 +366,48 @@ function calculateType(
       return resolveType(node.fields.expr, typeMap, refMap);
     case 'MemberAccessExpr': {
       const { left, right } = node.fields;
-      const leftType = resolveType(left, typeMap, refMap);
+      let leftType = resolveType(left, typeMap, refMap);
       if (leftType instanceof PointerType) {
-        if (leftType.toType instanceof TupleType) {
-          if (right.name === 'NumberLiteral') {
-            let index = right.fields.value;
-            let elem = leftType.toType.elements[index];
-            if (!elem) {
-              throw new TypeResolutionError(
-                node,
-                `${index} is not a valid accessor for ${leftType.name}`
-              );
-            }
-            return elem.type;
-          }
-          throw new TypeResolutionError(
-            node,
-            `${leftType.name} can only be accessed by index`
-          );
-        } else if (leftType.toType instanceof RecordType) {
-          if (right.name === 'SymbolRef') {
-            const propName = right.fields.symbol;
-            const propType = leftType.toType.fields.get(propName);
-            if (!propType) {
-              throw new TypeResolutionError(
-                node,
-                `${propName} is not a valid accessor for ${leftType.name}`
-              );
-            }
-            return propType.type;
-          }
-          throw new TypeResolutionError(
-            node,
-            `${leftType.name} can only be accessed by property names`
-          );
-        }
+        leftType = leftType.toType;
       }
-      throw new TypeResolutionError(
-        node,
-        `Don't know how to do member access on a ${leftType.name}`
-      );
+      if (leftType instanceof TupleType) {
+        if (right.name === 'NumberLiteral') {
+          let index = right.fields.value;
+          let elem = leftType.elements[index];
+          if (!elem) {
+            throw new TypeResolutionError(
+              right,
+              `${index} is not a valid accessor for ${leftType.name}`
+            );
+          }
+          return elem.type;
+        }
+        throw new TypeResolutionError(
+          right,
+          `${leftType.name} can only be accessed by index`
+        );
+      } else if (leftType instanceof RecordType) {
+        if (right.name === 'SymbolRef') {
+          const propName = right.fields.symbol;
+          const propType = leftType.fields.get(propName);
+          if (!propType) {
+            throw new TypeResolutionError(
+              right,
+              `${propName} is not a valid accessor for ${leftType.name}`
+            );
+          }
+          return propType.type;
+        }
+        throw new TypeResolutionError(
+          right,
+          `${leftType.name} can only be accessed by property names`
+        );
+      } else {
+        throw new TypeResolutionError(
+          right,
+          `Don't know hot to do member access on a ${leftType.name}`
+        );
+      }
     }
   }
   throw new TypeResolutionError(

@@ -278,7 +278,7 @@ export function makeGlobalDeclWith(fields: {
 type RegStatementFields = {
   symbol: string;
   typeExpr?: TypeExpr;
-  expr: Expression;
+  expr?: Expression;
 };
 
 export type RegStatement = {
@@ -293,7 +293,7 @@ export function isRegStatement(node: ASTNode): node is RegStatement {
 export function makeRegStatement(
   symbol: string,
   typeExpr: TypeExpr | undefined,
-  expr: Expression
+  expr: Expression | undefined
 ): RegStatement {
   return {
     name: 'RegStatement',
@@ -308,7 +308,7 @@ export function makeRegStatement(
 export function makeRegStatementWith(fields: {
   symbol: string;
   typeExpr?: TypeExpr;
-  expr: Expression;
+  expr?: Expression;
 }): RegStatement {
   return {
     name: 'RegStatement',

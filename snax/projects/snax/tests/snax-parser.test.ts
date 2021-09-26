@@ -288,6 +288,12 @@ describe('reg statements', () => {
       AST.makeRegStatement('x', AST.makeTypeRef('i32'), makeNum(3))
     );
   });
+  it('should parse typed reg statements without initialization', () => {
+    const regNode = SNAXParser.parseStrOrThrow('reg x:i32;', 'statement');
+    expect(regNode).toEqual(
+      AST.makeRegStatement('x', AST.makeTypeRef('i32'), undefined)
+    );
+  });
 });
 
 describe('type expressions', () => {

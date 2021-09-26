@@ -67,6 +67,22 @@ function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {
   }
 }
 
+function dumpFuncAllocations(compiler: ModuleCompiler, funcName: string) {
+  const funcAllocator =
+    compiler.moduleAllocator.funcAllocatorMap.getByFuncNameOrThrow(funcName);
+  return [
+    'stack:',
+    ...funcAllocator.stack.map(
+      (s) => `    ${s.offset}: ${s.id} (${s.dataType.name})`
+    ),
+    'locals:',
+    ...funcAllocator.locals.map(
+      (local) =>
+        `    ${local.offset}: ${local.local.fields.id} (${local.local.fields.valueType})`
+    ),
+  ].join('\n');
+}
+
 /**
  * get text out of a memory buffer
  */
@@ -173,6 +189,70 @@ describe('simple expressions', () => {
   });
 });
 describe('reg statements', () => {
+  it('compiles reg statements into function local allocations', async () => {
+    const code = `
+      reg x:i32;
+      reg y:bool;
+      reg z:f64;
+    `;
+    const { wat, compiler } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (func $<main>f0
+          (local $<arp>r0:i32 i32) (local $<x>r1:i32 i32) (local $<y>r2:i32 i32) (local $<z>r3:f64 f64)
+          (nop)
+          (nop)
+          (nop))
+        (func (;1;)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0))
+        (export \\"_start\\" (func 1))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0))
+        (type (;0;) (func)))
+      "
+      `);
+    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+      "stack:
+      locals:
+          0: <arp>r0:i32 (i32)
+          1: <x>r1:i32 (i32)
+          2: <y>r2:i32 (i32)
+          3: <z>r3:f64 (f64)"
+      `);
+  });
+
+  it('does not allow reg statements to be used for compound data types', async () => {
+    const code = `
+      struct Vector {x: i32; y:i32;}
+      reg v:Vector;
+    `;
+    await expect(compileToWasmModule(code)).rejects.toMatchInlineSnapshot(
+      `[Error: BaseType: type {x: i32, y: i32} does not have a corresponding value type]`
+    );
+  });
+
+  it('does allow reg statements to be used pointers to compound data types', async () => {
+    const code = `
+      struct Vector {x: i32; y:i32;}
+      reg v:&Vector;
+    `;
+    const { compiler } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+      "stack:
+      locals:
+          0: <arp>r0:i32 (i32)
+          1: <v>r1:i32 (i32)"
+      `);
+  });
+
   it('compiles reg statements', async () => {
     const code = 'reg x = 3; x;';
     const { wat, exports } = await compileToWasmModule(code, {
@@ -211,44 +291,51 @@ describe('let statements', () => {
       let y:bool;
       x;
     `;
-    const { wat, exports } = await compileToWasmModule(code, {
+    const { wat, exports, compiler } = await compileToWasmModule(code, {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-"(module
-  (memory (;0;) 1)
-  (global $g0:#SP (mut i32) (i32.const 0))
-  (func $<main>f0 (result i32)
-    (local $<arp>r0:i32 i32)
-    (global.set $g0:#SP
-      (i32.sub
-        (global.get $g0:#SP)
-        (i32.const 5)))
-    (local.set $<arp>r0:i32
-      (global.get $g0:#SP))
-    (memory.fill
-      (local.get $<arp>r0:i32)
-      (i32.const 0)
-      (i32.const 4))
-    (memory.fill
-      (i32.add
-        (local.get $<arp>r0:i32)
-        (i32.const 4))
-      (i32.const 0)
-      (i32.const 1))
-    (return
-      (i32.load
-        (local.get $<arp>r0:i32))))
-  (func (;1;) (result i32)
-    (global.set $g0:#SP
-      (i32.const 65536))
-    (call $<main>f0))
-  (export \\"_start\\" (func 1))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 0))
-  (type (;0;) (func (result i32))))
-"
-`);
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (func $<main>f0 (result i32)
+          (local $<arp>r0:i32 i32)
+          (global.set $g0:#SP
+            (i32.sub
+              (global.get $g0:#SP)
+              (i32.const 5)))
+          (local.set $<arp>r0:i32
+            (global.get $g0:#SP))
+          (memory.fill
+            (local.get $<arp>r0:i32)
+            (i32.const 0)
+            (i32.const 4))
+          (memory.fill
+            (i32.add
+              (local.get $<arp>r0:i32)
+              (i32.const 4))
+            (i32.const 0)
+            (i32.const 1))
+          (return
+            (i32.load
+              (local.get $<arp>r0:i32))))
+        (func (;1;) (result i32)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0))
+        (export \\"_start\\" (func 1))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0))
+        (type (;0;) (func (result i32))))
+      "
+    `);
+    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+      "stack:
+          0: <x>s0-4 (i32)
+          4: <y>s4-5 (bool)
+      locals:
+          0: <arp>r0:i32 (i32)"
+    `);
     expect(exports._start()).toEqual(0);
   });
 });
@@ -311,14 +398,66 @@ describe('block compilation', () => {
 });
 
 describe('assignment operator', () => {
-  it('compiles assignments', async () => {
-    expect(await exec('let x = 3; x = 4; x;')).toBe(4);
+  it('compiles assignments to registers', async () => {
+    const code = `
+      reg a:i32;
+      a=54;
+      a;
+    `;
+    const { wat, exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (func $<main>f0 (result i32)
+          (local $<arp>r0:i32 i32) (local $<a>r1:i32 i32)
+          (nop)
+          (drop
+            (local.tee $<a>r1:i32
+              (i32.const 54)))
+          (return
+            (local.get $<a>r1:i32)))
+        (func (;1;) (result i32)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0))
+        (export \\"_start\\" (func 1))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0))
+        (type (;0;) (func (result i32))))
+      "
+      `);
+    expect(exports._start()).toBe(54);
   });
+  it('compiles assignments', async () => {
+    expect(
+      await exec(`
+        let x:i32;
+        x = 4;
+        x;
+      `)
+    ).toBe(4);
+  });
+
   it('does not compile invalid assignments', async () => {
-    await expect(exec('let x = 3; y = 4; y;')).rejects.toMatchInlineSnapshot(
+    await expect(
+      exec(`
+        let x = 3;
+        y = 4;
+        y;
+      `)
+    ).rejects.toMatchInlineSnapshot(
       `[Error: Reference to undeclared symbol y]`
     );
-    await expect(exec('let x = 3; 5 = 4; x;')).rejects.toMatchInlineSnapshot(
+    await expect(
+      exec(`
+        let x = 3;
+        5 = 4;
+        x;
+      `)
+    ).rejects.toMatchInlineSnapshot(
       `[Error: ASSIGN: Can't assign to NumberLiteral: something that is not a resolved symbol or a memory address]`
     );
   });
@@ -394,7 +533,7 @@ describe('runtime', () => {
 describe('pointers', () => {
   it('has pointers', async () => {
     const code = `
-        let p:&i32 = 0 as! &i32;
+        reg p:&i32 = 0 as! &i32;
         p[0] = 10;
         p[0];
       `;
@@ -402,8 +541,8 @@ describe('pointers', () => {
   });
   it('allows pointer arithmetic through array indexing', async () => {
     const code = `
-      let p:&i32 = 0 as! &i32;
-      let q:&i32 = 4 as! &i32;
+      reg p:&i32 = 0 as! &i32;
+      reg q:&i32 = 4 as! &i32;
       q[0] = 175;
       p[1];
     `;
@@ -414,7 +553,7 @@ describe('pointers', () => {
   });
   it('allows assigning to pointer offsets with array indexing', async () => {
     const code = `
-      let p:&i32 = 0 as! &i32;
+      reg p:&i32 = 0 as! &i32;
       p[1] = 174;
     `;
     const { exports } = await compileToWasmModule(code);
@@ -424,7 +563,7 @@ describe('pointers', () => {
   });
   it('respects the size of the type being pointed to', async () => {
     const code = `
-      let p:&i16 = 0 as! &i16;
+      reg p:&i16 = 0 as! &i16;
       p[0] = 12_i16;
       p[1] = 13_i16;
       p[0] = 10_i16;
@@ -436,7 +575,7 @@ describe('pointers', () => {
   });
   it('calculates the indexing expression only once.', async () => {
     const code = `
-      let p:&i32 = 0 as! &i32;
+      reg p:&i32 = 0 as! &i32;
       p[0] = 0;
       p[2] = 5;
       p[p[0]] = 2;
@@ -448,7 +587,7 @@ describe('pointers', () => {
   });
   it('calculates the value expression only once.', async () => {
     const code = `
-      let p:&i32 = 0 as! &i32;
+      reg p:&i32 = 0 as! &i32;
       p[0] = 0;
       p[2] = 5;
       p[0] = p[0]+2;
@@ -460,10 +599,10 @@ describe('pointers', () => {
   });
   it('allows moving pointers around', async () => {
     const code = `
-      let p:&u8 = 0 as! &u8;
+      reg p:&u8 = 0 as! &u8;
       p[0] = 1_u8;
       p[1] = 2_u8;
-      let q:&u8 = p;
+      reg q:&u8 = p;
       q[1] = 3_u8;
     `;
     const { exports } = await compileToWasmModule(code);
@@ -473,8 +612,8 @@ describe('pointers', () => {
   });
   it('allows casting a pointer to an i32', async () => {
     const code = `
-      let p:&u8 = 100 as! &u8;
-      let j:i32 = p as i32;
+      reg p:&u8 = 100 as! &u8;
+      reg j:i32 = p as i32;
       j;
     `;
     expect(await exec(code)).toEqual(100);
@@ -605,18 +744,12 @@ describe('object structs', () => {
       "
     `);
 
-    let stack =
-      compiler.moduleAllocator.funcAllocatorMap.getByFuncNameOrThrow(
-        'main'
-      ).stack;
-    expect(stack.length).toBe(1);
-    const stackLocation = stack[0];
-    expect(stackLocation.area).toBe('stack');
-    expect(stackLocation.id).toMatchInlineSnapshot(`"<v>s0-8"`);
-    expect(stackLocation.offset).toBe(0);
-    expect(stackLocation.dataType.name).toMatchInlineSnapshot(
-      `"{x: i32, y: i32}"`
-    );
+    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+      "stack:
+          0: <v>s0-8 ({x: i32, y: i32})
+      locals:
+          0: <arp>r0:i32 (i32)"
+      `);
   });
   xit('allows assigning values to stack allocated struct fields', async () => {
     const code = `

@@ -483,9 +483,12 @@ class RegStatementCompiler extends IRCompiler<AST.RegStatement> {
       'reg statements need a local'
     );
     const { expr } = this.root.fields;
-    const exprType = this.resolveType(expr);
-    exprType.toValueType();
-    return [...this.compileChild(expr), localSet(location)];
+    if (expr) {
+      const exprType = this.resolveType(expr);
+      exprType.toValueType();
+      return [...this.compileChild(expr), localSet(location)];
+    }
+    return [new IR.Nop()];
   }
 }
 

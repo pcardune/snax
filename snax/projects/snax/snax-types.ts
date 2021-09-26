@@ -18,6 +18,11 @@ export abstract class BaseType {
   toString(): string {
     return this.name;
   }
+
+  equals(other: BaseType) {
+    // TODO: decide about this: https://github.com/pcardune/snax/issues/2
+    return this.name === other.name;
+  }
 }
 
 abstract class BaseGenericType {

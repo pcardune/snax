@@ -3,23 +3,16 @@ import * as IR from '../stack-ir.js';
 import * as Wasm from '../wasm-ast.js';
 import { FuncDeclCompiler, BlockCompiler } from '../ast-compiler.js';
 import { makeFunc, makeNum } from '../ast-util.js';
-import {
-  irCompiler,
-  makeCompileToWAT,
-  runtimeStub,
-  WabtModule,
-} from './test-util';
+import { irCompiler, makeCompileToWAT, runtimeStub } from './test-util';
 import { BinOp } from '../snax-ast.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { resolveMemory } from '../memory-resolution.js';
-import loadWabt from 'wabt';
+import { parseWat } from '../wabt-util.js';
 
-let wabt: WabtModule;
 let compileToWAT: ReturnType<typeof makeCompileToWAT>;
 beforeAll(async () => {
-  wabt = await loadWabt();
-  compileToWAT = makeCompileToWAT(wabt);
+  compileToWAT = makeCompileToWAT();
 });
 
 type WATable = { toWAT(): string };
@@ -264,11 +257,11 @@ describe('WhileStatementCompiler', () => {
 });
 
 describe('ModuleCompiler', () => {
-  it('compiles an empty module to an empty wasm module', () => {
-    const { wat } = compileToWAT(AST.makeFile([], [], []), {
+  it('compiles an empty module to an empty wasm module', async () => {
+    const { wat } = await compileToWAT(AST.makeFile([], [], []), {
       includeRuntime: false,
     });
-    expect(wabt.parseWat('', wat).toText({})).toMatchInlineSnapshot(`
+    expect((await parseWat('', wat)).toText({})).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (global $g0:#SP (mut i32) (i32.const 0))
@@ -277,8 +270,8 @@ describe('ModuleCompiler', () => {
       "
     `);
   });
-  it('compiles globals in the module', () => {
-    const { wat } = compileToWAT(
+  it('compiles globals in the module', async () => {
+    const { wat } = await compileToWAT(
       AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], []),
       { includeRuntime: false }
     );
@@ -292,10 +285,10 @@ describe('ModuleCompiler', () => {
       "
     `);
   });
-  it('compiles functions in the module', () => {
+  it('compiles functions in the module', async () => {
     const num = AST.makeExprStatement(makeNum(32));
     const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
@@ -316,8 +309,8 @@ describe('ModuleCompiler', () => {
 `);
   });
 
-  it('compiles string literals into data segments', () => {
-    const { wat } = compileToWAT(
+  it('compiles string literals into data segments', async () => {
+    const { wat } = await compileToWAT(
       AST.makeFile(
         [
           makeFunc(
@@ -352,7 +345,7 @@ describe('ModuleCompiler', () => {
 `);
   });
 
-  it('compiles functions in the top-level block to wasm functions', () => {
+  it('compiles functions in the top-level block to wasm functions', async () => {
     const funcDecl = makeFunc(
       'foo',
       [AST.makeParameter('a', AST.makeTypeRef('i32'))],
@@ -363,7 +356,7 @@ describe('ModuleCompiler', () => {
       globals: [],
       decls: [],
     });
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (memory (;0;) 1)
@@ -387,7 +380,7 @@ describe('ModuleCompiler', () => {
 `);
   });
 
-  it('compiles extern declarations into wasm imports', () => {
+  it('compiles extern declarations into wasm imports', async () => {
     const file = AST.makeFileWith({
       funcs: [],
       globals: [],
@@ -411,7 +404,7 @@ describe('ModuleCompiler', () => {
       ],
     });
 
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
   (import \\"wasi_unstable\\" \\"fd_write\\" (func $<fd_write>f0 (param i32 i32 i32 i32) (result i32)))

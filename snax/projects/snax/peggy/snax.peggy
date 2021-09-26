@@ -110,8 +110,12 @@ statement "statement"
   }
 
 varDecl "varDecl"
-  = name:identifier ws type:(":" ws typeExpr)? ws "=" ws expr:expr {
-    return {name, type:type ? type[2] : undefined, expr};
+  = name:identifier ws type:(":" ws typeExpr)? initializer:(ws "=" ws expr:expr)? {
+    return {
+      name,
+      type:type ? type[2] : undefined,
+      expr: initializer ? initializer[3] : undefined
+    };
   }
 
 whileStatement "while statement"

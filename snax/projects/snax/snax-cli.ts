@@ -9,6 +9,7 @@ import path from 'path';
 // eslint-disable-next-line import/no-unresolved
 import { WASI } from 'wasi';
 import { SNAXParser } from './snax-parser.js';
+import { parseWat } from './wabt-util.js';
 
 const wasi = new WASI({
   args: process.argv,
@@ -26,8 +27,7 @@ async function compileSnaxFile(file: string) {
   });
   if (maybeWAT.isOk()) {
     const wat = maybeWAT.value;
-    const wabt = await loadWabt();
-    const wasmModule = wabt.parseWat('', wat);
+    const wasmModule = await parseWat('', wat);
     wasmModule.validate();
     return ok(wasmModule);
   } else {
@@ -76,8 +76,7 @@ async function loadWasmModuleFromPath(
       return await WebAssembly.compile(await readFile(inPath));
     }
     case '.wat': {
-      const wabt = await loadWabt();
-      const wasmModule = wabt.parseWat('', await readFile(inPath));
+      const wasmModule = await parseWat('', await readFile(inPath));
       wasmModule.validate();
       const result = wasmModule.toBinary({ write_debug_names: true });
       return await WebAssembly.compile(result.buffer);

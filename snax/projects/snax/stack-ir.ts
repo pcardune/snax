@@ -305,4 +305,16 @@ export class MemoryInit extends Instruction {
   }
 }
 
+/**
+ * stack expectation:
+ *   push d - offset to start filling from
+ *   push val - byte value to fill with
+ *   push n - number of bytes to fill
+ */
+export class MemoryFill extends Instruction {
+  toWAT(): string {
+    return `memory.fill`;
+  }
+}
+
 export type { Instruction };

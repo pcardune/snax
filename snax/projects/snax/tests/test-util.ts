@@ -11,13 +11,14 @@ import type loadWabt from 'wabt';
 import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
+import { parseWat } from '../wabt-util.js';
 
 type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
 export type WabtModule = ThenArg<ReturnType<typeof loadWabt>>;
 
-export function makeCompileToWAT(wabt: WabtModule) {
-  return (input: string | spec.File, options?: ModuleCompilerOptions) => {
+export function makeCompileToWAT() {
+  return async (input: string | spec.File, options?: ModuleCompilerOptions) => {
     const ast =
       typeof input === 'string' ? SNAXParser.parseStrOrThrow(input) : input;
 
@@ -26,7 +27,7 @@ export function makeCompileToWAT(wabt: WabtModule) {
     }
     const compiler = new ModuleCompiler(ast, options);
     const wat = compiler.compile().toWAT();
-    const module = wabt.parseWat('', wat);
+    const module = await parseWat('', wat);
     module.applyNames();
     return { wat: module.toText({ foldExprs: true }), ast, compiler };
   };

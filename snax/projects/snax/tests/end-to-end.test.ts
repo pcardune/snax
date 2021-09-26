@@ -1,13 +1,11 @@
-import loadWabt from 'wabt';
 import type { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler.js';
-import { Module, PAGE_SIZE } from '../wasm-ast.js';
-import { WabtModule, makeCompileToWAT } from './test-util';
+import { parseWat } from '../wabt-util.js';
+import { PAGE_SIZE } from '../wasm-ast.js';
+import { makeCompileToWAT } from './test-util';
 
-let wabt: WabtModule;
 let compileToWAT: ReturnType<typeof makeCompileToWAT>;
 beforeAll(async () => {
-  wabt = await loadWabt();
-  compileToWAT = makeCompileToWAT(wabt);
+  compileToWAT = makeCompileToWAT();
 });
 
 type SnaxExports = {
@@ -20,8 +18,8 @@ async function compileToWasmModule(
   input: string,
   options?: ModuleCompilerOptions
 ) {
-  const { wat, ast, compiler } = compileToWAT(input, options);
-  const wasmModule = wabt.parseWat('', wat);
+  const { wat, ast, compiler } = await compileToWAT(input, options);
+  const wasmModule = await parseWat('', wat);
   wasmModule.validate();
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
@@ -79,8 +77,8 @@ function text(memory: WebAssembly.Memory, offset: number, length: number) {
 
 describe('simple expressions', () => {
   it('compiles an empty program', async () => {
-    expect(compileToWAT('', { includeRuntime: true }).wat)
-      .toMatchInlineSnapshot(`
+    const { wat } = await compileToWAT('', { includeRuntime: true });
+    expect(wat).toMatchInlineSnapshot(`
       "(module
         (memory (;0;) 1)
         (global $g0:#SP (mut i32) (i32.const 0))
@@ -202,8 +200,51 @@ describe('reg statements', () => {
     `);
     expect(exports._start()).toBe(3);
   });
-  xit('it does not allow storing values that do not fit into a register');
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  xit('it does not allow storing values that do not fit into a register', () => {});
 });
+
+describe('let statements', () => {
+  it('allocates space on the stack, and initializes values to 0', async () => {
+    const code = `let x:i32; x;`;
+    const { wat, exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (memory (;0;) 1)
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (func $<main>f0 (result i32)
+    (local $<arp>r0:i32 i32)
+    (global.set $g0:#SP
+      (i32.sub
+        (global.get $g0:#SP)
+        (i32.const 4)))
+    (local.set $<arp>r0:i32
+      (global.get $g0:#SP))
+    (memory.fill
+      (i32.add
+        (local.get $<arp>r0:i32)
+        (i32.const 0))
+      (i32.const 0)
+      (i32.const 4))
+    (return
+      (i32.load
+        (local.get $<arp>r0:i32))))
+  (func (;1;) (result i32)
+    (global.set $g0:#SP
+      (i32.const 65536))
+    (call $<main>f0))
+  (export \\"_start\\" (func 1))
+  (export \\"memory\\" (memory 0))
+  (export \\"stackPointer\\" (global 0))
+  (type (;0;) (func (result i32))))
+"
+`);
+    expect(exports._start()).toEqual(0);
+  });
+});
+
 describe('block compilation', () => {
   it('compiles blocks', async () => {
     const code = 'let x = 3; let y = x+4; y;';
@@ -345,7 +386,7 @@ describe('runtime', () => {
 describe('pointers', () => {
   it('has pointers', async () => {
     const code = `
-        let p:&i32 = 0;
+        let p:&i32 = 0 as! &i32;
         p[0] = 10;
         p[0];
       `;
@@ -353,8 +394,8 @@ describe('pointers', () => {
   });
   it('allows pointer arithmetic through array indexing', async () => {
     const code = `
-      let p:&i32 = 0;
-      let q:&i32 = 4;
+      let p:&i32 = 0 as! &i32;
+      let q:&i32 = 4 as! &i32;
       q[0] = 175;
       p[1];
     `;
@@ -365,7 +406,7 @@ describe('pointers', () => {
   });
   it('allows assigning to pointer offsets with array indexing', async () => {
     const code = `
-      let p:&i32 = 0;
+      let p:&i32 = 0 as! &i32;
       p[1] = 174;
     `;
     const { exports } = await compileToWasmModule(code);
@@ -375,7 +416,7 @@ describe('pointers', () => {
   });
   it('respects the size of the type being pointed to', async () => {
     const code = `
-      let p:&i16 = 0;
+      let p:&i16 = 0 as! &i16;
       p[0] = 12_i16;
       p[1] = 13_i16;
       p[0] = 10_i16;
@@ -387,7 +428,7 @@ describe('pointers', () => {
   });
   it('calculates the indexing expression only once.', async () => {
     const code = `
-      let p:&i32 = 0;
+      let p:&i32 = 0 as! &i32;
       p[0] = 0;
       p[2] = 5;
       p[p[0]] = 2;
@@ -399,7 +440,7 @@ describe('pointers', () => {
   });
   it('calculates the value expression only once.', async () => {
     const code = `
-      let p:&i32 = 0;
+      let p:&i32 = 0 as! &i32;
       p[0] = 0;
       p[2] = 5;
       p[0] = p[0]+2;
@@ -411,7 +452,7 @@ describe('pointers', () => {
   });
   it('allows moving pointers around', async () => {
     const code = `
-      let p:&u8 = 0;
+      let p:&u8 = 0 as! &u8;
       p[0] = 1_u8;
       p[1] = 2_u8;
       let q:&u8 = p;
@@ -424,7 +465,7 @@ describe('pointers', () => {
   });
   it('allows casting a pointer to an i32', async () => {
     const code = `
-      let p:&u8 = 100;
+      let p:&u8 = 100 as! &u8;
       let j:i32 = p as i32;
       j;
     `;
@@ -659,8 +700,8 @@ describe('extern declarations', () => {
 
       print_num(1);
     `;
-    const { wat } = compileToWAT(code);
-    const wasmModule = wabt.parseWat('', wat);
+    const { wat } = await compileToWAT(code);
+    const wasmModule = await parseWat('', wat);
     wasmModule.validate();
 
     let printedNum: number | undefined = undefined;

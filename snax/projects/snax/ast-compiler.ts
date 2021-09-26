@@ -496,15 +496,32 @@ class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
       'let statements need a local'
     );
     const { expr } = this.root.fields;
-    const exprType = this.resolveType(expr);
-    return [
-      localGet(this.context.funcAllocs.arp),
-      ...this.compileChild(expr),
-      new IR.MemoryStore(exprType.toValueType(), {
-        offset: location.offset,
-        bytes: exprType.numBytes,
-      }),
-    ];
+    const type = this.resolveType(this.root);
+
+    if (expr) {
+      return [
+        localGet(this.context.funcAllocs.arp),
+        ...this.compileChild(expr),
+        new IR.MemoryStore(type.toValueType(), {
+          offset: location.offset,
+          bytes: type.numBytes,
+        }),
+      ];
+    } else {
+      // no explicit intializer expression, so just zero it out
+      return [
+        // push d - offset to start filling from
+        localGet(this.context.funcAllocs.arp),
+        new IR.PushConst(IR.NumberType.i32, location.offset),
+        new IR.Add(IR.NumberType.i32),
+        // push val - byte value to fill with
+        new IR.PushConst(IR.NumberType.i32, 0),
+        // push n - number of bytes to fill
+        new IR.PushConst(IR.NumberType.i32, type.numBytes),
+        // memory.fill
+        new IR.MemoryFill(),
+      ];
+    }
   }
 }
 
@@ -862,81 +879,90 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
     const { force } = this.root.fields;
     const sourceType = this.context.typeCache.get(this.root.fields.expr);
     const destType = this.context.typeCache.get(this.root.fields.typeExpr);
-    if (!(destType instanceof NumericalType)) {
-      throw new Error(`Don't know how to cast to ${destType.name} yet`);
-    }
-
     const instr = this.compileChild(this.root.fields.expr);
+    if (destType instanceof NumericalType) {
+      if (sourceType instanceof NumericalType) {
+        const destValueType = destType.toValueType();
+        const sourceValueType = sourceType.toValueType();
 
-    if (sourceType instanceof NumericalType) {
-      const destValueType = destType.toValueType();
-      const sourceValueType = sourceType.toValueType();
-
-      if (IR.isFloatType(destValueType)) {
-        // conversion to floats
-        if (IR.isIntType(sourceValueType)) {
-          instr.push(
-            new IR.Convert(
-              sourceValueType,
-              destValueType,
-              sourceType.signed ? IR.Sign.Signed : IR.Sign.Unsigned
-            )
-          );
-        } else if (destValueType !== sourceValueType) {
-          if (destValueType === 'f64' && sourceValueType === 'f32') {
-            instr.push(new IR.Promote());
-          } else if (force) {
-            throw new Error(`NotImplemented: forced float demotion`);
-          } else {
-            throw new Error(`I don't implicitly demote floats`);
-          }
-        } else {
-          instr.push(new IR.Nop());
-        }
-      } else {
-        // conversion to integers
-        if (IR.isFloatType(sourceValueType)) {
-          if (force) {
-            throw new Error(`NotImplemented: truncate floats to int`);
-          } else {
-            throw new Error(`I don't implicitly truncate floats`);
-          }
-        } else if (sourceType.numBytes > destType.numBytes) {
-          if (force) {
+        if (IR.isFloatType(destValueType)) {
+          // conversion to floats
+          if (IR.isIntType(sourceValueType)) {
             instr.push(
-              new IR.PushConst(
-                sourceType.toValueType(),
-                (1 << (destType.numBytes * 8)) - 1
-              ),
-              new IR.And(sourceType.toValueType())
+              new IR.Convert(
+                sourceValueType,
+                destValueType,
+                sourceType.signed ? IR.Sign.Signed : IR.Sign.Unsigned
+              )
             );
+          } else if (destValueType !== sourceValueType) {
+            if (destValueType === 'f64' && sourceValueType === 'f32') {
+              instr.push(new IR.Promote());
+            } else if (force) {
+              throw new Error(`NotImplemented: forced float demotion`);
+            } else {
+              throw new Error(`I don't implicitly demote floats`);
+            }
           } else {
-            throw new Error(`I don't implicitly wrap to smaller sizes`);
+            instr.push(new IR.Nop());
           }
-        } else if (sourceType.signed && !destType.signed) {
-          if (force) {
-            throw new Error(`NotImplemented: forced dropping of sign`);
+        } else {
+          // conversion to integers
+          if (IR.isFloatType(sourceValueType)) {
+            if (force) {
+              throw new Error(`NotImplemented: truncate floats to int`);
+            } else {
+              throw new Error(`I don't implicitly truncate floats`);
+            }
+          } else if (sourceType.numBytes > destType.numBytes) {
+            if (force) {
+              instr.push(
+                new IR.PushConst(
+                  sourceType.toValueType(),
+                  (1 << (destType.numBytes * 8)) - 1
+                ),
+                new IR.And(sourceType.toValueType())
+              );
+            } else {
+              throw new Error(`I don't implicitly wrap to smaller sizes`);
+            }
+          } else if (sourceType.signed && !destType.signed) {
+            if (force) {
+              throw new Error(`NotImplemented: forced dropping of sign`);
+            } else {
+              throw new Error(`I don't implicitly drop signs`);
+            }
           } else {
-            throw new Error(`I don't implicitly drop signs`);
+            instr.push(new IR.Nop());
           }
+        }
+      } else if (sourceType instanceof PointerType) {
+        if (
+          destType.interpretation === 'int' &&
+          destType.numBytes < sourceType.numBytes
+        ) {
+          throw new Error(
+            `${destType} doesn't hold enough bytes for a pointer`
+          );
         } else {
           instr.push(new IR.Nop());
         }
-      }
-    } else if (sourceType instanceof PointerType) {
-      if (
-        destType.interpretation === 'int' &&
-        destType.numBytes < sourceType.numBytes
-      ) {
-        throw new Error(`${destType} doesn't hold enough bytes for a pointer`);
       } else {
-        instr.push(new IR.Nop());
+        throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
       }
-    } else {
-      throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
-    }
 
-    return instr;
+      return instr;
+    } else if (destType instanceof PointerType) {
+      if (sourceType.equals(Intrinsics.i32) && force) {
+        instr.push(new IR.Nop());
+      } else {
+        throw new Error(
+          `I only convert i32s to pointer types, and only when forced.`
+        );
+      }
+      return instr;
+    }
+    throw new Error(`Don't know how to cast to ${destType.name} yet`);
   }
 }
 

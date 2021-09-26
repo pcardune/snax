@@ -67,7 +67,7 @@ export const nodes: Record<string, NodeSpec> = {
     fields: {
       symbol: 'string',
       typeExpr: { type: 'TypeExpr', optional: true },
-      expr: 'Expression',
+      expr: { type: 'Expression', optional: true },
     },
   },
   IfStatement: {

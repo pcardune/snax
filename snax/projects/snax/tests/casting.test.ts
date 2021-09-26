@@ -134,4 +134,30 @@ describe('CastExprCompiler', () => {
       expect(ir).toEqual([...compiler.compileChild(num), instruction]);
     }
   });
+
+  describe('casting to pointer types', () => {
+    const num = AST.makeNumberLiteral(1, 'int', 'i32');
+    it('converts from i32 to &whatever', () => {
+      let cast = AST.makeCastExpr(
+        num,
+        AST.makePointerTypeExpr(AST.makeTypeRef('f64')),
+        true
+      );
+      const compiler = irCompiler(cast);
+      const ir = compiler.compile();
+      expect(ir).toEqual([...compiler.compileChild(num), new IR.Nop()]);
+    });
+    it('will not convert without being forced', () => {
+      let cast = AST.makeCastExpr(
+        num,
+        AST.makePointerTypeExpr(AST.makeTypeRef('f64')),
+        false
+      );
+      expect(() =>
+        irCompiler(cast).compile()
+      ).toThrowErrorMatchingInlineSnapshot(
+        `"I only convert i32s to pointer types, and only when forced."`
+      );
+    });
+  });
 });

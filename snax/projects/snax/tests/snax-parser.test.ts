@@ -255,15 +255,25 @@ describe('expression', () => {
 });
 
 describe('let statements', () => {
-  it('should parse untyped let statements', () => {
-    const letNode = SNAXParser.parseStrOrThrow('let x = 3;', 'statement');
-    expect(letNode).toEqual(AST.makeLetStatement('x', undefined, makeNum(3)));
+  describe('without type specifiers', () => {
+    it('should parse untyped let statements', () => {
+      const letNode = SNAXParser.parseStrOrThrow('let x = 3;', 'statement');
+      expect(letNode).toEqual(AST.makeLetStatement('x', undefined, makeNum(3)));
+    });
   });
-  it('should parse typed let statements', () => {
-    const letNode = SNAXParser.parseStrOrThrow('let x:i32 = 3;', 'statement');
-    expect(letNode).toEqual(
-      AST.makeLetStatement('x', AST.makeTypeRef('i32'), makeNum(3))
-    );
+  describe('with type specifiers', () => {
+    it('should parse typed let statements', () => {
+      const letNode = SNAXParser.parseStrOrThrow('let x:i32 = 3;', 'statement');
+      expect(letNode).toEqual(
+        AST.makeLetStatement('x', AST.makeTypeRef('i32'), makeNum(3))
+      );
+    });
+    it('should parse typed let statements without initialization', () => {
+      const letNode = SNAXParser.parseStrOrThrow('let x:i32;', 'statement');
+      expect(letNode).toEqual(
+        AST.makeLetStatement('x', AST.makeTypeRef('i32'), undefined)
+      );
+    });
   });
 });
 

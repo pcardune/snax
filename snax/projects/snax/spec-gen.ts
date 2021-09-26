@@ -319,7 +319,7 @@ export function makeRegStatementWith(fields: {
 type LetStatementFields = {
   symbol: string;
   typeExpr?: TypeExpr;
-  expr: Expression;
+  expr?: Expression;
 };
 
 export type LetStatement = {
@@ -334,7 +334,7 @@ export function isLetStatement(node: ASTNode): node is LetStatement {
 export function makeLetStatement(
   symbol: string,
   typeExpr: TypeExpr | undefined,
-  expr: Expression
+  expr: Expression | undefined
 ): LetStatement {
   return {
     name: 'LetStatement',
@@ -349,7 +349,7 @@ export function makeLetStatement(
 export function makeLetStatementWith(fields: {
   symbol: string;
   typeExpr?: TypeExpr;
-  expr: Expression;
+  expr?: Expression;
 }): LetStatement {
   return {
     name: 'LetStatement',

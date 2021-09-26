@@ -86,6 +86,56 @@ describe('Files', () => {
   });
 });
 
+/**
+ * Helper function to get the type of a particular ast node,
+ * that hasn't been processed in any way.
+ * @param node Node to calculate the type for
+ * @returns the type that the node will have in the type map.
+ */
+function getType(node: AST.ASTNode) {
+  const { refMap } = resolveSymbols(node);
+  const typeMap = resolveTypes(node, refMap);
+  return typeMap.get(node);
+}
+
+describe('LetStatement', () => {
+  it('uses the explicit type on the let statement', () => {
+    const letStatement = AST.makeLetStatementWith({
+      symbol: 'x',
+      typeExpr: AST.makeTypeRef('f32'),
+      expr: undefined,
+    });
+    expect(getType(letStatement)).toBe(Intrinsics.f32);
+  });
+
+  it('uses the type of the initializer expression if no explicit type is specified', () => {
+    const letStatement = AST.makeLetStatementWith({
+      symbol: 'x',
+      typeExpr: undefined,
+      expr: AST.makeNumberLiteral(3.14, 'float', 'f64'),
+    });
+    expect(getType(letStatement)).toBe(Intrinsics.f64);
+  });
+
+  it('Ensures that the intialization expression type matches the let statement type', () => {
+    const letStatement = AST.makeLetStatementWith({
+      symbol: 'x',
+      typeExpr: AST.makeTypeRef('i32'),
+      expr: AST.makeNumberLiteral(3, 'int', 'i32'),
+    });
+    expect(getType(letStatement)).toBe(Intrinsics.i32);
+
+    const badLetStatement = AST.makeLetStatementWith({
+      symbol: 'x',
+      typeExpr: AST.makeTypeRef('i32'),
+      expr: AST.makeNumberLiteral(3, 'int', 'f64'),
+    });
+    expect(() => getType(badLetStatement)).toThrowErrorMatchingInlineSnapshot(
+      `"LetStatement has explicit type i32 but is being initialized to incompatible type f64."`
+    );
+  });
+});
+
 describe('ExternDecl', () => {
   it('types an extern decl as a record type', () => {
     const fdWriteFunc = AST.makeFuncDeclWith({

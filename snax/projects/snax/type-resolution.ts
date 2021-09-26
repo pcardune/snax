@@ -187,13 +187,29 @@ function calculateType(
     case 'GlobalDecl':
     case 'RegStatement':
     case 'LetStatement': {
-      if (node.fields.typeExpr) {
-        let explicitType = resolveType(node.fields.typeExpr, typeMap, refMap);
-        if (explicitType !== Intrinsics.unknown) {
-          return explicitType;
+      if (!node.fields.typeExpr) {
+        if (!node.fields.expr) {
+          throw new TypeResolutionError(
+            node,
+            `Can't resolve type for ${node.name} that doesn't have explicit type or initializer`
+          );
+        }
+        return resolveType(node.fields.expr, typeMap, refMap);
+      }
+
+      let explicitType = resolveType(node.fields.typeExpr, typeMap, refMap);
+      if (node.fields.expr) {
+        // both an explicit type and an initializer expression
+        // have been specified. Make sure they match.
+        let exprType = resolveType(node.fields.expr, typeMap, refMap);
+        if (!explicitType.equals(exprType)) {
+          throw new TypeResolutionError(
+            node,
+            `${node.name} has explicit type ${explicitType.name} but is being initialized to incompatible type ${exprType.name}.`
+          );
         }
       }
-      return resolveType(node.fields.expr, typeMap, refMap);
+      return explicitType;
     }
     case 'IfStatement': {
       const thenType = resolveType(node.fields.thenBlock, typeMap, refMap);

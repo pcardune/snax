@@ -567,6 +567,57 @@ describe('strings', () => {
 });
 
 describe('object structs', () => {
+  it('treats structs as values on the stack', async () => {
+    const code = `
+      struct Vector {
+        x: i32;
+        y: i32;
+      }
+      let v:Vector;
+    `;
+    const { exports, wat, compiler } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (func $<main>f0
+          (local $<arp>r0:i32 i32)
+          (global.set $g0:#SP
+            (i32.sub
+              (global.get $g0:#SP)
+              (i32.const 8)))
+          (local.set $<arp>r0:i32
+            (global.get $g0:#SP))
+          (memory.fill
+            (local.get $<arp>r0:i32)
+            (i32.const 0)
+            (i32.const 8)))
+        (func (;1;)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0))
+        (export \\"_start\\" (func 1))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0))
+        (type (;0;) (func)))
+      "
+    `);
+
+    let stack =
+      compiler.moduleAllocator.funcAllocatorMap.getByFuncNameOrThrow(
+        'main'
+      ).stack;
+    expect(stack.length).toBe(1);
+    const stackLocation = stack[0];
+    expect(stackLocation.area).toBe('stack');
+    expect(stackLocation.id).toMatchInlineSnapshot(`"<v>s0-8"`);
+    expect(stackLocation.offset).toBe(0);
+    expect(stackLocation.dataType.name).toMatchInlineSnapshot(
+      `"{x: i32, y: i32}"`
+    );
+  });
   it('lets you declare a new struct type and construct it', async () => {
     const code = `
       struct Vector {

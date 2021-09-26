@@ -119,13 +119,27 @@ export type FuncAllocations = {
   stack: StackStorageLocation[];
 };
 
+export class FuncAllocatorMap extends OrderedMap<FuncDecl, FuncLocalAllocator> {
+  getByFuncNameOrThrow(funcName: string): FuncLocalAllocator {
+    const index = this.findIndex(
+      (funcDecl) => funcDecl.fields.symbol === funcName
+    );
+    if (index === undefined) {
+      throw new Error(
+        `No function allocator found for function name ${funcName}`
+      );
+    }
+    return this.getAt(index)!;
+  }
+}
+
 export class ModuleAllocator implements ConstAllocator {
   funcOffset = 0;
   globalOffset = 0;
   dataOffset = 0;
   memIndex = 0;
   allocationMap = new AllocationMap();
-  funcAllocatorMap: OrderedMap<FuncDecl, FuncLocalAllocator> = new OrderedMap();
+  funcAllocatorMap = new FuncAllocatorMap();
 
   private alloc<Loc extends StorageLocation>(
     node: FuncDecl | GlobalDecl | DataLiteral,
@@ -204,7 +218,11 @@ interface ILocalAllocator {
     name?: string
   ): LocalAllocation;
   deallocateLocal(offset: LocalAllocation): void;
-  allocateStack(dataType: BaseType, decl: ASTNode): StackStorageLocation;
+  allocateStack(
+    dataType: BaseType,
+    decl: ASTNode,
+    name?: string
+  ): StackStorageLocation;
 }
 
 export class NeverAllocator implements ILocalAllocator {
@@ -259,12 +277,14 @@ class FuncLocalAllocator implements ILocalAllocator {
     return localAllocation;
   }
 
-  allocateStack(type: BaseType, decl: ASTNode) {
+  allocateStack(type: BaseType, decl: ASTNode, name?: string) {
     const stackLoc: StackStorageLocation = {
       area: STACK,
       offset: this.stackOffset,
       dataType: type,
-      id: 'who-knows...',
+      id: `<${name ?? 'temp'}>s${this.stackOffset}-${
+        this.stackOffset + type.numBytes
+      }`,
     };
     this.allocationMap.set(decl, stackLoc);
     this.stack.push(stackLoc);
@@ -317,8 +337,12 @@ class BlockAllocator implements ILocalAllocator {
     this.parentAllocator = funcAllocator;
   }
 
-  allocateStack(dataType: BaseType, decl: ASTNode): StackStorageLocation {
-    return this.parentAllocator.allocateStack(dataType, decl);
+  allocateStack(
+    dataType: BaseType,
+    decl: ASTNode,
+    name?: string
+  ): StackStorageLocation {
+    return this.parentAllocator.allocateStack(dataType, decl, name);
   }
 
   allocateLocal(
@@ -409,7 +433,11 @@ function recurse(
     }
     case 'LetStatement': {
       if (assertLocal(localAllocator)) {
-        localAllocator.allocateStack(typeMap.get(root), root);
+        localAllocator.allocateStack(
+          typeMap.get(root),
+          root,
+          root.fields.symbol
+        );
       }
       break;
     }

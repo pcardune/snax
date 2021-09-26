@@ -179,7 +179,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
   options: Required<ModuleCompilerOptions>;
   refMap?: SymbolRefMap;
   typeCache?: ResolvedTypeMap;
-  moduleAllocator? = new ModuleAllocator();
+  moduleAllocator = new ModuleAllocator();
 
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);

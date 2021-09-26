@@ -206,7 +206,11 @@ describe('reg statements', () => {
 
 describe('let statements', () => {
   it('allocates space on the stack, and initializes values to 0', async () => {
-    const code = `let x:i32; x;`;
+    const code = `
+      let x:i32;
+      let y:bool;
+      x;
+    `;
     const { wat, exports } = await compileToWasmModule(code, {
       includeRuntime: false,
     });
@@ -219,15 +223,19 @@ describe('let statements', () => {
     (global.set $g0:#SP
       (i32.sub
         (global.get $g0:#SP)
-        (i32.const 4)))
+        (i32.const 5)))
     (local.set $<arp>r0:i32
       (global.get $g0:#SP))
     (memory.fill
-      (i32.add
-        (local.get $<arp>r0:i32)
-        (i32.const 0))
+      (local.get $<arp>r0:i32)
       (i32.const 0)
       (i32.const 4))
+    (memory.fill
+      (i32.add
+        (local.get $<arp>r0:i32)
+        (i32.const 4))
+      (i32.const 0)
+      (i32.const 1))
     (return
       (i32.load
         (local.get $<arp>r0:i32))))

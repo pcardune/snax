@@ -509,18 +509,26 @@ class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
       ];
     } else {
       // no explicit intializer expression, so just zero it out
-      return [
-        // push d - offset to start filling from
-        localGet(this.context.funcAllocs.arp),
-        new IR.PushConst(IR.NumberType.i32, location.offset),
-        new IR.Add(IR.NumberType.i32),
-        // push val - byte value to fill with
-        new IR.PushConst(IR.NumberType.i32, 0),
-        // push n - number of bytes to fill
-        new IR.PushConst(IR.NumberType.i32, type.numBytes),
-        // memory.fill
-        new IR.MemoryFill(),
-      ];
+      const instr = [];
+
+      // push d - offset to start filling from
+      instr.push(localGet(this.context.funcAllocs.arp));
+      if (location.offset > 0) {
+        instr.push(
+          new IR.PushConst(IR.NumberType.i32, location.offset),
+          new IR.Add(IR.NumberType.i32)
+        );
+      }
+
+      // push val - byte value to fill with
+      instr.push(new IR.PushConst(IR.NumberType.i32, 0));
+
+      // push n - number of bytes to fill
+      instr.push(new IR.PushConst(IR.NumberType.i32, type.numBytes));
+
+      // memory.fill
+      instr.push(new IR.MemoryFill());
+      return instr;
     }
   }
 }

@@ -96,6 +96,9 @@ statement "statement"
   = "let" ws varDecl:varDecl ws ";" ws {
     return spec.makeLetStatement(varDecl.name, varDecl.type, varDecl.expr);
   }
+  / "reg" ws varDecl:varDecl ws ";" ws {
+    return spec.makeRegStatement(varDecl.name, varDecl.type, varDecl.expr);
+  }
   / ifStatement
   / whileStatement
   / "return" ws expr:expr? ws ";" ws {

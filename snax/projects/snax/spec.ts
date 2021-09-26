@@ -56,6 +56,13 @@ export const nodes: Record<string, NodeSpec> = {
       expr: 'Expression',
     },
   },
+  RegStatement: {
+    fields: {
+      symbol: 'string',
+      typeExpr: { type: 'TypeExpr', optional: true },
+      expr: 'Expression',
+    },
+  },
   LetStatement: {
     fields: {
       symbol: 'string',
@@ -229,6 +236,7 @@ export const nodes: Record<string, NodeSpec> = {
       'ReturnStatement',
       'WhileStatement',
       'IfStatement',
+      'RegStatement',
       'LetStatement',
       'ExprStatement',
       'Block',

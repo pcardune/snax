@@ -92,6 +92,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         return new NumberLiteralCompiler(node, context);
       case 'Block':
         return new BlockCompiler(node, context);
+      case 'RegStatement':
+        return new RegStatementCompiler(node, context);
       case 'LetStatement':
         return new LetStatementCompiler(node, context);
       case 'IfStatement':
@@ -428,14 +430,14 @@ export class FuncDeclCompiler extends ASTCompiler<
         new IR.Sub(IR.NumberType.i32),
         globalSet(this.context.runtime.stackPointer)
       );
-    }
-    return [
-      ...instr,
 
       // set arp local to the stack pointer
-      globalGet(this.context.runtime.stackPointer),
-      localSet(this.context.funcAllocs.arp),
-    ];
+      instr.push(
+        globalGet(this.context.runtime.stackPointer),
+        localSet(this.context.funcAllocs.arp)
+      );
+    }
+    return instr;
   }
 
   compile(): Wasm.Func {
@@ -471,6 +473,19 @@ export class FuncDeclCompiler extends ASTCompiler<
       }),
       locals: this.context.funcAllocs.locals,
     });
+  }
+}
+
+class RegStatementCompiler extends IRCompiler<AST.RegStatement> {
+  compile(): IR.Instruction[] {
+    const location = this.context.allocationMap.getLocalOrThrow(
+      this.root,
+      'reg statements need a local'
+    );
+    const { expr } = this.root.fields;
+    const exprType = this.resolveType(expr);
+    exprType.toValueType();
+    return [...this.compileChild(expr), localSet(location)];
   }
 }
 

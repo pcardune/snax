@@ -267,6 +267,19 @@ describe('let statements', () => {
   });
 });
 
+describe('reg statements', () => {
+  it('should parse untyped reg statements', () => {
+    const regNode = SNAXParser.parseStrOrThrow('reg x = 3;', 'statement');
+    expect(regNode).toEqual(AST.makeRegStatement('x', undefined, makeNum(3)));
+  });
+  it('should parse typed reg statements', () => {
+    const regNode = SNAXParser.parseStrOrThrow('reg x:i32 = 3;', 'statement');
+    expect(regNode).toEqual(
+      AST.makeRegStatement('x', AST.makeTypeRef('i32'), makeNum(3))
+    );
+  });
+});
+
 describe('type expressions', () => {
   it('parses pointer types', () => {
     expect(SNAXParser.parseStrOrThrow('&i32', 'typeExpr')).toEqual(

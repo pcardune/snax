@@ -141,7 +141,7 @@ export class ModuleAllocator implements ConstAllocator {
       node.fields.parameters
     );
     this.funcAllocatorMap.set(node, funcLocalAllocator);
-    const id = `f${this.funcOffset}:${node.fields.symbol}`;
+    const id = `<${node.fields.symbol}>f${this.funcOffset}`;
     return {
       location: this.alloc(node, {
         area: FUNCS,
@@ -198,7 +198,11 @@ export type LocalAllocation = {
 };
 
 interface ILocalAllocator {
-  allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation;
+  allocateLocal(
+    valueType: IR.NumberType,
+    decl?: ASTNode,
+    name?: string
+  ): LocalAllocation;
   deallocateLocal(offset: LocalAllocation): void;
   allocateStack(dataType: BaseType, decl: ASTNode): StackStorageLocation;
 }
@@ -242,14 +246,14 @@ class FuncLocalAllocator implements ILocalAllocator {
     this.arp = this.makeLocalAllocation(IR.NumberType.i32, 'arp');
   }
 
-  private makeLocalAllocation(valueType: IR.NumberType, id?: string) {
-    if (!id) {
-      id = `l${this.localIdCounter++}:${valueType}`;
-    }
+  private makeLocalAllocation(valueType: IR.NumberType, name?: string) {
     const localAllocation = {
       offset: this.localsOffset++,
       live: true,
-      local: new Wasm.Local(valueType, id),
+      local: new Wasm.Local(
+        valueType,
+        `<${name ?? 'temp'}>r${this.localIdCounter++}:${valueType}`
+      ),
     };
     this.locals.push(localAllocation);
     return localAllocation;
@@ -268,7 +272,11 @@ class FuncLocalAllocator implements ILocalAllocator {
     return stackLoc;
   }
 
-  allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation {
+  allocateLocal(
+    valueType: IR.NumberType,
+    decl?: ASTNode,
+    name?: string
+  ): LocalAllocation {
     let localAllocation: LocalAllocation;
     let freeLocal = this.locals.find(
       (l) => !l.live && l.local.fields.valueType === valueType
@@ -277,7 +285,7 @@ class FuncLocalAllocator implements ILocalAllocator {
       freeLocal.live = true;
       localAllocation = freeLocal;
     } else {
-      localAllocation = this.makeLocalAllocation(valueType);
+      localAllocation = this.makeLocalAllocation(valueType, name);
     }
 
     if (decl) {
@@ -313,8 +321,12 @@ class BlockAllocator implements ILocalAllocator {
     return this.parentAllocator.allocateStack(dataType, decl);
   }
 
-  allocateLocal(valueType: IR.NumberType, decl?: ASTNode): LocalAllocation {
-    let localOffset = this.parentAllocator.allocateLocal(valueType, decl);
+  allocateLocal(
+    valueType: IR.NumberType,
+    decl?: ASTNode,
+    name?: string
+  ): LocalAllocation {
+    let localOffset = this.parentAllocator.allocateLocal(valueType, decl, name);
     this.liveLocals.push(localOffset);
     return localOffset;
   }
@@ -382,6 +394,16 @@ function recurse(
         );
         blockAllocator.deallocateBlock();
         return;
+      }
+      break;
+    }
+    case 'RegStatement': {
+      if (assertLocal(localAllocator)) {
+        localAllocator.allocateLocal(
+          typeMap.get(root).toValueType(),
+          root,
+          root.fields.symbol
+        );
       }
       break;
     }

@@ -275,6 +275,47 @@ export function makeGlobalDeclWith(fields: {
   };
 }
 
+type RegStatementFields = {
+  symbol: string;
+  typeExpr?: TypeExpr;
+  expr: Expression;
+};
+
+export type RegStatement = {
+  name: 'RegStatement';
+  fields: RegStatementFields;
+};
+
+export function isRegStatement(node: ASTNode): node is RegStatement {
+  return node.name === 'RegStatement';
+}
+
+export function makeRegStatement(
+  symbol: string,
+  typeExpr: TypeExpr | undefined,
+  expr: Expression
+): RegStatement {
+  return {
+    name: 'RegStatement',
+    fields: {
+      symbol,
+      typeExpr,
+      expr,
+    },
+  };
+}
+
+export function makeRegStatementWith(fields: {
+  symbol: string;
+  typeExpr?: TypeExpr;
+  expr: Expression;
+}): RegStatement {
+  return {
+    name: 'RegStatement',
+    fields,
+  };
+}
+
 type LetStatementFields = {
   symbol: string;
   typeExpr?: TypeExpr;
@@ -1102,6 +1143,7 @@ export type Statement =
   | ReturnStatement
   | WhileStatement
   | IfStatement
+  | RegStatement
   | LetStatement
   | ExprStatement
   | Block;
@@ -1110,6 +1152,7 @@ export function isStatement(node: ASTNode): node is Statement {
     isReturnStatement(node) ||
     isWhileStatement(node) ||
     isIfStatement(node) ||
+    isRegStatement(node) ||
     isLetStatement(node) ||
     isExprStatement(node) ||
     isBlock(node)
@@ -1125,6 +1168,7 @@ export type ASTNode =
   | TypeRef
   | PointerTypeExpr
   | GlobalDecl
+  | RegStatement
   | LetStatement
   | IfStatement
   | WhileStatement
@@ -1163,6 +1207,7 @@ export type ASTNodeName =
   | 'TypeRef'
   | 'PointerTypeExpr'
   | 'GlobalDecl'
+  | 'RegStatement'
   | 'LetStatement'
   | 'IfStatement'
   | 'WhileStatement'

@@ -185,6 +185,7 @@ function calculateType(
     case 'ExprStatement':
       return Intrinsics.void;
     case 'GlobalDecl':
+    case 'RegStatement':
     case 'LetStatement': {
       if (node.fields.typeExpr) {
         let explicitType = resolveType(node.fields.typeExpr, typeMap, refMap);

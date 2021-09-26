@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { generate } from 'peggy';
+import peggy from 'peggy';
 import { URL } from 'url';
 const __dirname = new URL('.', import.meta.url).pathname;
 
@@ -10,7 +10,8 @@ const grammar = fs.readFileSync(path.join(__dirname, 'snax.peggy')).toString();
 
 fs.writeFileSync(
   path.join(__dirname, 'snax.ts'),
-  generate(grammar, {
+  // eslint-disable-next-line import/no-named-as-default-member
+  peggy.generate(grammar, {
     output: 'source',
     format: 'commonjs',
     plugins: [tspegjs],

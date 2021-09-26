@@ -1,5 +1,5 @@
 import loadWabt from 'wabt';
-import type { ModuleCompilerOptions } from '../ast-compiler.js';
+import type { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler.js';
 import { Module, PAGE_SIZE } from '../wasm-ast.js';
 import { WabtModule, makeCompileToWAT } from './test-util';
 
@@ -20,13 +20,13 @@ async function compileToWasmModule(
   input: string,
   options?: ModuleCompilerOptions
 ) {
-  const { wat } = compileToWAT(input, options);
+  const { wat, ast, compiler } = compileToWAT(input, options);
   const wasmModule = wabt.parseWat('', wat);
   wasmModule.validate();
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
   const exports = module.instance.exports;
-  return { exports: exports as SnaxExports, wasmModule };
+  return { exports: exports as SnaxExports, wat, ast, compiler };
 }
 
 async function exec(input: string) {
@@ -81,45 +81,43 @@ describe('simple expressions', () => {
   it('compiles an empty program', async () => {
     expect(compileToWAT('', { includeRuntime: true }).wat)
       .toMatchInlineSnapshot(`
-"(module
-  (memory (;0;) 1)
-  (global $g0:#SP (mut i32) (i32.const 0))
-  (global $g1:next (mut i32) (i32.const 0))
-  (func $f0:main
-    (local $arp i32)
-    (local.set $arp
-      (global.get $g0:#SP)))
-  (func $f1:malloc (param $p0:numBytes i32) (result i32)
-    (local $arp i32)
-    (global.set $g0:#SP
-      (i32.sub
-        (global.get $g0:#SP)
-        (i32.const 4)))
-    (local.set $arp
-      (global.get $g0:#SP))
-    (i32.store
-      (local.get $arp)
-      (global.get $g1:next))
-    (global.set $g1:next
-      (i32.add
-        (global.get $g1:next)
-        (local.get $p0:numBytes)))
-    (drop
-      (global.get $g1:next))
-    (return
-      (i32.load
-        (local.get $arp))))
-  (func (;2;)
-    (global.set $g0:#SP
-      (i32.const 65536))
-    (call $f0:main))
-  (export \\"_start\\" (func 2))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 0))
-  (type (;0;) (func))
-  (type (;1;) (func (param i32) (result i32))))
-"
-`);
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (global $g1:next (mut i32) (i32.const 0))
+        (func $<main>f0
+          (local $<arp>r0:i32 i32))
+        (func $<malloc>f1 (param $p0:numBytes i32) (result i32)
+          (local $<arp>r0:i32 i32)
+          (global.set $g0:#SP
+            (i32.sub
+              (global.get $g0:#SP)
+              (i32.const 4)))
+          (local.set $<arp>r0:i32
+            (global.get $g0:#SP))
+          (i32.store
+            (local.get $<arp>r0:i32)
+            (global.get $g1:next))
+          (global.set $g1:next
+            (i32.add
+              (global.get $g1:next)
+              (local.get $p0:numBytes)))
+          (drop
+            (global.get $g1:next))
+          (return
+            (i32.load
+              (local.get $<arp>r0:i32))))
+        (func (;2;)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0))
+        (export \\"_start\\" (func 2))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0))
+        (type (;0;) (func))
+        (type (;1;) (func (param i32) (result i32))))
+      "
+    `);
     expect(await exec('')).toBe(undefined);
   });
 
@@ -167,7 +165,7 @@ describe('simple expressions', () => {
   });
 
   it('compiles expressions', async () => {
-    const { exports, wasmModule } = await compileToWasmModule('3+5*2-10/10;');
+    const { exports } = await compileToWasmModule('3+5*2-10/10;');
     expect(exports._start()).toEqual(12);
   });
 
@@ -176,11 +174,40 @@ describe('simple expressions', () => {
     // expect(exports._start()).toBeCloseTo(8.2);
   });
 });
-
+describe('reg statements', () => {
+  it('compiles reg statements', async () => {
+    const code = 'reg x = 3; x;';
+    const { wat, exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (func $<main>f0 (result i32)
+          (local $<arp>r0:i32 i32) (local $<x>r1:i32 i32)
+          (local.set $<x>r1:i32
+            (i32.const 3))
+          (return
+            (local.get $<x>r1:i32)))
+        (func (;1;) (result i32)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0))
+        (export \\"_start\\" (func 1))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0))
+        (type (;0;) (func (result i32))))
+      "
+    `);
+    expect(exports._start()).toBe(3);
+  });
+  xit('it does not allow storing values that do not fit into a register');
+});
 describe('block compilation', () => {
   it('compiles blocks', async () => {
     const code = 'let x = 3; let y = x+4; y;';
-    const { exports, wasmModule } = await compileToWasmModule(code);
+    const { exports } = await compileToWasmModule(code);
     expect(exports._start()).toBe(7);
   });
 
@@ -532,13 +559,16 @@ describe('object structs', () => {
 describe('tuple structs', () => {
   describe('construction', () => {
     let snax: SnaxExports;
+    let compiler: ModuleCompiler;
     beforeEach(async () => {
       const code = `
         struct Vector(u8,i32);
         let v = Vector(23_u8, 1234);
         v;
       `;
-      snax = (await compileToWasmModule(code)).exports;
+      const output = await compileToWasmModule(code);
+      snax = output.exports;
+      compiler = output.compiler;
     });
     it('lets you declare a new tuple type and construct it', async () => {
       const vPointer = snax._start();

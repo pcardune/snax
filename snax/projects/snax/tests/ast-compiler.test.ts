@@ -109,7 +109,7 @@ describe('FuncDeclCompiler', () => {
     func = compiler.compile();
   });
   it('attaches an id to the function', () => {
-    expect(func.fields.id).toEqual('f0:foo');
+    expect(func.fields.id).toMatchInlineSnapshot(`"<foo>f0"`);
   });
   it('specifies the correct function typeuse', () => {
     expect(toWAT(func.fields.funcType)).toMatchInlineSnapshot(
@@ -117,10 +117,7 @@ describe('FuncDeclCompiler', () => {
     );
   });
   it('has a preamble that stores the stack pointer into the arp', () => {
-    expect(toWAT(compiler.preamble())).toMatchInlineSnapshot(`
-      "global.get $g1000:#SP
-      local.set $arp"
-    `);
+    expect(toWAT(compiler.preamble())).toMatchInlineSnapshot(`""`);
   });
   it('compiles functions', () => {
     expect(toWAT(func.fields.body)).toEqual(
@@ -151,7 +148,7 @@ describe('FuncDeclCompiler', () => {
     const func = compiler.compile();
     expect(func.fields.locals.map((l) => l.fields.id)).toMatchInlineSnapshot(`
       Array [
-        "arp",
+        "<arp>r0:i32",
       ]
     `);
     expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
@@ -161,11 +158,11 @@ describe('FuncDeclCompiler', () => {
       i32.sub
       global.set $g1000:#SP
       global.get $g1000:#SP
-      local.set $arp
-      local.get $arp
+      local.set $<arp>r0:i32
+      local.get $<arp>r0:i32
       i32.const 3
       i32.store offset=0 align=4
-      local.get $arp
+      local.get $<arp>r0:i32
       i32.const 5
       i32.store offset=4 align=4"
     `);
@@ -194,7 +191,7 @@ describe('FuncDeclCompiler', () => {
     const func = compiler.compile();
     expect(
       func.fields.locals.map((i) => i.toWAT()).join('\n')
-    ).toMatchInlineSnapshot(`"(local $arp i32)"`);
+    ).toMatchInlineSnapshot(`"(local $<arp>r0:i32 i32)"`);
     expect(func.fields.body.map((i) => i.toWAT()).join('\n'))
       .toMatchInlineSnapshot(`
       "global.get $g1000:#SP
@@ -202,20 +199,20 @@ describe('FuncDeclCompiler', () => {
       i32.sub
       global.set $g1000:#SP
       global.get $g1000:#SP
-      local.set $arp
-      local.get $arp
+      local.set $<arp>r0:i32
+      local.get $<arp>r0:i32
       i32.const 1
       i32.store offset=0 align=4
-      local.get $arp
+      local.get $<arp>r0:i32
       i32.const 2
       i32.store offset=4 align=4
-      local.get $arp
+      local.get $<arp>r0:i32
       i32.const 3
       i32.store offset=8 align=4
-      local.get $arp
+      local.get $<arp>r0:i32
       i32.const 4
       i32.store offset=12 align=4
-      local.get $arp
+      local.get $<arp>r0:i32
       i32.const 5
       i32.store offset=16 align=4"
     `);
@@ -272,13 +269,13 @@ describe('ModuleCompiler', () => {
       includeRuntime: false,
     });
     expect(wabt.parseWat('', wat).toText({})).toMatchInlineSnapshot(`
-"(module
-  (memory (;0;) 1)
-  (global $g0:#SP (mut i32) (i32.const 0))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 0)))
-"
-`);
+      "(module
+        (memory (;0;) 1)
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 0)))
+      "
+    `);
   });
   it('compiles globals in the module', () => {
     const { wat } = compileToWAT(
@@ -286,14 +283,14 @@ describe('ModuleCompiler', () => {
       { includeRuntime: false }
     );
     expect(wat).toMatchInlineSnapshot(`
-"(module
-  (memory (;0;) 1)
-  (global $g0:foo (mut i32) (i32.const 0))
-  (global $g1:#SP (mut i32) (i32.const 0))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 1)))
-"
-`);
+      "(module
+        (memory (;0;) 1)
+        (global $g0:foo (mut i32) (i32.const 0))
+        (global $g1:#SP (mut i32) (i32.const 0))
+        (export \\"memory\\" (memory 0))
+        (export \\"stackPointer\\" (global 1)))
+      "
+    `);
   });
   it('compiles functions in the module', () => {
     const num = AST.makeExprStatement(makeNum(32));
@@ -303,16 +300,14 @@ describe('ModuleCompiler', () => {
 "(module
   (memory (;0;) 1)
   (global $g0:#SP (mut i32) (i32.const 0))
-  (func $f0:main
-    (local $arp i32)
-    (local.set $arp
-      (global.get $g0:#SP))
+  (func $<main>f0
+    (local $<arp>r0:i32 i32)
     (drop
       (i32.const 32)))
   (func (;1;)
     (global.set $g0:#SP
       (i32.const 65536))
-    (call $f0:main))
+    (call $<main>f0))
   (export \\"_start\\" (func 1))
   (export \\"memory\\" (memory 0))
   (export \\"stackPointer\\" (global 0))
@@ -341,16 +336,14 @@ describe('ModuleCompiler', () => {
   (memory (;0;) 1)
   (data $d0 (i32.const 0) \\"hello world!\\")
   (global $g0:#SP (mut i32) (i32.const 0))
-  (func $f0:main
-    (local $arp i32)
-    (local.set $arp
-      (global.get $g0:#SP))
+  (func $<main>f0
+    (local $<arp>r0:i32 i32)
     (drop
       (i32.const 0)))
   (func (;1;)
     (global.set $g0:#SP
       (i32.const 65536))
-    (call $f0:main))
+    (call $<main>f0))
   (export \\"_start\\" (func 1))
   (export \\"memory\\" (memory 0))
   (export \\"stackPointer\\" (global 0))
@@ -375,20 +368,16 @@ describe('ModuleCompiler', () => {
 "(module
   (memory (;0;) 1)
   (global $g0:#SP (mut i32) (i32.const 0))
-  (func $f0:foo (param $p0:a i32) (result i32)
-    (local $arp i32)
-    (local.set $arp
-      (global.get $g0:#SP))
+  (func $<foo>f0 (param $p0:a i32) (result i32)
+    (local $<arp>r0:i32 i32)
     (return
       (local.get $p0:a)))
-  (func $f1:main
-    (local $arp i32)
-    (local.set $arp
-      (global.get $g0:#SP)))
+  (func $<main>f1
+    (local $<arp>r0:i32 i32))
   (func (;2;)
     (global.set $g0:#SP
       (i32.const 65536))
-    (call $f1:main))
+    (call $<main>f1))
   (export \\"_start\\" (func 2))
   (export \\"memory\\" (memory 0))
   (export \\"stackPointer\\" (global 0))
@@ -425,7 +414,7 @@ describe('ModuleCompiler', () => {
     const { wat } = compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
-  (import \\"wasi_unstable\\" \\"fd_write\\" (func $f0:fd_write (param i32 i32 i32 i32) (result i32)))
+  (import \\"wasi_unstable\\" \\"fd_write\\" (func $<fd_write>f0 (param i32 i32 i32 i32) (result i32)))
   (memory (;0;) 1)
   (global $g0:#SP (mut i32) (i32.const 0))
   (export \\"memory\\" (memory 0))

@@ -63,6 +63,7 @@ function innerResolveSymbols(
   // add declarations in the current scope
   switch (astNode.name) {
     case 'Parameter':
+    case 'RegStatement':
     case 'LetStatement': {
       if (currentTable.has(astNode.fields.symbol)) {
         throw new Error(

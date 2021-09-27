@@ -47,26 +47,22 @@ export abstract class ASTCompiler<
 
 export type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
 
-type AllocationMapContext = {
-  allocationMap: AllocationMap;
-};
-
 export type Runtime = {
   malloc: FuncStorageLocation;
   stackPointer: GlobalStorageLocation;
 };
 
-type FuncDeclContext = AllocationMapContext & {
+type FuncDeclContext = {
   refMap: SymbolRefMap;
   typeCache: ResolvedTypeMap;
   funcAllocs: FuncAllocations;
   runtime: Runtime;
+  allocationMap: AllocationMap;
 };
 
-export type IRCompilerContext = Pick<
-  FuncDeclContext,
-  'refMap' | 'typeCache' | 'runtime' | 'allocationMap' | 'funcAllocs'
->;
+export type IRCompilerContext = FuncDeclContext & {
+  setDebugLocation: (expr: number, node: AST.ASTNode) => void;
+};
 export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   Root,
   IR.Instruction[],
@@ -359,7 +355,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
             runtime.stackPointer.id,
             module.i32.const(numPagesOfMemory * Wasm.PAGE_SIZE)
           ),
-          module.call(mainFuncLocation.id, [], returnType),
+          module.return(module.call(mainFuncLocation.id, [], returnType)),
         ])
       );
       module.addFunctionExport('_start', '_start');
@@ -382,6 +378,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
             );
           },
           runtime: runtime,
+          setDebugLocation: () => {},
         }).compileToBinaryen(module)[0]
       );
     }
@@ -464,6 +461,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
             );
           },
           runtime: runtime,
+          setDebugLocation: () => {},
         }).compile(),
       });
     });
@@ -514,7 +512,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
 export class ExternDeclCompiler extends ASTCompiler<
   AST.ExternDecl,
   Wasm.Import[],
-  { typeCache: ResolvedTypeMap } & AllocationMapContext
+  { typeCache: ResolvedTypeMap; allocationMap: AllocationMap }
 > {
   compile(): Wasm.Import[] {
     return this.root.fields.funcs.map((func) => {
@@ -596,7 +594,10 @@ export class FuncDeclCompiler extends ASTCompiler<
 
     const body = [
       ...this.preamble(),
-      ...new BlockCompiler(this.root.fields.body, this.context).compile(),
+      ...new BlockCompiler(this.root.fields.body, {
+        ...this.context,
+        setDebugLocation: () => {},
+      }).compile(),
     ];
     const location = this.context.allocationMap.getFuncOrThrow(this.root);
     return new Wasm.Func({
@@ -660,19 +661,38 @@ export class FuncDeclCompiler extends ASTCompiler<
       (local) => binaryen[local.fields.valueType]
     );
 
+    const debugLocations: { expr: number; node: AST.ASTNode }[] = [];
+
     const body = module.block(
       '',
       [
         ...this.preambleForBinaryen(module),
-        ...new BlockCompiler(
-          this.root.fields.body,
-          this.context
-        ).compileToBinaryen(module),
+        ...new BlockCompiler(this.root.fields.body, {
+          ...this.context,
+          setDebugLocation: (expr: number, node: AST.ASTNode) => {
+            debugLocations.push({ expr, node });
+          },
+        }).compileToBinaryen(module),
       ],
       results
     );
     const location = this.context.allocationMap.getFuncOrThrow(this.root);
-    return module.addFunction(location.id, params, results, vars, body);
+    const func = module.addFunction(location.id, params, results, vars, body);
+
+    // add debug info
+    for (const debugLocation of debugLocations) {
+      const { expr, node } = debugLocation;
+      if (node.location) {
+        module.setDebugLocation(
+          func,
+          expr,
+          module.addDebugInfoFileName(node.location.source),
+          node.location.start.line,
+          node.location.start.column
+        );
+      }
+    }
+    return func;
   }
 }
 
@@ -1242,9 +1262,12 @@ class NumberLiteralCompiler extends IRCompiler<
 > {
   compileToBinaryen(module: binaryen.Module) {
     const valueType = this.resolveType(this.root).toValueType();
-    return [
-      module[valueType].const(this.root.fields.value, this.root.fields.value),
-    ];
+    const pushConst = module[valueType].const(
+      this.root.fields.value,
+      this.root.fields.value
+    );
+    this.context.setDebugLocation(pushConst, this.root);
+    return [pushConst];
   }
   compile(): IR.Instruction[] {
     const valueType = this.resolveType(this.root).toValueType();
@@ -1257,20 +1280,6 @@ export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
     const value = this.root.fields.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];
   }
-}
-
-function globalGetBinaryen(
-  module: binaryen.Module,
-  global: GlobalStorageLocation
-) {
-  return module.global.get(global.id, binaryen[global.valueType]);
-}
-function globalSetBinaryen(
-  module: binaryen.Module,
-  global: GlobalStorageLocation,
-  value: number
-) {
-  return module.global.set(global.id, value);
 }
 
 function globalGet(global: GlobalStorageLocation) {

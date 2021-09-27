@@ -33,17 +33,27 @@ export async function compileToWAT(
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
   const compiler = new ModuleCompiler(ast, options);
-  let wat = '';
   options = { ...defaultOptions, ...options };
   if (options.binaryen) {
     const binaryenModule = compiler.compileToBinaryen();
-    wat = binaryenModule.emitText();
+    const wat = binaryenModule.emitText();
+    const { sourceMap } = binaryenModule.emitBinary('module.wasm.map');
+    return {
+      wat,
+      ast,
+      compiler,
+      sourceMap,
+    };
   } else {
-    wat = compiler.compile().toWAT();
+    const wat = compiler.compile().toWAT();
+    const module = await parseWat('', wat);
+    module.applyNames();
+    return {
+      wat: module.toText({ foldExprs: true }),
+      ast,
+      compiler,
+    };
   }
-  const module = await parseWat('', wat);
-  module.applyNames();
-  return { wat: module.toText({ foldExprs: true }), ast, compiler };
 }
 
 export const runtimeStub: Runtime = {
@@ -67,5 +77,6 @@ export function irCompiler(node: CompilesToIR) {
     get funcAllocs(): FuncAllocations {
       throw new Error(`test-util context stuff doesn't support arp yet`);
     },
+    setDebugLocation: () => {},
   });
 }

@@ -13,13 +13,13 @@ async function compileToWasmModule(
   input: string,
   options?: ModuleCompilerOptions & { binaryen?: boolean }
 ) {
-  const { wat, ast, compiler } = await compileToWAT(input, options);
+  const { wat, ast, compiler, sourceMap } = await compileToWAT(input, options);
   const wasmModule = await parseWat('', wat);
   wasmModule.validate();
   const result = wasmModule.toBinary({ write_debug_names: true });
   const module = await WebAssembly.instantiate(result.buffer);
   const exports = module.instance.exports;
-  return { exports: exports as SnaxExports, wat, ast, compiler };
+  return { exports: exports as SnaxExports, wat, ast, compiler, sourceMap };
 }
 
 async function exec(input: string) {
@@ -88,25 +88,34 @@ function text(memory: WebAssembly.Memory, offset: number, length: number) {
 
 describe('empty module', () => {
   it('compiles to binaryen module', async () => {
-    const { wat } = await compileToWasmModule('', {
+    const output = await compileToWasmModule('', {
       includeRuntime: false,
       binaryen: true,
     });
-    expect(wat).toMatchInlineSnapshot(`
-"(module
-  (type $none_=>_none (func))
-  (global $g0:#SP (mut i32) (i32.const 0))
-  (memory $0 1 1)
-  (export \\"_start\\" (func $_start))
-  (export \\"memory\\" (memory 0))
-  (func $<main>f0
-    (local $0 i32))
-  (func $_start
-    (global.set $g0:#SP
-      (i32.const 65536))
-    (call $<main>f0)))
-"
-`);
+    expect(output.wat).toMatchInlineSnapshot(`
+      "(module
+       (type $none_=>_none (func))
+       (global $g0:#SP (mut i32) (i32.const 0))
+       (memory $0 1 1)
+       (export \\"_start\\" (func $_start))
+       (export \\"memory\\" (memory $0))
+       (func $<main>f0
+        (local $0 i32)
+       )
+       (func $_start
+        (global.set $g0:#SP
+         (i32.const 65536)
+        )
+        (return
+         (call $<main>f0)
+        )
+       )
+      )
+      "
+    `);
+    expect(output.sourceMap).toMatchInlineSnapshot(
+      `"{\\"version\\":3,\\"sources\\":[],\\"names\\":[],\\"mappings\\":\\"\\"}"`
+    );
   });
 
   it('compiles an empty program', async () => {
@@ -153,10 +162,13 @@ describe('empty module', () => {
   });
 
   it('compiles integers', async () => {
-    const { wat } = await compileToWAT('123;', {
+    const { wat, sourceMap } = await compileToWAT('123;', {
       binaryen: true,
       includeRuntime: false,
     });
+    expect(sourceMap).toMatchInlineSnapshot(
+      `"{\\"version\\":3,\\"sources\\":[\\"\\"],\\"names\\":[],\\"mappings\\":\\"8DAAC\\"}"`
+    );
     const { exports } = await compileToWasmModule('123;', {
       binaryen: true,
       includeRuntime: false,

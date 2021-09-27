@@ -113,6 +113,7 @@ describe('FuncDeclCompiler', () => {
         ...compiler.preamble(),
         ...new BlockCompiler(block, {
           ...compiler.context,
+          setDebugLocation: () => {},
         }).compile(),
       ])
     );

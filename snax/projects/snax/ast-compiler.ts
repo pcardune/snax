@@ -58,6 +58,7 @@ type FuncDeclContext = {
   funcAllocs: FuncAllocations;
   runtime: Runtime;
   allocationMap: AllocationMap;
+  module: binaryen.Module;
 };
 
 export type IRCompilerContext = FuncDeclContext & {
@@ -117,11 +118,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       `ASTCompiler: No compiler available for node ${(node as any).name}`
     );
   }
-  compileChildToBinaryen<N extends AST.Expression | AST.Statement>(
-    module: binaryen.Module,
-    child: N
-  ) {
-    return IRCompiler.forNode(child, this.context).compileToBinaryen(module);
+  compileChildToBinaryen<N extends AST.Expression | AST.Statement>(child: N) {
+    return IRCompiler.forNode(child, this.context).compileToBinaryen();
   }
   compileChild<N extends AST.Expression | AST.Statement>(child: N) {
     return IRCompiler.forNode(child, this.context).compile();
@@ -147,22 +145,18 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
     return this.context.typeCache.get(node);
   }
 
-  compileToBinaryen(module: binaryen.Module): number[] {
+  compileToBinaryen(): number {
     throw new Error(`Don't know how to compile ${this.root.name} to binaryen`);
   }
 }
 
 class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
-  override compileToBinaryen(module: binaryen.Module) {
+  override compileToBinaryen() {
     let value: number | undefined = undefined;
     if (this.root.fields.expr) {
-      const child = this.compileChildToBinaryen(module, this.root.fields.expr);
-      if (child.length !== 1) {
-        throw new Error(`don't know how to return this: ${child.length}`);
-      }
-      value = child[0];
+      value = this.compileChildToBinaryen(this.root.fields.expr);
     }
-    return [module.return(value)];
+    return this.context.module.return(value);
   }
   compile() {
     return [
@@ -177,16 +171,16 @@ class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
 export class BlockCompiler extends IRCompiler<AST.Block> {
   liveLocals: LocalAllocation[] = [];
 
-  compileToBinaryen(module: binaryen.Module): number[] {
+  compileToBinaryen() {
     const instr: number[] = [];
     this.root.fields.statements
       .filter((astNode) => !AST.isFuncDecl(astNode))
       .forEach((astNode) =>
         instr.push(
-          ...IRCompiler.forNode(astNode, this.context).compileToBinaryen(module)
+          IRCompiler.forNode(astNode, this.context).compileToBinaryen()
         )
       );
-    return instr;
+    return this.context.module.block('', instr);
   }
 
   compile(): IR.Instruction[] {
@@ -330,7 +324,8 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         allocationMap: moduleAllocator.allocationMap,
         funcAllocs: moduleAllocator.getLocalsForFunc(func),
         runtime,
-      }).compileToBinaryen(module);
+        module,
+      }).compileToBinaryen();
     }
     const mainFunc = this.root.fields.funcs.find(
       (decl) => decl.fields.symbol === 'main'
@@ -379,7 +374,8 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           },
           runtime: runtime,
           setDebugLocation: () => {},
-        }).compileToBinaryen(module)[0]
+          module,
+        }).compileToBinaryen()
       );
     }
     module.setMemory(
@@ -403,7 +399,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       numPagesOfMemory,
       stackPointer,
     } = this.setup();
-
+    const module = new binaryen.Module();
     let mainFunc: { decl: AST.FuncDecl; wasmFunc: Wasm.Func } | undefined =
       undefined;
     const funcs: Wasm.Func[] = [];
@@ -414,6 +410,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         allocationMap: moduleAllocator.allocationMap,
         funcAllocs: moduleAllocator.getLocalsForFunc(func),
         runtime,
+        module,
       }).compile();
       if (func.fields.symbol === 'main') {
         mainFunc = { decl: func, wasmFunc };
@@ -462,6 +459,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
           },
           runtime: runtime,
           setDebugLocation: () => {},
+          module,
         }).compile(),
       });
     });
@@ -611,7 +609,8 @@ export class FuncDeclCompiler extends ASTCompiler<
     });
   }
 
-  preambleForBinaryen(module: binaryen.Module): number[] {
+  preambleForBinaryen(): number[] {
+    const { module } = this.context;
     let stackSpace = 0;
     let last =
       this.context.funcAllocs.stack[this.context.funcAllocs.stack.length - 1];
@@ -640,7 +639,7 @@ export class FuncDeclCompiler extends ASTCompiler<
     return [];
   }
 
-  compileToBinaryen(module: binaryen.Module) {
+  compileToBinaryen() {
     const funcType = this.context.typeCache.get(this.root);
     if (!(funcType instanceof FuncType)) {
       throw new Error('unexpected type of function');
@@ -662,20 +661,23 @@ export class FuncDeclCompiler extends ASTCompiler<
     );
 
     const debugLocations: { expr: number; node: AST.ASTNode }[] = [];
+    const { module } = this.context;
+
+    const block = binaryen.getExpressionInfo(
+      new BlockCompiler(this.root.fields.body, {
+        ...this.context,
+        setDebugLocation: (expr: number, node: AST.ASTNode) => {
+          debugLocations.push({ expr, node });
+        },
+      }).compileToBinaryen()
+    ) as binaryen.BlockInfo;
 
     const body = module.block(
       '',
-      [
-        ...this.preambleForBinaryen(module),
-        ...new BlockCompiler(this.root.fields.body, {
-          ...this.context,
-          setDebugLocation: (expr: number, node: AST.ASTNode) => {
-            debugLocations.push({ expr, node });
-          },
-        }).compileToBinaryen(module),
-      ],
+      [...this.preambleForBinaryen(), ...block.children],
       results
     );
+
     const location = this.context.allocationMap.getFuncOrThrow(this.root);
     const func = module.addFunction(location.id, params, results, vars, body);
 
@@ -832,6 +834,25 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
   }
 
+  private pushNumberOpsBinaryen(left: AST.Expression, right: AST.Expression) {
+    const targetType = this.matchTypes(left, right);
+    const convert = (child: AST.Expression, value: binaryen.ExpressionRef) => {
+      const childType = this.resolveType(child).toValueType();
+      if (childType === targetType) {
+        return value;
+      }
+      if (IR.isIntType(childType) && IR.isFloatType(targetType)) {
+        return this.context.module[targetType].convert_s[childType](value);
+      }
+      throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
+    };
+
+    return [
+      convert(left, this.compileChildToBinaryen(left)),
+      convert(right, this.compileChildToBinaryen(right)),
+    ] as [number, number];
+  }
+
   private matchTypes(left: AST.Expression, right: AST.Expression) {
     const leftType = this.resolveType(left);
     const rightType = this.resolveType(right);
@@ -849,6 +870,46 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     }
     return targetType.toValueType();
   }
+
+  private binaryenOpCompilers: Record<
+    string,
+    (left: AST.Expression, right: AST.Expression) => binaryen.ExpressionRef
+  > = {
+    [BinOp.ADD]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module[this.matchTypes(left, right)].add(
+        ...this.pushNumberOpsBinaryen(left, right)
+      ),
+    [BinOp.SUB]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module[this.matchTypes(left, right)].sub(
+        ...this.pushNumberOpsBinaryen(left, right)
+      ),
+    [BinOp.MUL]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module[this.matchTypes(left, right)].mul(
+        ...this.pushNumberOpsBinaryen(left, right)
+      ),
+    [BinOp.DIV]: (left: AST.Expression, right: AST.Expression) => {
+      const type = this.matchTypes(left, right);
+      if (IR.isFloatType(type)) {
+        return this.context.module[type].div(
+          ...this.pushNumberOpsBinaryen(left, right)
+        );
+      }
+      return this.context.module[type].div_s(
+        ...this.pushNumberOpsBinaryen(left, right)
+      );
+    },
+  };
+
+  constructor(root: AST.BinaryExpr, context: IRCompilerContext) {
+    super(root, context);
+
+    switch (this.root.fields.op) {
+      case BinOp.ADD:
+      case BinOp.SUB:
+        this.matchTypes(root.fields.left, root.fields.right);
+    }
+  }
+
   private OpCompilers: Record<
     string,
     (left: AST.Expression, right: AST.Expression) => IR.Instruction[]
@@ -1004,6 +1065,16 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
       this.root.fields.left,
       this.root.fields.right
     );
+  }
+  compileToBinaryen(): binaryen.ExpressionRef {
+    const compile =
+      this.binaryenOpCompilers[this.root.fields.op] ??
+      (() => {
+        throw new Error(
+          `Don't know how to compile ${this.root.fields.op} with binaryen yet`
+        );
+      });
+    return compile(this.root.fields.left, this.root.fields.right);
   }
 }
 
@@ -1260,14 +1331,14 @@ class ArgListCompiler extends IRCompiler<AST.ArgList> {
 class NumberLiteralCompiler extends IRCompiler<
   AST.NumberLiteral | AST.CharLiteral
 > {
-  compileToBinaryen(module: binaryen.Module) {
+  compileToBinaryen() {
     const valueType = this.resolveType(this.root).toValueType();
-    const pushConst = module[valueType].const(
+    const pushConst = this.context.module[valueType].const(
       this.root.fields.value,
       this.root.fields.value
     );
     this.context.setDebugLocation(pushConst, this.root);
-    return [pushConst];
+    return pushConst;
   }
   compile(): IR.Instruction[] {
     const valueType = this.resolveType(this.root).toValueType();

@@ -9,6 +9,7 @@ import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { resolveMemory } from '../memory-resolution.js';
 import { parseWat } from '../wabt-util.js';
+import binaryen from 'binaryen';
 
 type WATable = { toWAT(): string };
 function toWAT(els: WATable | WATable[]) {
@@ -75,6 +76,7 @@ function funcCompiler(func: AST.FuncDecl) {
     allocationMap: moduleAllocator.allocationMap,
     funcAllocs: funcLocals,
     runtime: runtimeStub,
+    module: new binaryen.Module(),
   });
 }
 

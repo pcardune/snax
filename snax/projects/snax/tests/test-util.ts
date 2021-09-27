@@ -13,6 +13,7 @@ import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { parseWat } from '../wabt-util.js';
 import { NumberType } from '../stack-ir.js';
+import binaryen from 'binaryen';
 
 type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
@@ -78,5 +79,6 @@ export function irCompiler(node: CompilesToIR) {
       throw new Error(`test-util context stuff doesn't support arp yet`);
     },
     setDebugLocation: () => {},
+    module: new binaryen.Module(),
   });
 }

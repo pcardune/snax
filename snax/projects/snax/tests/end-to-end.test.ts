@@ -166,6 +166,31 @@ describe('empty module', () => {
       binaryen: true,
       includeRuntime: false,
     });
+    expect(wat).toMatchInlineSnapshot(`
+      "(module
+       (type $none_=>_i32 (func (result i32)))
+       (global $g0:#SP (mut i32) (i32.const 0))
+       (memory $0 1 1)
+       (export \\"_start\\" (func $_start))
+       (export \\"memory\\" (memory $0))
+       (func $<main>f0 (result i32)
+        (local $0 i32)
+        (return
+         ;;@ :1:1
+         (i32.const 123)
+        )
+       )
+       (func $_start (result i32)
+        (global.set $g0:#SP
+         (i32.const 65536)
+        )
+        (return
+         (call $<main>f0)
+        )
+       )
+      )
+      "
+    `);
     expect(sourceMap).toMatchInlineSnapshot(
       `"{\\"version\\":3,\\"sources\\":[\\"\\"],\\"names\\":[],\\"mappings\\":\\"8DAAC\\"}"`
     );
@@ -215,6 +240,51 @@ describe('empty module', () => {
   });
 
   it('compiles expressions', async () => {
+    const { wat } = await compileToWasmModule('3+5*2-10/10;', {
+      binaryen: true,
+      includeRuntime: false,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0 (result i32)
+  (local $0 i32)
+  (return
+   (i32.sub
+    (i32.add
+     ;;@ :1:1
+     (i32.const 3)
+     (i32.mul
+      ;;@ :1:3
+      (i32.const 5)
+      ;;@ :1:5
+      (i32.const 2)
+     )
+    )
+    (i32.div_s
+     ;;@ :1:7
+     (i32.const 10)
+     ;;@ :1:10
+     (i32.const 10)
+    )
+   )
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     const { exports } = await compileToWasmModule('3+5*2-10/10;');
     expect(exports._start()).toEqual(12);
   });

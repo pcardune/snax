@@ -14,5 +14,10 @@ export async function parseWat(
   buffer: string | Uint8Array
 ): Promise<WasmModule> {
   const wabt = await loadWabt();
-  return wabt.parseWat(filename, buffer, WASM_FEATURES);
+  try {
+    return wabt.parseWat(filename, buffer, WASM_FEATURES);
+  } catch (e) {
+    console.error('Failed parsing wat:', buffer);
+    throw e;
+  }
 }

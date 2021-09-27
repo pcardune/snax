@@ -23,6 +23,8 @@ module.exports = {
   plugins: ['react', '@typescript-eslint', 'import', 'jest'],
   rules: {
     'import/no-cycle': 'error',
+    'import/no-named-as-default-member': 'off',
+
     // TODO: See which of these can be turned back on.
     '@typescript-eslint/ban-types': 'off',
     '@typescript-eslint/no-inferrable-types': 'off',

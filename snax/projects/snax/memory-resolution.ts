@@ -40,7 +40,9 @@ type BaseStorageLocation<T extends Area> = {
   id: string;
 };
 
-export type GlobalStorageLocation = BaseStorageLocation<Area.GLOBALS>;
+export type GlobalStorageLocation = BaseStorageLocation<Area.GLOBALS> & {
+  valueType: IR.NumberType;
+};
 
 export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS>;
 
@@ -166,12 +168,13 @@ export class ModuleAllocator implements ConstAllocator {
     };
   }
 
-  allocateGlobal(node: GlobalDecl) {
+  allocateGlobal(valueType: IR.NumberType, node: GlobalDecl) {
     const id = `g${this.globalOffset}:${node.fields.symbol}`;
     return this.alloc(node, {
       area: GLOBALS,
       offset: this.globalOffset++,
       id,
+      valueType,
     });
   }
 
@@ -408,7 +411,7 @@ function recurse(
       return;
     }
     case 'GlobalDecl':
-      moduleAllocator.allocateGlobal(root);
+      moduleAllocator.allocateGlobal(typeMap.get(root).toValueType(), root);
       break;
     case 'Block': {
       if (localAllocator) {

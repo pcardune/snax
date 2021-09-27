@@ -34,6 +34,7 @@
     "jest-ts-webcompat-resolver": "^1.0.0"
   },
   "dependencies": {
+    "binaryen": "^102.0.0",
     "neverthrow": "^4.2.2",
     "wabt": "^1.0.24",
     "yargs": "^17.1.1"

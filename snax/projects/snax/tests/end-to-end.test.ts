@@ -1,12 +1,7 @@
 import type { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler.js';
 import { parseWat } from '../wabt-util.js';
 import { PAGE_SIZE } from '../wasm-ast.js';
-import { makeCompileToWAT } from './test-util';
-
-let compileToWAT: ReturnType<typeof makeCompileToWAT>;
-beforeAll(async () => {
-  compileToWAT = makeCompileToWAT();
-});
+import { compileToWAT } from './test-util';
 
 type SnaxExports = {
   memory: WebAssembly.Memory;
@@ -16,7 +11,7 @@ type SnaxExports = {
 
 async function compileToWasmModule(
   input: string,
-  options?: ModuleCompilerOptions
+  options?: ModuleCompilerOptions & { binaryen?: boolean }
 ) {
   const { wat, ast, compiler } = await compileToWAT(input, options);
   const wasmModule = await parseWat('', wat);
@@ -91,7 +86,29 @@ function text(memory: WebAssembly.Memory, offset: number, length: number) {
   return new TextDecoder().decode(buffer);
 }
 
-describe('simple expressions', () => {
+describe('empty module', () => {
+  it('compiles to binaryen module', async () => {
+    const { wat } = await compileToWasmModule('', {
+      includeRuntime: false,
+      binaryen: true,
+    });
+    expect(wat).toMatchInlineSnapshot(`
+"(module
+  (type $none_=>_none (func))
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (memory $0 1 1)
+  (export \\"_start\\" (func $_start))
+  (export \\"memory\\" (memory 0))
+  (func $<main>f0
+    (local $0 i32))
+  (func $_start
+    (global.set $g0:#SP
+      (i32.const 65536))
+    (call $<main>f0)))
+"
+`);
+  });
+
   it('compiles an empty program', async () => {
     const { wat } = await compileToWAT('', { includeRuntime: true });
     expect(wat).toMatchInlineSnapshot(`
@@ -136,7 +153,14 @@ describe('simple expressions', () => {
   });
 
   it('compiles integers', async () => {
-    const { exports } = await compileToWasmModule('123;');
+    const { wat } = await compileToWAT('123;', {
+      binaryen: true,
+      includeRuntime: false,
+    });
+    const { exports } = await compileToWasmModule('123;', {
+      binaryen: true,
+      includeRuntime: false,
+    });
     expect(exports._start()).toEqual(123);
   });
 

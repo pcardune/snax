@@ -3,17 +3,12 @@ import * as IR from '../stack-ir.js';
 import * as Wasm from '../wasm-ast.js';
 import { FuncDeclCompiler, BlockCompiler } from '../ast-compiler.js';
 import { makeFunc, makeNum } from '../ast-util.js';
-import { irCompiler, makeCompileToWAT, runtimeStub } from './test-util';
+import { irCompiler, compileToWAT, runtimeStub } from './test-util';
 import { BinOp } from '../snax-ast.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { resolveMemory } from '../memory-resolution.js';
 import { parseWat } from '../wabt-util.js';
-
-let compileToWAT: ReturnType<typeof makeCompileToWAT>;
-beforeAll(async () => {
-  compileToWAT = makeCompileToWAT();
-});
 
 type WATable = { toWAT(): string };
 function toWAT(els: WATable | WATable[]) {

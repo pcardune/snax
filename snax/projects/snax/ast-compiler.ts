@@ -25,9 +25,9 @@ import {
   LocalStorageLocation,
   ModuleAllocator,
   resolveMemory,
-  StackStorageLocation,
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
+import binaryen from 'binaryen';
 
 export abstract class ASTCompiler<
   Root extends AST.ASTNode = AST.ASTNode,
@@ -121,6 +121,12 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       `ASTCompiler: No compiler available for node ${(node as any).name}`
     );
   }
+  compileChildToBinaryen<N extends AST.Expression | AST.Statement>(
+    module: binaryen.Module,
+    child: N
+  ) {
+    return IRCompiler.forNode(child, this.context).compileToBinaryen(module);
+  }
   compileChild<N extends AST.Expression | AST.Statement>(child: N) {
     return IRCompiler.forNode(child, this.context).compile();
   }
@@ -144,9 +150,24 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   resolveType(node: AST.ASTNode) {
     return this.context.typeCache.get(node);
   }
+
+  compileToBinaryen(module: binaryen.Module): number[] {
+    throw new Error(`Don't know how to compile ${this.root.name} to binaryen`);
+  }
 }
 
 class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
+  override compileToBinaryen(module: binaryen.Module) {
+    let value: number | undefined = undefined;
+    if (this.root.fields.expr) {
+      const child = this.compileChildToBinaryen(module, this.root.fields.expr);
+      if (child.length !== 1) {
+        throw new Error(`don't know how to return this: ${child.length}`);
+      }
+      value = child[0];
+    }
+    return [module.return(value)];
+  }
   compile() {
     return [
       ...(this.root.fields.expr
@@ -159,6 +180,18 @@ class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
 
 export class BlockCompiler extends IRCompiler<AST.Block> {
   liveLocals: LocalAllocation[] = [];
+
+  compileToBinaryen(module: binaryen.Module): number[] {
+    const instr: number[] = [];
+    this.root.fields.statements
+      .filter((astNode) => !AST.isFuncDecl(astNode))
+      .forEach((astNode) =>
+        instr.push(
+          ...IRCompiler.forNode(astNode, this.context).compileToBinaryen(module)
+        )
+      );
+    return instr;
+  }
 
   compile(): IR.Instruction[] {
     const instr: IR.Instruction[] = [];
@@ -190,7 +223,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     };
   }
 
-  compile(): Wasm.Module {
+  private setup() {
     desugar(this.root);
 
     const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
@@ -271,6 +304,108 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         stackPointer,
       };
     }
+
+    return {
+      refMap,
+      typeCache,
+      moduleAllocator,
+      runtime,
+      numPagesOfMemory,
+      stackPointer,
+    };
+  }
+
+  compileToBinaryen(): binaryen.Module {
+    const {
+      refMap,
+      typeCache,
+      moduleAllocator,
+      runtime,
+      numPagesOfMemory,
+      stackPointer,
+    } = this.setup();
+
+    // ADD FUNCTIONS
+    const module = new binaryen.Module();
+    for (const func of this.root.fields.funcs) {
+      new FuncDeclCompiler(func, {
+        refMap,
+        typeCache,
+        allocationMap: moduleAllocator.allocationMap,
+        funcAllocs: moduleAllocator.getLocalsForFunc(func),
+        runtime,
+      }).compileToBinaryen(module);
+    }
+    const mainFunc = this.root.fields.funcs.find(
+      (decl) => decl.fields.symbol === 'main'
+    );
+    if (mainFunc) {
+      const mainFuncLocation =
+        moduleAllocator.allocationMap.getFuncOrThrow(mainFunc);
+      const mainFuncType = typeCache.get(mainFunc);
+      if (!(mainFuncType instanceof FuncType)) {
+        throw 'wtf';
+      }
+      const returnType = mainFuncType.returnType.equals(Intrinsics.void)
+        ? binaryen.none
+        : binaryen[mainFuncType.returnType.toValueType()];
+      module.addFunction(
+        '_start',
+        binaryen.createType([]),
+        returnType,
+        [],
+        module.block('', [
+          module.global.set(
+            runtime.stackPointer.id,
+            module.i32.const(numPagesOfMemory * Wasm.PAGE_SIZE)
+          ),
+          module.call(mainFuncLocation.id, [], returnType),
+        ])
+      );
+      module.addFunctionExport('_start', '_start');
+    }
+
+    // ADD GLOBALS
+    for (const global of this.root.fields.globals) {
+      const location = moduleAllocator.allocationMap.getGlobalOrThrow(global);
+      module.addGlobal(
+        location.id,
+        binaryen[location.valueType],
+        true,
+        IRCompiler.forNode(global.fields.expr, {
+          refMap,
+          typeCache,
+          allocationMap: moduleAllocator.allocationMap,
+          get funcAllocs(): FuncAllocations {
+            throw new Error(
+              `global expressions should not be attempting to access stack variables`
+            );
+          },
+          runtime: runtime,
+        }).compileToBinaryen(module)[0]
+      );
+    }
+    module.setMemory(
+      numPagesOfMemory,
+      numPagesOfMemory,
+      'memory',
+      undefined,
+      undefined,
+      true
+    );
+
+    return module;
+  }
+
+  compile(): Wasm.Module {
+    const {
+      refMap,
+      typeCache,
+      moduleAllocator,
+      runtime,
+      numPagesOfMemory,
+      stackPointer,
+    } = this.setup();
 
     let mainFunc: { decl: AST.FuncDecl; wasmFunc: Wasm.Func } | undefined =
       undefined;
@@ -473,6 +608,71 @@ export class FuncDeclCompiler extends ASTCompiler<
       }),
       locals: this.context.funcAllocs.locals,
     });
+  }
+
+  preambleForBinaryen(module: binaryen.Module): number[] {
+    let stackSpace = 0;
+    let last =
+      this.context.funcAllocs.stack[this.context.funcAllocs.stack.length - 1];
+    if (last) {
+      stackSpace = last.offset + last.dataType.numBytes;
+    }
+    const instr: IR.Instruction[] = [];
+    if (stackSpace > 0) {
+      const sp = this.context.runtime.stackPointer;
+      return [
+        // allocate space for stack variables
+        module.global.set(
+          sp.id,
+          module.i32.sub(
+            module.global.get(sp.id, binaryen[sp.valueType]),
+            module.i32.const(stackSpace)
+          )
+        ),
+        // set arp local to the stack pointer
+        module.local.set(
+          this.context.funcAllocs.arp.offset,
+          module.global.get(sp.id, binaryen[sp.valueType])
+        ),
+      ];
+    }
+    return [];
+  }
+
+  compileToBinaryen(module: binaryen.Module) {
+    const funcType = this.context.typeCache.get(this.root);
+    if (!(funcType instanceof FuncType)) {
+      throw new Error('unexpected type of function');
+    }
+
+    const params = binaryen.createType(
+      this.root.fields.parameters.fields.parameters.map((param) => {
+        const paramType = this.context.typeCache.get(param);
+        return binaryen[paramType.toValueType()];
+      })
+    );
+
+    const results = funcType.returnType.equals(Intrinsics.void)
+      ? binaryen.none
+      : binaryen[funcType.returnType.toValueType()];
+
+    const vars = this.context.funcAllocs.locals.map(
+      (local) => binaryen[local.fields.valueType]
+    );
+
+    const body = module.block(
+      '',
+      [
+        ...this.preambleForBinaryen(module),
+        ...new BlockCompiler(
+          this.root.fields.body,
+          this.context
+        ).compileToBinaryen(module),
+      ],
+      results
+    );
+    const location = this.context.allocationMap.getFuncOrThrow(this.root);
+    return module.addFunction(location.id, params, results, vars, body);
   }
 }
 
@@ -1040,6 +1240,12 @@ class ArgListCompiler extends IRCompiler<AST.ArgList> {
 class NumberLiteralCompiler extends IRCompiler<
   AST.NumberLiteral | AST.CharLiteral
 > {
+  compileToBinaryen(module: binaryen.Module) {
+    const valueType = this.resolveType(this.root).toValueType();
+    return [
+      module[valueType].const(this.root.fields.value, this.root.fields.value),
+    ];
+  }
   compile(): IR.Instruction[] {
     const valueType = this.resolveType(this.root).toValueType();
     return [new IR.PushConst(valueType, this.root.fields.value)];
@@ -1051,6 +1257,20 @@ export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
     const value = this.root.fields.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];
   }
+}
+
+function globalGetBinaryen(
+  module: binaryen.Module,
+  global: GlobalStorageLocation
+) {
+  return module.global.get(global.id, binaryen[global.valueType]);
+}
+function globalSetBinaryen(
+  module: binaryen.Module,
+  global: GlobalStorageLocation,
+  value: number
+) {
+  return module.global.set(global.id, value);
 }
 
 function globalGet(global: GlobalStorageLocation) {

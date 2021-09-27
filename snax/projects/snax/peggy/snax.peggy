@@ -1,7 +1,7 @@
 {{
   // eslint-ignore-file
   import * as AST from '../snax-ast.js';
-  import * as spec from '../spec-gen.js';
+  import * as specGen from '../spec-gen.js';
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
@@ -29,6 +29,28 @@
   }
 }}
 
+{
+
+  let spec:typeof specGen = {} as unknown as typeof specGen;
+
+  if (options.includeLocations) {
+    for (const key in specGen) {
+      if (key.startsWith('make')) {
+        (spec as any)[key] = (...args:any[]) => {
+          const node = (specGen as any)[key](...args);
+          node.location = location();
+          return node;
+        }
+      } else {
+        (spec as any)[key] = (specGen as any)[key];
+      }
+    }
+  } else {
+    spec = specGen;
+  }
+
+}
+
 start
   = file
   / ws block:block ws { return block; }
@@ -38,8 +60,8 @@ start
 
 file "file"
   = ws statements:fileStatementList? ws {
-    let funcs: spec.FuncDecl[] = [];
-    let globals: spec.GlobalDecl[] = [];
+    let funcs: specGen.FuncDecl[] = [];
+    let globals: specGen.GlobalDecl[] = [];
     let decls = [];
     let mainFuncBody = [];
     for (const statement of statements??[]) {

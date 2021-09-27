@@ -256,6 +256,14 @@ function write() {
   const emit = (s: string) => out.push(s);
   const emitLn = (...s: string[]) => emit(s.join('') + '\n');
 
+  emitLn(`
+export type Location = {
+  source: string,
+  start: {offset: number, line: number, column: number},
+  end: {offset: number, line: number, column: number},
+};
+`);
+
   const emitNode = (name: string, fields: Record<string, FieldSpec>) => {
     emitLn();
 
@@ -275,7 +283,8 @@ function write() {
     emitLn(`
       export type ${name} = {
         name:"${name}",
-        fields:${name}Fields
+        fields:${name}Fields,
+        location?: Location,
       };
     `);
     emitLn(`

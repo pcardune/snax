@@ -15,12 +15,19 @@ export class SNAXParser {
     }
   }
 
-  static parseStrOrThrow(input: string, start: string = 'start'): ASTNode {
+  static parseStrOrThrow(
+    input: string,
+    start: string = 'start',
+    options: { includeLocations?: boolean; [key: string]: any } = {}
+  ): ASTNode {
+    options = {
+      includeLocations: true,
+      ...options,
+      startRule: start,
+      grammarSource: '',
+    };
     try {
-      return parse(input, {
-        startRule: start,
-        grammarSource: '',
-      });
+      return parse(input, options);
     } catch (e) {
       if (e instanceof SyntaxError) {
         console.error(e.format([{ source: '', text: input }]));

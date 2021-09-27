@@ -8,7 +8,7 @@
 
   // eslint-ignore-file
   import * as AST from '../snax-ast.js';
-  import * as spec from '../spec-gen.js';
+  import * as specGen from '../spec-gen.js';
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
@@ -250,8 +250,8 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c1 = function(): any { return spec.makeBlock([]); };
   const peg$c2 = peg$otherExpectation("file");
   const peg$c3 = function(statements: any): any {
-      let funcs: spec.FuncDecl[] = [];
-      let globals: spec.GlobalDecl[] = [];
+      let funcs: specGen.FuncDecl[] = [];
+      let globals: specGen.GlobalDecl[] = [];
       let decls = [];
       let mainFuncBody = [];
       for (const statement of statements??[]) {
@@ -5682,6 +5682,28 @@ function peg$parse(input: string, options?: IParseOptions) {
 
     return s0;
   }
+
+
+
+    let spec:typeof specGen = {} as unknown as typeof specGen;
+
+    if (options.includeLocations) {
+      for (const key in specGen) {
+        if (key.startsWith('make')) {
+          (spec as any)[key] = (...args:any[]) => {
+            const node = (specGen as any)[key](...args);
+            node.location = location();
+            return node;
+          }
+        } else {
+          (spec as any)[key] = (specGen as any)[key];
+        }
+      }
+    } else {
+      spec = specGen;
+    }
+
+
 
   peg$result = peg$startRuleFunction();
 

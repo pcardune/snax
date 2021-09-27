@@ -1,8 +1,15 @@
+export type Location = {
+  source: string;
+  start: { offset: number; line: number; column: number };
+  end: { offset: number; line: number; column: number };
+};
+
 type BooleanLiteralFields = { value: boolean };
 
 export type BooleanLiteral = {
   name: 'BooleanLiteral';
   fields: BooleanLiteralFields;
+  location?: Location;
 };
 
 export function isBooleanLiteral(node: ASTNode): node is BooleanLiteral {
@@ -36,6 +43,7 @@ type NumberLiteralFields = {
 export type NumberLiteral = {
   name: 'NumberLiteral';
   fields: NumberLiteralFields;
+  location?: Location;
 };
 
 export function isNumberLiteral(node: ASTNode): node is NumberLiteral {
@@ -73,6 +81,7 @@ type StringLiteralFields = { value: string };
 export type StringLiteral = {
   name: 'StringLiteral';
   fields: StringLiteralFields;
+  location?: Location;
 };
 
 export function isStringLiteral(node: ASTNode): node is StringLiteral {
@@ -102,6 +111,7 @@ type DataLiteralFields = { value: string };
 export type DataLiteral = {
   name: 'DataLiteral';
   fields: DataLiteralFields;
+  location?: Location;
 };
 
 export function isDataLiteral(node: ASTNode): node is DataLiteral {
@@ -129,6 +139,7 @@ type CharLiteralFields = { value: number };
 export type CharLiteral = {
   name: 'CharLiteral';
   fields: CharLiteralFields;
+  location?: Location;
 };
 
 export function isCharLiteral(node: ASTNode): node is CharLiteral {
@@ -156,6 +167,7 @@ type SymbolRefFields = { symbol: string };
 export type SymbolRef = {
   name: 'SymbolRef';
   fields: SymbolRefFields;
+  location?: Location;
 };
 
 export function isSymbolRef(node: ASTNode): node is SymbolRef {
@@ -183,6 +195,7 @@ type TypeRefFields = { symbol: string };
 export type TypeRef = {
   name: 'TypeRef';
   fields: TypeRefFields;
+  location?: Location;
 };
 
 export function isTypeRef(node: ASTNode): node is TypeRef {
@@ -210,6 +223,7 @@ type PointerTypeExprFields = { pointerToExpr: TypeExpr };
 export type PointerTypeExpr = {
   name: 'PointerTypeExpr';
   fields: PointerTypeExprFields;
+  location?: Location;
 };
 
 export function isPointerTypeExpr(node: ASTNode): node is PointerTypeExpr {
@@ -243,6 +257,7 @@ type GlobalDeclFields = {
 export type GlobalDecl = {
   name: 'GlobalDecl';
   fields: GlobalDeclFields;
+  location?: Location;
 };
 
 export function isGlobalDecl(node: ASTNode): node is GlobalDecl {
@@ -284,6 +299,7 @@ type RegStatementFields = {
 export type RegStatement = {
   name: 'RegStatement';
   fields: RegStatementFields;
+  location?: Location;
 };
 
 export function isRegStatement(node: ASTNode): node is RegStatement {
@@ -325,6 +341,7 @@ type LetStatementFields = {
 export type LetStatement = {
   name: 'LetStatement';
   fields: LetStatementFields;
+  location?: Location;
 };
 
 export function isLetStatement(node: ASTNode): node is LetStatement {
@@ -366,6 +383,7 @@ type IfStatementFields = {
 export type IfStatement = {
   name: 'IfStatement';
   fields: IfStatementFields;
+  location?: Location;
 };
 
 export function isIfStatement(node: ASTNode): node is IfStatement {
@@ -403,6 +421,7 @@ type WhileStatementFields = { condExpr: Expression; thenBlock: Block };
 export type WhileStatement = {
   name: 'WhileStatement';
   fields: WhileStatementFields;
+  location?: Location;
 };
 
 export function isWhileStatement(node: ASTNode): node is WhileStatement {
@@ -437,6 +456,7 @@ type BlockFields = { statements: Statement[] };
 export type Block = {
   name: 'Block';
   fields: BlockFields;
+  location?: Location;
 };
 
 export function isBlock(node: ASTNode): node is Block {
@@ -464,6 +484,7 @@ type BinaryExprFields = { op: string; left: Expression; right: Expression };
 export type BinaryExpr = {
   name: 'BinaryExpr';
   fields: BinaryExprFields;
+  location?: Location;
 };
 
 export function isBinaryExpr(node: ASTNode): node is BinaryExpr {
@@ -501,6 +522,7 @@ type CallExprFields = { left: Expression; right: ArgList };
 export type CallExpr = {
   name: 'CallExpr';
   fields: CallExprFields;
+  location?: Location;
 };
 
 export function isCallExpr(node: ASTNode): node is CallExpr {
@@ -532,6 +554,7 @@ type MemberAccessExprFields = { left: Expression; right: Expression };
 export type MemberAccessExpr = {
   name: 'MemberAccessExpr';
   fields: MemberAccessExprFields;
+  location?: Location;
 };
 
 export function isMemberAccessExpr(node: ASTNode): node is MemberAccessExpr {
@@ -566,6 +589,7 @@ type CastExprFields = { expr: Expression; typeExpr: TypeExpr; force: boolean };
 export type CastExpr = {
   name: 'CastExpr';
   fields: CastExprFields;
+  location?: Location;
 };
 
 export function isCastExpr(node: ASTNode): node is CastExpr {
@@ -603,6 +627,7 @@ type UnaryExprFields = { op: string; expr: Expression };
 export type UnaryExpr = {
   name: 'UnaryExpr';
   fields: UnaryExprFields;
+  location?: Location;
 };
 
 export function isUnaryExpr(node: ASTNode): node is UnaryExpr {
@@ -634,6 +659,7 @@ type ArrayLiteralFields = { elements: Expression[] };
 export type ArrayLiteral = {
   name: 'ArrayLiteral';
   fields: ArrayLiteralFields;
+  location?: Location;
 };
 
 export function isArrayLiteral(node: ASTNode): node is ArrayLiteral {
@@ -663,6 +689,7 @@ type TupleStructDeclFields = { symbol: string; elements: TypeExpr[] };
 export type TupleStructDecl = {
   name: 'TupleStructDecl';
   fields: TupleStructDeclFields;
+  location?: Location;
 };
 
 export function isTupleStructDecl(node: ASTNode): node is TupleStructDecl {
@@ -697,6 +724,7 @@ type StructDeclFields = { symbol: string; props: (StructProp | FuncDecl)[] };
 export type StructDecl = {
   name: 'StructDecl';
   fields: StructDeclFields;
+  location?: Location;
 };
 
 export function isStructDecl(node: ASTNode): node is StructDecl {
@@ -731,6 +759,7 @@ type StructPropFields = { symbol: string; type: TypeExpr };
 export type StructProp = {
   name: 'StructProp';
   fields: StructPropFields;
+  location?: Location;
 };
 
 export function isStructProp(node: ASTNode): node is StructProp {
@@ -762,6 +791,7 @@ type StructLiteralFields = { symbol: SymbolRef; props: StructLiteralProp[] };
 export type StructLiteral = {
   name: 'StructLiteral';
   fields: StructLiteralFields;
+  location?: Location;
 };
 
 export function isStructLiteral(node: ASTNode): node is StructLiteral {
@@ -796,6 +826,7 @@ type StructLiteralPropFields = { symbol: string; expr: Expression };
 export type StructLiteralProp = {
   name: 'StructLiteralProp';
   fields: StructLiteralPropFields;
+  location?: Location;
 };
 
 export function isStructLiteralProp(node: ASTNode): node is StructLiteralProp {
@@ -830,6 +861,7 @@ type ParameterListFields = { parameters: Parameter[] };
 export type ParameterList = {
   name: 'ParameterList';
   fields: ParameterListFields;
+  location?: Location;
 };
 
 export function isParameterList(node: ASTNode): node is ParameterList {
@@ -859,6 +891,7 @@ type ParameterFields = { symbol: string; typeExpr: TypeExpr };
 export type Parameter = {
   name: 'Parameter';
   fields: ParameterFields;
+  location?: Location;
 };
 
 export function isParameter(node: ASTNode): node is Parameter {
@@ -895,6 +928,7 @@ type FuncDeclFields = {
 export type FuncDecl = {
   name: 'FuncDecl';
   fields: FuncDeclFields;
+  location?: Location;
 };
 
 export function isFuncDecl(node: ASTNode): node is FuncDecl {
@@ -935,6 +969,7 @@ type ReturnStatementFields = { expr: Expression };
 export type ReturnStatement = {
   name: 'ReturnStatement';
   fields: ReturnStatementFields;
+  location?: Location;
 };
 
 export function isReturnStatement(node: ASTNode): node is ReturnStatement {
@@ -964,6 +999,7 @@ type ExprStatementFields = { expr: Expression };
 export type ExprStatement = {
   name: 'ExprStatement';
   fields: ExprStatementFields;
+  location?: Location;
 };
 
 export function isExprStatement(node: ASTNode): node is ExprStatement {
@@ -993,6 +1029,7 @@ type ArgListFields = { args: Expression[] };
 export type ArgList = {
   name: 'ArgList';
   fields: ArgListFields;
+  location?: Location;
 };
 
 export function isArgList(node: ASTNode): node is ArgList {
@@ -1024,6 +1061,7 @@ type FileFields = {
 export type File = {
   name: 'File';
   fields: FileFields;
+  location?: Location;
 };
 
 export function isFile(node: ASTNode): node is File {
@@ -1061,6 +1099,7 @@ type ExternDeclFields = { libName: string; funcs: FuncDecl[] };
 export type ExternDecl = {
   name: 'ExternDecl';
   fields: ExternDeclFields;
+  location?: Location;
 };
 
 export function isExternDecl(node: ASTNode): node is ExternDecl {

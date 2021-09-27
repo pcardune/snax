@@ -118,8 +118,12 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       `ASTCompiler: No compiler available for node ${(node as any).name}`
     );
   }
-  compileChildToBinaryen<N extends AST.Expression | AST.Statement>(child: N) {
-    return IRCompiler.forNode(child, this.context).compileToBinaryen();
+  compileChildToBinaryen<N extends AST.Expression | AST.Statement>(
+    child: N
+  ): binaryen.ExpressionRef {
+    const exprRef = IRCompiler.forNode(child, this.context).compileToBinaryen();
+    this.context.setDebugLocation(exprRef, child);
+    return exprRef;
   }
   compileChild<N extends AST.Expression | AST.Statement>(child: N) {
     return IRCompiler.forNode(child, this.context).compile();
@@ -175,11 +179,7 @@ export class BlockCompiler extends IRCompiler<AST.Block> {
     const instr: number[] = [];
     this.root.fields.statements
       .filter((astNode) => !AST.isFuncDecl(astNode))
-      .forEach((astNode) =>
-        instr.push(
-          IRCompiler.forNode(astNode, this.context).compileToBinaryen()
-        )
-      );
+      .forEach((astNode) => instr.push(this.compileChildToBinaryen(astNode)));
     return this.context.module.block('', instr);
   }
 
@@ -682,13 +682,20 @@ export class FuncDeclCompiler extends ASTCompiler<
     const func = module.addFunction(location.id, params, results, vars, body);
 
     // add debug info
+    const fileIndices: { [key: string]: number } = {};
     for (const debugLocation of debugLocations) {
       const { expr, node } = debugLocation;
       if (node.location) {
+        if (!fileIndices[node.location.source]) {
+          fileIndices[node.location.source] = module.addDebugInfoFileName(
+            node.location.source
+          );
+        }
+
         module.setDebugLocation(
           func,
           expr,
-          module.addDebugInfoFileName(node.location.source),
+          fileIndices[node.location.source],
           node.location.start.line,
           node.location.start.column
         );
@@ -699,6 +706,22 @@ export class FuncDeclCompiler extends ASTCompiler<
 }
 
 class RegStatementCompiler extends IRCompiler<AST.RegStatement> {
+  compileToBinaryen() {
+    const location = this.context.allocationMap.getLocalOrThrow(
+      this.root,
+      'reg statements need a local'
+    );
+    const { expr } = this.root.fields;
+    if (expr) {
+      const exprType = this.resolveType(expr);
+      exprType.toValueType();
+      return this.context.module.local.set(
+        location.offset,
+        this.compileChildToBinaryen(expr)
+      );
+    }
+    return this.context.module.nop();
+  }
   compile(): IR.Instruction[] {
     const location = this.context.allocationMap.getLocalOrThrow(
       this.root,
@@ -791,7 +814,128 @@ export class WhileStatementCompiler extends IRCompiler<AST.WhileStatement> {
   }
 }
 
+type MemProps = {
+  valueType: IR.NumberType;
+  offset?: number;
+  align?: number;
+  bytes?: number;
+};
+function memDefaults(props: MemProps): {
+  offset: number;
+  align: number;
+  bytes: 1 | 2 | 4 | 8;
+} {
+  let { valueType, offset = 0, align: inAlign, bytes: inBytes } = props;
+
+  let bytes: 1 | 2 | 4 | 8 = 4;
+  if (inBytes) {
+    if (
+      inBytes !== 1 &&
+      inBytes !== 2 &&
+      inBytes !== 4 &&
+      !(inBytes === 8 && valueType === 'i64')
+    ) {
+      throw new Error(
+        `Can't store/load ${inBytes} bytes to memory from/to ${valueType} using store/load instruction.`
+      );
+    }
+    bytes = inBytes;
+  } else {
+    switch (valueType) {
+      case 'f32':
+      case 'i32':
+        bytes = 4;
+        break;
+      case 'f64':
+      case 'i64':
+        bytes = 8;
+        break;
+    }
+  }
+  return { offset, align: inAlign ?? bytes, bytes };
+}
+
+function memLoad(
+  module: binaryen.Module,
+  props: MemProps & { sign?: IR.Sign },
+  ptr: binaryen.ExpressionRef
+) {
+  const { offset, align, bytes } = memDefaults(props);
+  const { valueType, sign = IR.Sign.Signed } = props;
+
+  let loadFunc;
+  switch (valueType) {
+    case IR.NumberType.i32: {
+      const typed = module.i32;
+      switch (bytes) {
+        case 1:
+          loadFunc = sign === IR.Sign.Signed ? typed.load8_s : typed.load8_u;
+          break;
+        case 2:
+          loadFunc = sign === IR.Sign.Signed ? typed.load16_s : typed.load16_u;
+          break;
+        case 4:
+          loadFunc = typed.load;
+          break;
+        default:
+          throw new Error(`Can't load more than 4 bytes into an i32`);
+      }
+      break;
+    }
+    case IR.NumberType.i64: {
+      const typed = module.i64;
+      switch (bytes) {
+        case 1:
+          loadFunc = sign === IR.Sign.Signed ? typed.load8_s : typed.load8_u;
+          break;
+        case 2:
+          loadFunc = sign === IR.Sign.Signed ? typed.load16_s : typed.load16_u;
+          break;
+        case 4:
+          loadFunc = sign === IR.Sign.Signed ? typed.load32_s : typed.load32_u;
+          break;
+        case 8:
+          loadFunc = typed.load;
+          break;
+      }
+      break;
+    }
+    default:
+      throw new Error(`Don't know how to load into ${valueType} yet`);
+  }
+  return loadFunc(offset, align, ptr);
+}
+
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
+  compileToBinaryen() {
+    const location = this.getLocationForSymbolRef(this.root);
+    const type = this.resolveType(this.root);
+    switch (location.area) {
+      case 'locals':
+        return this.context.module.local.get(
+          location.offset,
+          binaryen[location.valueType]
+        );
+      case 'globals':
+        return this.context.module.global.get(
+          location.id,
+          binaryen[location.valueType]
+        );
+      case 'stack': {
+        const { arp } = this.context.funcAllocs;
+        return memLoad(
+          this.context.module,
+          { valueType: type.toValueType(), offset: location.offset },
+          this.context.module.local.get(arp.offset, binaryen[arp.valueType])
+        );
+      }
+
+      default:
+        throw new Error(
+          `SymbolRefCompiler: don't know how to compile reference to a location in ${location.area}`
+        );
+    }
+  }
   compile(): IR.Instruction[] {
     const location = this.getLocationForSymbolRef(this.root);
     const type = this.resolveType(this.root);

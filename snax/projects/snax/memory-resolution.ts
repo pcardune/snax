@@ -14,7 +14,7 @@ import * as Wasm from './wasm-ast.js';
 import * as IR from './stack-ir.js';
 import type { ResolvedTypeMap } from './type-resolution.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
-import type { BaseType } from './snax-types.js';
+import type { BaseType, FuncType } from './snax-types.js';
 
 export enum Area {
   // corresponds directly to web assembly functions
@@ -44,7 +44,9 @@ export type GlobalStorageLocation = BaseStorageLocation<Area.GLOBALS> & {
   valueType: IR.NumberType;
 };
 
-export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS>;
+export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS> & {
+  valueType: IR.NumberType;
+};
 
 export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS>;
 
@@ -151,10 +153,11 @@ export class ModuleAllocator implements ConstAllocator {
     return location;
   }
 
-  allocateFunc(node: FuncDecl) {
+  allocateFunc(node: FuncDecl, typeMap: ResolvedTypeMap) {
     const funcLocalAllocator = new FuncLocalAllocator(
       this.allocationMap,
-      node.fields.parameters
+      node.fields.parameters,
+      typeMap
     );
     this.funcAllocatorMap.set(node, funcLocalAllocator);
     const id = `<${node.fields.symbol}>f${this.funcOffset}`;
@@ -202,6 +205,7 @@ export class ModuleAllocator implements ConstAllocator {
         area: Area.LOCALS,
         offset: funcAllocator.arp.offset,
         id: funcAllocator.arp.local.fields.id,
+        valueType: funcAllocator.arp.local.fields.valueType,
       },
       stack: funcAllocator.stack,
     };
@@ -253,7 +257,11 @@ class FuncLocalAllocator implements ILocalAllocator {
   stack: StackStorageLocation[] = [];
   arp: LocalAllocation;
 
-  constructor(allocationMap: AllocationMap, params: ParameterList) {
+  constructor(
+    allocationMap: AllocationMap,
+    params: ParameterList,
+    typeMap: ResolvedTypeMap
+  ) {
     this.allocationMap = allocationMap;
 
     for (const param of params.fields.parameters) {
@@ -262,6 +270,7 @@ class FuncLocalAllocator implements ILocalAllocator {
         area: LOCALS,
         offset: this.localsOffset++,
         id,
+        valueType: typeMap.get(param).toValueType(),
       });
     }
     this.arp = this.makeLocalAllocation(IR.NumberType.i32, 'arp');
@@ -316,6 +325,7 @@ class FuncLocalAllocator implements ILocalAllocator {
         area: LOCALS,
         offset: localAllocation.offset,
         id: localAllocation.local.fields.id,
+        valueType,
       });
     }
     return localAllocation;
@@ -404,7 +414,7 @@ function recurse(
       return;
     }
     case 'FuncDecl': {
-      const { localAllocator } = moduleAllocator.allocateFunc(root);
+      const { localAllocator } = moduleAllocator.allocateFunc(root, typeMap);
       children(root).forEach((child) =>
         recurse(child, moduleAllocator, typeMap, localAllocator)
       );

@@ -78,9 +78,11 @@ file "file"
     if (mainFuncBody.length > 0) {
       let lastStatement = mainFuncBody[mainFuncBody.length-1];
       if (spec.isExprStatement(lastStatement)) {
-        mainFuncBody[mainFuncBody.length-1] = spec.makeReturnStatement(
+        const returnStatement = spec.makeReturnStatement(
           lastStatement.fields.expr
-        );
+        )
+        returnStatement.location = lastStatement.fields.expr.location;
+        mainFuncBody[mainFuncBody.length-1] = returnStatement;
       }
     }
     funcs.push(

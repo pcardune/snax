@@ -94,25 +94,20 @@ describe('empty module', () => {
     });
     expect(output.wat).toMatchInlineSnapshot(`
       "(module
-       (type $none_=>_none (func))
-       (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 1 1)
-       (export \\"_start\\" (func $_start))
-       (export \\"memory\\" (memory $0))
-       (func $<main>f0
-        (local $0 i32)
-       )
-       (func $_start
-        (global.set $g0:#SP
-         (i32.const 65536)
-        )
-        (return
-         (call $<main>f0)
-        )
-       )
-      )
+        (type $none_=>_none (func))
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (memory $0 1 1)
+        (export \\"_start\\" (func $_start))
+        (export \\"memory\\" (memory 0))
+        (func $<main>f0
+          (local $0 i32))
+        (func $_start
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (call $<main>f0)
+          (return)))
       "
-    `);
+      `);
     expect(output.sourceMap).toMatchInlineSnapshot(
       `"{\\"version\\":3,\\"sources\\":[],\\"names\\":[],\\"mappings\\":\\"\\"}"`
     );
@@ -168,31 +163,24 @@ describe('empty module', () => {
     });
     expect(wat).toMatchInlineSnapshot(`
       "(module
-       (type $none_=>_i32 (func (result i32)))
-       (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 1 1)
-       (export \\"_start\\" (func $_start))
-       (export \\"memory\\" (memory $0))
-       (func $<main>f0 (result i32)
-        (local $0 i32)
-        (return
-         ;;@ :1:1
-         (i32.const 123)
-        )
-       )
-       (func $_start (result i32)
-        (global.set $g0:#SP
-         (i32.const 65536)
-        )
-        (return
-         (call $<main>f0)
-        )
-       )
-      )
+        (type $none_=>_i32 (func (result i32)))
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (memory $0 1 1)
+        (export \\"_start\\" (func $_start))
+        (export \\"memory\\" (memory 0))
+        (func $<main>f0 (result i32)
+          (local $0 i32)
+          (return
+            (i32.const 123)))
+        (func $_start (result i32)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (return
+            (call $<main>f0))))
       "
-    `);
+      `);
     expect(sourceMap).toMatchInlineSnapshot(
-      `"{\\"version\\":3,\\"sources\\":[\\"\\"],\\"names\\":[],\\"mappings\\":\\"8DAAC\\"}"`
+      `"{\\"version\\":3,\\"sources\\":[\\"\\",\\"\\"],\\"names\\":[],\\"mappings\\":\\"8DCAC\\"}"`
     );
     const { exports } = await compileToWasmModule('123;', {
       binaryen: true,
@@ -240,52 +228,10 @@ describe('empty module', () => {
   });
 
   it('compiles expressions', async () => {
-    const { wat } = await compileToWasmModule('3+5*2-10/10;', {
+    const { wat, exports } = await compileToWasmModule('3+5*2-10/10;', {
       binaryen: true,
       includeRuntime: false,
     });
-    expect(wat).toMatchInlineSnapshot(`
-"(module
- (type $none_=>_i32 (func (result i32)))
- (global $g0:#SP (mut i32) (i32.const 0))
- (memory $0 1 1)
- (export \\"_start\\" (func $_start))
- (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
-  (local $0 i32)
-  (return
-   (i32.sub
-    (i32.add
-     ;;@ :1:1
-     (i32.const 3)
-     (i32.mul
-      ;;@ :1:3
-      (i32.const 5)
-      ;;@ :1:5
-      (i32.const 2)
-     )
-    )
-    (i32.div_s
-     ;;@ :1:7
-     (i32.const 10)
-     ;;@ :1:10
-     (i32.const 10)
-    )
-   )
-  )
- )
- (func $_start (result i32)
-  (global.set $g0:#SP
-   (i32.const 65536)
-  )
-  (return
-   (call $<main>f0)
-  )
- )
-)
-"
-`);
-    const { exports } = await compileToWasmModule('3+5*2-10/10;');
     expect(exports._start()).toEqual(12);
   });
 
@@ -303,24 +249,25 @@ describe('reg statements', () => {
     `;
     const { wat, compiler } = await compileToWasmModule(code, {
       includeRuntime: false,
+      binaryen: true,
     });
     expect(wat).toMatchInlineSnapshot(`
       "(module
-        (memory (;0;) 1)
+        (type $none_=>_none (func))
         (global $g0:#SP (mut i32) (i32.const 0))
+        (memory $0 1 1)
+        (export \\"_start\\" (func $_start))
+        (export \\"memory\\" (memory 0))
         (func $<main>f0
-          (local $<arp>r0:i32 i32) (local $<x>r1:i32 i32) (local $<y>r2:i32 i32) (local $<z>r3:f64 f64)
+          (local $0 i32) (local $1 i32) (local $2 i32) (local $3 f64)
           (nop)
           (nop)
           (nop))
-        (func (;1;)
+        (func $_start
           (global.set $g0:#SP
             (i32.const 65536))
-          (call $<main>f0))
-        (export \\"_start\\" (func 1))
-        (export \\"memory\\" (memory 0))
-        (export \\"stackPointer\\" (global 0))
-        (type (;0;) (func)))
+          (call $<main>f0)
+          (return)))
       "
       `);
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
@@ -363,27 +310,28 @@ describe('reg statements', () => {
     const code = 'reg x = 3; x;';
     const { wat, exports } = await compileToWasmModule(code, {
       includeRuntime: false,
+      binaryen: true,
     });
     expect(wat).toMatchInlineSnapshot(`
       "(module
-        (memory (;0;) 1)
+        (type $none_=>_i32 (func (result i32)))
         (global $g0:#SP (mut i32) (i32.const 0))
+        (memory $0 1 1)
+        (export \\"_start\\" (func $_start))
+        (export \\"memory\\" (memory 0))
         (func $<main>f0 (result i32)
-          (local $<arp>r0:i32 i32) (local $<x>r1:i32 i32)
-          (local.set $<x>r1:i32
+          (local $0 i32) (local $1 i32)
+          (local.set $1
             (i32.const 3))
           (return
-            (local.get $<x>r1:i32)))
-        (func (;1;) (result i32)
+            (local.get $1)))
+        (func $_start (result i32)
           (global.set $g0:#SP
             (i32.const 65536))
-          (call $<main>f0))
-        (export \\"_start\\" (func 1))
-        (export \\"memory\\" (memory 0))
-        (export \\"stackPointer\\" (global 0))
-        (type (;0;) (func (result i32))))
+          (return
+            (call $<main>f0))))
       "
-    `);
+      `);
     expect(exports._start()).toBe(3);
   });
   // eslint-disable-next-line @typescript-eslint/no-empty-function

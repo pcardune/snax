@@ -37,8 +37,12 @@ export async function compileToWAT(
   options = { ...defaultOptions, ...options };
   if (options.binaryen) {
     const binaryenModule = compiler.compileToBinaryen();
-    const wat = binaryenModule.emitText();
+    let wat = binaryenModule.emitText();
     const { sourceMap } = binaryenModule.emitBinary('module.wasm.map');
+    binaryenModule.dispose();
+    const module = await parseWat('', wat);
+    module.applyNames();
+    wat = module.toText({ foldExprs: true });
     return {
       wat,
       ast,

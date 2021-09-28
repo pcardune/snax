@@ -1,6 +1,9 @@
-import type { ModuleCompiler, ModuleCompilerOptions } from '../ast-compiler.js';
+import {
+  ModuleCompiler,
+  ModuleCompilerOptions,
+  PAGE_SIZE,
+} from '../ast-compiler.js';
 import { parseWat } from '../wabt-util.js';
-import { PAGE_SIZE } from '../wasm-ast.js';
 import { compileToWAT } from './test-util';
 
 type SnaxExports = {
@@ -17,9 +20,6 @@ async function compileToWasmModule(
     input,
     options
   );
-  // const wasmModule = await parseWat('', wat);
-  // wasmModule.validate();
-  // const binary = wasmModule.toBinary({ write_debug_names: true }).buffer;
   const module = await WebAssembly.instantiate(binary);
   const exports = module.instance.exports;
   return { exports: exports as SnaxExports, wat, ast, compiler, sourceMap };
@@ -76,7 +76,7 @@ function dumpFuncAllocations(compiler: ModuleCompiler, funcName: string) {
     'locals:',
     ...funcAllocator.locals.map(
       (local) =>
-        `    ${local.offset}: ${local.local.fields.id} (${local.local.fields.valueType})`
+        `    ${local.offset}: ${local.local.id} (${local.local.valueType})`
     ),
   ].join('\n');
 }
@@ -156,7 +156,6 @@ describe('empty module', () => {
 
   it('compiles integers', async () => {
     const { wat, sourceMap } = await compileToWAT('123;', {
-      binaryen: true,
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`

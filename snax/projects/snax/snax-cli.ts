@@ -115,11 +115,6 @@ function builder<T>(yargs: yargs.Argv<T>) {
       type: 'string',
       demandOption: true,
     })
-    .option('binaryen', {
-      type: 'boolean',
-      description: 'Use binaryen',
-      default: false,
-    })
     .option('verbose', {
       alias: 'v',
       type: 'boolean',
@@ -148,35 +143,19 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      if (args.binaryen) {
-        const module = await compileSnaxFileWithBinaryen(inPath);
+      const module = await compileSnaxFileWithBinaryen(inPath);
 
-        const { binary, sourceMap } = module.emitBinary(
-          path.parse(inPath).name + '.wasm.map'
-        );
-        fs.writeFileSync(fileWithExtension(inPath, '.wat'), module.emitText());
-        fs.writeFileSync(fileWithExtension(inPath, '.wasm'), binary);
-        fs.writeFileSync(
-          fileWithExtension(inPath, '.asm.js'),
-          module.emitAsmjs()
-        );
-        if (sourceMap) {
-          fs.writeFileSync(fileWithExtension(inPath, '.wasm.map'), sourceMap);
-        }
-      } else {
-        const maybeModule = await compileSnaxFile(inPath);
-        if (maybeModule.isOk()) {
-          const result = maybeModule.value.toBinary({
-            write_debug_names: true,
-          });
-          fs.writeFileSync(fileWithExtension(inPath, '.wasm'), result.buffer);
-          fs.writeFileSync(
-            fileWithExtension(inPath, '.wat'),
-            maybeModule.value.toText({})
-          );
-        } else {
-          console.error(maybeModule.error);
-        }
+      const { binary, sourceMap } = module.emitBinary(
+        path.parse(inPath).name + '.wasm.map'
+      );
+      fs.writeFileSync(fileWithExtension(inPath, '.wat'), module.emitText());
+      fs.writeFileSync(fileWithExtension(inPath, '.wasm'), binary);
+      fs.writeFileSync(
+        fileWithExtension(inPath, '.asm.js'),
+        module.emitAsmjs()
+      );
+      if (sourceMap) {
+        fs.writeFileSync(fileWithExtension(inPath, '.wasm.map'), sourceMap);
       }
     },
   })

@@ -12,7 +12,7 @@ import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { parseWat } from '../wabt-util.js';
-import { NumberType } from '../stack-ir.js';
+import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
 import { FuncType, Intrinsics } from '../snax-types.js';
 
@@ -20,13 +20,9 @@ type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
 export type WabtModule = ThenArg<ReturnType<typeof loadWabt>>;
 
-const defaultOptions = {
-  binaryen: true,
-};
-
 export async function compileToWAT(
   input: string | spec.File,
-  options: ModuleCompilerOptions & { binaryen?: boolean } = {}
+  options: ModuleCompilerOptions = {}
 ) {
   const ast =
     typeof input === 'string' ? SNAXParser.parseStrOrThrow(input) : input;
@@ -35,44 +31,31 @@ export async function compileToWAT(
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
   const compiler = new ModuleCompiler(ast, options);
-  options = { ...defaultOptions, ...options };
-  if (options.binaryen) {
-    const binaryenModule = compiler.compileToBinaryen();
+  const binaryenModule = compiler.compileToBinaryen();
 
-    const oldWarn = console.warn;
-    const warnings: string[] = [];
-    global.console.warn = (...args) => {
-      warnings.push(args.join(' '));
-    };
-    if (!binaryenModule.validate()) {
-      throw new Error(`Failed validation: ${warnings.join('\n')}`);
-    }
-    global.console.warn = oldWarn;
-
-    let wat = binaryenModule.emitText();
-    const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');
-    binaryenModule.dispose();
-    const module = await parseWat('', wat);
-    module.applyNames();
-    wat = module.toText({ foldExprs: true });
-    return {
-      wat,
-      ast,
-      compiler,
-      binary,
-      sourceMap,
-    };
-  } else {
-    const wat = compiler.compile().toWAT();
-    const module = await parseWat('', wat);
-    module.applyNames();
-    return {
-      wat: module.toText({ foldExprs: true }),
-      binary: module.toBinary({ write_debug_names: true }).buffer,
-      ast,
-      compiler,
-    };
+  const oldWarn = console.warn;
+  const warnings: string[] = [];
+  global.console.warn = (...args) => {
+    warnings.push(args.join(' '));
+  };
+  if (!binaryenModule.validate()) {
+    throw new Error(`Failed validation: ${warnings.join('\n')}`);
   }
+  global.console.warn = oldWarn;
+
+  let wat = binaryenModule.emitText();
+  const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');
+  binaryenModule.dispose();
+  const module = await parseWat('', wat);
+  module.applyNames();
+  wat = module.toText({ foldExprs: true });
+  return {
+    wat,
+    ast,
+    compiler,
+    binary,
+    sourceMap,
+  };
 }
 
 export const runtimeStub: Runtime = {

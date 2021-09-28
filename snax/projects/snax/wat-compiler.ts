@@ -32,7 +32,5 @@ export function compileAST(
   file: spec.File,
   options?: ASTCompiler.ModuleCompilerOptions
 ): string {
-  return new ASTCompiler.ModuleCompiler(file, options)
-    .compileToBinaryen()
-    .emitText();
+  return new ASTCompiler.ModuleCompiler(file, options).compile().emitText();
 }

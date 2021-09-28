@@ -165,11 +165,11 @@ describe('CastExprCompiler', () => {
     let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest), false);
     const compiler = irCompiler(cast);
     if (instruction instanceof Error) {
-      expect(() => compiler.compileToBinaryen()).toThrowError(instruction);
+      expect(() => compiler.compile()).toThrowError(instruction);
     } else {
       // TODO: reimplement these tests in some better way....
-      // const convertExpr = compiler.compileToBinaryen();
-      // const valueExpr = compiler.compileChildToBinaryen(num);
+      // const convertExpr = compiler.compile();
+      // const valueExpr = compiler.compileChild(num);
       // const info = binaryen.getExpressionInfo(convertExpr);
       // info.id
       // expect(ir).toEqual([value, instruction]);
@@ -185,7 +185,7 @@ describe('CastExprCompiler', () => {
         true
       );
       const compiler = irCompiler(cast);
-      const ir = compiler.compileToBinaryen();
+      const ir = compiler.compile();
       const { module } = compiler.context;
 
       module.addFunction('main', binaryen.createType([]), binaryen.i32, [], ir);
@@ -201,7 +201,7 @@ describe('CastExprCompiler', () => {
         false
       );
       expect(() =>
-        irCompiler(cast).compileToBinaryen()
+        irCompiler(cast).compile()
       ).toThrowErrorMatchingInlineSnapshot(
         `"I only convert i32s to pointer types, and only when forced."`
       );

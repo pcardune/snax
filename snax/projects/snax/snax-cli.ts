@@ -2,15 +2,13 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import fs from 'fs';
 import { readFile } from 'fs/promises';
-import { compileStr } from './wat-compiler.js';
-import { err, ok } from 'neverthrow';
 import path from 'path';
 // eslint-disable-next-line import/no-unresolved
 import { WASI } from 'wasi';
 import { SNAXParser } from './snax-parser.js';
-import { parseWat } from './wabt-util.js';
 import { ModuleCompiler } from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
+import binaryen from 'binaryen';
 
 const wasi = new WASI({
   args: process.argv,
@@ -19,22 +17,6 @@ const wasi = new WASI({
     '/sandbox': process.cwd(),
   },
 });
-
-async function compileSnaxFile(file: string) {
-  const source = fs.readFileSync(file).toString();
-  const maybeWAT = compileStr(source, {
-    includeRuntime: true,
-    includeWASI: true,
-  });
-  if (maybeWAT.isOk()) {
-    const wat = maybeWAT.value;
-    const wasmModule = await parseWat('', wat);
-    wasmModule.validate();
-    return ok(wasmModule);
-  } else {
-    return err(maybeWAT.error);
-  }
-}
 
 function parseFile(inPath: string) {
   const source = fs.readFileSync(inPath).toString();
@@ -47,10 +29,10 @@ function parseFile(inPath: string) {
   return ast;
 }
 
-async function compileSnaxFileWithBinaryen(file: string) {
+async function compileSnaxFile(file: string) {
   const ast = parseFile(file);
-  const compiler = new ModuleCompiler(ast, { includeRuntime: false });
-  const module = compiler.compileToBinaryen();
+  const compiler = new ModuleCompiler(ast, { includeRuntime: true });
+  const module = compiler.compile();
   if (!module.validate()) {
     throw new Error('validation error');
   }
@@ -83,24 +65,20 @@ async function loadWasmModuleFromPath(
     case '.snx': {
       const label = `compiling ${inPath}`;
       if (opts.verbose) console.time(label);
-      const maybeModule = await compileSnaxFile(inPath);
+      const module = await compileSnaxFile(inPath);
       if (opts.verbose) console.timeEnd(label);
-      if (maybeModule.isOk()) {
-        const result = maybeModule.value.toBinary({
-          write_debug_names: true,
-        });
-        return await WebAssembly.compile(result.buffer);
-      } else {
-        throw maybeModule.error;
-      }
+      const result = module.emitBinary();
+      return await WebAssembly.compile(result.buffer);
     }
     case '.wasm': {
       return await WebAssembly.compile(await readFile(inPath));
     }
     case '.wat': {
-      const wasmModule = await parseWat('', await readFile(inPath));
-      wasmModule.validate();
-      const result = wasmModule.toBinary({ write_debug_names: true });
+      const module = binaryen.parseText(
+        await readFile(inPath, { encoding: 'utf8' })
+      );
+      module.validate();
+      const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);
     }
   }
@@ -143,7 +121,7 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      const module = await compileSnaxFileWithBinaryen(inPath);
+      const module = await compileSnaxFile(inPath);
 
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'

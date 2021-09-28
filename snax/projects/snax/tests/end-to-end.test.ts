@@ -93,7 +93,6 @@ describe('empty module', () => {
   it('compiles to binaryen module', async () => {
     const output = await compileToWasmModule('', {
       includeRuntime: false,
-      binaryen: true,
     });
     expect(output.wat).toMatchInlineSnapshot(`
       "(module
@@ -181,7 +180,6 @@ describe('empty module', () => {
       `"{\\"version\\":3,\\"sources\\":[\\"\\",\\"\\"],\\"names\\":[],\\"mappings\\":\\"6ECAC\\"}"`
     );
     const { exports } = await compileToWasmModule('123;', {
-      binaryen: true,
       includeRuntime: false,
     });
     expect(exports._start()).toEqual(123);
@@ -227,7 +225,6 @@ describe('empty module', () => {
 
   it('compiles expressions', async () => {
     const { wat, exports } = await compileToWasmModule('3+5*2-10/10;', {
-      binaryen: true,
       includeRuntime: false,
     });
     expect(exports._start()).toEqual(12);
@@ -247,7 +244,6 @@ describe('reg statements', () => {
     `;
     const { wat, compiler } = await compileToWasmModule(code, {
       includeRuntime: false,
-      binaryen: true,
     });
     expect(wat).toMatchInlineSnapshot(`
       "(module
@@ -309,7 +305,6 @@ describe('reg statements', () => {
     const code = 'reg x = 3; x;';
     const { wat, exports } = await compileToWasmModule(code, {
       includeRuntime: false,
-      binaryen: true,
     });
     expect(wat).toMatchInlineSnapshot(`
       "(module

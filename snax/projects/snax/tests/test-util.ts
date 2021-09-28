@@ -31,7 +31,7 @@ export async function compileToWAT(
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
   const compiler = new ModuleCompiler(ast, options);
-  const binaryenModule = compiler.compileToBinaryen();
+  const binaryenModule = compiler.compile();
 
   const oldWarn = console.warn;
   const warnings: string[] = [];

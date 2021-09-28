@@ -14,13 +14,14 @@ import { resolveTypes } from '../type-resolution.js';
 import { parseWat } from '../wabt-util.js';
 import { NumberType } from '../stack-ir.js';
 import binaryen from 'binaryen';
+import { FuncType, Intrinsics } from '../snax-types.js';
 
 type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
 
 export type WabtModule = ThenArg<ReturnType<typeof loadWabt>>;
 
 const defaultOptions = {
-  binaryen: false,
+  binaryen: true,
 };
 
 export async function compileToWAT(
@@ -38,7 +39,7 @@ export async function compileToWAT(
   if (options.binaryen) {
     const binaryenModule = compiler.compileToBinaryen();
     let wat = binaryenModule.emitText();
-    const { sourceMap } = binaryenModule.emitBinary('module.wasm.map');
+    const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');
     binaryenModule.dispose();
     const module = await parseWat('', wat);
     module.applyNames();
@@ -47,6 +48,7 @@ export async function compileToWAT(
       wat,
       ast,
       compiler,
+      binary,
       sourceMap,
     };
   } else {
@@ -55,6 +57,7 @@ export async function compileToWAT(
     module.applyNames();
     return {
       wat: module.toText({ foldExprs: true }),
+      binary: module.toBinary({ write_debug_names: true }).buffer,
       ast,
       compiler,
     };
@@ -62,7 +65,12 @@ export async function compileToWAT(
 }
 
 export const runtimeStub: Runtime = {
-  malloc: { area: Area.FUNCS, offset: 1000, id: 'f1000:malloc' },
+  malloc: {
+    area: Area.FUNCS,
+    offset: 1000,
+    id: 'f1000:malloc',
+    funcType: new FuncType([], Intrinsics.i32),
+  },
   stackPointer: {
     area: Area.GLOBALS,
     offset: 1000,

@@ -260,13 +260,13 @@ describe('ModuleCompiler', () => {
       includeRuntime: false,
     });
     expect((await parseWat('', wat)).toText({})).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (export \\"memory\\" (memory 0))
-        (export \\"stackPointer\\" (global 0)))
-      "
-    `);
+"(module
+  (global $g0:#SP (mut i32) (i32.const 0))
+  (memory $0 1 1)
+  (export \\"stackPointer\\" (global 0))
+  (export \\"memory\\" (memory 0)))
+"
+`);
   });
   it('compiles globals in the module', async () => {
     const { wat } = await compileToWAT(
@@ -274,14 +274,14 @@ describe('ModuleCompiler', () => {
       { includeRuntime: false }
     );
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (memory (;0;) 1)
-        (global $g0:foo (mut i32) (i32.const 0))
-        (global $g1:#SP (mut i32) (i32.const 0))
-        (export \\"memory\\" (memory 0))
-        (export \\"stackPointer\\" (global 1)))
-      "
-    `);
+"(module
+  (global $g0:foo (mut i32) (i32.const 0))
+  (global $g1:#SP (mut i32) (i32.const 0))
+  (memory $0 1 1)
+  (export \\"stackPointer\\" (global 1))
+  (export \\"memory\\" (memory 0)))
+"
+`);
   });
   it('compiles functions in the module', async () => {
     const num = AST.makeExprStatement(makeNum(32));
@@ -289,20 +289,21 @@ describe('ModuleCompiler', () => {
     const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
-  (memory (;0;) 1)
+  (type $none_=>_none (func))
   (global $g0:#SP (mut i32) (i32.const 0))
+  (memory $0 1 1)
+  (export \\"_start\\" (func $_start))
+  (export \\"stackPointer\\" (global 0))
+  (export \\"memory\\" (memory 0))
   (func $<main>f0
-    (local $<arp>r0:i32 i32)
+    (local $0 i32)
     (drop
       (i32.const 32)))
-  (func (;1;)
+  (func $_start
     (global.set $g0:#SP
       (i32.const 65536))
-    (call $<main>f0))
-  (export \\"_start\\" (func 1))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 0))
-  (type (;0;) (func)))
+    (call $<main>f0)
+    (return)))
 "
 `);
   });
@@ -324,21 +325,21 @@ describe('ModuleCompiler', () => {
     );
     expect(wat).toMatchInlineSnapshot(`
 "(module
-  (memory (;0;) 1)
-  (data $d0 (i32.const 0) \\"hello world!\\")
+  (type $none_=>_none (func))
   (global $g0:#SP (mut i32) (i32.const 0))
+  (memory $0 1 1)
+  (data (;0;) \\"hello world!\\")
+  (export \\"_start\\" (func $_start))
+  (export \\"memory\\" (memory 0))
   (func $<main>f0
-    (local $<arp>r0:i32 i32)
+    (local $0 i32)
     (drop
       (i32.const 0)))
-  (func (;1;)
+  (func $_start
     (global.set $g0:#SP
       (i32.const 65536))
-    (call $<main>f0))
-  (export \\"_start\\" (func 1))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 0))
-  (type (;0;) (func)))
+    (call $<main>f0)
+    (return)))
 "
 `);
   });
@@ -357,23 +358,23 @@ describe('ModuleCompiler', () => {
     const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
-  (memory (;0;) 1)
+  (type $none_=>_none (func))
+  (type $i32_=>_i32 (func (param i32) (result i32)))
   (global $g0:#SP (mut i32) (i32.const 0))
-  (func $<foo>f0 (param $p0:a i32) (result i32)
-    (local $<arp>r0:i32 i32)
+  (memory $0 1 1)
+  (export \\"_start\\" (func $_start))
+  (export \\"memory\\" (memory 0))
+  (func $<foo>f0 (param $0 i32) (result i32)
+    (local $1 i32)
     (return
-      (local.get $p0:a)))
+      (local.get $0)))
   (func $<main>f1
-    (local $<arp>r0:i32 i32))
-  (func (;2;)
+    (local $0 i32))
+  (func $_start
     (global.set $g0:#SP
       (i32.const 65536))
-    (call $<main>f1))
-  (export \\"_start\\" (func 2))
-  (export \\"memory\\" (memory 0))
-  (export \\"stackPointer\\" (global 0))
-  (type (;0;) (func (param i32) (result i32)))
-  (type (;1;) (func)))
+    (call $<main>f1)
+    (return)))
 "
 `);
   });
@@ -405,12 +406,10 @@ describe('ModuleCompiler', () => {
     const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
-  (import \\"wasi_unstable\\" \\"fd_write\\" (func $<fd_write>f0 (param i32 i32 i32 i32) (result i32)))
-  (memory (;0;) 1)
   (global $g0:#SP (mut i32) (i32.const 0))
-  (export \\"memory\\" (memory 0))
+  (memory $0 1 1)
   (export \\"stackPointer\\" (global 0))
-  (type (;0;) (func (param i32 i32 i32 i32) (result i32))))
+  (export \\"memory\\" (memory 0)))
 "
 `);
   });

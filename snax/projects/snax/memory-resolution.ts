@@ -14,7 +14,7 @@ import * as Wasm from './wasm-ast.js';
 import * as IR from './stack-ir.js';
 import type { ResolvedTypeMap } from './type-resolution.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
-import type { BaseType, FuncType } from './snax-types.js';
+import { BaseType, FuncType } from './snax-types.js';
 
 export enum Area {
   // corresponds directly to web assembly functions
@@ -48,7 +48,9 @@ export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS> & {
   valueType: IR.NumberType;
 };
 
-export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS>;
+export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS> & {
+  funcType: FuncType;
+};
 
 export type StackStorageLocation = BaseStorageLocation<Area.STACK> & {
   dataType: BaseType;
@@ -154,6 +156,10 @@ export class ModuleAllocator implements ConstAllocator {
   }
 
   allocateFunc(node: FuncDecl, typeMap: ResolvedTypeMap) {
+    const funcType = typeMap.get(node);
+    if (!(funcType instanceof FuncType)) {
+      throw new Error(`expected funcdecl to have func type`);
+    }
     const funcLocalAllocator = new FuncLocalAllocator(
       this.allocationMap,
       node.fields.parameters,
@@ -166,6 +172,7 @@ export class ModuleAllocator implements ConstAllocator {
         area: FUNCS,
         offset: this.funcOffset++,
         id,
+        funcType,
       }),
       localAllocator: funcLocalAllocator,
     };

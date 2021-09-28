@@ -233,7 +233,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
         global next = 0;
         func malloc(numBytes:usize) {
-          let startAddress = next;
+          reg startAddress = next;
           next = next + numBytes;
           return startAddress;
         }
@@ -290,7 +290,12 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     } else {
       // TODO, find a better alternative for optional compilation
       runtime = {
-        malloc: { area: Area.FUNCS, offset: 1000, id: 'f1000:malloc' },
+        malloc: {
+          area: Area.FUNCS,
+          offset: 1000,
+          id: 'f1000:malloc',
+          funcType: new FuncType([], Intrinsics.void),
+        },
         stackPointer,
       };
     }
@@ -378,11 +383,38 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         }).compileToBinaryen()
       );
     }
+
+    // ADD DATA
+    const segments: binaryen.MemorySegment[] = [];
+    for (const loc of moduleAllocator.allocationMap.values()) {
+      if (loc.area === 'data') {
+        segments.push({
+          offset: loc.memIndex,
+          data: new TextEncoder().encode(loc.data),
+          passive: false,
+        });
+      }
+    }
+
+    // ADD IMPORTS
+    // const imports: Wasm.Import[] = [];
+    // for (const decl of this.root.fields.decls) {
+    //   if (AST.isExternDecl(decl)) {
+    //     imports.push(
+    //       ...new ExternDeclCompiler(decl, {
+    //         typeCache,
+    //         allocationMap: moduleAllocator.allocationMap,
+    //       }).compile()
+    //     );
+    //   }
+    // }
+    module.addGlobalExport(stackPointer.id, 'stackPointer');
+
     module.setMemory(
       numPagesOfMemory,
       numPagesOfMemory,
       'memory',
-      undefined,
+      segments,
       undefined,
       true
     );
@@ -738,6 +770,39 @@ class RegStatementCompiler extends IRCompiler<AST.RegStatement> {
 }
 
 class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
+  compileToBinaryen() {
+    const location = this.context.allocationMap.getStackOrThrow(
+      this.root,
+      'let statements need a local'
+    );
+    const { expr } = this.root.fields;
+    const type = this.resolveType(this.root);
+    const { module } = this.context;
+    const { arp } = this.context.funcAllocs;
+
+    let dest = lget(module, arp);
+
+    if (expr) {
+      const value = this.compileChildToBinaryen(expr);
+      return memStore(
+        module,
+        {
+          valueType: type.toValueType(),
+          offset: location.offset,
+          bytes: type.numBytes,
+        },
+        dest,
+        value
+      );
+    } else {
+      if (location.offset > 0) {
+        dest = module.i32.add(module.i32.const(location.offset), dest);
+      }
+      const value = module.i32.const(0);
+      const size = module.i32.const(type.numBytes);
+      return module.memory.fill(dest, value, size);
+    }
+  }
   compile(): IR.Instruction[] {
     const location = this.context.allocationMap.getStackOrThrow(
       this.root,
@@ -782,6 +847,13 @@ class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
 }
 
 export class IfStatementCompiler extends IRCompiler<AST.IfStatement> {
+  compileToBinaryen() {
+    return this.context.module.if(
+      this.compileChildToBinaryen(this.root.fields.condExpr),
+      this.compileChildToBinaryen(this.root.fields.thenBlock),
+      this.compileChildToBinaryen(this.root.fields.elseBlock)
+    );
+  }
   compile(): IR.Instruction[] {
     return [
       ...this.compileChild(this.root.fields.condExpr),
@@ -794,6 +866,18 @@ export class IfStatementCompiler extends IRCompiler<AST.IfStatement> {
 }
 
 export class WhileStatementCompiler extends IRCompiler<AST.WhileStatement> {
+  compileToBinaryen() {
+    const { module } = this.context;
+    const { condExpr, thenBlock } = this.root.fields;
+    const cond = this.compileChildToBinaryen(condExpr);
+    return module.if(
+      cond,
+      module.loop(
+        'while_0',
+        module.br_if('while_0', cond, this.compileChildToBinaryen(thenBlock))
+      )
+    );
+  }
   compile() {
     return [
       ...this.compileChild(this.root.fields.condExpr),
@@ -904,6 +988,42 @@ function memLoad(
       throw new Error(`Don't know how to load into ${valueType} yet`);
   }
   return loadFunc(offset, align, ptr);
+}
+
+function memStore(
+  module: binaryen.Module,
+  props: MemProps,
+  ptr: binaryen.ExpressionRef,
+  value: binaryen.ExpressionRef
+) {
+  const { offset, align, bytes } = memDefaults(props);
+  const { valueType } = props;
+  let storeFunc;
+  switch (valueType) {
+    case IR.NumberType.i32: {
+      const typed = module.i32;
+      if (bytes === 8) {
+        throw new Error(`Can't store more than 4 bytes from a ${valueType}`);
+      }
+      storeFunc = { 1: typed.store8, 2: typed.store16, 4: typed.store }[bytes];
+      break;
+    }
+    case IR.NumberType.i64: {
+      const typed = module.i64;
+      storeFunc = {
+        1: typed.store8,
+        2: typed.store16,
+        4: typed.store32,
+        8: typed.store,
+      }[bytes];
+      break;
+    }
+    case IR.NumberType.f32:
+    case IR.NumberType.f64:
+      storeFunc = module[valueType].store;
+      break;
+  }
+  return storeFunc(offset, align, ptr, value);
 }
 
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
@@ -1040,6 +1160,173 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
       }
       return this.context.module[type].div_s(
         ...this.pushNumberOpsBinaryen(left, right)
+      );
+    },
+    [BinOp.REM]: (left: AST.Expression, right: AST.Expression) => {
+      const type = this.matchTypes(left, right);
+      if (IR.isIntType(type)) {
+        // TODO: make this work with unsigned ints
+        return this.context.module[type].rem_s(
+          ...this.pushNumberOpsBinaryen(left, right)
+        );
+      }
+      throw new Error(`Don't know how to compute remainder for floats yet`);
+    },
+    [BinOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module[this.matchTypes(left, right)].eq(
+        ...this.pushNumberOpsBinaryen(left, right)
+      ),
+    [BinOp.NOT_EQUAL_TO]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module[this.matchTypes(left, right)].ne(
+        ...this.pushNumberOpsBinaryen(left, right)
+      ),
+    [BinOp.LESS_THAN]: (left: AST.Expression, right: AST.Expression) => {
+      const type = this.matchTypes(left, right);
+      if (IR.isFloatType(type)) {
+        return this.context.module[type].lt(
+          ...this.pushNumberOpsBinaryen(left, right)
+        );
+      }
+      // TODO: handle unsigned integer types
+      return this.context.module[type].lt_s(
+        ...this.pushNumberOpsBinaryen(left, right)
+      );
+    },
+    [BinOp.GREATER_THAN]: (left: AST.Expression, right: AST.Expression) => {
+      const type = this.matchTypes(left, right);
+      if (IR.isFloatType(type)) {
+        return this.context.module[type].gt(
+          ...this.pushNumberOpsBinaryen(left, right)
+        );
+      }
+      // TODO: handle unsigned integer types
+      return this.context.module[type].gt_s(
+        ...this.pushNumberOpsBinaryen(left, right)
+      );
+    },
+    [BinOp.LOGICAL_AND]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module.i32.and(
+        this.compileChildToBinaryen(left),
+        this.compileChildToBinaryen(right)
+      ),
+    [BinOp.LOGICAL_OR]: (left: AST.Expression, right: AST.Expression) =>
+      this.context.module.i32.or(
+        this.compileChildToBinaryen(left),
+        this.compileChildToBinaryen(right)
+      ),
+    [BinOp.ASSIGN]: (left: AST.Expression, right: AST.Expression) => {
+      const leftType = this.resolveType(left);
+      const rightType = this.resolveType(right);
+      if (leftType !== rightType) {
+        throw new Error(
+          `ASSIGN: Can't assign value of type ${rightType} to symbol of type ${leftType}`
+        );
+      }
+      const { module } = this.context;
+      if (AST.isSymbolRef(left)) {
+        const location = this.getLocationForSymbolRef(left);
+        switch (location.area) {
+          case 'locals':
+            return ltee(module, location, this.compileChildToBinaryen(right));
+          case 'globals':
+            return module.block(
+              '',
+              [
+                gset(module, location, this.compileChildToBinaryen(right)),
+                gget(module, location),
+              ],
+              binaryen[location.valueType]
+            );
+          case 'stack':
+            const { arp } = this.context.funcAllocs;
+            const ptr = lget(module, arp);
+            const value = this.compileChildToBinaryen(right);
+            const memProps = {
+              valueType: rightType.toValueType(),
+              offset: location.offset,
+            };
+            return module.block(
+              '',
+              [
+                memStore(module, memProps, ptr, value),
+                memLoad(module, memProps, ptr),
+              ],
+              binaryen[rightType.toValueType()]
+            );
+          default:
+            throw new Error(
+              `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+            );
+        }
+      } else if (
+        AST.isBinaryExpr(left) &&
+        left.fields.op === BinOp.ARRAY_INDEX
+      ) {
+        let valueType = leftType.toValueType();
+        const arrayExpr = left;
+
+        const ptr = module[valueType].add(
+          this.compileChildToBinaryen(arrayExpr.fields.left),
+          module[valueType].mul(
+            this.compileChildToBinaryen(arrayExpr.fields.right),
+            module[valueType].const(leftType.numBytes, leftType.numBytes)
+          )
+        );
+
+        const calcValue = this.compileChildToBinaryen(right);
+        let tempLocation = this.context.allocationMap.getLocalOrThrow(
+          this.root,
+          'Array Indexing requires a temporary'
+        );
+        const value = ltee(module, tempLocation, calcValue);
+        return module.block(
+          '',
+          [
+            memStore(
+              module,
+              {
+                valueType,
+                offset: 0,
+                align: leftType.numBytes,
+                bytes: leftType.numBytes,
+              },
+              ptr,
+              value
+            ),
+            lget(module, tempLocation),
+          ],
+          binaryen[tempLocation.valueType]
+        );
+      } else {
+        throw new Error(
+          `ASSIGN: Can't assign to ${left.name}: something that is not a resolved symbol or a memory address`
+        );
+      }
+    },
+    [BinOp.ARRAY_INDEX]: (
+      refExpr: AST.Expression,
+      indexExpr: AST.Expression
+    ) => {
+      const refExprType = this.resolveType(refExpr);
+      if (!(refExprType instanceof PointerType)) {
+        throw new Error(
+          `Don't know how to compile indexing operation for a ${refExprType.name}`
+        );
+      }
+      let align = refExprType.toType.numBytes;
+      const valueType = refExprType.toValueType();
+      const { module } = this.context;
+      const ptr = module[valueType].add(
+        this.compileChildToBinaryen(refExpr),
+        module[valueType].mul(
+          this.compileChildToBinaryen(indexExpr),
+          module[valueType].const(align, align)
+        )
+      );
+      return memLoad(
+        module,
+        { valueType, offset: 0, align, bytes: align },
+        ptr
       );
     },
   };
@@ -1223,6 +1510,59 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
 }
 
 class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
+  compileToBinaryen() {
+    const { left, right } = this.root.fields;
+
+    const leftType = this.context.typeCache.get(left);
+    if (leftType instanceof PointerType) {
+      let elem: { type: BaseType; offset: number };
+      if (
+        leftType.toType instanceof TupleType &&
+        right.name === 'NumberLiteral'
+      ) {
+        const index = right.fields.value;
+        elem = leftType.toType.elements[index];
+        if (!elem) {
+          throw new Error(
+            `Invalid index ${index} for tuple ${leftType.toType.name}`
+          );
+        }
+      } else if (
+        leftType.toType instanceof RecordType &&
+        right.name === 'SymbolRef'
+      ) {
+        elem = leftType.toType.fields.get(right.fields.symbol)!;
+        if (!elem) {
+          throw new Error(
+            `Invalid prop ${right.fields.symbol} for ${leftType.toType.name}`
+          );
+        }
+      } else {
+        throw new Error(
+          `Don't know how to lookup ${right.name} on a ${leftType.name}`
+        );
+      }
+      let sign = undefined;
+      if (elem.type instanceof NumericalType) {
+        sign = elem.type.signed ? IR.Sign.Signed : IR.Sign.Unsigned;
+      }
+
+      return memLoad(
+        this.context.module,
+        {
+          valueType: elem.type.toValueType(),
+          offset: elem.offset,
+          align: elem.type.numBytes,
+          bytes: elem.type.numBytes,
+          sign,
+        },
+        this.compileChildToBinaryen(left)
+      );
+    }
+    throw new Error(
+      `MemberAccessExprCompiler: don't know how to compile this...`
+    );
+  }
   compile() {
     const { left, right } = this.root.fields;
 
@@ -1276,6 +1616,75 @@ class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
 }
 
 class CallExprCompiler extends IRCompiler<AST.CallExpr> {
+  compileToBinaryen() {
+    const { left, right } = this.root.fields;
+    const { module } = this.context;
+    const leftType = this.context.typeCache.get(left);
+    if (leftType instanceof TupleType) {
+      // we are constructing a tuple
+      const { location, instr } = compileStackPushToBinaryen(
+        this,
+        leftType.numBytes
+      );
+      const fieldInstr = [];
+      for (const [i, arg] of right.fields.args.entries()) {
+        if (i >= leftType.elements.length) {
+          throw new Error(`too many arguments specifed for tuple constructor`);
+        }
+        const elem = leftType.elements[i];
+        const ptr = lget(module, location);
+        const value = this.compileChildToBinaryen(arg);
+        fieldInstr.push(
+          memStore(
+            module,
+            {
+              valueType: elem.type.toValueType(),
+              offset: elem.offset,
+              align: elem.type.numBytes,
+              bytes: elem.type.numBytes,
+            },
+            ptr,
+            value
+          )
+        );
+      }
+      return module.block(
+        '',
+        [instr, ...fieldInstr, lget(module, location)],
+        binaryen[location.valueType]
+      );
+    } else if (AST.isSymbolRef(left)) {
+      const location = this.getLocationForSymbolRef(left);
+      if (location.area !== Area.FUNCS) {
+        throw new Error(
+          `Expected ${left.fields.symbol} to resolve to a function`
+        );
+      }
+      const returnType = location.funcType.returnType.equals(Intrinsics.void)
+        ? binaryen.none
+        : binaryen[location.funcType.returnType.toValueType()];
+      return module.block(
+        '',
+        [
+          module.call(
+            location.id,
+            right.fields.args.map((arg) => this.compileChildToBinaryen(arg)),
+            returnType
+          ),
+          gset(
+            module,
+            this.context.runtime.stackPointer,
+            lget(module, this.context.funcAllocs.arp)
+          ),
+        ],
+        returnType
+      );
+    } else {
+      throw new Error(
+        `ExpressionCompiler: Can't call unresolved symbol ${left}`
+      );
+    }
+  }
   compile() {
     const { left, right } = this.root.fields;
     const leftType = this.context.typeCache.get(left);
@@ -1321,6 +1730,91 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
 }
 
 class CastExprCompiler extends IRCompiler<AST.CastExpr> {
+  compileToBinaryen() {
+    const { force } = this.root.fields;
+    const sourceType = this.context.typeCache.get(this.root.fields.expr);
+    const destType = this.context.typeCache.get(this.root.fields.typeExpr);
+    const value = this.compileChildToBinaryen(this.root.fields.expr);
+    const { module } = this.context;
+    if (destType instanceof NumericalType) {
+      if (sourceType instanceof NumericalType) {
+        const destValueType = destType.toValueType();
+        const sourceValueType = sourceType.toValueType();
+
+        if (IR.isFloatType(destValueType)) {
+          const typed = module[destValueType];
+          // conversion to floats
+          if (IR.isIntType(sourceValueType)) {
+            const signed = sourceType.signed
+              ? typed.convert_s
+              : typed.convert_u;
+            return signed[sourceValueType](value);
+          } else if (destValueType !== sourceValueType) {
+            if (destValueType === 'f64' && sourceValueType === 'f32') {
+              module.f64.promote(value);
+            } else if (force) {
+              throw new Error(`NotImplemented: forced float demotion`);
+            } else {
+              throw new Error(`I don't implicitly demote floats`);
+            }
+          } else {
+            return value;
+          }
+        } else {
+          // conversion to integers
+          if (IR.isFloatType(sourceValueType)) {
+            if (force) {
+              throw new Error(`NotImplemented: truncate floats to int`);
+            } else {
+              throw new Error(`I don't implicitly truncate floats`);
+            }
+          } else if (sourceType.numBytes > destType.numBytes) {
+            if (force) {
+              return module[sourceValueType].and(
+                value,
+                module[sourceValueType].const(
+                  (1 << (destType.numBytes * 8)) - 1,
+                  (1 << (destType.numBytes * 8)) - 1
+                )
+              );
+            } else {
+              throw new Error(`I don't implicitly wrap to smaller sizes`);
+            }
+          } else if (sourceType.signed && !destType.signed) {
+            if (force) {
+              throw new Error(`NotImplemented: forced dropping of sign`);
+            } else {
+              throw new Error(`I don't implicitly drop signs`);
+            }
+          } else {
+            return value;
+          }
+        }
+      } else if (sourceType instanceof PointerType) {
+        if (
+          destType.interpretation === 'int' &&
+          destType.numBytes < sourceType.numBytes
+        ) {
+          throw new Error(
+            `${destType} doesn't hold enough bytes for a pointer`
+          );
+        } else {
+          return value;
+        }
+      } else {
+        throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
+      }
+    } else if (destType instanceof PointerType) {
+      if (sourceType.equals(Intrinsics.i32) && force) {
+        return value;
+      } else {
+        throw new Error(
+          `I only convert i32s to pointer types, and only when forced.`
+        );
+      }
+    }
+    throw new Error(`Don't know how to cast to ${destType.name} yet`);
+  }
   compile() {
     const { force } = this.root.fields;
     const sourceType = this.context.typeCache.get(this.root.fields.expr);
@@ -1453,6 +1947,14 @@ class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
 }
 
 class ExprStatementCompiler extends IRCompiler<AST.ExprStatement> {
+  compileToBinaryen() {
+    const value = this.compileChildToBinaryen(this.root.fields.expr);
+    if (this.resolveType(this.root.fields.expr) === Intrinsics.void) {
+      return value;
+    }
+    return this.context.module.drop(value);
+  }
+
   compile() {
     if (this.resolveType(this.root.fields.expr) === Intrinsics.void) {
       return this.compileChild(this.root.fields.expr);
@@ -1491,10 +1993,46 @@ class NumberLiteralCompiler extends IRCompiler<
 }
 
 export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
+  compileToBinaryen() {
+    const value = this.root.fields.value ? 1 : 0;
+    return this.context.module.i32.const(value);
+  }
   compile(): IR.Instruction[] {
     const value = this.root.fields.value ? 1 : 0;
     return [new IR.PushConst(IR.NumberType.i32, value)];
   }
+}
+
+function gget(module: binaryen.Module, location: GlobalStorageLocation) {
+  return module.global.get(location.id, binaryen[location.valueType]);
+}
+
+function gset(
+  module: binaryen.Module,
+  location: GlobalStorageLocation,
+  value: binaryen.ExpressionRef
+) {
+  return module.global.set(location.id, value);
+}
+
+function lget(module: binaryen.Module, location: LocalStorageLocation) {
+  return module.local.get(location.offset, binaryen[location.valueType]);
+}
+
+function ltee(
+  module: binaryen.Module,
+  location: LocalStorageLocation,
+  value: binaryen.ExpressionRef
+) {
+  return module.local.tee(location.offset, value, binaryen[location.valueType]);
+}
+
+function lset(
+  module: binaryen.Module,
+  location: LocalStorageLocation,
+  value: binaryen.ExpressionRef
+) {
+  return module.local.set(location.offset, value);
 }
 
 function globalGet(global: GlobalStorageLocation) {
@@ -1514,6 +2052,45 @@ function localSet(local: LocalStorageLocation) {
 }
 function call(func: FuncStorageLocation) {
   return new IR.Call(func.id);
+}
+
+/**
+ * Generates a sequence of instructions that allocates
+ * space in the stack area of linear memory, incrementing
+ * the stack pointer
+ *
+ * @param ir
+ * @param numBytes
+ * @returns the instructions, and the local where the temporary address is stored
+ */
+function compileStackPushToBinaryen(
+  ir: IRCompiler<AST.ASTNode>,
+  numBytes: number
+) {
+  let location = ir.context.allocationMap.get(ir.root);
+  if (!location || location.area !== 'locals') {
+    throw new Error(
+      `${ir.root.name} didn't have a temporary local allocated for it`
+    );
+  }
+  const { module } = ir.context;
+  const instr = gset(
+    module,
+    ir.context.runtime.stackPointer,
+    ltee(
+      module,
+      location,
+      module.i32.sub(
+        gget(module, ir.context.runtime.stackPointer),
+        module.i32.const(numBytes)
+      )
+    )
+  );
+
+  return {
+    location,
+    instr,
+  };
 }
 
 /**
@@ -1553,6 +2130,42 @@ function compileStackPush(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
 }
 
 class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
+  compileToBinaryen() {
+    const arrayType = this.resolveType(this.root);
+    if (!(arrayType instanceof PointerType)) {
+      throw new Error('unexpected type for array literal');
+    }
+    const { elements } = this.root.fields;
+
+    const { instr, location } = compileStackPushToBinaryen(
+      this,
+      arrayType.numBytes * elements.length
+    );
+    const { module } = this.context;
+
+    const fieldInstr = [];
+    for (const [i, prop] of elements.entries()) {
+      const ptr = lget(module, location);
+      const value = this.compileChildToBinaryen(prop);
+      fieldInstr.push(
+        memStore(
+          module,
+          {
+            valueType: arrayType.toType.toValueType(),
+            offset: i * 4,
+            align: 4,
+          },
+          ptr,
+          value
+        )
+      );
+    }
+    return module.block(
+      '',
+      [instr, ...fieldInstr, lget(module, location)],
+      binaryen[location.valueType]
+    );
+  }
   compile(): IR.Instruction[] {
     const arrayType = this.resolveType(this.root);
     if (!(arrayType instanceof PointerType)) {
@@ -1583,6 +2196,57 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
 }
 
 class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
+  compileToBinaryen() {
+    const structPointerType = this.resolveType(this.root);
+    if (!(structPointerType instanceof PointerType)) {
+      throw new Error(`unexpected type for struct literal`);
+    }
+    const { toType: structType } = structPointerType;
+    if (!(structType instanceof RecordType)) {
+      throw new Error(
+        `unexpected type for struct literal... should pointer to a record`
+      );
+    }
+
+    const { instr, location } = compileStackPushToBinaryen(
+      this,
+      structType.numBytes
+    );
+
+    const { module } = this.context;
+
+    const fieldInstr = [];
+    for (const [i, prop] of this.root.fields.props.entries()) {
+      const propType = structType.fields.get(prop.fields.symbol);
+      if (!propType) {
+        throw new Error(
+          `prop ${prop.fields.symbol} does not exist on struct ${this.root.fields.symbol.fields.symbol}`
+        );
+      }
+      const ptr = lget(module, location);
+      const value = this.compileChildToBinaryen(prop.fields.expr);
+      fieldInstr.push(
+        memStore(
+          module,
+          {
+            valueType: propType.type.toValueType(),
+            offset: propType.offset,
+            align: propType.type.numBytes,
+            bytes: propType.type.numBytes,
+          },
+          ptr,
+          value
+        )
+      );
+    }
+
+    return module.block(
+      '',
+      [instr, ...fieldInstr, lget(module, location)],
+      binaryen[location.valueType]
+    );
+  }
+
   compile(): IR.Instruction[] {
     const structPointerType = this.resolveType(this.root);
     if (!(structPointerType instanceof PointerType)) {
@@ -1620,6 +2284,10 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
 }
 
 class DataLiteralCompiler extends IRCompiler<AST.DataLiteral> {
+  compileToBinaryen() {
+    const location = this.context.allocationMap.getDataOrThrow(this.root);
+    return this.context.module.i32.const(location.memIndex);
+  }
   compile() {
     const location = this.context.allocationMap.getDataOrThrow(this.root);
     return [new IR.PushConst(IR.NumberType.i32, location.memIndex)];

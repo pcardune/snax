@@ -328,8 +328,9 @@ describe('ModuleCompiler', () => {
   (type $none_=>_none (func))
   (global $g0:#SP (mut i32) (i32.const 0))
   (memory $0 1 1)
-  (data (;0;) \\"hello world!\\")
+  (data (;0;) (i32.const 0) \\"hello world!\\")
   (export \\"_start\\" (func $_start))
+  (export \\"stackPointer\\" (global 0))
   (export \\"memory\\" (memory 0))
   (func $<main>f0
     (local $0 i32)
@@ -363,6 +364,7 @@ describe('ModuleCompiler', () => {
   (global $g0:#SP (mut i32) (i32.const 0))
   (memory $0 1 1)
   (export \\"_start\\" (func $_start))
+  (export \\"stackPointer\\" (global 0))
   (export \\"memory\\" (memory 0))
   (func $<foo>f0 (param $0 i32) (result i32)
     (local $1 i32)
@@ -406,6 +408,8 @@ describe('ModuleCompiler', () => {
     const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
 "(module
+  (type $i32_i32_i32_i32_=>_i32 (func (param i32 i32 i32 i32) (result i32)))
+  (import \\"wasi_unstable\\" \\"fd_write\\" (func $<fd_write>f0 (param i32 i32 i32 i32) (result i32)))
   (global $g0:#SP (mut i32) (i32.const 0))
   (memory $0 1 1)
   (export \\"stackPointer\\" (global 0))

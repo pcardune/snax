@@ -322,6 +322,10 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
+    module.setFeatures(
+      binaryen.Features.BulkMemory | binaryen.Features.MutableGlobals
+    );
+    // module.setFeatures(binaryen.Features.MutableGlobals);
     for (const func of this.root.fields.funcs) {
       new FuncDeclCompiler(func, {
         refMap,
@@ -350,13 +354,17 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         binaryen.createType([]),
         returnType,
         [],
-        module.block('', [
-          module.global.set(
-            runtime.stackPointer.id,
-            module.i32.const(numPagesOfMemory * Wasm.PAGE_SIZE)
-          ),
-          module.return(module.call(mainFuncLocation.id, [], returnType)),
-        ])
+        module.block(
+          '',
+          [
+            module.global.set(
+              runtime.stackPointer.id,
+              module.i32.const(numPagesOfMemory * Wasm.PAGE_SIZE)
+            ),
+            module.return(module.call(mainFuncLocation.id, [], returnType)),
+          ],
+          binaryen.auto
+        )
       );
       module.addFunctionExport('_start', '_start');
     }
@@ -383,13 +391,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
         }).compileToBinaryen()
       );
     }
+    module.addGlobalExport(stackPointer.id, 'stackPointer');
 
     // ADD DATA
     const segments: binaryen.MemorySegment[] = [];
     for (const loc of moduleAllocator.allocationMap.values()) {
       if (loc.area === 'data') {
         segments.push({
-          offset: loc.memIndex,
+          offset: module.i32.const(loc.memIndex),
           data: new TextEncoder().encode(loc.data),
           passive: false,
         });
@@ -397,26 +406,23 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
     }
 
     // ADD IMPORTS
-    // const imports: Wasm.Import[] = [];
-    // for (const decl of this.root.fields.decls) {
-    //   if (AST.isExternDecl(decl)) {
-    //     imports.push(
-    //       ...new ExternDeclCompiler(decl, {
-    //         typeCache,
-    //         allocationMap: moduleAllocator.allocationMap,
-    //       }).compile()
-    //     );
-    //   }
-    // }
-    module.addGlobalExport(stackPointer.id, 'stackPointer');
+    for (const decl of this.root.fields.decls) {
+      if (AST.isExternDecl(decl)) {
+        new ExternDeclCompiler(decl, {
+          typeCache,
+          allocationMap: moduleAllocator.allocationMap,
+          module,
+        }).compileToBinaryen();
+      }
+    }
 
     module.setMemory(
       numPagesOfMemory,
       numPagesOfMemory,
       'memory',
-      segments,
+      segments.length > 0 ? segments : undefined,
       undefined,
-      true
+      undefined
     );
 
     return module;
@@ -514,6 +520,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
       if (AST.isExternDecl(decl)) {
         imports.push(
           ...new ExternDeclCompiler(decl, {
+            module,
             typeCache,
             allocationMap: moduleAllocator.allocationMap,
           }).compile()
@@ -542,8 +549,58 @@ export class ModuleCompiler extends ASTCompiler<AST.File, Wasm.Module> {
 export class ExternDeclCompiler extends ASTCompiler<
   AST.ExternDecl,
   Wasm.Import[],
-  { typeCache: ResolvedTypeMap; allocationMap: AllocationMap }
+  {
+    module: binaryen.Module;
+    typeCache: ResolvedTypeMap;
+    allocationMap: AllocationMap;
+  }
 > {
+  compileToBinaryen() {
+    const { module } = this.context;
+    for (const func of this.root.fields.funcs) {
+      const funcType = this.context.typeCache.get(func);
+      if (!(funcType instanceof FuncType)) {
+        throw new Error(`Unexpected type for funcDecl: ${funcType.name}`);
+      }
+      const location = this.context.allocationMap.getFuncOrThrow(func);
+
+      const params = binaryen.createType(
+        func.fields.parameters.fields.parameters.map(
+          (param) => binaryen[this.context.typeCache.get(param).toValueType()]
+        )
+      );
+      const results =
+        funcType.returnType === Intrinsics.void
+          ? binaryen.none
+          : binaryen[funcType.returnType.toValueType()];
+      module.addFunctionImport(
+        location.id,
+        this.root.fields.libName,
+        func.fields.symbol,
+        params,
+        results
+      );
+
+      return new Wasm.Import({
+        mod: this.root.fields.libName,
+        nm: func.fields.symbol,
+        importdesc: {
+          kind: 'func',
+          id: location.id,
+          typeuse: {
+            params: func.fields.parameters.fields.parameters.map((param) => ({
+              valtype: this.context.typeCache.get(param).toValueType(),
+            })),
+            results:
+              funcType.returnType === Intrinsics.void
+                ? []
+                : [funcType.returnType.toValueType()],
+          },
+        },
+      });
+    }
+  }
+
   compile(): Wasm.Import[] {
     return this.root.fields.funcs.map((func) => {
       const funcType = this.context.typeCache.get(func);
@@ -870,12 +927,10 @@ export class WhileStatementCompiler extends IRCompiler<AST.WhileStatement> {
     const { module } = this.context;
     const { condExpr, thenBlock } = this.root.fields;
     const cond = this.compileChildToBinaryen(condExpr);
-    return module.if(
-      cond,
-      module.loop(
-        'while_0',
-        module.br_if('while_0', cond, this.compileChildToBinaryen(thenBlock))
-      )
+    const value = this.compileChildToBinaryen(thenBlock);
+    return module.loop(
+      'while_0',
+      module.block('', [value, module.br_if('while_0', cond)], binaryen.auto)
     );
   }
   compile() {
@@ -1660,22 +1715,34 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
           `Expected ${left.fields.symbol} to resolve to a function`
         );
       }
+      const tempLocation = this.context.allocationMap.getLocalOrThrow(
+        this.root,
+        'function calls need a temp local'
+      );
       const returnType = location.funcType.returnType.equals(Intrinsics.void)
         ? binaryen.none
         : binaryen[location.funcType.returnType.toValueType()];
+      const funcCall = module.call(
+        location.id,
+        right.fields.args.map((arg) => this.compileChildToBinaryen(arg)),
+        returnType
+      );
+      if (returnType !== binaryen.none) {
+      }
       return module.block(
         '',
         [
-          module.call(
-            location.id,
-            right.fields.args.map((arg) => this.compileChildToBinaryen(arg)),
-            returnType
-          ),
+          returnType === binaryen.none
+            ? funcCall
+            : lset(module, tempLocation, funcCall),
           gset(
             module,
             this.context.runtime.stackPointer,
             lget(module, this.context.funcAllocs.arp)
           ),
+          returnType === binaryen.none
+            ? module.nop()
+            : lget(module, tempLocation),
         ],
         returnType
       );

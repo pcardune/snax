@@ -38,6 +38,17 @@ export async function compileToWAT(
   options = { ...defaultOptions, ...options };
   if (options.binaryen) {
     const binaryenModule = compiler.compileToBinaryen();
+
+    const oldWarn = console.warn;
+    const warnings: string[] = [];
+    global.console.warn = (...args) => {
+      warnings.push(args.join(' '));
+    };
+    if (!binaryenModule.validate()) {
+      throw new Error(`Failed validation: ${warnings.join('\n')}`);
+    }
+    global.console.warn = oldWarn;
+
     let wat = binaryenModule.emitText();
     const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');
     binaryenModule.dispose();

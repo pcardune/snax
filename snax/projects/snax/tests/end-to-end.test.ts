@@ -150,7 +150,7 @@ describe('empty module', () => {
           (call $<main>f0)
           (return)))
       "
-    `);
+      `);
     expect(await exec('')).toBe(undefined);
   });
 
@@ -535,12 +535,45 @@ describe('control flow', () => {
   });
   it('compiles while statements', async () => {
     const code = `
-        let i = 0;
+        reg i = 0;
         while (i < 10) {
           i = i+1;
         }
         i;
       `;
+    const { wat } = await compileToWasmModule(code, { includeRuntime: false });
+    expect(wat).toMatchInlineSnapshot(`
+      "(module
+        (type $none_=>_i32 (func (result i32)))
+        (global $g0:#SP (mut i32) (i32.const 0))
+        (memory $0 1 1)
+        (export \\"_start\\" (func $_start))
+        (export \\"stackPointer\\" (global 0))
+        (export \\"memory\\" (memory 0))
+        (func $<main>f0 (result i32)
+          (local $0 i32) (local $1 i32)
+          (local.set $1
+            (i32.const 0))
+          (loop $while_0
+            (block  ;; label = @2
+              (drop
+                (local.tee $1
+                  (i32.add
+                    (local.get $1)
+                    (i32.const 1)))))
+            (br_if $while_0
+              (i32.lt_s
+                (local.get $1)
+                (i32.const 10))))
+          (return
+            (local.get $1)))
+        (func $_start (result i32)
+          (global.set $g0:#SP
+            (i32.const 65536))
+          (return
+            (call $<main>f0))))
+      "
+    `);
     expect(await exec(code)).toBe(10);
   });
 });
@@ -552,8 +585,8 @@ describe('functions', () => {
           func add(x:i32, y:i32) {
             return x+y;
           }
-          let x = 3;
-          let plus5 = add(x, 5);
+          reg x = 3;
+          reg plus5 = add(x, 5);
           plus5;
         `)
     ).toBe(8);
@@ -780,6 +813,7 @@ describe('object structs', () => {
         (global $g0:#SP (mut i32) (i32.const 0))
         (memory $0 1 1)
         (export \\"_start\\" (func $_start))
+        (export \\"stackPointer\\" (global 0))
         (export \\"memory\\" (memory 0))
         (func $<main>f0
           (local $0 i32)

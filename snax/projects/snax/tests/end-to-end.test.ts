@@ -3,7 +3,6 @@ import {
   ModuleCompilerOptions,
   PAGE_SIZE,
 } from '../ast-compiler.js';
-import { parseWat } from '../wabt-util.js';
 import { compileToWAT } from './test-util';
 
 type SnaxExports = {
@@ -95,22 +94,27 @@ describe('empty module', () => {
       includeRuntime: false,
     });
     expect(output.wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_none (func))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0
-          (local $0 i32))
-        (func $_start
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (call $<main>f0)
-          (return)))
-      "
-    `);
+"(module
+ (type $none_=>_none (func))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0
+  (local $0 i32)
+ )
+ (func $_start
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(output.sourceMap).toMatchInlineSnapshot(
       `"{\\"version\\":3,\\"sources\\":[],\\"names\\":[],\\"mappings\\":\\"\\"}"`
     );
@@ -119,37 +123,57 @@ describe('empty module', () => {
   it('compiles an empty program', async () => {
     const { wat } = await compileToWAT('', { includeRuntime: true });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_none (func))
-        (type $i32_=>_i32 (func (param i32) (result i32)))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (global $g1:next (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0
-          (local $0 i32))
-        (func $<malloc>f1 (param $0 i32) (result i32)
-          (local $1 i32) (local $2 i32)
-          (local.set $2
-            (global.get $g1:next))
-          (drop
-            (block (result i32)  ;; label = @1
-              (global.set $g1:next
-                (i32.add
-                  (global.get $g1:next)
-                  (local.get $0)))
-              (global.get $g1:next)))
-          (return
-            (local.get $2)))
-        (func $_start
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (call $<main>f0)
-          (return)))
-      "
-      `);
+"(module
+ (type $none_=>_none (func))
+ (type $i32_=>_i32 (func (param i32) (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (global $g1:next (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0
+  (local $0 i32)
+ )
+ (func $<malloc>f1 (param $0 i32) (result i32)
+  (local $1 i32)
+  (local $2 i32)
+  ;;@ :4:11
+  (local.set $2
+   ;;@ :4:30
+   (global.get $g1:next)
+  )
+  ;;@ :5:11
+  (drop
+   (block (result i32)
+    (global.set $g1:next
+     ;;@ :5:18
+     (i32.add
+      (global.get $g1:next)
+      ;;@ :5:25
+      (local.get $0)
+     )
+    )
+    (global.get $g1:next)
+   )
+  )
+  ;;@ :6:11
+  (return
+   ;;@ :6:18
+   (local.get $2)
+  )
+ )
+ (func $_start
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(await exec('')).toBe(undefined);
   });
 
@@ -158,24 +182,31 @@ describe('empty module', () => {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_i32 (func (result i32)))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0 (result i32)
-          (local $0 i32)
-          (return
-            (i32.const 123)))
-        (func $_start (result i32)
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (return
-            (call $<main>f0))))
-      "
-    `);
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0 (result i32)
+  (local $0 i32)
+  ;;@ :1:1
+  (return
+   (i32.const 123)
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(sourceMap).toMatchInlineSnapshot(
       `"{\\"version\\":3,\\"sources\\":[\\"\\",\\"\\"],\\"names\\":[],\\"mappings\\":\\"6ECAC\\"}"`
     );
@@ -246,25 +277,36 @@ describe('reg statements', () => {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_none (func))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0
-          (local $0 i32) (local $1 i32) (local $2 i32) (local $3 f64)
-          (nop)
-          (nop)
-          (nop))
-        (func $_start
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (call $<main>f0)
-          (return)))
-      "
-    `);
+"(module
+ (type $none_=>_none (func))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0
+  (local $0 i32)
+  (local $1 i32)
+  (local $2 i32)
+  (local $3 f64)
+  ;;@ :2:7
+  (nop)
+  ;;@ :3:7
+  (nop)
+  ;;@ :4:7
+  (nop)
+ )
+ (func $_start
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
       "stack:
       locals:
@@ -307,26 +349,37 @@ describe('reg statements', () => {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_i32 (func (result i32)))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0 (result i32)
-          (local $0 i32) (local $1 i32)
-          (local.set $1
-            (i32.const 3))
-          (return
-            (local.get $1)))
-        (func $_start (result i32)
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (return
-            (call $<main>f0))))
-      "
-    `);
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :1:1
+  (local.set $1
+   ;;@ :1:9
+   (i32.const 3)
+  )
+  ;;@ :1:12
+  (return
+   (local.get $1)
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(exports._start()).toBe(3);
   });
   // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -344,41 +397,57 @@ describe('let statements', () => {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_i32 (func (result i32)))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0 (result i32)
-          (local $0 i32)
-          (global.set $g0:#SP
-            (i32.sub
-              (global.get $g0:#SP)
-              (i32.const 5)))
-          (local.set $0
-            (global.get $g0:#SP))
-          (memory.fill
-            (local.get $0)
-            (i32.const 0)
-            (i32.const 4))
-          (memory.fill
-            (i32.add
-              (i32.const 4)
-              (local.get $0))
-            (i32.const 0)
-            (i32.const 1))
-          (return
-            (i32.load
-              (local.get $0))))
-        (func $_start (result i32)
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (return
-            (call $<main>f0))))
-      "
-    `);
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0 (result i32)
+  (local $0 i32)
+  (global.set $g0:#SP
+   (i32.sub
+    (global.get $g0:#SP)
+    (i32.const 5)
+   )
+  )
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ :2:7
+  (memory.fill
+   (local.get $0)
+   (i32.const 0)
+   (i32.const 4)
+  )
+  ;;@ :3:7
+  (memory.fill
+   (i32.add
+    (i32.const 4)
+    (local.get $0)
+   )
+   (i32.const 0)
+   (i32.const 1)
+  )
+  ;;@ :4:7
+  (return
+   (i32.load
+    (local.get $0)
+   )
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
       "stack:
           0: <x>s0-4 (i32)
@@ -458,28 +527,41 @@ describe('assignment operator', () => {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_i32 (func (result i32)))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0 (result i32)
-          (local $0 i32) (local $1 i32)
-          (nop)
-          (drop
-            (local.tee $1
-              (i32.const 54)))
-          (return
-            (local.get $1)))
-        (func $_start (result i32)
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (return
-            (call $<main>f0))))
-      "
-    `);
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :2:7
+  (nop)
+  ;;@ :3:7
+  (drop
+   (local.tee $1
+    ;;@ :3:9
+    (i32.const 54)
+   )
+  )
+  ;;@ :4:7
+  (return
+   (local.get $1)
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(exports._start()).toBe(54);
   });
   it('compiles assignments', async () => {
@@ -537,37 +619,61 @@ describe('control flow', () => {
       `;
     const { wat } = await compileToWasmModule(code, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_i32 (func (result i32)))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0 (result i32)
-          (local $0 i32) (local $1 i32)
-          (local.set $1
-            (i32.const 0))
-          (loop $while_0
-            (block  ;; label = @2
-              (drop
-                (local.tee $1
-                  (i32.add
-                    (local.get $1)
-                    (i32.const 1)))))
-            (br_if $while_0
-              (i32.lt_s
-                (local.get $1)
-                (i32.const 10))))
-          (return
-            (local.get $1)))
-        (func $_start (result i32)
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (return
-            (call $<main>f0))))
-      "
-    `);
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :2:9
+  (local.set $1
+   ;;@ :2:17
+   (i32.const 0)
+  )
+  ;;@ :3:9
+  (loop $while_0
+   ;;@ :4:11
+   (block
+    (drop
+     (local.tee $1
+      ;;@ :4:15
+      (i32.add
+       (local.get $1)
+       ;;@ :4:17
+       (i32.const 1)
+      )
+     )
+    )
+   )
+   (br_if $while_0
+    ;;@ :3:16
+    (i32.lt_s
+     (local.get $1)
+     ;;@ :3:20
+     (i32.const 10)
+    )
+   )
+  )
+  ;;@ :6:9
+  (return
+   (local.get $1)
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
     expect(await exec(code)).toBe(10);
   });
 });
@@ -802,32 +908,42 @@ describe('object structs', () => {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
-      "(module
-        (type $none_=>_none (func))
-        (global $g0:#SP (mut i32) (i32.const 0))
-        (memory $0 1 1)
-        (export \\"_start\\" (func $_start))
-        (export \\"stackPointer\\" (global 0))
-        (export \\"memory\\" (memory 0))
-        (func $<main>f0
-          (local $0 i32)
-          (global.set $g0:#SP
-            (i32.sub
-              (global.get $g0:#SP)
-              (i32.const 8)))
-          (local.set $0
-            (global.get $g0:#SP))
-          (memory.fill
-            (local.get $0)
-            (i32.const 0)
-            (i32.const 8)))
-        (func $_start
-          (global.set $g0:#SP
-            (i32.const 65536))
-          (call $<main>f0)
-          (return)))
-      "
-    `);
+"(module
+ (type $none_=>_none (func))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<main>f0
+  (local $0 i32)
+  (global.set $g0:#SP
+   (i32.sub
+    (global.get $g0:#SP)
+    (i32.const 8)
+   )
+  )
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ :6:7
+  (memory.fill
+   (local.get $0)
+   (i32.const 0)
+   (i32.const 8)
+  )
+ )
+ (func $_start
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f0)
+  )
+ )
+)
+"
+`);
 
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
       "stack:
@@ -987,22 +1103,17 @@ describe('extern declarations', () => {
 
       print_num(1);
     `;
-    const { wat } = await compileToWAT(code);
-    const wasmModule = await parseWat('', wat);
-    wasmModule.validate();
+    const { binary } = await compileToWAT(code);
 
     let printedNum: number | undefined = undefined;
-    const module = await WebAssembly.instantiate(
-      wasmModule.toBinary({ write_debug_names: true }).buffer,
-      {
-        Printer: {
-          print_num: (num: number) => {
-            printedNum = num;
-            return num + 5;
-          },
+    const module = await WebAssembly.instantiate(binary, {
+      Printer: {
+        print_num: (num: number) => {
+          printedNum = num;
+          return num + 5;
         },
-      }
-    );
+      },
+    });
 
     const result = (module.instance.exports as any)._start();
     expect(printedNum).toEqual(1);

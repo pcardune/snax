@@ -7,18 +7,12 @@ import {
   Runtime,
 } from '../ast-compiler.js';
 import { SNAXParser } from '../snax-parser.js';
-import type loadWabt from 'wabt';
 import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
-import { parseWat } from '../wabt-util.js';
 import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
 import { FuncType, Intrinsics } from '../snax-types.js';
-
-type ThenArg<T> = T extends PromiseLike<infer U> ? U : T;
-
-export type WabtModule = ThenArg<ReturnType<typeof loadWabt>>;
 
 export async function compileToWAT(
   input: string | spec.File,
@@ -46,9 +40,6 @@ export async function compileToWAT(
   let wat = binaryenModule.emitText();
   const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');
   binaryenModule.dispose();
-  const module = await parseWat('', wat);
-  module.applyNames();
-  wat = module.toText({ foldExprs: true });
   return {
     wat,
     ast,

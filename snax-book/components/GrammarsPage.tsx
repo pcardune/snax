@@ -35,6 +35,7 @@ const backtrackFreeGrammar = buildGrammar({
 });
 
 export function GrammarsPage() {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const numbers = useDSLGrammar(require('../grammars/numbers.grammar'));
   const expressionGrammar = useMemo(
     () => buildGrammar(expressionGrammarSpec),

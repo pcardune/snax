@@ -3,6 +3,7 @@ import type * as spec from './spec-gen.js';
 import { SNAXParser } from './snax-parser.js';
 import * as ASTCompiler from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
+import type binaryen from 'binaryen';
 
 export interface HasWAT {
   toWAT(): string;
@@ -11,7 +12,7 @@ export interface HasWAT {
 export function compileStr(
   input: string,
   options?: ASTCompiler.ModuleCompilerOptions
-): Result<string, any> {
+): Result<binaryen.Module, any> {
   const maybeAST = SNAXParser.parseStr(input);
   if (maybeAST.isOk()) {
     const ast = maybeAST.value;
@@ -31,6 +32,6 @@ export function compileStr(
 export function compileAST(
   file: spec.File,
   options?: ASTCompiler.ModuleCompilerOptions
-): string {
-  return new ASTCompiler.ModuleCompiler(file, options).compile().emitText();
+): binaryen.Module {
+  return new ASTCompiler.ModuleCompiler(file, options).compile();
 }

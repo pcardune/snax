@@ -1,5 +1,5 @@
 import type { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import * as StackIR from './stack-ir.js';
+import { NumberType } from './numbers.js';
 
 export abstract class BaseType {
   name: string;
@@ -7,7 +7,7 @@ export abstract class BaseType {
     this.name = name;
   }
 
-  toValueType(): StackIR.NumberType {
+  toValueType(): NumberType {
     throw new Error(
       `BaseType: type ${this.name} does not have a corresponding value type`
     );
@@ -48,8 +48,8 @@ export class NumericalType extends BaseType {
     this.numBytes = size;
     this.signed = signed;
   }
-  toValueType(): StackIR.NumberType {
-    const { i32, i64, f32, f64 } = StackIR.NumberType;
+  toValueType(): NumberType {
+    const { i32, i64, f32, f64 } = NumberType;
     if (this.interpretation === 'float') {
       if (this.numBytes <= 4) {
         return f32;
@@ -93,8 +93,8 @@ class BoolType extends BaseType {
   constructor() {
     super('bool');
   }
-  toValueType(): StackIR.NumberType {
-    return StackIR.NumberType.i32;
+  toValueType(): NumberType {
+    return NumberType.i32;
   }
 }
 
@@ -106,7 +106,7 @@ export class PointerType extends BaseType {
     this.toType = toType;
   }
   toValueType() {
-    return StackIR.NumberType.i32;
+    return NumberType.i32;
   }
 }
 
@@ -121,8 +121,8 @@ export class ArrayType extends BaseType {
   get numBytes() {
     return this.elementType.numBytes * this.length;
   }
-  toValueType(): StackIR.NumberType {
-    return StackIR.NumberType.i32;
+  toValueType(): NumberType {
+    return NumberType.i32;
   }
 }
 
@@ -191,7 +191,7 @@ export class FuncType extends BaseType {
     this.returnType = returnType;
   }
 
-  toValueType(): StackIR.NumberType {
+  toValueType(): NumberType {
     throw new Error(
       'FuncType: func types do not have a corresponding value type... yet'
     );

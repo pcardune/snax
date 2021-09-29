@@ -1,10 +1,10 @@
-import { ok, Result } from 'neverthrow';
+import { Result } from 'neverthrow';
 import React, { useEffect, useState } from 'react';
-import loadWabt from 'wabt';
 import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen.js';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser.js';
 import { compileStr } from '@pcardune/snax/dist/snax/wat-compiler.js';
 import styled from 'styled-components';
+import type binaryen from 'binaryen';
 
 const OutputScroller = styled.pre`
   overflow: scroll;
@@ -12,41 +12,22 @@ const OutputScroller = styled.pre`
 `;
 
 function WATOutput(props: { wat: string }) {
-  const [formattedWAT, setFormattedWAT] = useState(props.wat);
-  useEffect(() => {
-    (async () => {
-      const wabt = await loadWabt();
-      let wasmModule;
-      try {
-        wasmModule = wabt.parseWat('', props.wat);
-      } catch (e) {
-        return;
-      }
-
-      setFormattedWAT(wasmModule.toText({ foldExprs: true }));
-    })();
-  }, [props.wat]);
-
   return (
     <OutputScroller>
-      <code>{formattedWAT}</code>
+      <code>{props.wat}</code>
     </OutputScroller>
   );
 }
 
-function CompilerOutput({ wat }: { wat: string }) {
+function CompilerOutput(props: { module: binaryen.Module }) {
   const [runOutput, setRunOutput] = useState<any>();
   const [runError, setRunError] = useState<any>();
   const [shouldDebug, setShouldDebug] = useState(false);
   const onClickRun = async () => {
     setRunOutput('');
 
-    const wabt = await loadWabt();
-    const wasmModule = wabt.parseWat('', wat);
-    wasmModule.validate();
-    const result = wasmModule.toBinary({ write_debug_names: true });
     let output = '';
-    const module = await WebAssembly.instantiate(result.buffer, {
+    const module = await WebAssembly.instantiate(props.module.emitBinary(), {
       wasi_unstable: {
         fd_write(
           fd: number,
@@ -77,11 +58,13 @@ function CompilerOutput({ wat }: { wat: string }) {
           setRunOutput(output);
           console.log(output);
         },
+        fd_read() {},
       },
     });
     const exports: any = module.instance.exports;
     try {
       if (shouldDebug) {
+        // eslint-disable-next-line no-debugger
         debugger;
       }
       exports._start();
@@ -94,7 +77,7 @@ function CompilerOutput({ wat }: { wat: string }) {
 
   return (
     <div>
-      <WATOutput wat={wat} />
+      <WATOutput wat={props.module.emitText()} />
       <button onClick={onClickRun}>Run</button>
       <input
         type="checkbox"
@@ -129,7 +112,7 @@ function ParseOutput({ ast }: { ast: ASTNode }) {
 
 export function SnaxEditor() {
   const [text, setText] = useState('let x = 3;');
-  const [wat, setWAT] = useState<Result<string, any> | null>(null);
+  const [wat, setWAT] = useState<Result<binaryen.Module, any> | null>(null);
   const [parse, setParse] = useState<Result<ASTNode, any> | null>(null);
 
   useEffect(() => {
@@ -152,7 +135,7 @@ export function SnaxEditor() {
   const onChangeText = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     localStorage.setItem('snax-code', e.target.value);
     setText(e.target.value);
-    setWAT(ok(''));
+    setWAT(null);
     setParse(null);
   };
 
@@ -178,7 +161,7 @@ export function SnaxEditor() {
         </div>
       )}
       {wat && wat.isOk() ? (
-        <CompilerOutput wat={wat.value} />
+        <CompilerOutput module={wat.value} />
       ) : (
         <div>{wat?.error.toString()}</div>
       )}

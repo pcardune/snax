@@ -10,11 +10,10 @@ import {
   DataLiteral,
 } from './spec-gen.js';
 import { children } from './spec-util.js';
-import * as Wasm from './wasm-ast.js';
-import * as IR from './stack-ir.js';
+import { NumberType } from './numbers.js';
 import type { ResolvedTypeMap } from './type-resolution.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
-import type { BaseType } from './snax-types.js';
+import { BaseType, FuncType } from './snax-types.js';
 
 export enum Area {
   // corresponds directly to web assembly functions
@@ -40,11 +39,17 @@ type BaseStorageLocation<T extends Area> = {
   id: string;
 };
 
-export type GlobalStorageLocation = BaseStorageLocation<Area.GLOBALS>;
+export type GlobalStorageLocation = BaseStorageLocation<Area.GLOBALS> & {
+  valueType: NumberType;
+};
 
-export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS>;
+export type LocalStorageLocation = BaseStorageLocation<Area.LOCALS> & {
+  valueType: NumberType;
+};
 
-export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS>;
+export type FuncStorageLocation = BaseStorageLocation<Area.FUNCS> & {
+  funcType: FuncType;
+};
 
 export type StackStorageLocation = BaseStorageLocation<Area.STACK> & {
   dataType: BaseType;
@@ -114,7 +119,7 @@ interface ConstAllocator {
 }
 
 export type FuncAllocations = {
-  locals: Wasm.Local[];
+  locals: { id: string; valueType: NumberType }[];
   arp: LocalStorageLocation;
   stack: StackStorageLocation[];
 };
@@ -149,10 +154,15 @@ export class ModuleAllocator implements ConstAllocator {
     return location;
   }
 
-  allocateFunc(node: FuncDecl) {
+  allocateFunc(node: FuncDecl, typeMap: ResolvedTypeMap) {
+    const funcType = typeMap.get(node);
+    if (!(funcType instanceof FuncType)) {
+      throw new Error(`expected funcdecl to have func type`);
+    }
     const funcLocalAllocator = new FuncLocalAllocator(
       this.allocationMap,
-      node.fields.parameters
+      node.fields.parameters,
+      typeMap
     );
     this.funcAllocatorMap.set(node, funcLocalAllocator);
     const id = `<${node.fields.symbol}>f${this.funcOffset}`;
@@ -161,17 +171,19 @@ export class ModuleAllocator implements ConstAllocator {
         area: FUNCS,
         offset: this.funcOffset++,
         id,
+        funcType,
       }),
       localAllocator: funcLocalAllocator,
     };
   }
 
-  allocateGlobal(node: GlobalDecl) {
+  allocateGlobal(valueType: NumberType, node: GlobalDecl) {
     const id = `g${this.globalOffset}:${node.fields.symbol}`;
     return this.alloc(node, {
       area: GLOBALS,
       offset: this.globalOffset++,
       id,
+      valueType,
     });
   }
 
@@ -198,7 +210,8 @@ export class ModuleAllocator implements ConstAllocator {
       arp: {
         area: Area.LOCALS,
         offset: funcAllocator.arp.offset,
-        id: funcAllocator.arp.local.fields.id,
+        id: funcAllocator.arp.local.id,
+        valueType: funcAllocator.arp.local.valueType,
       },
       stack: funcAllocator.stack,
     };
@@ -208,12 +221,12 @@ export class ModuleAllocator implements ConstAllocator {
 export type LocalAllocation = {
   offset: number;
   live: boolean;
-  local: Wasm.Local;
+  local: { id: string; valueType: NumberType };
 };
 
 interface ILocalAllocator {
   allocateLocal(
-    valueType: IR.NumberType,
+    valueType: NumberType,
     decl?: ASTNode,
     name?: string
   ): LocalAllocation;
@@ -250,7 +263,11 @@ class FuncLocalAllocator implements ILocalAllocator {
   stack: StackStorageLocation[] = [];
   arp: LocalAllocation;
 
-  constructor(allocationMap: AllocationMap, params: ParameterList) {
+  constructor(
+    allocationMap: AllocationMap,
+    params: ParameterList,
+    typeMap: ResolvedTypeMap
+  ) {
     this.allocationMap = allocationMap;
 
     for (const param of params.fields.parameters) {
@@ -259,19 +276,20 @@ class FuncLocalAllocator implements ILocalAllocator {
         area: LOCALS,
         offset: this.localsOffset++,
         id,
+        valueType: typeMap.get(param).toValueType(),
       });
     }
-    this.arp = this.makeLocalAllocation(IR.NumberType.i32, 'arp');
+    this.arp = this.makeLocalAllocation(NumberType.i32, 'arp');
   }
 
-  private makeLocalAllocation(valueType: IR.NumberType, name?: string) {
+  private makeLocalAllocation(valueType: NumberType, name?: string) {
     const localAllocation = {
       offset: this.localsOffset++,
       live: true,
-      local: new Wasm.Local(
+      local: {
         valueType,
-        `<${name ?? 'temp'}>r${this.localIdCounter++}:${valueType}`
-      ),
+        id: `<${name ?? 'temp'}>r${this.localIdCounter++}:${valueType}`,
+      },
     };
     this.locals.push(localAllocation);
     return localAllocation;
@@ -293,13 +311,13 @@ class FuncLocalAllocator implements ILocalAllocator {
   }
 
   allocateLocal(
-    valueType: IR.NumberType,
+    valueType: NumberType,
     decl?: ASTNode,
     name?: string
   ): LocalAllocation {
     let localAllocation: LocalAllocation;
     let freeLocal = this.locals.find(
-      (l) => !l.live && l.local.fields.valueType === valueType
+      (l) => !l.live && l.local.valueType === valueType
     );
     if (freeLocal) {
       freeLocal.live = true;
@@ -312,7 +330,8 @@ class FuncLocalAllocator implements ILocalAllocator {
       this.allocationMap.set(decl, {
         area: LOCALS,
         offset: localAllocation.offset,
-        id: localAllocation.local.fields.id,
+        id: localAllocation.local.id,
+        valueType,
       });
     }
     return localAllocation;
@@ -346,7 +365,7 @@ class BlockAllocator implements ILocalAllocator {
   }
 
   allocateLocal(
-    valueType: IR.NumberType,
+    valueType: NumberType,
     decl?: ASTNode,
     name?: string
   ): LocalAllocation {
@@ -401,14 +420,14 @@ function recurse(
       return;
     }
     case 'FuncDecl': {
-      const { localAllocator } = moduleAllocator.allocateFunc(root);
+      const { localAllocator } = moduleAllocator.allocateFunc(root, typeMap);
       children(root).forEach((child) =>
         recurse(child, moduleAllocator, typeMap, localAllocator)
       );
       return;
     }
     case 'GlobalDecl':
-      moduleAllocator.allocateGlobal(root);
+      moduleAllocator.allocateGlobal(typeMap.get(root).toValueType(), root);
       break;
     case 'Block': {
       if (localAllocator) {
@@ -480,7 +499,7 @@ function recurse(
     case 'ArrayLiteral':
       if (assertLocal(localAllocator)) {
         let arrayStartPointer = localAllocator.allocateLocal(
-          IR.NumberType.i32,
+          NumberType.i32,
           root
         );
         localAllocator.deallocateLocal(arrayStartPointer);

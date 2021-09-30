@@ -462,18 +462,12 @@ function recurse(
     }
     case 'BinaryExpr': {
       if (root.fields.op === BinOp.ASSIGN) {
-        const { left } = root.fields;
-        if (
-          (isUnaryExpr(left) && left.fields.op === UnaryOp.ADDR_OF) ||
-          (isBinaryExpr(left) && left.fields.op === BinOp.ARRAY_INDEX)
-        ) {
-          if (assertLocal(localAllocator)) {
-            let tempLocation = localAllocator.allocateLocal(
-              typeMap.get(root).toValueType(),
-              root
-            );
-            localAllocator.deallocateLocal(tempLocation);
-          }
+        if (assertLocal(localAllocator)) {
+          let tempLocation = localAllocator.allocateLocal(
+            typeMap.get(root).toValueType(),
+            root
+          );
+          localAllocator.deallocateLocal(tempLocation);
         }
       }
       break;

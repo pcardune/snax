@@ -138,6 +138,7 @@ describe('empty module', () => {
  (func $<malloc>f1 (param $0 i32) (result i32)
   (local $1 i32)
   (local $2 i32)
+  (local $3 i32)
   ;;@ :4:11
   (local.set $2
    ;;@ :4:30
@@ -537,6 +538,7 @@ describe('assignment operator', () => {
  (func $<main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local $2 i32)
   ;;@ :2:7
   (nop)
   ;;@ :3:7
@@ -591,7 +593,7 @@ describe('assignment operator', () => {
         x;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: ASSIGN: Can't assign to NumberLiteral: something that is not a resolved symbol or a memory address]`
+      `[Error: Don't know how to compute LValue for NumberLiteral]`
     );
   });
 });
@@ -629,6 +631,7 @@ describe('control flow', () => {
  (func $<main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local $2 i32)
   ;;@ :2:9
   (local.set $1
    ;;@ :2:17

@@ -23,6 +23,7 @@ import {
   LocalStorageLocation,
   ModuleAllocator,
   resolveMemory,
+  StorageLocation,
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
 import binaryen from 'binaryen';
@@ -144,7 +145,15 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   resolveType(node: AST.ASTNode) {
     return this.context.typeCache.get(node);
   }
+
+  getLValue(): LValue {
+    throw new Error(`Don't know how to compute LValue for ${this.root.name}`);
+  }
 }
+
+type LValue =
+  | StorageLocation
+  | { area: 'dynamic'; ptr: binaryen.ExpressionRef };
 
 class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
   compile() {
@@ -748,8 +757,12 @@ function memStore(
 }
 
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
+  override getLValue() {
+    return this.getLocationForSymbolRef(this.root);
+  }
+
   compile() {
-    const location = this.getLocationForSymbolRef(this.root);
+    const location = this.getLValue();
     const type = this.resolveType(this.root);
     switch (location.area) {
       case 'locals':
@@ -897,84 +910,62 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         );
       }
       const { module } = this.context;
-      if (AST.isSymbolRef(left)) {
-        const location = this.getLocationForSymbolRef(left);
-        switch (location.area) {
-          case 'locals':
-            return ltee(module, location, this.compileChild(right));
-          case 'globals':
-            return module.block(
-              '',
-              [
-                gset(module, location, this.compileChild(right)),
-                gget(module, location),
-              ],
-              binaryen[location.valueType]
-            );
-          case 'stack':
-            const { arp } = this.context.funcAllocs;
-            const ptr = lget(module, arp);
-            const value = this.compileChild(right);
-            const memProps = {
-              valueType: rightType.toValueType(),
-              offset: location.offset,
-            };
-            return module.block(
-              '',
-              [
-                memStore(module, memProps, ptr, value),
-                memLoad(module, memProps, ptr),
-              ],
-              binaryen[rightType.toValueType()]
-            );
-          default:
-            throw new Error(
-              `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
-            );
+
+      let tempLocation = this.context.allocationMap.getLocalOrThrow(
+        this.root,
+        'Array Indexing requires a temporary'
+      );
+
+      const location = IRCompiler.forNode(left, this.context).getLValue();
+      const value = this.compileChild(right);
+      switch (location.area) {
+        case 'locals':
+          return ltee(module, location, value);
+        case 'globals':
+          return module.block(
+            '',
+            [gset(module, location, value), gget(module, location)],
+            binaryen[location.valueType]
+          );
+        case 'stack': {
+          const { arp } = this.context.funcAllocs;
+          const ptr = lget(module, arp);
+          const memProps = {
+            valueType: rightType.toValueType(),
+            offset: location.offset,
+          };
+          return module.block(
+            '',
+            [
+              lset(module, tempLocation, ptr),
+              memStore(module, memProps, lget(module, tempLocation), value),
+              memLoad(module, memProps, lget(module, tempLocation)),
+            ],
+            binaryen[rightType.toValueType()]
+          );
         }
-      } else if (
-        AST.isBinaryExpr(left) &&
-        left.fields.op === BinOp.ARRAY_INDEX
-      ) {
-        let valueType = leftType.toValueType();
-        const arrayExpr = left;
-
-        const ptr = module[valueType].add(
-          this.compileChild(arrayExpr.fields.left),
-          module[valueType].mul(
-            this.compileChild(arrayExpr.fields.right),
-            module[valueType].const(leftType.numBytes, leftType.numBytes)
-          )
-        );
-
-        const calcValue = this.compileChild(right);
-        let tempLocation = this.context.allocationMap.getLocalOrThrow(
-          this.root,
-          'Array Indexing requires a temporary'
-        );
-        const value = ltee(module, tempLocation, calcValue);
-        return module.block(
-          '',
-          [
-            memStore(
-              module,
-              {
-                valueType,
-                offset: 0,
-                align: leftType.numBytes,
-                bytes: leftType.numBytes,
-              },
-              ptr,
-              value
-            ),
-            lget(module, tempLocation),
-          ],
-          binaryen[tempLocation.valueType]
-        );
-      } else {
-        throw new Error(
-          `ASSIGN: Can't assign to ${left.name}: something that is not a resolved symbol or a memory address`
-        );
+        case 'dynamic': {
+          const ptr = location.ptr;
+          const memProps = {
+            valueType: leftType.toValueType(),
+            offset: 0,
+            align: leftType.numBytes,
+            bytes: leftType.numBytes,
+          };
+          return module.block(
+            '',
+            [
+              lset(module, tempLocation, ptr),
+              memStore(module, memProps, lget(module, tempLocation), value),
+              memLoad(module, memProps, lget(module, tempLocation)),
+            ],
+            binaryen[rightType.toValueType()]
+          );
+        }
+        default:
+          throw new Error(
+            `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+          );
       }
     },
     [BinOp.ARRAY_INDEX]: (
@@ -1006,14 +997,46 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
   };
 
   compile(): binaryen.ExpressionRef {
+    const { op, left, right } = this.root.fields;
     const compile =
-      this.opCompilers[this.root.fields.op] ??
+      this.opCompilers[op] ??
       (() => {
-        throw new Error(
-          `Don't know how to compile ${this.root.fields.op} with binaryen yet`
-        );
+        throw new Error(`Don't know how to compile ${op} with binaryen yet`);
       });
-    return compile(this.root.fields.left, this.root.fields.right);
+    return compile(left, right);
+  }
+
+  private lvalues: Record<
+    string,
+    (left: AST.Expression, right: AST.Expression) => LValue
+  > = {
+    [BinOp.ARRAY_INDEX]: (left: AST.Expression, right: AST.Expression) => {
+      const { module } = this.context;
+      const leftType = this.resolveType(left);
+      let numBytes = 4;
+      if (leftType instanceof PointerType) {
+        numBytes = leftType.toType.numBytes;
+      } else {
+        throw new Error(
+          `Don't know how to compute offset for ${leftType.name}`
+        );
+      }
+      const ptr = module.i32.add(
+        this.compileChild(left),
+        module.i32.mul(this.compileChild(right), module.i32.const(numBytes))
+      );
+      return { area: 'dynamic', ptr } as LValue;
+    },
+  };
+
+  getLValue(): LValue {
+    const { op, left, right } = this.root.fields;
+    const getLValue =
+      this.lvalues[op] ??
+      (() => {
+        throw new Error(`Don't know how to get LValue for ${op}`);
+      });
+    return getLValue(left, right);
   }
 }
 

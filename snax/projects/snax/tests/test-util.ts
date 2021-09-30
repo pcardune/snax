@@ -14,7 +14,7 @@ import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
 import { FuncType, Intrinsics } from '../snax-types.js';
 
-export async function compileToWAT(
+export function compileToWAT(
   input: string | spec.File,
   options: ModuleCompilerOptions = {}
 ) {

@@ -15,7 +15,7 @@ async function compileToWasmModule(
   input: string,
   options?: ModuleCompilerOptions & { binaryen?: boolean }
 ) {
-  const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(
+  const { wat, ast, compiler, binary, sourceMap } = compileToWAT(
     input,
     options
   );
@@ -121,7 +121,7 @@ describe('empty module', () => {
   });
 
   it('compiles an empty program', async () => {
-    const { wat } = await compileToWAT('', { includeRuntime: true });
+    const { wat } = compileToWAT('', { includeRuntime: true });
     expect(wat).toMatchInlineSnapshot(`
 "(module
  (type $none_=>_none (func))
@@ -179,7 +179,7 @@ describe('empty module', () => {
   });
 
   it('compiles integers', async () => {
-    const { wat, sourceMap } = await compileToWAT('123;', {
+    const { wat, sourceMap } = compileToWAT('123;', {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
@@ -1131,7 +1131,7 @@ describe('extern declarations', () => {
 
       print_num(1);
     `;
-    const { binary } = await compileToWAT(code);
+    const { binary } = compileToWAT(code);
 
     let printedNum: number | undefined = undefined;
     const module = await WebAssembly.instantiate(binary, {

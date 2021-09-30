@@ -952,6 +952,31 @@ describe('object structs', () => {
           0: <arp>r0:i32 (i32)"
       `);
   });
+
+  it('allows structs to be nested', async () => {
+    const code = `
+      struct Vector {
+        x: i32;
+        y: i32;
+      }
+      struct Line {
+        start: Vector;
+        end: Vector;
+      }
+      let line:Line;
+    `;
+    const { wat, compiler } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    console.log('REFMAP:', compiler.refMap);
+    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+      "stack:
+          0: <line>s0-16 ({start: {x: i32, y: i32}, end: {x: i32, y: i32}})
+      locals:
+          0: <arp>r0:i32 (i32)"
+      `);
+  });
+
   xit('allows assigning values to stack allocated struct fields', async () => {
     const code = `
       struct Vector {x: i32; y: i32;}

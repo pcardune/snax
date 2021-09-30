@@ -2,7 +2,7 @@
 
 exports[`resolveSymbols spits out the right debug info 1`] = `
 "<File>
-  <SymbolTable id=21 parent=20>
+  <SymbolTable id=31 parent=30>
     <externalFunc/>
     <g/>
     <main/>
@@ -13,7 +13,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
         <parameters/>
       </ParameterList>
       <Block>
-        <SymbolTable id=22 parent=21>
+        <SymbolTable id=32 parent=31>
           <x/>
           <y/>
         </SymbolTable>
@@ -25,7 +25,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
             <NumberLiteral value=2 numberType=\\"int\\" explicitType=undefined/>
           </LetStatement>
           <Block>
-            <SymbolTable id=23 parent=22>
+            <SymbolTable id=33 parent=32>
               <x/>
             </SymbolTable>
             <statements>
@@ -56,10 +56,12 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
     <ExternDecl libName=\\"someLib\\">
       <funcs>
         <FuncDecl symbol=\\"externalFunc\\" returnType=undefined>
+          <SymbolTable id=34 parent=31/>
           <ParameterList>
             <parameters/>
           </ParameterList>
           <Block>
+            <SymbolTable id=35 parent=34/>
             <statements/>
           </Block>
         </FuncDecl>

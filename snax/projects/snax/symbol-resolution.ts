@@ -142,6 +142,12 @@ function innerResolveSymbols(
       );
       innerResolveSymbols(funcDecl.fields.body, currentTable, tables, refMap);
     }
+
+    for (const decl of astNode.fields.decls) {
+      childrenOf(decl).forEach((node) =>
+        innerResolveSymbols(node, currentTable, tables, refMap)
+      );
+    }
   } else if (isMemberAccessExpr(astNode)) {
     innerResolveSymbols(astNode.fields.left, currentTable, tables, refMap);
   } else {

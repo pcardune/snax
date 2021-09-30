@@ -92,7 +92,11 @@ export class ResolvedTypeMap extends OrderedMap<ASTNode, BaseType> {
   }
 }
 
+// TODO: refactor this into an encapulated object.
+let inProgress: Set<ASTNode> = new Set();
+
 export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
+  inProgress = new Set();
   const typeMap: ResolvedTypeMap = new ResolvedTypeMap();
   for (const node of depthFirstIter(root)) {
     resolveType(node, typeMap, refMap);
@@ -105,9 +109,14 @@ function resolveType(
   typeMap: ResolvedTypeMap,
   refMap: SymbolRefMap
 ): BaseType {
+  if (inProgress.has(node)) {
+    throw new TypeResolutionError(node, 'Detected cycle in type references');
+  }
   let resolvedType: BaseType;
   if (!typeMap.has(node)) {
+    inProgress.add(node);
     resolvedType = calculateType(node, typeMap, refMap);
+    inProgress.delete(node);
     typeMap.set(node, resolvedType);
   } else {
     resolvedType = typeMap.get(node);

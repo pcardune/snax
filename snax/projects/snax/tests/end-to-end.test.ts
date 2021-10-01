@@ -509,7 +509,7 @@ describe('block compilation', () => {
             y;
           `)
       ).rejects.toMatchInlineSnapshot(
-        `[Error: Reference to undeclared symbol y]`
+        `[Error: SymbolResolutionError at  4:15: Reference to undeclared symbol y]`
       );
     });
   });
@@ -581,7 +581,7 @@ describe('assignment operator', () => {
         y;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: Reference to undeclared symbol y]`
+      `[Error: SymbolResolutionError at  3:9: Reference to undeclared symbol y]`
     );
     await expect(
       exec(`
@@ -590,7 +590,7 @@ describe('assignment operator', () => {
         x;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: Don't know how to compute LValue for NumberLiteral]`
+      `[Error: CompilerError at  3:9: Don't know how to compute LValue for NumberLiteral]`
     );
   });
 });
@@ -821,7 +821,7 @@ describe('pointers', () => {
       expect(
         compileToWasmModule(code)
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `"Don't know how to compute LValue for NumberLiteral"`
+        `"CompilerError at  2:23: Don't know how to compute LValue for NumberLiteral"`
       );
     });
 

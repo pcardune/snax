@@ -905,8 +905,11 @@ describe('strings', () => {
     const code = `'a';`;
     expect(await exec(code)).toEqual(97);
   });
-  xit('compiles strings', async () => {
-    const code = `"hello world\\n";`;
+  it('compiles strings', async () => {
+    const code = `
+      let s = "hello world\\n";
+      @s;
+    `;
     const {
       exports: { _start, memory },
     } = await compileToWasmModule(code, { includeRuntime: true });
@@ -919,8 +922,14 @@ describe('strings', () => {
 
     expect(text(memory, bufferPointer, bufferLen)).toEqual('hello world\n');
   });
-  xit("lets you index into a string's buffer", async () => {
-    expect(await exec(`"abcdef".buffer[3];`)).toEqual('d'.charCodeAt(0));
+  it("lets you index into a string's buffer", async () => {
+    const code = `
+      let s = "abcdef";
+      s.buffer[3];
+    `;
+    expect(await exec(code, { includeRuntime: true })).toEqual(
+      'd'.charCodeAt(0)
+    );
   });
 });
 

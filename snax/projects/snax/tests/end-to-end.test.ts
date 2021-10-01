@@ -1094,17 +1094,15 @@ describe('object structs', () => {
   });
 });
 
-// TODO: make tuple structs be syntactic sugar for object
-// structs
-xdescribe('tuple structs', () => {
+describe('tuple structs', () => {
   describe('construction', () => {
     let snax: SnaxExports;
     let compiler: ModuleCompiler;
     beforeEach(async () => {
       const code = `
         struct Vector(u8,i32);
-        let v = Vector(23_u8, 1234);
-        v;
+        let v = Vector::(23_u8, 1234);
+        @v;
       `;
       const output = await compileToWasmModule(code);
       snax = output.exports;
@@ -1114,25 +1112,6 @@ xdescribe('tuple structs', () => {
       const vPointer = snax._start();
       expect(int8(snax.memory, vPointer)).toEqual(23);
       expect(int32(snax.memory, vPointer + 1)).toEqual(1234);
-      expect(stackDump(snax)).toMatchInlineSnapshot(`
-        Array [
-          23,
-          -46,
-          4,
-          0,
-          0,
-          -9,
-          -1,
-          0,
-          0,
-        ]
-      `);
-    });
-
-    xit('allocates structs on the stack', async () => {
-      const vPointer = snax._start();
-      expect(vPointer - PAGE_SIZE).toEqual(-9);
-      expect(snax.stackPointer.value - PAGE_SIZE).toEqual(-5);
     });
   });
 
@@ -1141,35 +1120,38 @@ xdescribe('tuple structs', () => {
       expect(
         await exec(`
           struct Vector(u8,i32);
-          let v = Vector(23_u8, 1234);
+          let v:Vector;
+          v.0 = 23_u8;
+          v.1 = 1234;
           v.1;
         `)
       ).toEqual(1234);
     });
     it('loads the correct amount of data for each offset', async () => {
-      expect(
-        await exec(`
-          struct Vector(u8,i32);
-          let v = Vector(23_u8, 1234);
-          v.0;
-        `)
-      ).toEqual(23);
+      const code = `
+        struct Vector(u8,i32);
+        let v:Vector;
+        v.0 = 23_u8;
+        v.1 = 1234;
+        v.0;
+      `;
+      expect(await exec(code)).toEqual(23);
     });
   });
 
-  it('lets you pass structs as function parameters by reference', async () => {
+  xit('lets you pass structs as function parameters by reference', async () => {
     const code = `
       struct Vector(u8,i32);
       func add(v:&Vector) {
         return v.0 as i32 + v.1;
       }
-      let someVec = Vector(18_u8, 324);
-      add(someVec);
+      let someVec = Vector::(18_u8, 324);
+      add(@someVec);
     `;
     expect(await exec(code)).toEqual(342);
   });
 
-  it('allocates structs on the stack, so returning them is invalid', async () => {
+  xit('allocates structs on the stack, so returning them is invalid', async () => {
     const code = `
       struct Pair(i32,i32);
       func makePair(a:i32, b:i32) {

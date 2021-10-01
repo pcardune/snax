@@ -28,6 +28,7 @@ import {
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
 import binaryen from 'binaryen';
+import { getPropNameOrThrow } from './ast-util.js';
 
 export const PAGE_SIZE = 65536;
 
@@ -183,9 +184,13 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
             );
           case 'stack': {
             const { arp } = this.context.funcAllocs;
-            const ptr = module.local.get(arp.offset, binaryen[arp.valueType]);
+            const ptr = lget(module, arp);
             const valueType = type.toValueType();
             if (valueType) {
+              let sign = Sign.Signed;
+              if (type instanceof NumericalType) {
+                sign = type.sign;
+              }
               return rvalueDirect(
                 type,
                 memLoad(
@@ -193,6 +198,8 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
                   {
                     valueType,
                     offset: location.offset,
+                    bytes: type.numBytes,
+                    sign,
                   },
                   ptr
                 )
@@ -270,11 +277,16 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         const { ptr } = lvalue;
         switch (rvalue.kind) {
           case 'direct': {
+            let sign = Sign.Signed;
+            if (rvalue.type instanceof NumericalType) {
+              sign = rvalue.type.sign;
+            }
             const valueType = rvalue.type.toValueTypeOrThrow();
             const memProps = {
               valueType,
               offset: lvalue.offset,
               bytes: rvalue.type.numBytes,
+              sign,
             };
             if (tempLocation) {
               return module.block(
@@ -852,7 +864,14 @@ function memLoad(
   ptr: binaryen.ExpressionRef
 ) {
   const { offset, align, bytes } = memDefaults(props);
-  const { valueType, sign = Sign.Signed } = props;
+  const { valueType } = props;
+
+  const getSign = () => {
+    if (props.sign === undefined) {
+      throw new Error(`memLoad requires a sign to be specified`);
+    }
+    return props.sign;
+  };
 
   let loadFunc;
   switch (valueType) {
@@ -860,10 +879,11 @@ function memLoad(
       const typed = module.i32;
       switch (bytes) {
         case 1:
-          loadFunc = sign === Sign.Signed ? typed.load8_s : typed.load8_u;
+          loadFunc = getSign() === Sign.Signed ? typed.load8_s : typed.load8_u;
           break;
         case 2:
-          loadFunc = sign === Sign.Signed ? typed.load16_s : typed.load16_u;
+          loadFunc =
+            getSign() === Sign.Signed ? typed.load16_s : typed.load16_u;
           break;
         case 4:
           loadFunc = typed.load;
@@ -877,13 +897,15 @@ function memLoad(
       const typed = module.i64;
       switch (bytes) {
         case 1:
-          loadFunc = sign === Sign.Signed ? typed.load8_s : typed.load8_u;
+          loadFunc = getSign() === Sign.Signed ? typed.load8_s : typed.load8_u;
           break;
         case 2:
-          loadFunc = sign === Sign.Signed ? typed.load16_s : typed.load16_u;
+          loadFunc =
+            getSign() === Sign.Signed ? typed.load16_s : typed.load16_u;
           break;
         case 4:
-          loadFunc = sign === Sign.Signed ? typed.load32_s : typed.load32_u;
+          loadFunc =
+            getSign() === Sign.Signed ? typed.load32_s : typed.load32_u;
           break;
         case 8:
           loadFunc = typed.load;
@@ -1091,6 +1113,10 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         );
       }
       let align = refExprType.toType.numBytes;
+      let sign = Sign.Signed;
+      if (refExprType.toType instanceof NumericalType) {
+        sign = refExprType.toType.sign;
+      }
       const valueType = refExprType.toValueTypeOrThrow();
       const { module } = this.context;
       const ptr = module[valueType].add(
@@ -1102,7 +1128,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
       );
       return memLoad(
         module,
-        { valueType, offset: 0, align, bytes: align },
+        { valueType, offset: 0, align, bytes: align, sign },
         ptr
       );
     },
@@ -1172,21 +1198,14 @@ class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
     }
 
     let elem: { type: BaseType; offset: number; id: string };
-    if (leftType instanceof TupleType && right.name === 'NumberLiteral') {
-      const index = right.fields.value;
-      elem = { ...leftType.elements[index], id: String(index) };
-      if (!elem) {
-        throw new Error(`Invalid index ${index} for tuple ${leftType.name}`);
-      }
-    } else if (leftType instanceof RecordType && right.name === 'SymbolRef') {
+    if (leftType instanceof RecordType) {
+      const propName = getPropNameOrThrow(right);
       elem = {
-        ...leftType.fields.get(right.fields.symbol)!,
-        id: right.fields.symbol,
+        ...leftType.fields.get(propName)!,
+        id: propName,
       };
       if (!elem) {
-        throw new Error(
-          `Invalid prop ${right.fields.symbol} for ${leftType.name}`
-        );
+        throw new Error(`Invalid prop ${propName} for ${leftType.name}`);
       }
     } else {
       throw new Error(
@@ -1195,7 +1214,7 @@ class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
     }
     let sign = undefined;
     if (elem.type instanceof NumericalType) {
-      sign = elem.type.signed ? Sign.Signed : Sign.Unsigned;
+      sign = elem.type.sign;
     }
 
     const lvalue = IRCompiler.forNode(left, this.context).getLValue();
@@ -1238,38 +1257,7 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
   compile() {
     const { left, right } = this.root.fields;
     const { module } = this.context;
-    const leftType = this.context.typeCache.get(left);
-    if (leftType instanceof TupleType) {
-      // we are constructing a tuple
-      const { location, instr } = compileStackPush(this, leftType.numBytes);
-      const fieldInstr = [];
-      for (const [i, arg] of right.fields.args.entries()) {
-        if (i >= leftType.elements.length) {
-          throw new Error(`too many arguments specifed for tuple constructor`);
-        }
-        const elem = leftType.elements[i];
-        const ptr = lget(module, location);
-        const value = this.compileChild(arg);
-        fieldInstr.push(
-          memStore(
-            module,
-            {
-              valueType: elem.type.toValueTypeOrThrow(),
-              offset: elem.offset,
-              align: elem.type.numBytes,
-              bytes: elem.type.numBytes,
-            },
-            ptr,
-            value
-          )
-        );
-      }
-      return module.block(
-        '',
-        [instr, ...fieldInstr, lget(module, location)],
-        binaryen[location.valueType]
-      );
-    } else if (AST.isSymbolRef(left)) {
+    if (AST.isSymbolRef(left)) {
       const location = this.getLocationForSymbolRef(left);
       if (location.area !== Area.FUNCS) {
         throw new Error(
@@ -1331,9 +1319,10 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
           const typed = module[destValueType];
           // conversion to floats
           if (isIntType(sourceValueType)) {
-            const signed = sourceType.signed
-              ? typed.convert_s
-              : typed.convert_u;
+            const signed =
+              sourceType.sign == Sign.Signed
+                ? typed.convert_s
+                : typed.convert_u;
             return signed[sourceValueType](value);
           } else if (destValueType !== sourceValueType) {
             if (destValueType === 'f64' && sourceValueType === 'f32') {
@@ -1366,7 +1355,10 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
             } else {
               throw new Error(`I don't implicitly wrap to smaller sizes`);
             }
-          } else if (sourceType.signed && !destType.signed) {
+          } else if (
+            sourceType.sign === Sign.Signed &&
+            destType.sign == Sign.Unsigned
+          ) {
             if (force) {
               throw new Error(`NotImplemented: forced dropping of sign`);
             } else {

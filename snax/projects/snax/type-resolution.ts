@@ -1,4 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
+import { getPropNameOrThrow } from './ast-util.js';
 import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
@@ -407,38 +408,16 @@ class TypeResolver {
         if (leftType instanceof PointerType) {
           leftType = leftType.toType;
         }
-        if (leftType instanceof TupleType) {
-          if (right.name === 'NumberLiteral') {
-            let index = right.fields.value;
-            let elem = leftType.elements[index];
-            if (!elem) {
-              throw new TypeResolutionError(
-                right,
-                `${index} is not a valid accessor for ${leftType.name}`
-              );
-            }
-            return elem.type;
+        if (leftType instanceof RecordType) {
+          const propName: string = getPropNameOrThrow(right);
+          const propType = leftType.fields.get(propName);
+          if (!propType) {
+            throw new TypeResolutionError(
+              right,
+              `${propName} is not a valid accessor for ${leftType.name}`
+            );
           }
-          throw new TypeResolutionError(
-            right,
-            `${leftType.name} can only be accessed by index`
-          );
-        } else if (leftType instanceof RecordType) {
-          if (right.name === 'SymbolRef') {
-            const propName = right.fields.symbol;
-            const propType = leftType.fields.get(propName);
-            if (!propType) {
-              throw new TypeResolutionError(
-                right,
-                `${propName} is not a valid accessor for ${leftType.name}`
-              );
-            }
-            return propType.type;
-          }
-          throw new TypeResolutionError(
-            right,
-            `${leftType.name} can only be accessed by property names`
-          );
+          return propType.type;
         } else {
           throw new TypeResolutionError(
             right,

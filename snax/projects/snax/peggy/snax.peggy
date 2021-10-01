@@ -377,6 +377,13 @@ structLiteral "struct literal"
   = structName:id ws "::" ws "{" ws values:structPropValueList? ws "}" {
     return spec.makeStructLiteral(structName, values || []);
   }
+  / structName:id ws "::" ws "(" ws values:exprList? ws ")" {
+    values = values ?? [];
+    return spec.makeStructLiteral(
+      structName,
+      values.map((expr:any, i:number) => spec.makeStructLiteralProp(String(i), expr))
+    );
+  }
 structPropValueList
   = head:structPropValue tail:(ws "," ws structPropValue)* {
     return [head, ...tail.map((t:any[]) => t[3])];

@@ -1,5 +1,5 @@
 import type { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import { NumberType } from './numbers.js';
+import { NumberType, Sign } from './numbers.js';
 
 export abstract class BaseType {
   name: string;
@@ -44,17 +44,17 @@ export class NumericalType extends BaseType {
   // The size in bytes
   numBytes: number;
   interpretation: 'float' | 'int';
-  signed: boolean;
+  sign: Sign;
   constructor(
     name: string,
     interpretation: 'float' | 'int',
     size: number,
-    signed: boolean
+    signed: Sign
   ) {
     super(name);
     this.interpretation = interpretation;
     this.numBytes = size;
-    this.signed = signed;
+    this.sign = signed;
   }
   toValueType(): NumberType {
     const { i32, i64, f32, f64 } = NumberType;
@@ -289,17 +289,17 @@ const instrinsicNames = [
 ] as const;
 
 export const Intrinsics: Record<typeof instrinsicNames[number], BaseType> = {
-  u8: new NumericalType('u8', 'int', 1, false),
-  u16: new NumericalType('u16', 'int', 2, false),
-  u32: new NumericalType('u32', 'int', 4, false),
-  u64: new NumericalType('u64', 'int', 8, false),
-  usize: new NumericalType('u32', 'int', 4, false),
-  i8: new NumericalType('i8', 'int', 1, true),
-  i16: new NumericalType('i16', 'int', 2, true),
-  i32: new NumericalType('i32', 'int', 4, true),
-  i64: new NumericalType('i64', 'int', 8, true),
-  f32: new NumericalType('f32', 'float', 4, true),
-  f64: new NumericalType('f64', 'float', 8, true),
+  u8: new NumericalType('u8', 'int', 1, Sign.Unsigned),
+  u16: new NumericalType('u16', 'int', 2, Sign.Unsigned),
+  u32: new NumericalType('u32', 'int', 4, Sign.Unsigned),
+  u64: new NumericalType('u64', 'int', 8, Sign.Unsigned),
+  usize: new NumericalType('u32', 'int', 4, Sign.Unsigned),
+  i8: new NumericalType('i8', 'int', 1, Sign.Signed),
+  i16: new NumericalType('i16', 'int', 2, Sign.Signed),
+  i32: new NumericalType('i32', 'int', 4, Sign.Signed),
+  i64: new NumericalType('i64', 'int', 8, Sign.Signed),
+  f32: new NumericalType('f32', 'float', 4, Sign.Signed),
+  f64: new NumericalType('f64', 'float', 8, Sign.Signed),
   void: new VoidType(),
   unknown: new UnknownType(),
   bool: new BoolType(),

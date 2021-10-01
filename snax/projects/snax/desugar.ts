@@ -5,9 +5,11 @@ import {
   makeDataLiteral,
   makeExprStatement,
   makeNumberLiteral,
+  makeStructDecl,
   makeStructLiteral,
   makeStructLiteralProp,
   makeStructLiteralWith,
+  makeStructProp,
   makeSymbolRef,
   makeUnaryExpr,
 } from './spec-gen.js';
@@ -46,6 +48,16 @@ export function desugar(root: ASTNode) {
           ],
         });
         overwriteNode(node, structLiteral);
+        break;
+      }
+      case 'TupleStructDecl': {
+        const objStruct = makeStructDecl(
+          node.fields.symbol,
+          node.fields.elements.map((typeExpr, i) =>
+            makeStructProp(String(i), typeExpr)
+          )
+        );
+        overwriteNode(node, objStruct);
         break;
       }
       case 'LetStatement': {

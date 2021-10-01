@@ -385,140 +385,119 @@ class BlockAllocator implements ILocalAllocator {
 }
 
 export function resolveMemory(root: ASTNode, typeMap: ResolvedTypeMap) {
-  const moduleAllocator = new ModuleAllocator();
-
-  recurse(root, moduleAllocator, typeMap);
-
-  return moduleAllocator;
+  const resolver = new MemoryResolver(typeMap);
+  resolver.resolve(root);
+  return resolver.moduleAllocator;
 }
 
-function recurse(
-  root: ASTNode,
-  moduleAllocator: ModuleAllocator,
-  typeMap: ResolvedTypeMap,
-  localAllocator?: ILocalAllocator
-) {
-  function assertLocal(a: ILocalAllocator | undefined): a is ILocalAllocator {
-    if (!a) {
-      throw new Error(`Need to have a local allocator for ${root.name} node`);
-    }
-    return true;
+class MemoryResolver {
+  typeMap: ResolvedTypeMap;
+  moduleAllocator = new ModuleAllocator();
+
+  constructor(typeMap: ResolvedTypeMap) {
+    this.typeMap = typeMap;
   }
 
-  switch (root.name) {
-    case 'File': {
-      for (const decl of root.fields.decls) {
-        if (isExternDecl(decl)) {
-          recurse(decl, moduleAllocator, typeMap, localAllocator);
-        }
+  resolve(root: ASTNode, localAllocator?: ILocalAllocator) {
+    function assertLocal(a: ILocalAllocator | undefined): a is ILocalAllocator {
+      if (!a) {
+        throw new Error(`Need to have a local allocator for ${root.name} node`);
       }
-      [...root.fields.globals, ...root.fields.funcs].forEach((child) =>
-        recurse(child, moduleAllocator, typeMap, localAllocator)
-      );
-      return;
+      return true;
     }
-    case 'FuncDecl': {
-      const { localAllocator } = moduleAllocator.allocateFunc(root, typeMap);
-      children(root).forEach((child) =>
-        recurse(child, moduleAllocator, typeMap, localAllocator)
-      );
-      return;
-    }
-    case 'GlobalDecl':
-      moduleAllocator.allocateGlobal(
-        typeMap.get(root).toValueTypeOrThrow(),
-        root
-      );
-      break;
-    case 'Block': {
-      if (localAllocator) {
-        const blockAllocator = new BlockAllocator(localAllocator);
-        children(root).forEach((child) =>
-          recurse(child, moduleAllocator, typeMap, blockAllocator)
+
+    const resolveChildren = (localAllocator?: ILocalAllocator) => {
+      children(root).forEach((child) => this.resolve(child, localAllocator));
+    };
+
+    const allocateTemp = (valueType: NumberType) => {
+      if (assertLocal(localAllocator)) {
+        const temp = localAllocator.allocateLocal(valueType, root);
+        resolveChildren(localAllocator);
+        localAllocator.deallocateLocal(temp);
+      }
+    };
+
+    switch (root.name) {
+      case 'File': {
+        for (const decl of root.fields.decls) {
+          if (isExternDecl(decl)) {
+            this.resolve(decl);
+          }
+        }
+        [...root.fields.globals, ...root.fields.funcs].forEach((child) =>
+          this.resolve(child)
         );
-        blockAllocator.deallocateBlock();
         return;
       }
-      break;
-    }
-    case 'RegStatement': {
-      if (assertLocal(localAllocator)) {
-        localAllocator.allocateLocal(
-          typeMap.get(root).toValueTypeOrThrow(),
-          root,
-          root.fields.symbol
+      case 'FuncDecl': {
+        resolveChildren(
+          this.moduleAllocator.allocateFunc(root, this.typeMap).localAllocator
         );
+        return;
       }
-      break;
-    }
-    case 'LetStatement': {
-      if (assertLocal(localAllocator)) {
-        localAllocator.allocateStack(
-          typeMap.get(root),
-          root,
-          root.fields.symbol
-        );
-      }
-      break;
-    }
-    case 'BinaryExpr': {
-      if (root.fields.op === BinOp.ASSIGN) {
-        if (assertLocal(localAllocator)) {
-          let type = typeMap.get(root);
-          let tempLocation = localAllocator.allocateLocal(
-            type.toValueType() ?? NumberType.i32,
-            root
-          );
-          localAllocator.deallocateLocal(tempLocation);
-        }
-      }
-      break;
-    }
-    case 'UnaryExpr': {
-      if (root.fields.op === UnaryOp.ADDR_OF) {
-        if (assertLocal(localAllocator)) {
-          root.fields.expr;
-          let tempLocation = localAllocator.allocateLocal(
-            typeMap.get(root).toValueTypeOrThrow(),
-            root
-          );
-          localAllocator.deallocateLocal(tempLocation);
-        }
-      }
-      break;
-    }
-    case 'DataLiteral':
-      moduleAllocator.allocateConstData(root, root.fields.value);
-      break;
-    case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
-    case 'ArrayLiteral':
-      if (assertLocal(localAllocator)) {
-        localAllocator.allocateStack(typeMap.get(root), root, 'temp');
-
-        let arrayStartPointer = localAllocator.allocateLocal(
-          NumberType.i32,
+      case 'GlobalDecl':
+        this.moduleAllocator.allocateGlobal(
+          this.typeMap.get(root).toValueTypeOrThrow(),
           root
         );
-        children(root).forEach((child) =>
-          recurse(child, moduleAllocator, typeMap, localAllocator)
-        );
-        localAllocator.deallocateLocal(arrayStartPointer);
+        break;
+      case 'Block': {
+        if (localAllocator) {
+          const blockAllocator = new BlockAllocator(localAllocator);
+          resolveChildren(blockAllocator);
+          blockAllocator.deallocateBlock();
+          return;
+        }
+        break;
+      }
+      case 'RegStatement': {
+        if (assertLocal(localAllocator)) {
+          localAllocator.allocateLocal(
+            this.typeMap.get(root).toValueTypeOrThrow(),
+            root,
+            root.fields.symbol
+          );
+        }
+        break;
+      }
+      case 'LetStatement': {
+        if (assertLocal(localAllocator)) {
+          localAllocator.allocateStack(
+            this.typeMap.get(root),
+            root,
+            root.fields.symbol
+          );
+        }
+        break;
+      }
+      case 'BinaryExpr': {
+        if (root.fields.op === BinOp.ASSIGN) {
+          let type = this.typeMap.get(root);
+          allocateTemp(type.toValueType() ?? NumberType.i32);
+          return;
+        }
+        break;
+      }
+      case 'UnaryExpr': {
+        if (root.fields.op === UnaryOp.ADDR_OF) {
+          allocateTemp(this.typeMap.get(root).toValueTypeOrThrow());
+          return;
+        }
+        break;
+      }
+      case 'DataLiteral':
+        this.moduleAllocator.allocateConstData(root, root.fields.value);
+        break;
+      case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
+      case 'ArrayLiteral':
+        allocateTemp(NumberType.i32);
         return;
-      }
-      break;
-    case 'StructLiteral':
-      if (assertLocal(localAllocator)) {
-        const tempStructPointer = localAllocator.allocateLocal(
-          NumberType.i32,
-          root,
-          'temp'
-        );
-        localAllocator.deallocateLocal(tempStructPointer);
-      }
-      break;
-  }
+      case 'StructLiteral':
+        allocateTemp(NumberType.i32);
+        return;
+    }
 
-  children(root).forEach((child) =>
-    recurse(child, moduleAllocator, typeMap, localAllocator)
-  );
+    resolveChildren(localAllocator);
+  }
 }

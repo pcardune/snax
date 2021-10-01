@@ -870,7 +870,8 @@ describe('pointers', () => {
             4: <j>s4-8 (&i32)
         locals:
             0: <arp>r0:i32 (i32)
-            1: <temp>r1:i32 (i32)"
+            1: <temp>r1:i32 (i32)
+            2: <temp>r2:i32 (i32)"
       `);
       expect(stackDump(exports, 4)).toEqual([200, PAGE_SIZE - 8]);
     });
@@ -1069,7 +1070,8 @@ describe('object structs', () => {
             0: <v>s0-8 ({x: i32, y: i32})
         locals:
             0: <arp>r0:i32 (i32)
-            1: <temp>r1:i32 (i32)"
+            1: <temp>r1:i32 (i32)
+            2: <temp>r2:i32 (i32)"
       `);
       const result = exports._start();
       const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));

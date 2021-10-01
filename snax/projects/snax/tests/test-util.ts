@@ -16,7 +16,7 @@ import { FuncType, Intrinsics } from '../snax-types.js';
 
 export function compileToWAT(
   input: string | spec.File,
-  options: ModuleCompilerOptions = {}
+  options: ModuleCompilerOptions & { validate?: boolean } = {}
 ) {
   const ast =
     typeof input === 'string' ? SNAXParser.parseStrOrThrow(input) : input;
@@ -33,7 +33,9 @@ export function compileToWAT(
     warnings.push(args.join(' '));
   };
   if (!binaryenModule.validate()) {
-    throw new Error(`Failed validation: ${warnings.join('\n')}`);
+    if (options.validate ?? true) {
+      throw new Error(`Failed validation: ${warnings.join('\n')}`);
+    }
   }
   global.console.warn = oldWarn;
 

@@ -7,10 +7,18 @@ export abstract class BaseType {
     this.name = name;
   }
 
-  toValueType(): NumberType {
-    throw new Error(
-      `BaseType: type ${this.name} does not have a corresponding value type`
-    );
+  toValueType(): NumberType | undefined {
+    return undefined;
+  }
+
+  toValueTypeOrThrow(): NumberType {
+    const valueType = this.toValueType();
+    if (valueType === undefined) {
+      throw new Error(
+        `BaseType: type ${this.name} does not have a corresponding value type`
+      );
+    }
+    return valueType;
   }
 
   abstract get numBytes(): number;

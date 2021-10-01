@@ -3,9 +3,7 @@ import {
   ASTNode,
   FuncDecl,
   GlobalDecl,
-  isBinaryExpr,
   isExternDecl,
-  isUnaryExpr,
   ParameterList,
   DataLiteral,
 } from './spec-gen.js';
@@ -276,7 +274,7 @@ class FuncLocalAllocator implements ILocalAllocator {
         area: LOCALS,
         offset: this.localsOffset++,
         id,
-        valueType: typeMap.get(param).toValueType(),
+        valueType: typeMap.get(param).toValueTypeOrThrow(),
       });
     }
     this.arp = this.makeLocalAllocation(NumberType.i32, 'arp');
@@ -427,7 +425,10 @@ function recurse(
       return;
     }
     case 'GlobalDecl':
-      moduleAllocator.allocateGlobal(typeMap.get(root).toValueType(), root);
+      moduleAllocator.allocateGlobal(
+        typeMap.get(root).toValueTypeOrThrow(),
+        root
+      );
       break;
     case 'Block': {
       if (localAllocator) {
@@ -443,7 +444,7 @@ function recurse(
     case 'RegStatement': {
       if (assertLocal(localAllocator)) {
         localAllocator.allocateLocal(
-          typeMap.get(root).toValueType(),
+          typeMap.get(root).toValueTypeOrThrow(),
           root,
           root.fields.symbol
         );
@@ -463,8 +464,9 @@ function recurse(
     case 'BinaryExpr': {
       if (root.fields.op === BinOp.ASSIGN) {
         if (assertLocal(localAllocator)) {
+          let type = typeMap.get(root);
           let tempLocation = localAllocator.allocateLocal(
-            typeMap.get(root).toValueType(),
+            type.toValueType() ?? NumberType.i32,
             root
           );
           localAllocator.deallocateLocal(tempLocation);
@@ -477,7 +479,7 @@ function recurse(
         if (assertLocal(localAllocator)) {
           root.fields.expr;
           let tempLocation = localAllocator.allocateLocal(
-            typeMap.get(root).toValueType(),
+            typeMap.get(root).toValueTypeOrThrow(),
             root
           );
           localAllocator.deallocateLocal(tempLocation);
@@ -489,14 +491,22 @@ function recurse(
       moduleAllocator.allocateConstData(root, root.fields.value);
       break;
     case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
-    case 'StructLiteral':
     case 'ArrayLiteral':
       if (assertLocal(localAllocator)) {
+        localAllocator.allocateStack(typeMap.get(root), root, 'temp');
+
         let arrayStartPointer = localAllocator.allocateLocal(
           NumberType.i32,
           root
         );
         localAllocator.deallocateLocal(arrayStartPointer);
+      }
+      break;
+    case 'StructLiteral':
+      if (assertLocal(localAllocator)) {
+        localAllocator.allocateStack(typeMap.get(root), root, 'temp');
+        // TODO: add support for statically deallocating stack areas
+        // for temporary variables
       }
       break;
   }

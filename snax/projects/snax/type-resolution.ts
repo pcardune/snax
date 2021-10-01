@@ -361,7 +361,7 @@ class TypeResolver {
             `struct ${node.fields.symbol.fields.symbol} not found.`
           );
         }
-        return new PointerType(this.resolveType(structDecl));
+        return this.resolveType(structDecl);
       }
       case 'StructLiteralProp':
         return this.resolveType(node.fields.expr);

@@ -152,9 +152,7 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
     throw new Error(`Don't know how to compute LValue for ${this.root.name}`);
   }
 
-  getRValue(): RValue {
-    const lvalue = this.getLValue();
-    const type = this.resolveType(this.root);
+  deref(lvalue: LValue, type: BaseType): RValue {
     const { module } = this.context;
 
     switch (lvalue.kind) {
@@ -185,27 +183,7 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
           case 'stack': {
             const { arp } = this.context.funcAllocs;
             const ptr = lget(module, arp);
-            const valueType = type.toValueType();
-            if (valueType) {
-              let sign = Sign.Signed;
-              if (type instanceof NumericalType) {
-                sign = type.sign;
-              }
-              return rvalueDirect(
-                type,
-                memLoad(
-                  module,
-                  {
-                    valueType,
-                    offset: location.offset,
-                    bytes: type.numBytes,
-                    sign,
-                  },
-                  ptr
-                )
-              );
-            }
-            return rvalueAddress(type, ptr);
+            return this.deref(lvalueDynamic(ptr, location.offset), type);
           }
 
           default:
@@ -215,11 +193,35 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         }
       }
       case 'dynamic': {
-        throw new Error(
-          `Don't know how to getRValue for ${this.root.name}, which has a dynamic lvalue`
-        );
+        const valueType = type.toValueType();
+        if (valueType) {
+          let sign = Sign.Signed;
+          if (type instanceof NumericalType) {
+            sign = type.sign;
+          }
+          return rvalueDirect(
+            type,
+            memLoad(
+              module,
+              {
+                valueType,
+                offset: lvalue.offset,
+                bytes: type.numBytes,
+                sign,
+              },
+              lvalue.ptr
+            )
+          );
+        }
+        return rvalueAddress(type, lvalue.ptr);
       }
     }
+  }
+
+  getRValue(): RValue {
+    const lvalue = this.getLValue();
+    const type = this.resolveType(this.root);
+    return this.deref(lvalue, type);
   }
 
   copy(
@@ -956,11 +958,8 @@ function memStore(
 }
 
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
-  override getLValue(): LValue {
-    return {
-      kind: 'static',
-      location: this.getLocationForSymbolRef(this.root),
-    };
+  override getLValue() {
+    return lvalueStatic(this.getLocationForSymbolRef(this.root));
   }
 
   compile() {
@@ -1189,56 +1188,78 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
 }
 
 class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
-  getLValue(): LValue {
-    const { left, right } = this.root.fields;
-
-    let leftType = this.context.typeCache.get(left);
+  private getLeftType() {
+    const leftType = this.context.typeCache.get(this.root.fields.left);
     if (leftType instanceof PointerType) {
-      leftType = leftType.toType;
+      return leftType.toType;
     }
+    return leftType;
+  }
 
-    let elem: { type: BaseType; offset: number; id: string };
+  private getElem() {
+    const { right } = this.root.fields;
+    const leftType = this.getLeftType();
     if (leftType instanceof RecordType) {
       const propName = getPropNameOrThrow(right);
-      elem = {
+      return {
         ...leftType.fields.get(propName)!,
         id: propName,
       };
-      if (!elem) {
-        throw new Error(`Invalid prop ${propName} for ${leftType.name}`);
+    }
+    throw new Error(
+      `Don't know how to lookup ${right.name} on a ${leftType.name}`
+    );
+  }
+
+  getLeftLValue(): LValue {
+    const { left } = this.root.fields;
+    const leftType = this.context.typeCache.get(left);
+    if (leftType instanceof PointerType) {
+      const ptrRValue = IRCompiler.forNode(left, this.context).getRValue();
+      switch (ptrRValue.kind) {
+        case 'direct':
+          return lvalueDynamic(ptrRValue.valueExpr);
+        default:
+          throw new Error(
+            `Don't know how to deref a pointer with an address rvalue yet...`
+          );
       }
     } else {
-      throw new Error(
-        `Don't know how to lookup ${right.name} on a ${leftType.name}`
-      );
+      return IRCompiler.forNode(left, this.context).getLValue();
     }
-    let sign = undefined;
-    if (elem.type instanceof NumericalType) {
-      sign = elem.type.sign;
-    }
+  }
 
-    const lvalue = IRCompiler.forNode(left, this.context).getLValue();
+  getLValue(): LValue {
+    const elem = this.getElem();
+
+    const lvalue = this.getLeftLValue();
     switch (lvalue.kind) {
       case 'static': {
         const { location } = lvalue;
         switch (location.area) {
           case 'stack': {
-            return {
-              kind: 'static',
-              location: {
-                area: location.area,
-                offset: location.offset + elem.offset,
-                id: location.id + '.' + elem.id,
-                dataType: elem.type,
-              },
-            };
+            return lvalueStatic({
+              area: location.area,
+              offset: location.offset + elem.offset,
+              id: location.id + '.' + elem.id,
+              dataType: elem.type,
+            });
+          }
+          default: {
+            throw new Error(
+              `Can't compute lvalue extension for static lvalue in ${location.area}`
+            );
           }
         }
       }
+      case 'dynamic': {
+        return lvalueDynamic(lvalue.ptr, lvalue.offset + elem.offset);
+      }
+      default:
+        throw new Error(
+          `${this.root.name}: Don't know how to compute LValue for ${lvalue.kind} yet.`
+        );
     }
-    throw new Error(
-      `Don't know how to compute LValue for ${this.root.name}...`
-    );
   }
 
   compile() {

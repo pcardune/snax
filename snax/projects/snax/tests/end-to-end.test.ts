@@ -1139,7 +1139,7 @@ describe('tuple structs', () => {
     });
   });
 
-  xit('lets you pass structs as function parameters by reference', async () => {
+  it('lets you pass structs as function parameters by reference', async () => {
     const code = `
       struct Vector(u8,i32);
       func add(v:&Vector) {

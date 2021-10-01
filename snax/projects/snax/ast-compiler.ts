@@ -1605,12 +1605,8 @@ class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
 }
 
 class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
-  compile() {
-    const structPointerType = this.resolveType(this.root);
-    if (!(structPointerType instanceof PointerType)) {
-      throw new Error(`unexpected type for struct literal`);
-    }
-    const { toType: structType } = structPointerType;
+  getRValue() {
+    const structType = this.resolveType(this.root);
     if (!(structType instanceof RecordType)) {
       throw new Error(
         `unexpected type for struct literal... should pointer to a record`
@@ -1646,11 +1642,17 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
       );
     }
 
-    return module.block(
-      '',
-      [instr, ...fieldInstr, lget(module, location)],
-      binaryen[location.valueType]
+    return rvalueAddress(
+      structType,
+      module.block(
+        '',
+        [instr, ...fieldInstr, lget(module, location)],
+        binaryen[location.valueType]
+      )
     );
+  }
+  compile() {
+    return this.getRValue().valuePtrExpr;
   }
 }
 

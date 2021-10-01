@@ -504,9 +504,12 @@ function recurse(
       break;
     case 'StructLiteral':
       if (assertLocal(localAllocator)) {
-        localAllocator.allocateStack(typeMap.get(root), root, 'temp');
-        // TODO: add support for statically deallocating stack areas
-        // for temporary variables
+        const tempStructPointer = localAllocator.allocateLocal(
+          NumberType.i32,
+          root,
+          'temp'
+        );
+        localAllocator.deallocateLocal(tempStructPointer);
       }
       break;
   }

@@ -909,7 +909,7 @@ describe('strings', () => {
     const code = `"hello world\\n";`;
     const {
       exports: { _start, memory },
-    } = await compileToWasmModule(code);
+    } = await compileToWasmModule(code, { includeRuntime: true });
     const strPointer = _start();
     expect(strPointer).toBe(PAGE_SIZE - 8);
     const bufferPointer = int32(memory, strPointer);
@@ -1069,19 +1069,20 @@ describe('object structs', () => {
     expect(stackDump(exports, 4)).toEqual([5, 7, 5, 7]);
   });
 
-  xit('lets you declare a new struct type and construct it', async () => {
+  it('lets you declare a new struct type and construct it', async () => {
     const code = `
       struct Vector {
         x: i32;
         y: i32;
       }
-      let v = Vector::{ x: 3, y: 5 };
+      let v:Vector;
+      v = Vector::{ x: 3, y: 5 };
       v.x;
     `;
     const { exports, compiler } = await compileToWasmModule(code);
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
       "stack:
-          0: <v>s0-4 (&{x: i32, y: i32})
+          0: <v>s0-8 ({x: i32, y: i32})
       locals:
           0: <arp>r0:i32 (i32)
           1: <temp>r1:i32 (i32)"
@@ -1094,23 +1095,6 @@ describe('object structs', () => {
         0,
       ]
     `);
-  });
-
-  xit('lets you access members of the struct', async () => {
-    expect(
-      await exec(`
-        struct Vector {x: i32; y: u8;}
-        let v = Vector::{x:3, y:5_u8};
-        v.x;
-      `)
-    ).toEqual(3);
-    expect(
-      await exec(`
-        struct Vector {x: i32; y: u8;}
-        let v = Vector::{x:3, y:5_u8};
-        v.y;
-      `)
-    ).toEqual(5);
   });
 });
 

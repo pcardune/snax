@@ -30,32 +30,20 @@ export const getTypeForBinaryOp = (
   leftType: BaseType,
   rightType: BaseType
 ): BaseType => {
-  let { i32, f32, bool: Bool } = Intrinsics;
+  let { i32, f32, bool } = Intrinsics;
   const error = new Error(
     `TypeError: Can't perform ${leftType} ${op} ${rightType}`
   );
   switch (op) {
-    case BinOp.ARRAY_INDEX:
-      if (leftType instanceof ArrayType) {
-        return leftType.elementType;
-      } else if (leftType instanceof PointerType) {
-        return leftType.toType;
-      }
-      throw error;
-    case BinOp.LESS_THAN:
-    case BinOp.GREATER_THAN:
-    case BinOp.EQUAL_TO:
-    case BinOp.NOT_EQUAL_TO:
-      return Intrinsics.bool;
     default:
       if (leftType === rightType) {
         return leftType;
       }
       switch (leftType) {
-        case Bool:
+        case bool:
           switch (rightType) {
-            case Bool:
-              return Bool;
+            case bool:
+              return bool;
             default:
               throw error;
           }
@@ -195,10 +183,7 @@ class TypeResolver {
       case 'LetStatement': {
         if (!node.fields.typeExpr) {
           if (!node.fields.expr) {
-            throw new TypeResolutionError(
-              node,
-              `Can't resolve type for ${node.name} that doesn't have explicit type or initializer`
-            );
+            return Intrinsics.unknown;
           }
           return this.resolveType(node.fields.expr);
         }
@@ -229,12 +214,64 @@ class TypeResolver {
         return Intrinsics.void;
       case 'Block':
         return Intrinsics.void;
-      case 'BinaryExpr':
-        return getTypeForBinaryOp(
-          node.fields.op,
-          this.resolveType(node.fields.left),
-          this.resolveType(node.fields.right)
-        );
+      case 'BinaryExpr': {
+        const { op, left, right } = node.fields;
+        switch (op) {
+          case BinOp.ARRAY_INDEX: {
+            const leftType = this.resolveType(left);
+            if (leftType instanceof ArrayType) {
+              return leftType.elementType;
+            } else if (leftType instanceof PointerType) {
+              return leftType.toType;
+            }
+            throw new TypeResolutionError(
+              node,
+              `Can't index into a ${leftType.name}`
+            );
+          }
+          case BinOp.LESS_THAN:
+          case BinOp.GREATER_THAN:
+          case BinOp.EQUAL_TO:
+          case BinOp.NOT_EQUAL_TO:
+            return Intrinsics.bool;
+          case BinOp.ASSIGN: {
+            let leftType = this.resolveType(left);
+            const rightType = this.resolveType(right);
+            if (leftType === Intrinsics.unknown) {
+              if (left.name === 'SymbolRef') {
+                const ref = refMap.get(left);
+                if (!ref) {
+                  throw new TypeResolutionError(
+                    node,
+                    `Can't assign to undeclared symbol ${left.fields.symbol}`
+                  );
+                }
+                leftType = rightType;
+                this.typeMap.set(ref.declNode, leftType);
+                this.typeMap.set(left, leftType);
+              } else {
+                throw new TypeResolutionError(
+                  node,
+                  `Can't assign to ${leftType.name}, and not smart enough yet to infer what it should be.`
+                );
+              }
+            }
+            if (leftType.equals(rightType)) {
+              return leftType;
+            }
+            throw new TypeResolutionError(
+              node,
+              `Can't assign value of type ${rightType.name} to a ${leftType.name}`
+            );
+          }
+          default:
+            return getTypeForBinaryOp(
+              op,
+              this.resolveType(left),
+              this.resolveType(right)
+            );
+        }
+      }
       case 'CallExpr': {
         const leftType = this.resolveType(node.fields.left);
         if (leftType instanceof FuncType) {

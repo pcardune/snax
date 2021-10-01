@@ -708,7 +708,7 @@ describe('globals', () => {
   });
 });
 
-describe('runtime', () => {
+xdescribe('runtime', () => {
   it('has malloc', async () => {
     expect(
       await exec(
@@ -1075,8 +1075,7 @@ describe('object structs', () => {
         x: i32;
         y: i32;
       }
-      let v:Vector;
-      v = Vector::{ x: 3, y: 5 };
+      let v = Vector::{ x: 3, y: 5 };
       v.x;
     `;
     const { exports, compiler } = await compileToWasmModule(code);

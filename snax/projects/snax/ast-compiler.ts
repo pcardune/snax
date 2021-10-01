@@ -659,16 +659,8 @@ class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
     let dest = lget(module, arp);
 
     if (expr) {
-      const value = this.compileChild(expr);
-      return memStore(
-        module,
-        {
-          valueType: type.toValueTypeOrThrow(),
-          offset: location.offset,
-          bytes: type.numBytes,
-        },
-        dest,
-        value
+      throw new Error(
+        `LetStatement with expr should have been desugared into let statement + assignment statement`
       );
     } else {
       if (location.offset > 0) {
@@ -964,7 +956,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     [BinOp.ASSIGN]: (left: AST.Expression, right: AST.Expression) => {
       const leftType = this.resolveType(left);
       const rightType = this.resolveType(right);
-      if (leftType !== rightType) {
+      if (!leftType.equals(rightType)) {
         throw new Error(
           `ASSIGN: Can't assign value of type ${rightType} to symbol of type ${leftType}`
         );
@@ -1010,24 +1002,29 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
               const { arp } = this.context.funcAllocs;
               const arpPtr = lget(module, arp);
               if (rvalue.kind === 'direct') {
+                const valueType = rvalue.type.toValueTypeOrThrow();
                 const memProps = {
-                  valueType: rightType.toValueTypeOrThrow(),
+                  valueType,
                   offset: location.offset,
                 };
-                return module.block(
-                  '',
-                  [
-                    lset(module, tempLocation, arpPtr),
-                    memStore(
-                      module,
-                      memProps,
-                      lget(module, tempLocation),
-                      rvalue.valueExpr
-                    ),
-                    memLoad(module, memProps, lget(module, tempLocation)),
-                  ],
-                  binaryen[rightType.toValueTypeOrThrow()]
-                );
+                if (tempLocation) {
+                  return module.block(
+                    '',
+                    [
+                      lset(module, tempLocation, arpPtr),
+                      memStore(
+                        module,
+                        memProps,
+                        lget(module, tempLocation),
+                        rvalue.valueExpr
+                      ),
+                      memLoad(module, memProps, lget(module, tempLocation)),
+                    ],
+                    binaryen[valueType]
+                  );
+                } else {
+                  return memStore(module, memProps, arpPtr, rvalue.valueExpr);
+                }
               } else {
                 const size = rvalue.type.numBytes;
                 const source = rvalue.valuePtrExpr;
@@ -1035,15 +1032,23 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
                   arpPtr,
                   module.i32.const(location.offset)
                 );
-                return module.block(
-                  '',
-                  [
-                    lset(module, tempLocation, dest),
-                    module.memory.copy(dest, source, module.i32.const(size)),
-                    lget(module, tempLocation),
-                  ],
-                  binaryen.i32
-                );
+                if (tempLocation) {
+                  return module.block(
+                    '',
+                    [
+                      lset(module, tempLocation, dest),
+                      module.memory.copy(dest, source, module.i32.const(size)),
+                      lget(module, tempLocation),
+                    ],
+                    binaryen.i32
+                  );
+                } else {
+                  return module.memory.copy(
+                    dest,
+                    source,
+                    module.i32.const(size)
+                  );
+                }
               }
             }
             default:
@@ -1055,26 +1060,30 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         case 'dynamic': {
           const { ptr } = lvalue;
           const memProps = {
-            valueType: leftType.toValueTypeOrThrow(),
+            valueType: rvalue.type.toValueTypeOrThrow(),
             offset: 0,
-            align: leftType.numBytes,
-            bytes: leftType.numBytes,
+            align: rvalue.type.numBytes,
+            bytes: rvalue.type.numBytes,
           };
           if (rvalue.kind === 'direct') {
-            return module.block(
-              '',
-              [
-                lset(module, tempLocation, ptr),
-                memStore(
-                  module,
-                  memProps,
-                  lget(module, tempLocation),
-                  rvalue.valueExpr
-                ),
-                memLoad(module, memProps, lget(module, tempLocation)),
-              ],
-              binaryen[rightType.toValueTypeOrThrow()]
-            );
+            if (tempLocation) {
+              return module.block(
+                '',
+                [
+                  lset(module, tempLocation, ptr),
+                  memStore(
+                    module,
+                    memProps,
+                    lget(module, tempLocation),
+                    rvalue.valueExpr
+                  ),
+                  memLoad(module, memProps, lget(module, tempLocation)),
+                ],
+                binaryen[rvalue.type.toValueTypeOrThrow()]
+              );
+            } else {
+              return memStore(module, memProps, ptr, rvalue.valueExpr);
+            }
           } else {
             throw new Error(
               `Haven't implemented dynamic memcopy for assignment yet`
@@ -1152,7 +1161,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     const compile =
       this.opCompilers[op] ??
       (() => {
-        throw new Error(`Don't know how to compile ${op} with binaryen yet`);
+        throw new Error(`Don't know how to compile ${op} yet`);
       });
     return rvalueDirect(
       this.context.typeCache.get(this.root),
@@ -1407,6 +1416,9 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
 }
 
 class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
+  getRValue() {
+    return rvalueDirect(this.context.typeCache.get(this.root), this.compile());
+  }
   compile(): binaryen.ExpressionRef {
     switch (this.root.fields.op) {
       case UnaryOp.ADDR_OF: {

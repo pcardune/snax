@@ -1,6 +1,7 @@
 import * as AST from './spec-gen.js';
 import { SNAXParser } from './snax-parser.js';
 import {
+  ArrayType,
   BaseType,
   FuncType,
   Intrinsics,
@@ -213,13 +214,121 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
       }
     }
   }
+
+  copy(
+    lvalue: LValue,
+    rvalue: RValue,
+    tempLocation?: LocalStorageLocation
+  ): binaryen.ExpressionRef {
+    const { module } = this.context;
+    switch (lvalue.kind) {
+      case 'immediate': {
+        throw new Error(`Can't assign to an immediate value`);
+      }
+      case 'static': {
+        const { location } = lvalue;
+        switch (location.area) {
+          case 'locals':
+            if (rvalue.kind === 'address') {
+              throw new Error(
+                `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
+              );
+            }
+            return ltee(module, location, rvalue.valueExpr);
+          case 'globals':
+            if (rvalue.kind === 'address') {
+              throw new Error(
+                `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
+              );
+            }
+            return module.block(
+              '',
+              [
+                gset(module, location, rvalue.valueExpr),
+                gget(module, location),
+              ],
+              binaryen[location.valueType]
+            );
+          case 'stack': {
+            const { arp } = this.context.funcAllocs;
+            const ptr = lget(module, arp);
+            return this.copy(
+              lvalueDynamic(ptr, location.offset),
+              rvalue,
+              tempLocation
+            );
+            break;
+          }
+          default:
+            throw new Error(
+              `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+            );
+        }
+        break;
+      }
+      case 'dynamic': {
+        const { ptr } = lvalue;
+        switch (rvalue.kind) {
+          case 'direct': {
+            const valueType = rvalue.type.toValueTypeOrThrow();
+            const memProps = {
+              valueType,
+              offset: lvalue.offset,
+              bytes: rvalue.type.numBytes,
+            };
+            if (tempLocation) {
+              return module.block(
+                '',
+                [
+                  lset(module, tempLocation, ptr),
+                  memStore(
+                    module,
+                    memProps,
+                    lget(module, tempLocation),
+                    rvalue.valueExpr
+                  ),
+                  memLoad(module, memProps, lget(module, tempLocation)),
+                ],
+                binaryen[valueType]
+              );
+            } else {
+              return memStore(module, memProps, ptr, rvalue.valueExpr);
+            }
+          }
+          case 'address': {
+            const size = rvalue.type.numBytes;
+            const source = rvalue.valuePtrExpr;
+            const dest = module.i32.add(ptr, module.i32.const(lvalue.offset));
+            if (tempLocation) {
+              return module.block(
+                '',
+                [
+                  lset(module, tempLocation, dest),
+                  module.memory.copy(dest, source, module.i32.const(size)),
+                  lget(module, tempLocation),
+                ],
+                binaryen.i32
+              );
+            } else {
+              return module.memory.copy(dest, source, module.i32.const(size));
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 type LValue =
   | { kind: 'immediate' }
   | { kind: 'static'; location: StorageLocation }
-  | { kind: 'dynamic'; ptr: binaryen.ExpressionRef };
-
+  | { kind: 'dynamic'; ptr: binaryen.ExpressionRef; offset: number };
+function lvalueStatic<T extends StorageLocation>(location: T) {
+  return { kind: 'static' as const, location };
+}
+function lvalueDynamic(ptr: binaryen.ExpressionRef, offset: number = 0) {
+  return { kind: 'dynamic' as const, ptr, offset };
+}
 type RValue =
   | { kind: 'direct'; type: BaseType; valueExpr: binaryen.ExpressionRef }
   | { kind: 'address'; type: BaseType; valuePtrExpr: binaryen.ExpressionRef };
@@ -961,7 +1070,6 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           `ASSIGN: Can't assign value of type ${rightType} to symbol of type ${leftType}`
         );
       }
-      const { module } = this.context;
 
       let tempLocation = this.context.allocationMap.getLocalOrThrow(
         this.root,
@@ -970,127 +1078,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
 
       const lvalue = IRCompiler.forNode(left, this.context).getLValue();
       const rvalue = IRCompiler.forNode(right, this.context).getRValue();
-      switch (lvalue.kind) {
-        case 'immediate': {
-          throw new Error(`Can't assign to an immediate value`);
-        }
-        case 'static': {
-          const { location } = lvalue;
-          switch (location.area) {
-            case 'locals':
-              if (rvalue.kind === 'address') {
-                throw new Error(
-                  `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
-                );
-              }
-              return ltee(module, location, rvalue.valueExpr);
-            case 'globals':
-              if (rvalue.kind === 'address') {
-                throw new Error(
-                  `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
-                );
-              }
-              return module.block(
-                '',
-                [
-                  gset(module, location, rvalue.valueExpr),
-                  gget(module, location),
-                ],
-                binaryen[location.valueType]
-              );
-            case 'stack': {
-              const { arp } = this.context.funcAllocs;
-              const arpPtr = lget(module, arp);
-              if (rvalue.kind === 'direct') {
-                const valueType = rvalue.type.toValueTypeOrThrow();
-                const memProps = {
-                  valueType,
-                  offset: location.offset,
-                };
-                if (tempLocation) {
-                  return module.block(
-                    '',
-                    [
-                      lset(module, tempLocation, arpPtr),
-                      memStore(
-                        module,
-                        memProps,
-                        lget(module, tempLocation),
-                        rvalue.valueExpr
-                      ),
-                      memLoad(module, memProps, lget(module, tempLocation)),
-                    ],
-                    binaryen[valueType]
-                  );
-                } else {
-                  return memStore(module, memProps, arpPtr, rvalue.valueExpr);
-                }
-              } else {
-                const size = rvalue.type.numBytes;
-                const source = rvalue.valuePtrExpr;
-                const dest = module.i32.add(
-                  arpPtr,
-                  module.i32.const(location.offset)
-                );
-                if (tempLocation) {
-                  return module.block(
-                    '',
-                    [
-                      lset(module, tempLocation, dest),
-                      module.memory.copy(dest, source, module.i32.const(size)),
-                      lget(module, tempLocation),
-                    ],
-                    binaryen.i32
-                  );
-                } else {
-                  return module.memory.copy(
-                    dest,
-                    source,
-                    module.i32.const(size)
-                  );
-                }
-              }
-            }
-            default:
-              throw new Error(
-                `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
-              );
-          }
-        }
-        case 'dynamic': {
-          const { ptr } = lvalue;
-          const memProps = {
-            valueType: rvalue.type.toValueTypeOrThrow(),
-            offset: 0,
-            align: rvalue.type.numBytes,
-            bytes: rvalue.type.numBytes,
-          };
-          if (rvalue.kind === 'direct') {
-            if (tempLocation) {
-              return module.block(
-                '',
-                [
-                  lset(module, tempLocation, ptr),
-                  memStore(
-                    module,
-                    memProps,
-                    lget(module, tempLocation),
-                    rvalue.valueExpr
-                  ),
-                  memLoad(module, memProps, lget(module, tempLocation)),
-                ],
-                binaryen[rvalue.type.toValueTypeOrThrow()]
-              );
-            } else {
-              return memStore(module, memProps, ptr, rvalue.valueExpr);
-            }
-          } else {
-            throw new Error(
-              `Haven't implemented dynamic memcopy for assignment yet`
-            );
-          }
-        }
-      }
+      return this.copy(lvalue, rvalue, tempLocation);
     },
     [BinOp.ARRAY_INDEX]: (
       refExpr: AST.Expression,
@@ -1142,7 +1130,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
         this.compileChild(left),
         module.i32.mul(this.compileChild(right), module.i32.const(numBytes))
       );
-      return { kind: 'dynamic', ptr };
+      return lvalueDynamic(ptr);
     },
   };
 
@@ -1578,41 +1566,36 @@ function compileStackPush(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
 }
 
 class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
-  compile() {
+  getRValue() {
     const arrayType = this.resolveType(this.root);
-    if (!(arrayType instanceof PointerType)) {
+    if (!(arrayType instanceof ArrayType)) {
       throw new Error('unexpected type for array literal');
     }
-    const { elements } = this.root.fields;
 
-    const { instr, location } = compileStackPush(
-      this,
-      arrayType.numBytes * elements.length
-    );
+    const { instr, location } = compileStackPush(this, arrayType.numBytes);
     const { module } = this.context;
 
     const fieldInstr = [];
+    const { elements } = this.root.fields;
     for (const [i, prop] of elements.entries()) {
       const ptr = lget(module, location);
-      const value = this.compileChild(prop);
-      fieldInstr.push(
-        memStore(
-          module,
-          {
-            valueType: arrayType.toType.toValueTypeOrThrow(),
-            offset: i * 4,
-            align: 4,
-          },
-          ptr,
-          value
-        )
-      );
+
+      const rvalue = IRCompiler.forNode(prop, this.context).getRValue();
+      const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
+      fieldInstr.push(this.copy(lvalue, rvalue));
     }
-    return module.block(
-      '',
-      [instr, ...fieldInstr, lget(module, location)],
-      binaryen[location.valueType]
+    return rvalueAddress(
+      arrayType,
+      module.block(
+        '',
+        [instr, ...fieldInstr, lget(module, location)],
+        binaryen.i32
+      )
     );
+  }
+
+  compile() {
+    return this.getRValue().valuePtrExpr;
   }
 }
 
@@ -1638,20 +1621,13 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
         );
       }
       const ptr = lget(module, location);
-      const value = this.compileChild(prop.fields.expr);
-      fieldInstr.push(
-        memStore(
-          module,
-          {
-            valueType: propType.type.toValueTypeOrThrow(),
-            offset: propType.offset,
-            align: propType.type.numBytes,
-            bytes: propType.type.numBytes,
-          },
-          ptr,
-          value
-        )
-      );
+
+      const rvalue = IRCompiler.forNode(
+        prop.fields.expr,
+        this.context
+      ).getRValue();
+      const lvalue = lvalueDynamic(ptr, propType.offset);
+      fieldInstr.push(this.copy(lvalue, rvalue));
     }
 
     return rvalueAddress(
@@ -1669,8 +1645,11 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
 }
 
 class DataLiteralCompiler extends IRCompiler<AST.DataLiteral> {
+  getLValue() {
+    return lvalueStatic(this.context.allocationMap.getDataOrThrow(this.root));
+  }
   compile() {
-    const location = this.context.allocationMap.getDataOrThrow(this.root);
+    const location = this.getLValue().location;
     return this.context.module.i32.const(location.memIndex);
   }
 }

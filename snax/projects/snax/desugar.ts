@@ -1,4 +1,4 @@
-import { BinOp } from './snax-ast.js';
+import { BinOp, UnaryOp } from './snax-ast.js';
 import {
   ASTNode,
   makeBinaryExprWith,
@@ -9,6 +9,7 @@ import {
   makeStructLiteralProp,
   makeStructLiteralWith,
   makeSymbolRef,
+  makeUnaryExpr,
 } from './spec-gen.js';
 import { children, depthFirstIter } from './spec-util.js';
 
@@ -34,7 +35,10 @@ export function desugar(root: ASTNode) {
         const structLiteral = makeStructLiteralWith({
           symbol: makeSymbolRef('String'),
           props: [
-            makeStructLiteralProp('buffer', makeDataLiteral(node.fields.value)),
+            makeStructLiteralProp(
+              'buffer',
+              makeUnaryExpr(UnaryOp.ADDR_OF, makeDataLiteral(node.fields.value))
+            ),
             makeStructLiteralProp(
               'length',
               makeNumberLiteral(node.fields.value.length, 'int', 'usize')

@@ -499,7 +499,11 @@ function recurse(
           NumberType.i32,
           root
         );
+        children(root).forEach((child) =>
+          recurse(child, moduleAllocator, typeMap, localAllocator)
+        );
         localAllocator.deallocateLocal(arrayStartPointer);
+        return;
       }
       break;
     case 'StructLiteral':

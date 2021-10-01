@@ -310,8 +310,7 @@ class TypeResolver {
             );
           }
         }
-        //new ArrayType(type, node.fields.elements.length)
-        return new PointerType(type);
+        return new ArrayType(type, node.fields.elements.length);
       }
       case 'FuncDecl': {
         let paramTypes = node.fields.parameters.fields.parameters.map((p) =>

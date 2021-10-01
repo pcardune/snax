@@ -877,15 +877,17 @@ describe('pointers', () => {
   });
 });
 
-xdescribe('arrays', () => {
+describe('arrays', () => {
   it('compiles arrays', async () => {
     const input = `
       let a = "data";
       let arr = [6,5,4];
       let arr2 = [7,8,9];
-      arr;
+      @arr;
     `;
-    const { exports } = await compileToWasmModule(input);
+    const { exports } = await compileToWasmModule(input, {
+      includeRuntime: true,
+    });
     const result = exports._start();
     const mem = new Int32Array(
       exports.memory.buffer.slice(result, result + 3 * 4)
@@ -897,6 +899,19 @@ xdescribe('arrays', () => {
         4,
       ]
     `);
+  });
+  it('supports arrays of structs', async () => {
+    const code = `
+      struct Point {x:i32; y:i32;}
+      let arr = [Point::{x:6,y:5}, Point::{x:9,y:10}, Point::{x:15,y:16}];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code);
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 6 * 4)
+    );
+    expect([...mem]).toEqual([6, 5, 9, 10, 15, 16]);
   });
 });
 
@@ -945,43 +960,6 @@ describe('object structs', () => {
     const { wat, compiler } = await compileToWasmModule(code, {
       includeRuntime: false,
     });
-    expect(wat).toMatchInlineSnapshot(`
-"(module
- (type $none_=>_none (func))
- (global $g0:#SP (mut i32) (i32.const 0))
- (memory $0 1 1)
- (export \\"_start\\" (func $_start))
- (export \\"stackPointer\\" (global $g0:#SP))
- (export \\"memory\\" (memory $0))
- (func $<main>f0
-  (local $0 i32)
-  (global.set $g0:#SP
-   (i32.sub
-    (global.get $g0:#SP)
-    (i32.const 8)
-   )
-  )
-  (local.set $0
-   (global.get $g0:#SP)
-  )
-  ;;@ :6:7
-  (memory.fill
-   (local.get $0)
-   (i32.const 0)
-   (i32.const 8)
-  )
- )
- (func $_start
-  (global.set $g0:#SP
-   (i32.const 65536)
-  )
-  (return
-   (call $<main>f0)
-  )
- )
-)
-"
-`);
 
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
       "stack:
@@ -1078,31 +1056,39 @@ describe('object structs', () => {
     expect(stackDump(exports, 4)).toEqual([5, 7, 5, 7]);
   });
 
-  it('lets you declare a new struct type and construct it', async () => {
-    const code = `
-      struct Vector {
-        x: i32;
-        y: i32;
-      }
-      let v = Vector::{ x: 3, y: 5 };
-      v.x;
-    `;
-    const { exports, compiler } = await compileToWasmModule(code);
-    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
-      "stack:
-          0: <v>s0-8 ({x: i32, y: i32})
-      locals:
-          0: <arp>r0:i32 (i32)
-          1: <temp>r1:i32 (i32)"
-    `);
-    const result = exports._start();
-    const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
-    expect([...mem]).toMatchInlineSnapshot(`
+  describe('struct literals', () => {
+    it('lets you assign to a struct using a struct literal', async () => {
+      const code = `
+        struct Vector {x: i32;y: i32;}
+        let v = Vector::{ x: 3, y: 5 };
+        v.x;
+      `;
+      const { exports, compiler } = await compileToWasmModule(code);
+      expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+        "stack:
+            0: <v>s0-8 ({x: i32, y: i32})
+        locals:
+            0: <arp>r0:i32 (i32)
+            1: <temp>r1:i32 (i32)"
+      `);
+      const result = exports._start();
+      const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
+      expect([...mem]).toMatchInlineSnapshot(`
       Array [
         0,
         0,
       ]
     `);
+    });
+    it('supports nested struct literals', async () => {
+      const code = `
+        struct Point {x:i32; y:i32;}
+        struct Line {p1:Point; p2:Point;}
+        let line = Line::{p1:Point::{x:1, y:2}, p2:Point::{x:3, y:4}};
+        @line;
+      `;
+      const { exports, compiler } = await compileToWasmModule(code);
+    });
   });
 });
 

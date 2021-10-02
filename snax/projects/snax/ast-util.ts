@@ -1,4 +1,5 @@
 import {
+  ASTNode,
   Block,
   makeBlock,
   makeFuncDecl,
@@ -26,4 +27,15 @@ export function makeFunc(
     undefined,
     body instanceof Array ? makeBlock(body) : body
   );
+}
+
+export function getPropNameOrThrow(node: ASTNode): string {
+  switch (node.name) {
+    case 'SymbolRef':
+      return node.fields.symbol;
+    case 'NumberLiteral':
+      return String(node.fields.value);
+    default:
+      throw new Error(`${node.name} is not a valid property node`);
+  }
 }

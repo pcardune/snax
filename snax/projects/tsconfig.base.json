@@ -7,7 +7,8 @@
 
     "rootDir": ".",
     "outDir": "../dist",
-
+    "sourceMap": true,
+    
     "module": "ES2020",
     "moduleResolution": "Node",
     "target": "ES2021",

@@ -1,13 +1,13 @@
 import * as AST from './spec-gen.js';
 import { SNAXParser } from './snax-parser.js';
 import {
+  ArrayType,
   BaseType,
   FuncType,
   Intrinsics,
   NumericalType,
   PointerType,
   RecordType,
-  TupleType,
 } from './snax-types.js';
 import { NumberType, Sign, isFloatType, isIntType } from './numbers.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
@@ -23,9 +23,12 @@ import {
   LocalStorageLocation,
   ModuleAllocator,
   resolveMemory,
+  StorageLocation,
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
 import binaryen from 'binaryen';
+import { getPropNameOrThrow } from './ast-util.js';
+import { CompilerError } from './errors.js';
 
 export const PAGE_SIZE = 65536;
 
@@ -42,6 +45,10 @@ export abstract class ASTCompiler<
     this.context = context;
   }
   abstract compile(): Output;
+
+  protected error(message: string): CompilerError {
+    return new CompilerError(this, message);
+  }
 }
 
 export type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
@@ -104,8 +111,6 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
         return new DataLiteralCompiler(node, context);
       case 'StructLiteral':
         return new StructLiteralCompiler(node, context);
-      case 'ArgList':
-        return new ArgListCompiler(node, context);
       case 'WhileStatement':
         return new WhileStatementCompiler(node, context);
       case 'ReturnStatement':
@@ -128,13 +133,13 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   getLocationForSymbolRef(node: AST.SymbolRef) {
     const symbolRecord = this.context.refMap.get(node);
     if (!symbolRecord) {
-      throw new Error(
+      throw this.error(
         `ASTCompiler: can't compile reference to unresolved symbol ${node.fields.symbol}`
       );
     }
     const location = this.context.allocationMap.get(symbolRecord.declNode);
     if (!location) {
-      throw new Error(
+      throw this.error(
         `ASTCompiler: Can't compile reference to unlocated symbol ${node.fields.symbol}`
       );
     }
@@ -144,6 +149,217 @@ export abstract class IRCompiler<Root extends AST.ASTNode> extends ASTCompiler<
   resolveType(node: AST.ASTNode) {
     return this.context.typeCache.get(node);
   }
+
+  getLValue(): LValue {
+    throw this.error(`Don't know how to compute LValue for ${this.root.name}`);
+  }
+
+  memLoad(props: MemProps & { sign?: Sign }, ptr: binaryen.ExpressionRef) {
+    try {
+      return memLoad(this.context.module, props, ptr);
+    } catch (e) {
+      throw this.error((e as Error).message);
+    }
+  }
+
+  deref(lvalue: LValue, type: BaseType): RValue {
+    const { module } = this.context;
+
+    switch (lvalue.kind) {
+      case 'immediate': {
+        throw this.error(
+          `ASTNodes with immediate LValues, should implement getRValue themselves`
+        );
+      }
+      case 'static': {
+        const { location } = lvalue;
+        switch (location.area) {
+          case 'locals':
+            return rvalueDirect(
+              type,
+              this.context.module.local.get(
+                location.offset,
+                binaryen[location.valueType]
+              )
+            );
+          case 'globals':
+            return rvalueDirect(
+              type,
+              this.context.module.global.get(
+                location.id,
+                binaryen[location.valueType]
+              )
+            );
+          case 'stack': {
+            const { arp } = this.context.funcAllocs;
+            const ptr = lget(module, arp);
+            return this.deref(lvalueDynamic(ptr, location.offset), type);
+          }
+
+          default:
+            throw this.error(
+              `SymbolRefCompiler: don't know how to compile reference to a location in ${location.area}`
+            );
+        }
+      }
+      case 'dynamic': {
+        const valueType = type.toValueType();
+        if (valueType) {
+          let sign = Sign.Signed;
+          if (type instanceof NumericalType) {
+            sign = type.sign;
+          }
+          return rvalueDirect(
+            type,
+            this.memLoad(
+              {
+                valueType,
+                offset: lvalue.offset,
+                bytes: type.numBytes,
+                sign,
+              },
+              lvalue.ptr
+            )
+          );
+        }
+        return rvalueAddress(type, lvalue.ptr);
+      }
+    }
+  }
+
+  getRValue(): RValue {
+    const lvalue = this.getLValue();
+    const type = this.resolveType(this.root);
+    return this.deref(lvalue, type);
+  }
+
+  copy(
+    lvalue: LValue,
+    rvalue: RValue,
+    tempLocation?: LocalStorageLocation
+  ): binaryen.ExpressionRef {
+    const { module } = this.context;
+    switch (lvalue.kind) {
+      case 'immediate': {
+        throw this.error(`Can't assign to an immediate value`);
+      }
+      case 'static': {
+        const { location } = lvalue;
+        switch (location.area) {
+          case 'locals':
+            if (rvalue.kind === 'address') {
+              throw this.error(
+                `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
+              );
+            }
+            return ltee(module, location, rvalue.valueExpr);
+          case 'globals':
+            if (rvalue.kind === 'address') {
+              throw this.error(
+                `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
+              );
+            }
+            return module.block(
+              '',
+              [
+                gset(module, location, rvalue.valueExpr),
+                gget(module, location),
+              ],
+              binaryen[location.valueType]
+            );
+          case 'stack': {
+            const { arp } = this.context.funcAllocs;
+            const ptr = lget(module, arp);
+            return this.copy(
+              lvalueDynamic(ptr, location.offset),
+              rvalue,
+              tempLocation
+            );
+            break;
+          }
+          default:
+            throw this.error(
+              `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
+            );
+        }
+        break;
+      }
+      case 'dynamic': {
+        const { ptr } = lvalue;
+        switch (rvalue.kind) {
+          case 'direct': {
+            let sign = Sign.Signed;
+            if (rvalue.type instanceof NumericalType) {
+              sign = rvalue.type.sign;
+            }
+            const valueType = rvalue.type.toValueTypeOrThrow();
+            const memProps = {
+              valueType,
+              offset: lvalue.offset,
+              bytes: rvalue.type.numBytes,
+              sign,
+            };
+            if (tempLocation) {
+              return module.block(
+                '',
+                [
+                  lset(module, tempLocation, ptr),
+                  memStore(
+                    module,
+                    memProps,
+                    lget(module, tempLocation),
+                    rvalue.valueExpr
+                  ),
+                  this.memLoad(memProps, lget(module, tempLocation)),
+                ],
+                binaryen[valueType]
+              );
+            } else {
+              return memStore(module, memProps, ptr, rvalue.valueExpr);
+            }
+          }
+          case 'address': {
+            const size = rvalue.type.numBytes;
+            const source = rvalue.valuePtrExpr;
+            const dest = module.i32.add(ptr, module.i32.const(lvalue.offset));
+            if (tempLocation) {
+              return module.block(
+                '',
+                [
+                  lset(module, tempLocation, dest),
+                  module.memory.copy(dest, source, module.i32.const(size)),
+                  lget(module, tempLocation),
+                ],
+                binaryen.i32
+              );
+            } else {
+              return module.memory.copy(dest, source, module.i32.const(size));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+type LValue =
+  | { kind: 'immediate' }
+  | { kind: 'static'; location: StorageLocation }
+  | { kind: 'dynamic'; ptr: binaryen.ExpressionRef; offset: number };
+function lvalueStatic<T extends StorageLocation>(location: T) {
+  return { kind: 'static' as const, location };
+}
+function lvalueDynamic(ptr: binaryen.ExpressionRef, offset: number = 0) {
+  return { kind: 'dynamic' as const, ptr, offset };
+}
+type RValue =
+  | { kind: 'direct'; type: BaseType; valueExpr: binaryen.ExpressionRef }
+  | { kind: 'address'; type: BaseType; valuePtrExpr: binaryen.ExpressionRef };
+function rvalueDirect(type: BaseType, valueExpr: binaryen.ExpressionRef) {
+  return { kind: 'direct' as const, type, valueExpr };
+}
+function rvalueAddress(type: BaseType, valuePtrExpr: binaryen.ExpressionRef) {
+  return { kind: 'address' as const, type, valuePtrExpr };
 }
 
 class ReturnStatementCompiler extends IRCompiler<AST.ReturnStatement> {
@@ -230,7 +446,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, binaryen.Module> {
         this.root.fields.globals.push(...runtimeAST.fields.globals);
         this.root.fields.decls.push(...runtimeAST.fields.decls);
       } else {
-        throw new Error(`this should never happen`);
+        throw this.error(`this should never happen`);
       }
     }
 
@@ -254,7 +470,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, binaryen.Module> {
 
     if (this.options.includeRuntime) {
       if (!mallocDecl) {
-        throw new Error(`I need a decl for malloc`);
+        throw this.error(`I need a decl for malloc`);
       }
       let malloc = moduleAllocator.allocationMap.getFuncOrThrow(mallocDecl);
       runtime = {
@@ -322,7 +538,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File, binaryen.Module> {
       }
       const returnType = mainFuncType.returnType.equals(Intrinsics.void)
         ? binaryen.none
-        : binaryen[mainFuncType.returnType.toValueType()];
+        : binaryen[mainFuncType.returnType.toValueTypeOrThrow()];
       module.addFunction(
         '_start',
         binaryen.createType([]),
@@ -417,19 +633,20 @@ export class ExternDeclCompiler extends ASTCompiler<
     for (const func of this.root.fields.funcs) {
       const funcType = this.context.typeCache.get(func);
       if (!(funcType instanceof FuncType)) {
-        throw new Error(`Unexpected type for funcDecl: ${funcType.name}`);
+        throw this.error(`Unexpected type for funcDecl: ${funcType.name}`);
       }
       const location = this.context.allocationMap.getFuncOrThrow(func);
 
       const params = binaryen.createType(
         func.fields.parameters.fields.parameters.map(
-          (param) => binaryen[this.context.typeCache.get(param).toValueType()]
+          (param) =>
+            binaryen[this.context.typeCache.get(param).toValueTypeOrThrow()]
         )
       );
       const results =
         funcType.returnType === Intrinsics.void
           ? binaryen.none
-          : binaryen[funcType.returnType.toValueType()];
+          : binaryen[funcType.returnType.toValueTypeOrThrow()];
       module.addFunctionImport(
         location.id,
         this.root.fields.libName,
@@ -478,19 +695,19 @@ export class FuncDeclCompiler extends ASTCompiler<
   compile() {
     const funcType = this.context.typeCache.get(this.root);
     if (!(funcType instanceof FuncType)) {
-      throw new Error('unexpected type of function');
+      throw this.error('unexpected type of function');
     }
 
     const params = binaryen.createType(
       this.root.fields.parameters.fields.parameters.map((param) => {
         const paramType = this.context.typeCache.get(param);
-        return binaryen[paramType.toValueType()];
+        return binaryen[paramType.toValueTypeOrThrow()];
       })
     );
 
     const results = funcType.returnType.equals(Intrinsics.void)
       ? binaryen.none
-      : binaryen[funcType.returnType.toValueType()];
+      : binaryen[funcType.returnType.toValueTypeOrThrow()];
 
     const vars = this.context.funcAllocs.locals.map(
       (local) => binaryen[local.valueType]
@@ -550,7 +767,7 @@ class RegStatementCompiler extends IRCompiler<AST.RegStatement> {
     const { expr } = this.root.fields;
     if (expr) {
       const exprType = this.resolveType(expr);
-      exprType.toValueType();
+      exprType.toValueTypeOrThrow();
       return this.context.module.local.set(
         location.offset,
         this.compileChild(expr)
@@ -574,16 +791,8 @@ class LetStatementCompiler extends IRCompiler<AST.LetStatement> {
     let dest = lget(module, arp);
 
     if (expr) {
-      const value = this.compileChild(expr);
-      return memStore(
-        module,
-        {
-          valueType: type.toValueType(),
-          offset: location.offset,
-          bytes: type.numBytes,
-        },
-        dest,
-        value
+      throw this.error(
+        `LetStatement with expr should have been desugared into let statement + assignment statement`
       );
     } else {
       if (location.offset > 0) {
@@ -666,7 +875,14 @@ function memLoad(
   ptr: binaryen.ExpressionRef
 ) {
   const { offset, align, bytes } = memDefaults(props);
-  const { valueType, sign = Sign.Signed } = props;
+  const { valueType } = props;
+
+  const getSign = () => {
+    if (props.sign === undefined) {
+      throw new Error(`memLoad requires a sign to be specified`);
+    }
+    return props.sign;
+  };
 
   let loadFunc;
   switch (valueType) {
@@ -674,10 +890,11 @@ function memLoad(
       const typed = module.i32;
       switch (bytes) {
         case 1:
-          loadFunc = sign === Sign.Signed ? typed.load8_s : typed.load8_u;
+          loadFunc = getSign() === Sign.Signed ? typed.load8_s : typed.load8_u;
           break;
         case 2:
-          loadFunc = sign === Sign.Signed ? typed.load16_s : typed.load16_u;
+          loadFunc =
+            getSign() === Sign.Signed ? typed.load16_s : typed.load16_u;
           break;
         case 4:
           loadFunc = typed.load;
@@ -691,13 +908,15 @@ function memLoad(
       const typed = module.i64;
       switch (bytes) {
         case 1:
-          loadFunc = sign === Sign.Signed ? typed.load8_s : typed.load8_u;
+          loadFunc = getSign() === Sign.Signed ? typed.load8_s : typed.load8_u;
           break;
         case 2:
-          loadFunc = sign === Sign.Signed ? typed.load16_s : typed.load16_u;
+          loadFunc =
+            getSign() === Sign.Signed ? typed.load16_s : typed.load16_u;
           break;
         case 4:
-          loadFunc = sign === Sign.Signed ? typed.load32_s : typed.load32_u;
+          loadFunc =
+            getSign() === Sign.Signed ? typed.load32_s : typed.load32_u;
           break;
         case 8:
           loadFunc = typed.load;
@@ -748,34 +967,19 @@ function memStore(
 }
 
 class SymbolRefCompiler extends IRCompiler<AST.SymbolRef> {
-  compile() {
-    const location = this.getLocationForSymbolRef(this.root);
-    const type = this.resolveType(this.root);
-    switch (location.area) {
-      case 'locals':
-        return this.context.module.local.get(
-          location.offset,
-          binaryen[location.valueType]
-        );
-      case 'globals':
-        return this.context.module.global.get(
-          location.id,
-          binaryen[location.valueType]
-        );
-      case 'stack': {
-        const { arp } = this.context.funcAllocs;
-        return memLoad(
-          this.context.module,
-          { valueType: type.toValueType(), offset: location.offset },
-          this.context.module.local.get(arp.offset, binaryen[arp.valueType])
-        );
-      }
+  override getLValue() {
+    return lvalueStatic(this.getLocationForSymbolRef(this.root));
+  }
 
-      default:
-        throw new Error(
-          `SymbolRefCompiler: don't know how to compile reference to a location in ${location.area}`
-        );
+  compile() {
+    const rvalue = this.getRValue();
+    switch (rvalue.kind) {
+      case 'direct':
+        return rvalue.valueExpr;
     }
+    throw this.error(
+      `should not be compiling a symbol ref ${this.root.fields.symbol} with an indirect rvalue`
+    );
   }
 }
 
@@ -783,14 +987,14 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
   private pushNumberOps(left: AST.Expression, right: AST.Expression) {
     const targetType = this.matchTypes(left, right);
     const convert = (child: AST.Expression, value: binaryen.ExpressionRef) => {
-      const childType = this.resolveType(child).toValueType();
+      const childType = this.resolveType(child).toValueTypeOrThrow();
       if (childType === targetType) {
         return value;
       }
       if (isIntType(childType) && isFloatType(targetType)) {
         return this.context.module[targetType].convert_s[childType](value);
       }
-      throw new Error(`Can't convert from a ${childType} to a ${targetType}`);
+      throw this.error(`Can't convert from a ${childType} to a ${targetType}`);
     };
 
     return [
@@ -812,9 +1016,9 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
       }
     } else if (leftType === Intrinsics.bool && rightType === Intrinsics.bool) {
     } else {
-      throw new Error("pushNumberOps: don't know how to cast to number");
+      throw this.error("pushNumberOps: don't know how to cast to number");
     }
-    return targetType.toValueType();
+    return targetType.toValueTypeOrThrow();
   }
 
   private opCompilers: Record<
@@ -852,7 +1056,7 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           ...this.pushNumberOps(left, right)
         );
       }
-      throw new Error(`Don't know how to compute remainder for floats yet`);
+      throw this.error(`Don't know how to compute remainder for floats yet`);
     },
     [BinOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) =>
       this.context.module[this.matchTypes(left, right)].eq(
@@ -891,91 +1095,20 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     [BinOp.ASSIGN]: (left: AST.Expression, right: AST.Expression) => {
       const leftType = this.resolveType(left);
       const rightType = this.resolveType(right);
-      if (leftType !== rightType) {
-        throw new Error(
+      if (!leftType.equals(rightType)) {
+        throw this.error(
           `ASSIGN: Can't assign value of type ${rightType} to symbol of type ${leftType}`
         );
       }
-      const { module } = this.context;
-      if (AST.isSymbolRef(left)) {
-        const location = this.getLocationForSymbolRef(left);
-        switch (location.area) {
-          case 'locals':
-            return ltee(module, location, this.compileChild(right));
-          case 'globals':
-            return module.block(
-              '',
-              [
-                gset(module, location, this.compileChild(right)),
-                gget(module, location),
-              ],
-              binaryen[location.valueType]
-            );
-          case 'stack':
-            const { arp } = this.context.funcAllocs;
-            const ptr = lget(module, arp);
-            const value = this.compileChild(right);
-            const memProps = {
-              valueType: rightType.toValueType(),
-              offset: location.offset,
-            };
-            return module.block(
-              '',
-              [
-                memStore(module, memProps, ptr, value),
-                memLoad(module, memProps, ptr),
-              ],
-              binaryen[rightType.toValueType()]
-            );
-          default:
-            throw new Error(
-              `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
-            );
-        }
-      } else if (
-        AST.isBinaryExpr(left) &&
-        left.fields.op === BinOp.ARRAY_INDEX
-      ) {
-        let valueType = leftType.toValueType();
-        const arrayExpr = left;
 
-        const ptr = module[valueType].add(
-          this.compileChild(arrayExpr.fields.left),
-          module[valueType].mul(
-            this.compileChild(arrayExpr.fields.right),
-            module[valueType].const(leftType.numBytes, leftType.numBytes)
-          )
-        );
+      let tempLocation = this.context.allocationMap.getLocalOrThrow(
+        this.root,
+        'ASSIGN requires a temporary'
+      );
 
-        const calcValue = this.compileChild(right);
-        let tempLocation = this.context.allocationMap.getLocalOrThrow(
-          this.root,
-          'Array Indexing requires a temporary'
-        );
-        const value = ltee(module, tempLocation, calcValue);
-        return module.block(
-          '',
-          [
-            memStore(
-              module,
-              {
-                valueType,
-                offset: 0,
-                align: leftType.numBytes,
-                bytes: leftType.numBytes,
-              },
-              ptr,
-              value
-            ),
-            lget(module, tempLocation),
-          ],
-          binaryen[tempLocation.valueType]
-        );
-      } else {
-        throw new Error(
-          `ASSIGN: Can't assign to ${left.name}: something that is not a resolved symbol or a memory address`
-        );
-      }
+      const lvalue = IRCompiler.forNode(left, this.context).getLValue();
+      const rvalue = IRCompiler.forNode(right, this.context).getRValue();
+      return this.copy(lvalue, rvalue, tempLocation);
     },
     [BinOp.ARRAY_INDEX]: (
       refExpr: AST.Expression,
@@ -983,12 +1116,16 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
     ) => {
       const refExprType = this.resolveType(refExpr);
       if (!(refExprType instanceof PointerType)) {
-        throw new Error(
+        throw this.error(
           `Don't know how to compile indexing operation for a ${refExprType.name}`
         );
       }
       let align = refExprType.toType.numBytes;
-      const valueType = refExprType.toValueType();
+      let sign = Sign.Signed;
+      if (refExprType.toType instanceof NumericalType) {
+        sign = refExprType.toType.sign;
+      }
+      const valueType = refExprType.toValueTypeOrThrow();
       const { module } = this.context;
       const ptr = module[valueType].add(
         this.compileChild(refExpr),
@@ -997,142 +1134,197 @@ export class BinaryExprCompiler extends IRCompiler<AST.BinaryExpr> {
           module[valueType].const(align, align)
         )
       );
-      return memLoad(
-        module,
-        { valueType, offset: 0, align, bytes: align },
+      return this.memLoad(
+        { valueType, offset: 0, align, bytes: align, sign },
         ptr
       );
     },
   };
 
-  compile(): binaryen.ExpressionRef {
-    const compile =
-      this.opCompilers[this.root.fields.op] ??
-      (() => {
-        throw new Error(
-          `Don't know how to compile ${this.root.fields.op} with binaryen yet`
+  private lvalues: Record<
+    string,
+    (left: AST.Expression, right: AST.Expression) => LValue
+  > = {
+    [BinOp.ARRAY_INDEX]: (
+      left: AST.Expression,
+      right: AST.Expression
+    ): LValue => {
+      const { module } = this.context;
+      const leftType = this.resolveType(left);
+      let numBytes = 4;
+      if (leftType instanceof PointerType) {
+        numBytes = leftType.toType.numBytes;
+      } else {
+        throw this.error(
+          `Don't know how to compute offset for ${leftType.name}`
         );
+      }
+      const ptr = module.i32.add(
+        this.compileChild(left),
+        module.i32.mul(this.compileChild(right), module.i32.const(numBytes))
+      );
+      return lvalueDynamic(ptr);
+    },
+  };
+
+  getLValue(): LValue {
+    const { op, left, right } = this.root.fields;
+    const getLValue =
+      this.lvalues[op] ??
+      (() => {
+        throw this.error(`Don't know how to get LValue for ${op}`);
       });
-    return compile(this.root.fields.left, this.root.fields.right);
+    return getLValue(left, right);
+  }
+
+  getRValue() {
+    const { op, left, right } = this.root.fields;
+    const compile =
+      this.opCompilers[op] ??
+      (() => {
+        throw this.error(`Don't know how to compile ${op} yet`);
+      });
+    return rvalueDirect(
+      this.context.typeCache.get(this.root),
+      compile(left, right)
+    );
+  }
+
+  compile(): binaryen.ExpressionRef {
+    return this.getRValue().valueExpr;
   }
 }
 
 class MemberAccessExprCompiler extends IRCompiler<AST.MemberAccessExpr> {
-  compile() {
-    const { left, right } = this.root.fields;
+  private getLeftType() {
+    const leftType = this.context.typeCache.get(this.root.fields.left);
+    if (leftType instanceof PointerType) {
+      return leftType.toType;
+    }
+    return leftType;
+  }
 
+  private getElem() {
+    const { right } = this.root.fields;
+    const leftType = this.getLeftType();
+    if (leftType instanceof RecordType) {
+      const propName = getPropNameOrThrow(right);
+      return {
+        ...leftType.fields.get(propName)!,
+        id: propName,
+      };
+    }
+    throw this.error(
+      `Don't know how to lookup ${right.name} on a ${leftType.name}`
+    );
+  }
+
+  getLeftLValue(): LValue {
+    const { left } = this.root.fields;
     const leftType = this.context.typeCache.get(left);
     if (leftType instanceof PointerType) {
-      let elem: { type: BaseType; offset: number };
-      if (
-        leftType.toType instanceof TupleType &&
-        right.name === 'NumberLiteral'
-      ) {
-        const index = right.fields.value;
-        elem = leftType.toType.elements[index];
-        if (!elem) {
-          throw new Error(
-            `Invalid index ${index} for tuple ${leftType.toType.name}`
+      const ptrRValue = IRCompiler.forNode(left, this.context).getRValue();
+      switch (ptrRValue.kind) {
+        case 'direct':
+          return lvalueDynamic(ptrRValue.valueExpr);
+        default:
+          throw this.error(
+            `Don't know how to deref a pointer with an address rvalue yet...`
           );
-        }
-      } else if (
-        leftType.toType instanceof RecordType &&
-        right.name === 'SymbolRef'
-      ) {
-        elem = leftType.toType.fields.get(right.fields.symbol)!;
-        if (!elem) {
-          throw new Error(
-            `Invalid prop ${right.fields.symbol} for ${leftType.toType.name}`
-          );
-        }
-      } else {
-        throw new Error(
-          `Don't know how to lookup ${right.name} on a ${leftType.name}`
-        );
       }
-      let sign = undefined;
-      if (elem.type instanceof NumericalType) {
-        sign = elem.type.signed ? Sign.Signed : Sign.Unsigned;
-      }
-
-      return memLoad(
-        this.context.module,
-        {
-          valueType: elem.type.toValueType(),
-          offset: elem.offset,
-          align: elem.type.numBytes,
-          bytes: elem.type.numBytes,
-          sign,
-        },
-        this.compileChild(left)
-      );
+    } else {
+      return IRCompiler.forNode(left, this.context).getLValue();
     }
-    throw new Error(
-      `MemberAccessExprCompiler: don't know how to compile this...`
+  }
+
+  getLValue(): LValue {
+    const elem = this.getElem();
+
+    const lvalue = this.getLeftLValue();
+    switch (lvalue.kind) {
+      case 'static': {
+        const { location } = lvalue;
+        switch (location.area) {
+          case 'stack': {
+            return lvalueStatic({
+              area: location.area,
+              offset: location.offset + elem.offset,
+              id: location.id + '.' + elem.id,
+              dataType: elem.type,
+            });
+          }
+          default: {
+            throw this.error(
+              `Can't compute lvalue extension for static lvalue in ${location.area}`
+            );
+          }
+        }
+      }
+      case 'dynamic': {
+        return lvalueDynamic(lvalue.ptr, lvalue.offset + elem.offset);
+      }
+      default:
+        throw this.error(
+          `${this.root.name}: Don't know how to compute LValue for ${lvalue.kind} yet.`
+        );
+    }
+  }
+
+  compile() {
+    const rvalue = this.getRValue();
+    switch (rvalue.kind) {
+      case 'direct':
+        return rvalue.valueExpr;
+    }
+    throw this.error(
+      `Should not be compiling a MemberAccessExpr for indirect access`
     );
   }
 }
 
 class CallExprCompiler extends IRCompiler<AST.CallExpr> {
-  compile() {
-    const { left, right } = this.root.fields;
+  private getFuncLocation() {
+    const { left } = this.root.fields;
+    const lvalue = IRCompiler.forNode(left, this.context).getLValue();
+    if (lvalue.kind !== 'static' || lvalue.location.area !== Area.FUNCS) {
+      throw this.error(`Can't call something thats not a function.`);
+    }
+    return lvalue.location;
+  }
+  getRValue() {
+    const { right } = this.root.fields;
     const { module } = this.context;
-    const leftType = this.context.typeCache.get(left);
-    if (leftType instanceof TupleType) {
-      // we are constructing a tuple
-      const { location, instr } = compileStackPush(this, leftType.numBytes);
-      const fieldInstr = [];
-      for (const [i, arg] of right.fields.args.entries()) {
-        if (i >= leftType.elements.length) {
-          throw new Error(`too many arguments specifed for tuple constructor`);
-        }
-        const elem = leftType.elements[i];
-        const ptr = lget(module, location);
-        const value = this.compileChild(arg);
-        fieldInstr.push(
-          memStore(
-            module,
-            {
-              valueType: elem.type.toValueType(),
-              offset: elem.offset,
-              align: elem.type.numBytes,
-              bytes: elem.type.numBytes,
-            },
-            ptr,
-            value
-          )
+    const location = this.getFuncLocation();
+    const tempLocation = this.context.allocationMap.getLocalOrThrow(
+      this.root,
+      'function calls need a temp local'
+    );
+
+    const { returnType } = location.funcType;
+    let returnValueType = binaryen.none;
+    if (returnType.equals(Intrinsics.void)) {
+      returnValueType = binaryen.none;
+    } else {
+      const valueType = returnType.toValueType();
+      if (valueType) {
+        returnValueType = binaryen[valueType];
+      } else {
+        throw this.error(
+          `NotImplementedYet: Can't return ${returnType.name} from a function yet`
         );
       }
-      return module.block(
-        '',
-        [instr, ...fieldInstr, lget(module, location)],
-        binaryen[location.valueType]
-      );
-    } else if (AST.isSymbolRef(left)) {
-      const location = this.getLocationForSymbolRef(left);
-      if (location.area !== Area.FUNCS) {
-        throw new Error(
-          `Expected ${left.fields.symbol} to resolve to a function`
-        );
-      }
-      const tempLocation = this.context.allocationMap.getLocalOrThrow(
-        this.root,
-        'function calls need a temp local'
-      );
-      const returnType = location.funcType.returnType.equals(Intrinsics.void)
-        ? binaryen.none
-        : binaryen[location.funcType.returnType.toValueType()];
-      const funcCall = module.call(
-        location.id,
-        right.fields.args.map((arg) => this.compileChild(arg)),
-        returnType
-      );
-      if (returnType !== binaryen.none) {
-      }
-      return module.block(
+    }
+    const funcCall = module.call(
+      location.id,
+      right.fields.args.map((arg) => this.compileChild(arg)),
+      returnValueType
+    );
+    return rvalueDirect(
+      returnType,
+      module.block(
         '',
         [
-          returnType === binaryen.none
+          returnValueType === binaryen.none
             ? funcCall
             : lset(module, tempLocation, funcCall),
           gset(
@@ -1140,22 +1332,25 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
             this.context.runtime.stackPointer,
             lget(module, this.context.funcAllocs.arp)
           ),
-          returnType === binaryen.none
+          returnValueType === binaryen.none
             ? module.nop()
             : lget(module, tempLocation),
         ],
-        returnType
-      );
-    } else {
-      throw new Error(
-        `ExpressionCompiler: Can't call unresolved symbol ${left}`
-      );
-    }
+        returnValueType
+      )
+    );
+  }
+
+  compile() {
+    return this.getRValue().valueExpr;
   }
 }
 
 class CastExprCompiler extends IRCompiler<AST.CastExpr> {
   compile() {
+    return this.getRValue().valueExpr;
+  }
+  getRValue() {
     const { force } = this.root.fields;
     const sourceType = this.context.typeCache.get(this.root.fields.expr);
     const destType = this.context.typeCache.get(this.root.fields.typeExpr);
@@ -1163,56 +1358,63 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
     const { module } = this.context;
     if (destType instanceof NumericalType) {
       if (sourceType instanceof NumericalType) {
-        const destValueType = destType.toValueType();
-        const sourceValueType = sourceType.toValueType();
+        const destValueType = destType.toValueTypeOrThrow();
+        const sourceValueType = sourceType.toValueTypeOrThrow();
 
         if (isFloatType(destValueType)) {
           const typed = module[destValueType];
           // conversion to floats
           if (isIntType(sourceValueType)) {
-            const signed = sourceType.signed
-              ? typed.convert_s
-              : typed.convert_u;
-            return signed[sourceValueType](value);
+            const signed =
+              sourceType.sign == Sign.Signed
+                ? typed.convert_s
+                : typed.convert_u;
+            return rvalueDirect(destType, signed[sourceValueType](value));
           } else if (destValueType !== sourceValueType) {
             if (destValueType === 'f64' && sourceValueType === 'f32') {
-              return module.f64.promote(value);
+              return rvalueDirect(destType, module.f64.promote(value));
             } else if (force) {
-              throw new Error(`NotImplemented: forced float demotion`);
+              throw this.error(`NotImplemented: forced float demotion`);
             } else {
-              throw new Error(`I don't implicitly demote floats`);
+              throw this.error(`I don't implicitly demote floats`);
             }
           } else {
-            return value;
+            return rvalueDirect(destType, value);
           }
         } else {
           // conversion to integers
           if (isFloatType(sourceValueType)) {
             if (force) {
-              throw new Error(`NotImplemented: truncate floats to int`);
+              throw this.error(`NotImplemented: truncate floats to int`);
             } else {
-              throw new Error(`I don't implicitly truncate floats`);
+              throw this.error(`I don't implicitly truncate floats`);
             }
           } else if (sourceType.numBytes > destType.numBytes) {
             if (force) {
-              return module[sourceValueType].and(
-                value,
-                module[sourceValueType].const(
-                  (1 << (destType.numBytes * 8)) - 1,
-                  (1 << (destType.numBytes * 8)) - 1
+              return rvalueDirect(
+                destType,
+                module[sourceValueType].and(
+                  value,
+                  module[sourceValueType].const(
+                    (1 << (destType.numBytes * 8)) - 1,
+                    (1 << (destType.numBytes * 8)) - 1
+                  )
                 )
               );
             } else {
-              throw new Error(`I don't implicitly wrap to smaller sizes`);
+              throw this.error(`I don't implicitly wrap to smaller sizes`);
             }
-          } else if (sourceType.signed && !destType.signed) {
+          } else if (
+            sourceType.sign === Sign.Signed &&
+            destType.sign == Sign.Unsigned
+          ) {
             if (force) {
-              throw new Error(`NotImplemented: forced dropping of sign`);
+              throw this.error(`NotImplemented: forced dropping of sign`);
             } else {
-              throw new Error(`I don't implicitly drop signs`);
+              throw this.error(`I don't implicitly drop signs`);
             }
           } else {
-            return value;
+            return rvalueDirect(destType, value);
           }
         }
       } else if (sourceType instanceof PointerType) {
@@ -1220,50 +1422,75 @@ class CastExprCompiler extends IRCompiler<AST.CastExpr> {
           destType.interpretation === 'int' &&
           destType.numBytes < sourceType.numBytes
         ) {
-          throw new Error(
+          throw this.error(
             `${destType} doesn't hold enough bytes for a pointer`
           );
         } else {
-          return value;
+          return rvalueDirect(destType, value);
         }
       } else {
-        throw new Error(`Don't know how to cast from ${sourceType.name} yet`);
+        throw this.error(`Don't know how to cast from ${sourceType.name} yet`);
       }
     } else if (destType instanceof PointerType) {
       if (sourceType.equals(Intrinsics.i32) && force) {
-        return value;
+        return rvalueDirect(destType, value);
       } else {
-        throw new Error(
+        throw this.error(
           `I only convert i32s to pointer types, and only when forced.`
         );
       }
     }
-    throw new Error(`Don't know how to cast to ${destType.name} yet`);
+    throw this.error(`Don't know how to cast to ${destType.name} yet`);
   }
 }
 
 class UnaryExprCompiler extends IRCompiler<AST.UnaryExpr> {
+  getRValue() {
+    return rvalueDirect(this.context.typeCache.get(this.root), this.compile());
+  }
   compile(): binaryen.ExpressionRef {
     switch (this.root.fields.op) {
       case UnaryOp.ADDR_OF: {
         const { expr } = this.root.fields;
-        const exprType = this.resolveType(expr);
-
-        let location = this.context.allocationMap.get(expr);
-        if (!location) {
-          // the expr doesn't resolve to a location, so it must be a literal?
-          // TODO: maybe make a location called "immediate" for items that are
-          // in web assembly's implicit stack?
-
-          // We need to put it into the linear memory stack
-          const { location, instr } = compileStackPush(this, exprType.numBytes);
-          const { module } = this.context;
-          throw new Error(`Not implemented yet...`);
+        const { module } = this.context;
+        const lvalue = IRCompiler.forNode(expr, this.context).getLValue();
+        switch (lvalue.kind) {
+          case 'immediate': {
+            throw this.error(`An immediate value has no address...`);
+          }
+          case 'static': {
+            switch (lvalue.location.area) {
+              case Area.FUNCS:
+              case Area.LOCALS:
+              case Area.GLOBALS: {
+                throw this.error(
+                  `values in ${lvalue.location.area} do not have addresses`
+                );
+              }
+              case Area.DATA: {
+                return module.i32.const(lvalue.location.memIndex);
+              }
+              case Area.STACK: {
+                const { arp } = this.context.funcAllocs;
+                const { location } = lvalue;
+                return module.i32.add(
+                  lget(module, arp),
+                  module.i32.const(location.offset)
+                );
+              }
+            }
+            break;
+          }
+          case 'dynamic': {
+            return lvalue.ptr;
+          }
         }
-        throw new Error('lfdkalfkdja');
+        break;
       }
       default:
-        throw new Error(`UnaryExprCompiler: unknown op ${this.root.fields.op}`);
+        throw this.error(
+          `UnaryExprCompiler: unknown op ${this.root.fields.op}`
+        );
     }
   }
 }
@@ -1278,23 +1505,25 @@ class ExprStatementCompiler extends IRCompiler<AST.ExprStatement> {
   }
 }
 
-class ArgListCompiler extends IRCompiler<AST.ArgList> {
-  compile(): binaryen.ExpressionRef {
-    throw new Error(`This should't be used anymore...`);
-  }
-}
-
 class NumberLiteralCompiler extends IRCompiler<
   AST.NumberLiteral | AST.CharLiteral
 > {
-  compile() {
-    const valueType = this.resolveType(this.root).toValueType();
-    const pushConst = this.context.module[valueType].const(
-      this.root.fields.value,
-      this.root.fields.value
+  getRValue() {
+    const type = this.resolveType(this.root);
+    const valueType = type.toValueTypeOrThrow();
+    return rvalueDirect(
+      type,
+      this.context.module[valueType].const(
+        this.root.fields.value,
+        this.root.fields.value
+      )
     );
-    this.context.setDebugLocation(pushConst, this.root);
-    return pushConst;
+  }
+
+  compile() {
+    const rvalue = this.getRValue();
+    this.context.setDebugLocation(rvalue.valueExpr, this.root);
+    return rvalue.valueExpr;
   }
 }
 
@@ -1374,53 +1603,44 @@ function compileStackPush(ir: IRCompiler<AST.ASTNode>, numBytes: number) {
 }
 
 class ArrayLiteralCompiler extends IRCompiler<AST.ArrayLiteral> {
-  compile() {
+  getRValue() {
     const arrayType = this.resolveType(this.root);
-    if (!(arrayType instanceof PointerType)) {
-      throw new Error('unexpected type for array literal');
+    if (!(arrayType instanceof ArrayType)) {
+      throw this.error('unexpected type for array literal');
     }
-    const { elements } = this.root.fields;
 
-    const { instr, location } = compileStackPush(
-      this,
-      arrayType.numBytes * elements.length
-    );
+    const { instr, location } = compileStackPush(this, arrayType.numBytes);
     const { module } = this.context;
 
     const fieldInstr = [];
+    const { elements } = this.root.fields;
     for (const [i, prop] of elements.entries()) {
       const ptr = lget(module, location);
-      const value = this.compileChild(prop);
-      fieldInstr.push(
-        memStore(
-          module,
-          {
-            valueType: arrayType.toType.toValueType(),
-            offset: i * 4,
-            align: 4,
-          },
-          ptr,
-          value
-        )
-      );
+
+      const rvalue = IRCompiler.forNode(prop, this.context).getRValue();
+      const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
+      fieldInstr.push(this.copy(lvalue, rvalue));
     }
-    return module.block(
-      '',
-      [instr, ...fieldInstr, lget(module, location)],
-      binaryen[location.valueType]
+    return rvalueAddress(
+      arrayType,
+      module.block(
+        '',
+        [instr, ...fieldInstr, lget(module, location)],
+        binaryen.i32
+      )
     );
+  }
+
+  compile() {
+    return this.getRValue().valuePtrExpr;
   }
 }
 
 class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
-  compile() {
-    const structPointerType = this.resolveType(this.root);
-    if (!(structPointerType instanceof PointerType)) {
-      throw new Error(`unexpected type for struct literal`);
-    }
-    const { toType: structType } = structPointerType;
+  getRValue() {
+    const structType = this.resolveType(this.root);
     if (!(structType instanceof RecordType)) {
-      throw new Error(
+      throw this.error(
         `unexpected type for struct literal... should pointer to a record`
       );
     }
@@ -1433,38 +1653,40 @@ class StructLiteralCompiler extends IRCompiler<AST.StructLiteral> {
     for (const [i, prop] of this.root.fields.props.entries()) {
       const propType = structType.fields.get(prop.fields.symbol);
       if (!propType) {
-        throw new Error(
+        throw this.error(
           `prop ${prop.fields.symbol} does not exist on struct ${this.root.fields.symbol.fields.symbol}`
         );
       }
       const ptr = lget(module, location);
-      const value = this.compileChild(prop.fields.expr);
-      fieldInstr.push(
-        memStore(
-          module,
-          {
-            valueType: propType.type.toValueType(),
-            offset: propType.offset,
-            align: propType.type.numBytes,
-            bytes: propType.type.numBytes,
-          },
-          ptr,
-          value
-        )
-      );
+
+      const rvalue = IRCompiler.forNode(
+        prop.fields.expr,
+        this.context
+      ).getRValue();
+      const lvalue = lvalueDynamic(ptr, propType.offset);
+      fieldInstr.push(this.copy(lvalue, rvalue));
     }
 
-    return module.block(
-      '',
-      [instr, ...fieldInstr, lget(module, location)],
-      binaryen[location.valueType]
+    return rvalueAddress(
+      structType,
+      module.block(
+        '',
+        [instr, ...fieldInstr, lget(module, location)],
+        binaryen[location.valueType]
+      )
     );
+  }
+  compile() {
+    return this.getRValue().valuePtrExpr;
   }
 }
 
 class DataLiteralCompiler extends IRCompiler<AST.DataLiteral> {
+  getLValue() {
+    return lvalueStatic(this.context.allocationMap.getDataOrThrow(this.root));
+  }
   compile() {
-    const location = this.context.allocationMap.getDataOrThrow(this.root);
+    const location = this.getLValue().location;
     return this.context.module.i32.const(location.memIndex);
   }
 }

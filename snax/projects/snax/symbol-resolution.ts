@@ -1,4 +1,5 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
+import { atString, SymbolResolutionError } from './errors.js';
 import { BaseType, isIntrinsicSymbol } from './snax-types.js';
 import {
   ASTNode,
@@ -40,6 +41,14 @@ export class SymbolTable {
   }
 
   declare(symbol: string, declNode: ASTNode) {
+    if (this.table.has(symbol)) {
+      throw new SymbolResolutionError(
+        declNode,
+        `Redeclaration of symbol ${symbol} in the same scope, first declared at ${atString(
+          this.table.get(symbol)!.declNode.location
+        )}`
+      );
+    }
     this.table.set(symbol, { declNode });
   }
 }
@@ -65,11 +74,6 @@ function innerResolveSymbols(
     case 'Parameter':
     case 'RegStatement':
     case 'LetStatement': {
-      if (currentTable.has(astNode.fields.symbol)) {
-        throw new Error(
-          `Redeclaration of symbol ${astNode.fields.symbol} in the same scope`
-        );
-      }
       currentTable.declare(astNode.fields.symbol, astNode);
       break;
     }
@@ -77,7 +81,8 @@ function innerResolveSymbols(
       if (!isIntrinsicSymbol(astNode.fields.symbol)) {
         const symbolRecord = currentTable.get(astNode.fields.symbol);
         if (!symbolRecord) {
-          throw new Error(
+          throw new SymbolResolutionError(
+            astNode,
             `Reference to undeclared type ${astNode.fields.symbol}`
           );
         }
@@ -88,7 +93,8 @@ function innerResolveSymbols(
     case 'SymbolRef': {
       const symbolRecord = currentTable.get(astNode.fields.symbol);
       if (!symbolRecord) {
-        throw new Error(
+        throw new SymbolResolutionError(
+          astNode,
           `Reference to undeclared symbol ${astNode.fields.symbol}`
         );
       }
@@ -134,13 +140,21 @@ function innerResolveSymbols(
       currentTable.declare(funcDecl.fields.symbol, funcDecl);
     }
     for (const funcDecl of astNode.fields.funcs) {
+      const funcSymbols = new SymbolTable(currentTable);
+      tables.set(funcDecl, funcSymbols);
       innerResolveSymbols(
         funcDecl.fields.parameters,
-        currentTable,
+        funcSymbols,
         tables,
         refMap
       );
-      innerResolveSymbols(funcDecl.fields.body, currentTable, tables, refMap);
+      innerResolveSymbols(funcDecl.fields.body, funcSymbols, tables, refMap);
+    }
+
+    for (const decl of astNode.fields.decls) {
+      childrenOf(decl).forEach((node) =>
+        innerResolveSymbols(node, currentTable, tables, refMap)
+      );
     }
   } else if (isMemberAccessExpr(astNode)) {
     innerResolveSymbols(astNode.fields.left, currentTable, tables, refMap);

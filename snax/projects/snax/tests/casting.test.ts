@@ -165,7 +165,7 @@ describe('CastExprCompiler', () => {
     let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest), false);
     const compiler = irCompiler(cast);
     if (instruction instanceof Error) {
-      expect(() => compiler.compile()).toThrowError(instruction);
+      expect(() => compiler.compile()).toThrowError(instruction.message);
     } else {
       // TODO: reimplement these tests in some better way....
       // const convertExpr = compiler.compile();
@@ -203,7 +203,7 @@ describe('CastExprCompiler', () => {
       expect(() =>
         irCompiler(cast).compile()
       ).toThrowErrorMatchingInlineSnapshot(
-        `"I only convert i32s to pointer types, and only when forced."`
+        `"CompilerError at <unknown>: I only convert i32s to pointer types, and only when forced."`
       );
     });
   });

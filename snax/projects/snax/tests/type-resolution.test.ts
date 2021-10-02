@@ -205,4 +205,50 @@ describe('StructDecl', () => {
     );
     expect(resolved.name).toEqual('{x: i32, y: i32, mag: func():void}');
   });
+
+  it('allows struct declarations to reference other structs', () => {
+    const vecStructDecl = AST.makeStructDeclWith({
+      symbol: 'Vector',
+      props: [
+        AST.makeStructProp('x', AST.makeTypeRef('i32')),
+        AST.makeStructProp('y', AST.makeTypeRef('i32')),
+      ],
+    });
+    const lineStructDecl = AST.makeStructDeclWith({
+      symbol: 'Line',
+      props: [
+        AST.makeStructProp('p1', AST.makeTypeRef('Vector')),
+        AST.makeStructProp('p2', AST.makeTypeRef('Vector')),
+      ],
+    });
+    const file = AST.makeFileWith({
+      funcs: [],
+      globals: [],
+      decls: [vecStructDecl, lineStructDecl],
+    });
+    const { refMap } = resolveSymbols(file);
+    const typeMap = resolveTypes(file, refMap);
+    expect(typeMap.get(lineStructDecl).name).toEqual(
+      '{p1: {x: i32, y: i32}, p2: {x: i32, y: i32}}'
+    );
+  });
+
+  it('does not allow recursive structs', () => {
+    const vecStructDecl = AST.makeStructDeclWith({
+      symbol: 'Vector',
+      props: [
+        AST.makeStructProp('x', AST.makeTypeRef('i32')),
+        AST.makeStructProp('y', AST.makeTypeRef('Vector')),
+      ],
+    });
+    const file = AST.makeFileWith({
+      funcs: [],
+      globals: [],
+      decls: [vecStructDecl],
+    });
+    const { refMap } = resolveSymbols(file);
+    expect(() => resolveTypes(file, refMap)).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError: Detected cycle in type references"`
+    );
+  });
 });

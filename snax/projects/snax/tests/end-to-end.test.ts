@@ -13,21 +13,19 @@ type SnaxExports = {
 
 async function compileToWasmModule(
   input: string,
-  options?: ModuleCompilerOptions & { binaryen?: boolean }
+  options?: ModuleCompilerOptions
 ) {
-  const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(
-    input,
-    options
-  );
+  const { wat, ast, compiler, binary, sourceMap } = compileToWAT(input, {
+    includeRuntime: false,
+    ...options,
+  });
   const module = await WebAssembly.instantiate(binary);
   const exports = module.instance.exports;
   return { exports: exports as SnaxExports, wat, ast, compiler, sourceMap };
 }
 
-async function exec(input: string) {
-  const { exports } = await compileToWasmModule(input, {
-    includeRuntime: true,
-  });
+async function exec(input: string, options?: ModuleCompilerOptions) {
+  const { exports } = await compileToWasmModule(input, options);
   return exports._start();
 }
 
@@ -121,7 +119,7 @@ describe('empty module', () => {
   });
 
   it('compiles an empty program', async () => {
-    const { wat } = await compileToWAT('', { includeRuntime: true });
+    const { wat } = compileToWAT('', { includeRuntime: true });
     expect(wat).toMatchInlineSnapshot(`
 "(module
  (type $none_=>_none (func))
@@ -138,6 +136,7 @@ describe('empty module', () => {
  (func $<malloc>f1 (param $0 i32) (result i32)
   (local $1 i32)
   (local $2 i32)
+  (local $3 i32)
   ;;@ :4:11
   (local.set $2
    ;;@ :4:30
@@ -147,8 +146,8 @@ describe('empty module', () => {
   (drop
    (block (result i32)
     (global.set $g1:next
-     ;;@ :5:18
      (i32.add
+      ;;@ :5:18
       (global.get $g1:next)
       ;;@ :5:25
       (local.get $0)
@@ -178,7 +177,7 @@ describe('empty module', () => {
   });
 
   it('compiles integers', async () => {
-    const { wat, sourceMap } = await compileToWAT('123;', {
+    const { wat, sourceMap } = compileToWAT('123;', {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
@@ -319,11 +318,11 @@ describe('reg statements', () => {
 
   it('does not allow reg statements to be used for compound data types', async () => {
     const code = `
-      struct Vector {x: i32; y:i32;}
+      struct Vector {x: i32; y:i32; z: i32;}
       reg v:Vector;
     `;
     await expect(compileToWasmModule(code)).rejects.toMatchInlineSnapshot(
-      `[Error: BaseType: type {x: i32, y: i32} does not have a corresponding value type]`
+      `[Error: BaseType: type {x: i32, y: i32, z: i32} does not have a corresponding value type]`
     );
   });
 
@@ -510,7 +509,7 @@ describe('block compilation', () => {
             y;
           `)
       ).rejects.toMatchInlineSnapshot(
-        `[Error: Reference to undeclared symbol y]`
+        `[Error: SymbolResolutionError at  4:15: Reference to undeclared symbol y]`
       );
     });
   });
@@ -537,12 +536,12 @@ describe('assignment operator', () => {
  (func $<main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local $2 i32)
   ;;@ :2:7
   (nop)
   ;;@ :3:7
   (drop
    (local.tee $1
-    ;;@ :3:9
     (i32.const 54)
    )
   )
@@ -582,7 +581,7 @@ describe('assignment operator', () => {
         y;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: Reference to undeclared symbol y]`
+      `[Error: SymbolResolutionError at  3:9: Reference to undeclared symbol y]`
     );
     await expect(
       exec(`
@@ -591,7 +590,7 @@ describe('assignment operator', () => {
         x;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: ASSIGN: Can't assign to NumberLiteral: something that is not a resolved symbol or a memory address]`
+      `[Error: CompilerError at  3:9: Don't know how to compute LValue for NumberLiteral]`
     );
   });
 });
@@ -629,6 +628,7 @@ describe('control flow', () => {
  (func $<main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local $2 i32)
   ;;@ :2:9
   (local.set $1
    ;;@ :2:17
@@ -640,8 +640,8 @@ describe('control flow', () => {
    (block
     (drop
      (local.tee $1
-      ;;@ :4:15
       (i32.add
+       ;;@ :4:15
        (local.get $1)
        ;;@ :4:17
        (i32.const 1)
@@ -708,14 +708,17 @@ describe('globals', () => {
   });
 });
 
-describe('runtime', () => {
+xdescribe('runtime', () => {
   it('has malloc', async () => {
     expect(
-      await exec(`
+      await exec(
+        `
           let x = malloc(3);
           let y = malloc(4);
           y;
-        `)
+        `,
+        { includeRuntime: true }
+      )
     ).toEqual(3);
   });
 });
@@ -809,41 +812,68 @@ describe('pointers', () => {
     expect(await exec(code)).toEqual(100);
   });
 
-  xdescribe('@ operator', () => {
-    it('gets the address in linear memory where the value is stored, even for an immediate', async () => {
+  describe('@ operator', () => {
+    it('does not yet work on literal values', async () => {
       const code = `
         let p:&i32 = @100;
         p;
       `;
-      const { exports } = await compileToWasmModule(code);
-      const result = exports._start();
-      expect(int32(exports.memory, result)).toEqual(100);
-      expect(stackDump(exports, 4)).toMatchInlineSnapshot(`
-        Array [
-          100,
-          65528,
-        ]
-      `);
+      expect(
+        compileToWasmModule(code)
+      ).rejects.toThrowErrorMatchingInlineSnapshot(
+        `"CompilerError at  2:23: Don't know how to compute LValue for NumberLiteral"`
+      );
     });
 
-    xit('Gets the address in linear memory where a non-immediate is stored', async () => {
+    it('Gets the address in linear memory where a non-immediate is stored', async () => {
       const code = `
-        let p = 100;
+        let p:i32 = 100;
         @p;
       `;
-      const { exports } = await compileToWasmModule(code);
+      const { exports } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
       const result = exports._start();
-      expect(int32(exports.memory, result)).toEqual(200);
+      expect(result).toEqual(PAGE_SIZE - 4);
+      expect(int32(exports.memory, result)).toEqual(100);
+      expect(stackDump(exports, 4)).toEqual([100]);
     });
 
-    xit('puts values that are accessed through pointers on the stack', async () => {
+    it('works with expressions', async () => {
+      const code = `
+        let p:i32 = 100;
+        reg j:&i32 = @p;
+        @(j[3]);
+      `;
+      const { exports } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      const result = exports._start();
+      expect(result).toEqual(PAGE_SIZE - 4 + 3 * 4);
+    });
+
+    it('puts values that are accessed through pointers on the stack', async () => {
       const code = `
         let p = 100;
         let j:&i32 = @p;
         j[0] = 200;
         p;
       `;
-      expect(await exec(code)).toEqual(200);
+      const { exports, compiler } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      const result = exports._start();
+      expect(result).toEqual(200);
+      expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+        "stack:
+            0: <p>s0-4 (i32)
+            4: <j>s4-8 (&i32)
+        locals:
+            0: <arp>r0:i32 (i32)
+            1: <temp>r1:i32 (i32)
+            2: <temp>r2:i32 (i32)"
+      `);
+      expect(stackDump(exports, 4)).toEqual([200, PAGE_SIZE - 8]);
     });
   });
 });
@@ -854,9 +884,11 @@ describe('arrays', () => {
       let a = "data";
       let arr = [6,5,4];
       let arr2 = [7,8,9];
-      arr;
+      @arr;
     `;
-    const { exports } = await compileToWasmModule(input);
+    const { exports } = await compileToWasmModule(input, {
+      includeRuntime: true,
+    });
     const result = exports._start();
     const mem = new Int32Array(
       exports.memory.buffer.slice(result, result + 3 * 4)
@@ -869,14 +901,34 @@ describe('arrays', () => {
       ]
     `);
   });
+  it('supports arrays of structs', async () => {
+    const code = `
+      struct Point {x:i32; y:i32;}
+      let arr = [Point::{x:6,y:5}, Point::{x:9,y:10}, Point::{x:15,y:16}];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code);
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 6 * 4)
+    );
+    expect([...mem]).toEqual([6, 5, 9, 10, 15, 16]);
+  });
 });
 
 describe('strings', () => {
+  it('compiles character literals', async () => {
+    const code = `'a';`;
+    expect(await exec(code)).toEqual(97);
+  });
   it('compiles strings', async () => {
-    const code = `"hello world\\n";`;
+    const code = `
+      let s = "hello world\\n";
+      @s;
+    `;
     const {
       exports: { _start, memory },
-    } = await compileToWasmModule(code);
+    } = await compileToWasmModule(code, { includeRuntime: true });
     const strPointer = _start();
     expect(strPointer).toBe(PAGE_SIZE - 8);
     const bufferPointer = int32(memory, strPointer);
@@ -886,12 +938,14 @@ describe('strings', () => {
 
     expect(text(memory, bufferPointer, bufferLen)).toEqual('hello world\n');
   });
-  it('compiles character literals', async () => {
-    const code = `'a';`;
-    expect(await exec(code)).toEqual(97);
-  });
   it("lets you index into a string's buffer", async () => {
-    expect(await exec(`"abcdef".buffer[3];`)).toEqual('d'.charCodeAt(0));
+    const code = `
+      let s = "abcdef";
+      s.buffer[3];
+    `;
+    expect(await exec(code, { includeRuntime: true })).toEqual(
+      'd'.charCodeAt(0)
+    );
   });
 });
 
@@ -907,43 +961,6 @@ describe('object structs', () => {
     const { wat, compiler } = await compileToWasmModule(code, {
       includeRuntime: false,
     });
-    expect(wat).toMatchInlineSnapshot(`
-"(module
- (type $none_=>_none (func))
- (global $g0:#SP (mut i32) (i32.const 0))
- (memory $0 1 1)
- (export \\"_start\\" (func $_start))
- (export \\"stackPointer\\" (global $g0:#SP))
- (export \\"memory\\" (memory $0))
- (func $<main>f0
-  (local $0 i32)
-  (global.set $g0:#SP
-   (i32.sub
-    (global.get $g0:#SP)
-    (i32.const 8)
-   )
-  )
-  (local.set $0
-   (global.get $g0:#SP)
-  )
-  ;;@ :6:7
-  (memory.fill
-   (local.get $0)
-   (i32.const 0)
-   (i32.const 8)
-  )
- )
- (func $_start
-  (global.set $g0:#SP
-   (i32.const 65536)
-  )
-  (return
-   (call $<main>f0)
-  )
- )
-)
-"
-`);
 
     expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
       "stack:
@@ -952,51 +969,128 @@ describe('object structs', () => {
           0: <arp>r0:i32 (i32)"
       `);
   });
-  xit('allows assigning values to stack allocated struct fields', async () => {
+
+  it('allows structs to be nested', async () => {
+    const code = `
+      struct Vector {
+        x: i32;
+        y: i32;
+      }
+      struct Line {
+        start: Vector;
+        end: Vector;
+      }
+      let line:Line;
+    `;
+    const { compiler } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+      "stack:
+          0: <line>s0-16 ({start: {x: i32, y: i32}, end: {x: i32, y: i32}})
+      locals:
+          0: <arp>r0:i32 (i32)"
+      `);
+  });
+
+  it('allows assigning values to stack allocated struct fields', async () => {
     const code = `
       struct Vector {x: i32; y: i32;}
       let v:Vector;
       v.x = 3;
       v.y = 5;
     `;
-    const { wat } = await compileToWasmModule(code, { includeRuntime: false });
-    expect(wat).toMatchInlineSnapshot();
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    exports._start();
+    expect(stackDump(exports, 4)).toEqual([3, 5]);
   });
-  it('lets you declare a new struct type and construct it', async () => {
+
+  it('allows assigning values to nested struct fields on the stack', async () => {
     const code = `
-      struct Vector {
-        x: i32;
-        y: i32;
-      }
-      let v = Vector::{ x: 3, y: 5 };
-      v;
+      struct Point {x: i32; y: i32;}
+      struct Line {p1: Point; p2: Point;}
+      let line:Line;
+      line.p1.x = 3;
+      line.p1.y = 5;
+      line.p2.x = 7;
+      line.p2.y = 9;
     `;
-    const { exports } = await compileToWasmModule(code);
-    const result = exports._start();
-    const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
-    expect([...mem]).toMatchInlineSnapshot(`
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    exports._start();
+    expect(stackDump(exports, 4)).toEqual([3, 5, 7, 9]);
+  });
+
+  it('allows retrieving values from nested struct fields on the stack', async () => {
+    const code = `
+      struct Point {x: i32; y: i32;}
+      struct Line {p1: Point; p2: Point;}
+      let line:Line;
+      line.p2.x = 7;
+      line.p2.x;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(exports._start()).toEqual(7);
+    expect(stackDump(exports, 4)).toEqual([0, 0, 7, 0]);
+  });
+
+  it('assignment will copy the struct', async () => {
+    const code = `
+      struct Point {x: i32; y: i32;}
+      let p1:Point;
+      let p2:Point;
+      p1.x = 5;
+      p1.y = 7;
+      p2 = p1;
+      p2.y;
+    `;
+    const { wat } = compileToWAT(code, { validate: false });
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(exports._start()).toEqual(7);
+    expect(stackDump(exports, 4)).toEqual([5, 7, 5, 7]);
+  });
+
+  describe('struct literals', () => {
+    it('lets you assign to a struct using a struct literal', async () => {
+      const code = `
+        struct Vector {x: i32;y: i32;}
+        let v = Vector::{ x: 3, y: 5 };
+        v.x;
+      `;
+      const { exports, compiler } = await compileToWasmModule(code);
+      expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
+        "stack:
+            0: <v>s0-8 ({x: i32, y: i32})
+        locals:
+            0: <arp>r0:i32 (i32)
+            1: <temp>r1:i32 (i32)
+            2: <temp>r2:i32 (i32)"
+      `);
+      const result = exports._start();
+      const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
+      expect([...mem]).toMatchInlineSnapshot(`
       Array [
         0,
         0,
       ]
     `);
-  });
-
-  it('lets you access members of the struct', async () => {
-    expect(
-      await exec(`
-        struct Vector {x: i32; y: u8;}
-        let v = Vector::{x:3, y:5_u8};
-        v.x;
-      `)
-    ).toEqual(3);
-    expect(
-      await exec(`
-        struct Vector {x: i32; y: u8;}
-        let v = Vector::{x:3, y:5_u8};
-        v.y;
-      `)
-    ).toEqual(5);
+    });
+    it('supports nested struct literals', async () => {
+      const code = `
+        struct Point {x:i32; y:i32;}
+        struct Line {p1:Point; p2:Point;}
+        let line = Line::{p1:Point::{x:1, y:2}, p2:Point::{x:3, y:4}};
+        @line;
+      `;
+      const { exports, compiler } = await compileToWasmModule(code);
+    });
   });
 });
 
@@ -1007,8 +1101,8 @@ describe('tuple structs', () => {
     beforeEach(async () => {
       const code = `
         struct Vector(u8,i32);
-        let v = Vector(23_u8, 1234);
-        v;
+        let v = Vector::(23_u8, 1234);
+        @v;
       `;
       const output = await compileToWasmModule(code);
       snax = output.exports;
@@ -1018,25 +1112,6 @@ describe('tuple structs', () => {
       const vPointer = snax._start();
       expect(int8(snax.memory, vPointer)).toEqual(23);
       expect(int32(snax.memory, vPointer + 1)).toEqual(1234);
-      expect(stackDump(snax)).toMatchInlineSnapshot(`
-        Array [
-          23,
-          -46,
-          4,
-          0,
-          0,
-          -9,
-          -1,
-          0,
-          0,
-        ]
-      `);
-    });
-
-    xit('allocates structs on the stack', async () => {
-      const vPointer = snax._start();
-      expect(vPointer - PAGE_SIZE).toEqual(-9);
-      expect(snax.stackPointer.value - PAGE_SIZE).toEqual(-5);
     });
   });
 
@@ -1045,19 +1120,22 @@ describe('tuple structs', () => {
       expect(
         await exec(`
           struct Vector(u8,i32);
-          let v = Vector(23_u8, 1234);
+          let v:Vector;
+          v.0 = 23_u8;
+          v.1 = 1234;
           v.1;
         `)
       ).toEqual(1234);
     });
     it('loads the correct amount of data for each offset', async () => {
-      expect(
-        await exec(`
-          struct Vector(u8,i32);
-          let v = Vector(23_u8, 1234);
-          v.0;
-        `)
-      ).toEqual(23);
+      const code = `
+        struct Vector(u8,i32);
+        let v:Vector;
+        v.0 = 23_u8;
+        v.1 = 1234;
+        v.0;
+      `;
+      expect(await exec(code)).toEqual(23);
     });
   });
 
@@ -1067,13 +1145,13 @@ describe('tuple structs', () => {
       func add(v:&Vector) {
         return v.0 as i32 + v.1;
       }
-      let someVec = Vector(18_u8, 324);
-      add(someVec);
+      let someVec = Vector::(18_u8, 324);
+      add(@someVec);
     `;
     expect(await exec(code)).toEqual(342);
   });
 
-  it('allocates structs on the stack, so returning them is invalid', async () => {
+  xit('allocates structs on the stack, so returning them is invalid', async () => {
     const code = `
       struct Pair(i32,i32);
       func makePair(a:i32, b:i32) {
@@ -1103,7 +1181,7 @@ describe('extern declarations', () => {
 
       print_num(1);
     `;
-    const { binary } = await compileToWAT(code);
+    const { binary } = compileToWAT(code);
 
     let printedNum: number | undefined = undefined;
     const module = await WebAssembly.instantiate(binary, {

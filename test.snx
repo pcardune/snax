@@ -18,35 +18,34 @@ func run() {
   print("hello world\n");
   let meow = "meowwww\n";
   meow.buffer[1] = 'i';
-  print(meow);
+  print(@meow);
   print("more snax please!\n");
   print("type something: ");
-  let input = read(100);
-  print(input);
+  let input = String::{buffer: malloc(100), length: 100};
+  read(@input);
+  print(@input);
 }
 
 func print(s:&String) {
   let iovec = [s.buffer as usize, s.length];
-  let bytesWritten = [0];
+  let bytesWritten = 0;
   fd_write(
     1, // stdout
-    iovec, // pointer to io vector
+    @iovec, // pointer to io vector
     1, // length of io vector
-    bytesWritten // where to store number of bytes written
+    @bytesWritten // where to store number of bytes written
   );
 }
 
-func read(length:usize) {
-  let s = String::{buffer: malloc(length), length: length};
+func read(s:&String) {
   let iovec = [s.buffer as usize, s.length];
-  let bytesRead = [0];
+  let bytesRead = 0;
   fd_read(
     0, // stdin
-    iovec,
+    @iovec,
     1,
-    bytesRead
+    @bytesRead
   );
-  return s;
 }
 
 run();

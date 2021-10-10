@@ -126,14 +126,19 @@ const parser = yargs(hideBin(process.argv))
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'
       );
-      fs.writeFileSync(fileWithExtension(inPath, '.wat'), module.emitText());
-      fs.writeFileSync(fileWithExtension(inPath, '.wasm'), binary);
-      fs.writeFileSync(
-        fileWithExtension(inPath, '.asm.js'),
-        module.emitAsmjs()
-      );
+
+      const writeFile = (path: string, data: string | Uint8Array) => {
+        fs.writeFileSync(path, data);
+        console.log(`wrote ${path}`);
+      };
+
+      module.optimize();
+
+      writeFile(fileWithExtension(inPath, '.wat'), module.emitText());
+      writeFile(fileWithExtension(inPath, '.wasm'), binary);
+      writeFile(fileWithExtension(inPath, '.asm.js'), module.emitAsmjs());
       if (sourceMap) {
-        fs.writeFileSync(fileWithExtension(inPath, '.wasm.map'), sourceMap);
+        writeFile(fileWithExtension(inPath, '.wasm.map'), sourceMap);
       }
     },
   })

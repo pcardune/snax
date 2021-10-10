@@ -1049,7 +1049,6 @@ describe('object structs', () => {
       p2 = p1;
       p2.y;
     `;
-    const { wat } = compileToWAT(code, { validate: false });
     const { exports } = await compileToWasmModule(code, {
       includeRuntime: false,
     });
@@ -1151,24 +1150,20 @@ describe('tuple structs', () => {
     expect(await exec(code)).toEqual(342);
   });
 
-  xit('allocates structs on the stack, so returning them is invalid', async () => {
+  it('lets you return structs as values, which will be copied.', async () => {
     const code = `
       struct Pair(i32,i32);
       func makePair(a:i32, b:i32) {
-        return Pair(a, b);
+        return Pair::(a, b);
       }
       let p = makePair(1,2);
       makePair(3, 4);
       p.0;
     `;
-    const snax = (await compileToWasmModule(code)).exports;
-    const result = snax._start();
-    expect(stackDump(snax, 4)).toMatchInlineSnapshot(`
-      Array [
-        65524,
-      ]
-    `);
-    expect(result).toEqual(3);
+    const { exports } = await compileToWasmModule(code);
+    const result = exports._start();
+    expect(stackDump(exports, 4)).toEqual([1, 2]);
+    expect(result).toEqual(1);
   });
 });
 

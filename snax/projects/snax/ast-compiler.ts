@@ -705,9 +705,19 @@ export class FuncDeclCompiler extends ASTCompiler<
       })
     );
 
-    const results = funcType.returnType.equals(Intrinsics.void)
-      ? binaryen.none
-      : binaryen[funcType.returnType.toValueTypeOrThrow()];
+    let results: number;
+    if (funcType.returnType.equals(Intrinsics.void)) {
+      results = binaryen.none;
+    } else {
+      const valueType = funcType.returnType.toValueType();
+      if (valueType) {
+        results = binaryen[valueType];
+      } else {
+        // this doesn't fit into a register, so the wasm function
+        // will return a pointer.
+        results = binaryen.i32;
+      }
+    }
 
     const vars = this.context.funcAllocs.locals.map(
       (local) => binaryen[local.valueType]
@@ -1301,48 +1311,55 @@ class CallExprCompiler extends IRCompiler<AST.CallExpr> {
     );
 
     const { returnType } = location.funcType;
-    let returnValueType = binaryen.none;
+
+    const resetStackPointer = gset(
+      module,
+      this.context.runtime.stackPointer,
+      lget(module, this.context.funcAllocs.arp)
+    );
+    const args = right.fields.args.map((arg) => this.compileChild(arg));
+
     if (returnType.equals(Intrinsics.void)) {
-      returnValueType = binaryen.none;
+      return rvalueDirect(
+        returnType,
+        module.block(
+          '',
+          [module.call(location.id, args, binaryen.none), resetStackPointer],
+          binaryen.none
+        )
+      );
     } else {
       const valueType = returnType.toValueType();
-      if (valueType) {
-        returnValueType = binaryen[valueType];
-      } else {
-        throw this.error(
-          `NotImplementedYet: Can't return ${returnType.name} from a function yet`
-        );
-      }
-    }
-    const funcCall = module.call(
-      location.id,
-      right.fields.args.map((arg) => this.compileChild(arg)),
-      returnValueType
-    );
-    return rvalueDirect(
-      returnType,
-      module.block(
+      const returnValueType = valueType ? binaryen[valueType] : binaryen.i32;
+
+      const block = module.block(
         '',
         [
-          returnValueType === binaryen.none
-            ? funcCall
-            : lset(module, tempLocation, funcCall),
-          gset(
+          lset(
             module,
-            this.context.runtime.stackPointer,
-            lget(module, this.context.funcAllocs.arp)
+            tempLocation,
+            module.call(location.id, args, returnValueType)
           ),
-          returnValueType === binaryen.none
-            ? module.nop()
-            : lget(module, tempLocation),
+          resetStackPointer,
+          lget(module, tempLocation),
         ],
         returnValueType
-      )
-    );
+      );
+
+      if (valueType) {
+        return rvalueDirect(returnType, block);
+      } else {
+        return rvalueAddress(returnType, block);
+      }
+    }
   }
 
   compile() {
-    return this.getRValue().valueExpr;
+    const rvalue = this.getRValue();
+    if (rvalue.kind === 'direct') {
+      return rvalue.valueExpr;
+    }
+    return rvalue.valuePtrExpr;
   }
 }
 
@@ -1528,9 +1545,16 @@ class NumberLiteralCompiler extends IRCompiler<
 }
 
 export class BooleanLiteralCompiler extends IRCompiler<AST.BooleanLiteral> {
-  compile() {
+  getRValue() {
     const value = this.root.fields.value ? 1 : 0;
-    return this.context.module.i32.const(value);
+    return rvalueDirect(
+      this.resolveType(this.root),
+      this.context.module.i32.const(value)
+    );
+  }
+
+  compile() {
+    return this.getRValue().valueExpr;
   }
 }
 

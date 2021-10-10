@@ -1,7 +1,8 @@
 import * as spec from '../spec-gen.js';
 import {
   CompilesToIR,
-  IRCompiler,
+  ExprCompiler,
+  StmtCompiler,
   ModuleCompiler,
   ModuleCompilerOptions,
   Runtime,
@@ -66,10 +67,10 @@ export const runtimeStub: Runtime = {
   },
 };
 
-export function irCompiler(node: CompilesToIR) {
+function stubContext(node: CompilesToIR) {
   const { refMap } = resolveSymbols(node);
   const typeCache = resolveTypes(node, refMap);
-  return IRCompiler.forNode(node, {
+  return {
     refMap,
     typeCache,
     allocationMap: new AllocationMap(),
@@ -79,5 +80,13 @@ export function irCompiler(node: CompilesToIR) {
     },
     setDebugLocation: () => {},
     module: new binaryen.Module(),
-  });
+  };
+}
+
+export function irCompiler(node: CompilesToIR) {
+  return StmtCompiler.forNode(node, stubContext(node));
+}
+
+export function exprCompiler(node: spec.Expression) {
+  return ExprCompiler.forNode(node, stubContext(node));
 }

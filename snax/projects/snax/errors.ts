@@ -1,4 +1,3 @@
-import type { ASTCompiler } from './ast-compiler.js';
 import type { ASTNode, Location } from './spec-gen.js';
 
 export const atString = (location: Location | undefined) => {
@@ -10,13 +9,13 @@ export const atString = (location: Location | undefined) => {
 };
 
 export class CompilerError extends Error {
-  compiler: ASTCompiler;
+  node: ASTNode;
 
-  constructor(compiler: ASTCompiler, message: string) {
-    const location = compiler.root.location;
+  constructor(node: ASTNode, message: string) {
+    const location = node.location;
     super(`CompilerError at ${atString(location)}: ${message}`);
 
-    this.compiler = compiler;
+    this.node = node;
   }
 }
 

@@ -341,7 +341,7 @@ describe('assignment operator', () => {
         x;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: CompilerError at  3:9: Don't know how to compute LValue for NumberLiteral]`
+      `[Error: NumberLiterals don't have lvalues]`
     );
   });
 });
@@ -516,7 +516,7 @@ describe('pointers', () => {
       expect(
         compileToWasmModule(code)
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `"CompilerError at  2:23: Don't know how to compute LValue for NumberLiteral"`
+        `"NumberLiterals don't have lvalues"`
       );
     });
 
@@ -769,12 +769,7 @@ describe('object structs', () => {
       `);
       const result = exports._start();
       const mem = new Int32Array(exports.memory.buffer.slice(0, 4 * 2));
-      expect([...mem]).toMatchInlineSnapshot(`
-      Array [
-        0,
-        0,
-      ]
-    `);
+      expect([...mem]).toEqual([0, 0]);
     });
     it('supports nested struct literals', async () => {
       const code = `

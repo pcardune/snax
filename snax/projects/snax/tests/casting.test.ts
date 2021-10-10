@@ -1,7 +1,7 @@
 import binaryen from 'binaryen';
 import * as AST from '../spec-gen.js';
 import { NumberType, Sign, IntegerType, FloatType } from '../numbers';
-import { irCompiler } from './test-util.js';
+import { exprCompiler, irCompiler } from './test-util.js';
 
 abstract class BaseConversion<
   Source extends NumberType,
@@ -163,9 +163,9 @@ describe('CastExprCompiler', () => {
   it.each(cases)('converts from %p to %p', (source, dest, instruction) => {
     const num = AST.makeNumberLiteral(1, 'int', source);
     let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest), false);
-    const compiler = irCompiler(cast);
+    const compiler = exprCompiler(cast);
     if (instruction instanceof Error) {
-      expect(() => compiler.compile()).toThrowError(instruction.message);
+      expect(() => compiler.getRValue()).toThrowError(instruction.message);
     } else {
       // TODO: reimplement these tests in some better way....
       // const convertExpr = compiler.compile();
@@ -184,8 +184,8 @@ describe('CastExprCompiler', () => {
         AST.makePointerTypeExpr(AST.makeTypeRef('f64')),
         true
       );
-      const compiler = irCompiler(cast);
-      const ir = compiler.compile();
+      const compiler = exprCompiler(cast);
+      const ir = compiler.getRValue().expectDirect().valueExpr;
       const { module } = compiler.context;
 
       module.addFunction('main', binaryen.createType([]), binaryen.i32, [], ir);
@@ -201,7 +201,7 @@ describe('CastExprCompiler', () => {
         false
       );
       expect(() =>
-        irCompiler(cast).compile()
+        exprCompiler(cast).getRValue()
       ).toThrowErrorMatchingInlineSnapshot(
         `"CompilerError at <unknown>: I only convert i32s to pointer types, and only when forced."`
       );

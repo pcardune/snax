@@ -1,5 +1,6 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { getPropNameOrThrow } from './ast-util.js';
+import { CompilerError } from './errors.js';
 import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
@@ -86,6 +87,11 @@ export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   for (const node of depthFirstIter(root)) {
     resolver.resolveType(node);
   }
+  for (const [index, node, type] of resolver.typeMap.entries()) {
+    if (type.equals(Intrinsics.unknown)) {
+      throw new CompilerError(node, `Couldn't resolve type for ${node.name}`);
+    }
+  }
   return resolver.typeMap;
 }
 
@@ -147,10 +153,6 @@ class TypeResolver {
         const record = refMap.get(node);
         if (!record) {
           return Intrinsics.unknown;
-          // throw new TypeResolutionError(
-          //   node,
-          //   `Can't resolve type for undeclard symbol ${node.fields.symbol}`
-          // );
         }
         const resolvedType = this.resolveType(record.declNode);
         if (!resolvedType) {

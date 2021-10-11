@@ -12,7 +12,11 @@ import {
 import { NumberType, Sign, isFloatType, isIntType } from './numbers.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
 import { ResolvedTypeMap, resolveTypes } from './type-resolution.js';
-import { resolveSymbols, SymbolRefMap } from './symbol-resolution.js';
+import {
+  resolveSymbols,
+  SymbolRefMap,
+  SymbolTableMap,
+} from './symbol-resolution.js';
 import {
   AllocationMap,
   Area,
@@ -132,6 +136,9 @@ class DirectRValue {
   expectAddress(): AddressRValue {
     throw new Error(`Not an address`);
   }
+  get ptrOrValueExpr() {
+    return this.valueExpr;
+  }
 }
 
 class AddressRValue {
@@ -147,6 +154,9 @@ class AddressRValue {
   }
   expectAddress(): AddressRValue {
     return this;
+  }
+  get ptrOrValueExpr() {
+    return this.valuePtrExpr;
   }
 }
 type RValue = DirectRValue | AddressRValue;
@@ -199,6 +209,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
   refMap?: SymbolRefMap;
   typeCache?: ResolvedTypeMap;
   moduleAllocator = new ModuleAllocator();
+  tables?: SymbolTableMap;
 
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);
@@ -256,8 +267,9 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       }
     }
 
-    const { refMap } = resolveSymbols(this.root);
+    const { refMap, tables } = resolveSymbols(this.root);
     this.refMap = refMap;
+    this.tables = tables;
 
     const typeCache = resolveTypes(this.root, refMap);
     this.typeCache = typeCache;
@@ -1391,7 +1403,7 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
       lget(module, this.context.funcAllocs.arp)
     );
     const args = right.fields.args.map(
-      (arg) => this.getChildRValue(arg).expectDirect().valueExpr
+      (arg) => this.getChildRValue(arg).ptrOrValueExpr
     );
 
     if (returnType.equals(Intrinsics.void)) {

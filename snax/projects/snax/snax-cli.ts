@@ -9,6 +9,7 @@ import { SNAXParser } from './snax-parser.js';
 import { ModuleCompiler } from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
 import binaryen from 'binaryen';
+import { dumpASTData } from './spec-util.js';
 
 const wasi = new WASI({
   args: process.argv,
@@ -36,7 +37,7 @@ async function compileSnaxFile(file: string) {
   if (!module.validate()) {
     throw new Error('validation error');
   }
-  return module;
+  return { module, compiler };
 }
 
 function fileWithExtension(file: string, ext: string) {
@@ -65,7 +66,7 @@ async function loadWasmModuleFromPath(
     case '.snx': {
       const label = `compiling ${inPath}`;
       if (opts.verbose) console.time(label);
-      const module = await compileSnaxFile(inPath);
+      const { module } = await compileSnaxFile(inPath);
       if (opts.verbose) console.timeEnd(label);
       const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);
@@ -98,6 +99,11 @@ function builder<T>(yargs: yargs.Argv<T>) {
       type: 'boolean',
       description: 'Run with verbose logging',
       default: false,
+    })
+    .option('dumpDebugInfo', {
+      type: 'boolean',
+      description: 'Dump compiler debug information to a file',
+      default: false,
     });
 }
 
@@ -121,7 +127,7 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      const module = await compileSnaxFile(inPath);
+      const { module, compiler } = await compileSnaxFile(inPath);
 
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'
@@ -132,6 +138,14 @@ const parser = yargs(hideBin(process.argv))
         console.log(`wrote ${path}`);
       };
 
+      if (args.dumpDebugInfo) {
+        writeFile(
+          fileWithExtension(inPath, '.dump'),
+          dumpASTData(compiler.root, compiler.tables, compiler.typeCache)
+        );
+      }
+
+      binaryen.setOptimizeLevel(0);
       module.optimize();
 
       writeFile(fileWithExtension(inPath, '.wat'), module.emitText());

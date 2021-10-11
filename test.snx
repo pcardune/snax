@@ -21,8 +21,7 @@ func run() {
   print(@meow);
   print("more snax please!\n");
   print("type something: ");
-  let input = String::{buffer: malloc(100), length: 100};
-  read(@input);
+  let input = read(100);
   print(@input);
 }
 
@@ -37,7 +36,8 @@ func print(s:&String) {
   );
 }
 
-func read(s:&String) {
+func read(numBytes:i32) {
+  let s:String = String::{buffer: malloc(numBytes), length: numBytes};
   let iovec = [s.buffer as usize, s.length];
   let bytesRead = 0;
   fd_read(
@@ -46,6 +46,7 @@ func read(s:&String) {
     1,
     @bytesRead
   );
+  return s;
 }
 
 run();

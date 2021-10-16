@@ -141,7 +141,10 @@ const parser = yargs(hideBin(process.argv))
       if (args.dumpDebugInfo) {
         writeFile(
           fileWithExtension(inPath, '.dump'),
-          dumpASTData(compiler.root, compiler.tables, compiler.typeCache)
+          dumpASTData(compiler.root, {
+            symbolTables: compiler.tables,
+            typeMap: compiler.typeCache,
+          })
         );
       }
 

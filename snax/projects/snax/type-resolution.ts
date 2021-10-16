@@ -19,11 +19,14 @@ import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
 
-class TypeResolutionError extends Error {
+export class TypeResolutionError extends Error {
   node: ASTNode;
-  constructor(node: ASTNode, message: string) {
+  resolver: TypeResolver;
+
+  constructor(resolver: TypeResolver, node: ASTNode, message: string) {
     super(`TypeResolutionError: ${message}`);
     this.node = node;
+    this.resolver = resolver;
   }
 }
 
@@ -89,7 +92,11 @@ export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   }
   for (const [index, node, type] of resolver.typeMap.entries()) {
     if (type.equals(Intrinsics.unknown)) {
-      throw new CompilerError(node, `Couldn't resolve type for ${node.name}`);
+      throw new TypeResolutionError(
+        resolver,
+        node,
+        `Couldn't resolve type for ${node.name}`
+      );
     }
   }
   return resolver.typeMap;
@@ -104,9 +111,13 @@ class TypeResolver {
     this.refMap = refMap;
   }
 
+  private error(node: ASTNode, message: string) {
+    return new TypeResolutionError(this, node, message);
+  }
+
   resolveType(node: ASTNode): BaseType {
     if (this.inProgress.has(node)) {
-      throw new TypeResolutionError(node, 'Detected cycle in type references');
+      throw this.error(node, 'Detected cycle in type references');
     }
     let resolvedType: BaseType;
     if (!this.typeMap.has(node)) {
@@ -130,7 +141,7 @@ class TypeResolver {
         if (explicitType) {
           const type = Intrinsics[explicitType as keyof typeof Intrinsics];
           if (!type) {
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `${explicitType} is not a known numeric type`
             );
@@ -156,7 +167,7 @@ class TypeResolver {
         }
         const resolvedType = this.resolveType(record.declNode);
         if (!resolvedType) {
-          throw new TypeResolutionError(
+          throw this.error(
             node,
             `Can't resolve type for symbol ${node.fields.symbol}, whose declaration hasn't had its type resolved`
           );
@@ -171,7 +182,7 @@ class TypeResolver {
         if (record) {
           return this.resolveType(record.declNode);
         }
-        throw new TypeResolutionError(
+        throw this.error(
           node,
           `TypeRef: Can't resolve type ${node.fields.symbol}`
         );
@@ -197,7 +208,7 @@ class TypeResolver {
           // have been specified. Make sure they match.
           let exprType = this.resolveType(node.fields.expr);
           if (!explicitType.equals(exprType)) {
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `${node.name} has explicit type ${explicitType.name} but is being initialized to incompatible type ${exprType.name}.`
             );
@@ -227,10 +238,7 @@ class TypeResolver {
             } else if (leftType instanceof PointerType) {
               return leftType.toType;
             }
-            throw new TypeResolutionError(
-              node,
-              `Can't index into a ${leftType.name}`
-            );
+            throw this.error(node, `Can't index into a ${leftType.name}`);
           }
           case BinOp.LESS_THAN:
           case BinOp.GREATER_THAN:
@@ -244,7 +252,7 @@ class TypeResolver {
               if (left.name === 'SymbolRef') {
                 const ref = refMap.get(left);
                 if (!ref) {
-                  throw new TypeResolutionError(
+                  throw this.error(
                     node,
                     `Can't assign to undeclared symbol ${left.fields.symbol}`
                   );
@@ -253,7 +261,7 @@ class TypeResolver {
                 this.typeMap.set(ref.declNode, leftType);
                 this.typeMap.set(left, leftType);
               } else {
-                throw new TypeResolutionError(
+                throw this.error(
                   node,
                   `Can't assign to ${leftType.name}, and not smart enough yet to infer what it should be.`
                 );
@@ -262,7 +270,7 @@ class TypeResolver {
             if (leftType.equals(rightType)) {
               return leftType;
             }
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `Can't assign value of type ${rightType.name} to a ${leftType.name}`
             );
@@ -282,10 +290,7 @@ class TypeResolver {
         } else if (leftType instanceof TupleType) {
           return new PointerType(leftType);
         } else {
-          throw new TypeResolutionError(
-            node,
-            "Can't call something that is not a function"
-          );
+          throw this.error(node, "Can't call something that is not a function");
         }
       }
       case 'UnaryExpr': {
@@ -294,7 +299,7 @@ class TypeResolver {
             const exprType = this.resolveType(node.fields.expr);
             return new PointerType(exprType);
           default:
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `UnaryExpr: Don't know how to resolve type for unary operator ${node.fields.op}`
             );
@@ -307,7 +312,7 @@ class TypeResolver {
           if (i == 0) {
             type = elemType;
           } else if (elemType !== type) {
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `Can't have an array with mixed types. Expected ${type.name}, found ${elemType.name}`
             );
@@ -331,7 +336,7 @@ class TypeResolver {
               alternativeReturnType !== returnType &&
               alternativeReturnType.name !== returnType.name
             ) {
-              throw new TypeResolutionError(
+              throw this.error(
                 node,
                 `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`
               );
@@ -414,21 +419,22 @@ class TypeResolver {
           const propName: string = getPropNameOrThrow(right);
           const propType = leftType.fields.get(propName);
           if (!propType) {
-            throw new TypeResolutionError(
+            throw this.error(
               right,
               `${propName} is not a valid accessor for ${leftType.name}`
             );
           }
+          this.typeMap.set(right, propType.type);
           return propType.type;
         } else {
-          throw new TypeResolutionError(
+          throw this.error(
             right,
             `Don't know hot to do member access on a ${leftType.name}`
           );
         }
       }
     }
-    throw new TypeResolutionError(
+    throw this.error(
       node,
       `No type resolution exists for ${(node as any).name}`
     );

@@ -139,8 +139,13 @@ function nodeDataToElem(
 
 export function dumpASTData(
   node: ASTNode,
-  symbolTables?: OrderedMap<ASTNode, SymbolTable>,
-  typeMap?: ResolvedTypeMap
+  {
+    symbolTables,
+    typeMap,
+  }: {
+    symbolTables?: OrderedMap<ASTNode, SymbolTable>;
+    typeMap?: ResolvedTypeMap;
+  }
 ) {
   return elemToString(nodeDataToElem(node, { symbolTables, typeMap }));
 }

@@ -78,6 +78,6 @@ describe('resolveSymbols', () => {
     expect(tables.get(file)?.has('externalFunc')).toBe(true);
   });
   it('spits out the right debug info', () => {
-    expect(dumpASTData(file, tables)).toMatchSnapshot();
+    expect(dumpASTData(file, { symbolTables: tables })).toMatchSnapshot();
   });
 });

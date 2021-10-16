@@ -3,7 +3,7 @@ import {
   ModuleCompilerOptions,
   PAGE_SIZE,
 } from '../ast-compiler.js';
-import { compileToWAT } from './test-util';
+import { compileToWAT, CompileToWatOptions } from './test-util';
 
 type SnaxExports = {
   memory: WebAssembly.Memory;
@@ -13,7 +13,7 @@ type SnaxExports = {
 
 async function compileToWasmModule(
   input: string,
-  options?: ModuleCompilerOptions
+  options?: CompileToWatOptions
 ) {
   const { wat, ast, compiler, binary, sourceMap } = compileToWAT(input, {
     includeRuntime: false,

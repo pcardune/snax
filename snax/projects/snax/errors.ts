@@ -1,3 +1,4 @@
+import type { ModuleCompiler } from './ast-compiler.js';
 import type { ASTNode, Location } from './spec-gen.js';
 
 export const atString = (location: Location | undefined) => {
@@ -8,14 +9,47 @@ export const atString = (location: Location | undefined) => {
   return atString;
 };
 
+const atSource = (source: string, location: Location): string[] => {
+  const lines = source.split('\n');
+  const prefix = `${location.start.line}: `;
+  const output = [
+    `${prefix}${lines[location.start.line - 1]}`,
+    '^'.padStart(prefix.length + location.start.column, '-'),
+  ];
+  return output;
+};
+
 export class CompilerError extends Error {
   node: ASTNode;
+  private _message: string;
+  private source?: string;
+  moduleCompiler?: ModuleCompiler;
 
   constructor(node: ASTNode, message: string) {
-    const location = node.location;
-    super(`CompilerError at ${atString(location)}: ${message}`);
-
+    super();
+    this._message = message;
     this.node = node;
+    this.message = this.getMessage();
+  }
+
+  getMessage() {
+    const lines = [
+      `CompilerError at ${atString(this.node.location)}: ${this._message}`,
+    ];
+    if (this.source && this.node.location) {
+      lines.push(
+        ...atSource(this.source, this.node.location).map((line) => `  ` + line)
+      );
+    }
+    return lines.join('\n');
+  }
+
+  attachSource(source: string) {
+    this.source = source;
+    this.message = this.getMessage();
+  }
+  attachModuleCompiler(moduleCompiler: ModuleCompiler) {
+    this.moduleCompiler = moduleCompiler;
   }
 }
 

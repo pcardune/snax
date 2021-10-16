@@ -64,8 +64,12 @@ file "file"
     let globals: specGen.GlobalDecl[] = [];
     let decls = [];
     let mainFuncBody = [];
+    let hasMainFunc = false;
     for (const statement of statements??[]) {
       if (spec.isFuncDecl(statement)) {
+        if (statement.fields.symbol === "main") {
+          hasMainFunc = true;
+        }
         funcs.push(statement);
       } else if (spec.isGlobalDecl(statement)) {
         globals.push(statement);
@@ -85,8 +89,12 @@ file "file"
         mainFuncBody[mainFuncBody.length-1] = returnStatement;
       }
     }
-    funcs.push(
-      spec.makeFuncDecl('main', spec.makeParameterList([]), undefined, spec.makeBlock(mainFuncBody)))
+    if (!hasMainFunc) {
+      funcs.push(
+        spec.makeFuncDecl('main', spec.makeParameterList([]), undefined, spec.makeBlock(mainFuncBody)));
+    } else if (mainFuncBody.length > 0 ) {
+      throw new Error('Both free statements and a main function were provided. Choose one or the other');
+    }
     return spec.makeFileWith({
       funcs,
       globals,

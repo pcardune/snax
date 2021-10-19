@@ -10,11 +10,11 @@ import {
 import { SNAXParser } from '../snax-parser.js';
 import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
-import { resolveTypes, TypeResolutionError } from '../type-resolution.js';
+import { resolveTypes } from '../type-resolution.js';
 import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
 import { FuncType, Intrinsics } from '../snax-types.js';
-import { CompilerError } from '../errors.js';
+import { CompilerError, TypeResolutionError } from '../errors.js';
 import { dumpASTData } from '../spec-util.js';
 
 export type CompileToWatOptions = ModuleCompilerOptions & {

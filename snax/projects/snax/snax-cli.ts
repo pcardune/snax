@@ -10,6 +10,7 @@ import { ModuleCompiler } from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
 import binaryen from 'binaryen';
 import { dumpASTData } from './spec-util.js';
+import { TypeResolutionError } from './errors.js';
 
 const wasi = new WASI({
   args: process.argv,
@@ -30,10 +31,18 @@ function parseFile(inPath: string) {
   return ast;
 }
 
-async function compileSnaxFile(file: string) {
+function compileSnaxFile(file: string) {
   const ast = parseFile(file);
   const compiler = new ModuleCompiler(ast, { includeRuntime: true });
-  const module = compiler.compile();
+  let module;
+  try {
+    module = compiler.compile();
+  } catch (e) {
+    if (e instanceof TypeResolutionError) {
+      console.log(dumpASTData(ast, { typeMap: e.resolver.typeMap }));
+    }
+    throw e;
+  }
   if (!module.validate()) {
     throw new Error('validation error');
   }
@@ -66,7 +75,7 @@ async function loadWasmModuleFromPath(
     case '.snx': {
       const label = `compiling ${inPath}`;
       if (opts.verbose) console.time(label);
-      const { module } = await compileSnaxFile(inPath);
+      const { module } = compileSnaxFile(inPath);
       if (opts.verbose) console.timeEnd(label);
       const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);
@@ -127,7 +136,7 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      const { module, compiler } = await compileSnaxFile(inPath);
+      const { module, compiler } = compileSnaxFile(inPath);
 
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'

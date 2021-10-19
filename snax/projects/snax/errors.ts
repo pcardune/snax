@@ -1,5 +1,6 @@
 import type { ModuleCompiler } from './ast-compiler.js';
 import type { ASTNode, Location } from './spec-gen.js';
+import type { TypeResolver } from './type-resolution.js';
 
 export const atString = (location: Location | undefined) => {
   let atString = '<unknown>';
@@ -18,6 +19,17 @@ const atSource = (source: string, location: Location): string[] => {
   ];
   return output;
 };
+
+export class TypeResolutionError extends Error {
+  node: ASTNode;
+  resolver: TypeResolver;
+
+  constructor(resolver: TypeResolver, node: ASTNode, message: string) {
+    super(`TypeResolutionError as ${atString(node.location)}: ${message}`);
+    this.node = node;
+    this.resolver = resolver;
+  }
+}
 
 export class CompilerError extends Error {
   node: ASTNode;

@@ -1,6 +1,6 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { getPropNameOrThrow } from './ast-util.js';
-import { CompilerError } from './errors.js';
+import { TypeResolutionError } from './errors.js';
 import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
@@ -18,17 +18,6 @@ import { depthFirstIter } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
-
-export class TypeResolutionError extends Error {
-  node: ASTNode;
-  resolver: TypeResolver;
-
-  constructor(resolver: TypeResolver, node: ASTNode, message: string) {
-    super(`TypeResolutionError: ${message}`);
-    this.node = node;
-    this.resolver = resolver;
-  }
-}
 
 export const getTypeForBinaryOp = (
   op: string,

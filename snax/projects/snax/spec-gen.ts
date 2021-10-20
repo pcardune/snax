@@ -719,7 +719,7 @@ export function makeTupleStructDeclWith(fields: {
   };
 }
 
-type StructDeclFields = { symbol: string; props: (StructProp | FuncDecl)[] };
+type StructDeclFields = { symbol: string; props: StructField[] };
 
 export type StructDecl = {
   name: 'StructDecl';
@@ -733,7 +733,7 @@ export function isStructDecl(node: ASTNode): node is StructDecl {
 
 export function makeStructDecl(
   symbol: string,
-  props: (StructProp | FuncDecl)[]
+  props: StructField[]
 ): StructDecl {
   return {
     name: 'StructDecl',
@@ -746,7 +746,7 @@ export function makeStructDecl(
 
 export function makeStructDeclWith(fields: {
   symbol: string;
-  props: (StructProp | FuncDecl)[];
+  props: StructField[];
 }): StructDecl {
   return {
     name: 'StructDecl',
@@ -1171,6 +1171,11 @@ export function makeExternDeclWith(fields: {
   };
 }
 
+export type StructField = StructProp | FuncDecl;
+export function isStructField(node: ASTNode): node is StructField {
+  return isStructProp(node) || isFuncDecl(node);
+}
+
 export type TypeExpr = PointerTypeExpr | TypeRef;
 export function isTypeExpr(node: ASTNode): node is TypeExpr {
   return isPointerTypeExpr(node) || isTypeRef(node);
@@ -1277,6 +1282,7 @@ export type ASTNode =
   | ArgList
   | File
   | ExternDecl
+  | StructField
   | TypeExpr
   | LiteralExpr
   | TopLevelDecl

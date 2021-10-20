@@ -1,12 +1,20 @@
-type FieldSpec = {
+export type FieldSpec = {
   type: string;
   optional?: boolean;
+  list?: boolean;
 };
-type NodeSpec = {
-  fields?: Record<string, string | FieldSpec>;
+export type NodeSpec = {
+  fields?: Record<string, FieldSpec>;
   union?: string[];
 };
-export const nodes: Record<string, NodeSpec> = {
+
+const specInput: Record<
+  string,
+  {
+    fields?: Record<string, string | FieldSpec>;
+    union?: string[];
+  }
+> = {
   BooleanLiteral: {
     fields: {
       value: 'boolean',
@@ -85,7 +93,7 @@ export const nodes: Record<string, NodeSpec> = {
   },
   Block: {
     fields: {
-      statements: 'Statement[]',
+      statements: { type: 'Statement', list: true },
     },
   },
   BinaryExpr: {
@@ -122,19 +130,19 @@ export const nodes: Record<string, NodeSpec> = {
   },
   ArrayLiteral: {
     fields: {
-      elements: 'Expression[]',
+      elements: { type: 'Expression', list: true },
     },
   },
   TupleStructDecl: {
     fields: {
       symbol: 'string',
-      elements: 'TypeExpr[]',
+      elements: { type: 'TypeExpr', list: true },
     },
   },
   StructDecl: {
     fields: {
       symbol: 'string',
-      props: '(StructProp|FuncDecl)[]',
+      props: { type: 'StructField', list: true },
     },
   },
   StructProp: {
@@ -146,7 +154,7 @@ export const nodes: Record<string, NodeSpec> = {
   StructLiteral: {
     fields: {
       symbol: 'SymbolRef',
-      props: 'StructLiteralProp[]',
+      props: { type: 'StructLiteralProp', list: true },
     },
   },
   StructLiteralProp: {
@@ -157,7 +165,7 @@ export const nodes: Record<string, NodeSpec> = {
   },
   ParameterList: {
     fields: {
-      parameters: 'Parameter[]',
+      parameters: { type: 'Parameter', list: true },
     },
   },
   Parameter: {
@@ -193,21 +201,24 @@ export const nodes: Record<string, NodeSpec> = {
   },
   ArgList: {
     fields: {
-      args: 'Expression[]',
+      args: { type: 'Expression', list: true },
     },
   },
   File: {
     fields: {
-      funcs: 'FuncDecl[]',
-      globals: 'GlobalDecl[]',
-      decls: 'TopLevelDecl[]',
+      funcs: { type: 'FuncDecl', list: true },
+      globals: { type: 'GlobalDecl', list: true },
+      decls: { type: 'TopLevelDecl', list: true },
     },
   },
   ExternDecl: {
     fields: {
       libName: 'string',
-      funcs: 'ExternFuncDecl[]',
+      funcs: { type: 'ExternFuncDecl', list: true},
     },
+  },
+  StructField: {
+    union: ['StructProp', 'FuncDecl'],
   },
   TypeExpr: {
     union: ['PointerTypeExpr', 'TypeRef'],
@@ -251,132 +262,21 @@ export const nodes: Record<string, NodeSpec> = {
   },
 };
 
-import { URL } from 'url';
-const __dirname = new URL('.', import.meta.url).pathname;
-
-import fs from 'fs';
-import path from 'path';
-import { exec } from 'child_process';
-
-function write() {
-  let out: string[] = [];
-  const emit = (s: string) => out.push(s);
-  const emitLn = (...s: string[]) => emit(s.join('') + '\n');
-
-  emitLn(`
-export type Location = {
-  source: string,
-  start: {offset: number, line: number, column: number},
-  end: {offset: number, line: number, column: number},
-};
-`);
-
-  const emitNode = (name: string, fields: Record<string, FieldSpec>) => {
-    emitLn();
-
-    const argTypeSpec = (fieldName: string, spec: FieldSpec) =>
-      `${fieldName}: ${spec.type}${spec.optional ? '|undefined' : ''}`;
-    const typeSpec = (fieldName: string, spec: FieldSpec) =>
-      `${fieldName}${spec.optional ? '?' : ''}: ${spec.type}`;
-
-    let fieldType = `{`;
-    Object.entries(fields).forEach(([fieldName, spec]) => {
-      fieldType += typeSpec(fieldName, spec) + `; `;
-    });
-    fieldType += '}';
-
-    emitLn(`type ${name}Fields = ${fieldType};`);
-
-    emitLn(`
-      export type ${name} = {
-        name:"${name}",
-        fields:${name}Fields,
-        location?: Location,
-      };
-    `);
-    emitLn(`
-      export function is${name}(node: ASTNode): node is ${name} {
-        return node.name === "${name}";
-      }
-    `);
-    let args: string[] = [];
-    Object.entries(fields).forEach(([fieldName, spec]) => {
-      args.push(argTypeSpec(fieldName, spec));
-    });
-    emitLn(`
-      export function make${name}(${args.join(', ')}): ${name} {
-        return {
-          name: "${name}",
-          fields: {
-            ${Object.keys(fields).join(', ')}
-          }
-        };
-      }
-    `);
-
-    emitLn(`
-      export function make${name}With(fields:${fieldType}): ${name} {
-        return {
-          name: "${name}",
-          fields,
-        };
-      }
-    `);
+export const nodes: Record<string, NodeSpec> = {};
+for (const [key, value] of Object.entries(specInput)) {
+  let nodeSpec: NodeSpec = {
+    union: value.union,
   };
-
-  const emitUnionNode = (name: string, union: string[]) => {
-    emitLn();
-    emitLn(`export type ${name} = ${union.join(' | ')};`);
-    emitLn(`export function is${name}(node: ASTNode): node is ${name} {
-      return ${union.map((u) => `is${u}(node)`).join(' || ')};
-    }`);
-  };
-
-  const normFields = (fields: Record<string, string | FieldSpec>) => {
-    const normalized: Record<string, FieldSpec> = {};
-    for (const fieldName in fields) {
-      const field = fields[fieldName];
-      if (typeof field === 'string') {
-        normalized[fieldName] = { type: field };
+  if (value.fields) {
+    let fields: Record<string, FieldSpec> = {};
+    for (const [fieldName, fieldValue] of Object.entries(value.fields)) {
+      if (typeof fieldValue === 'string') {
+        fields[fieldName] = { type: fieldValue };
       } else {
-        normalized[fieldName] = field;
+        fields[fieldName] = fieldValue;
       }
     }
-    return normalized;
-  };
-
-  let allTypes: string[] = [];
-  let allNames: string[] = [];
-  for (const key in nodes) {
-    const { fields, union } = nodes[key];
-    if (fields) {
-      emitNode(key, normFields(fields));
-      allNames.push(key);
-    } else if (union) {
-      emitUnionNode(key, union);
-    }
-    allTypes.push(key);
+    nodeSpec.fields = fields;
   }
-
-  emitLn(`export type ASTNode = ${allTypes.join(' | ')};`);
-  emitLn(
-    `export type ASTNodeName = ${allNames
-      .map((name) => `"${name}"`)
-      .join(' | ')};`
-  );
-  let outPath = path.join(__dirname, 'spec-gen.ts');
-  fs.writeFileSync(outPath, out.join(''));
-
-  exec(`npx prettier --write ${outPath}`, (error, stdout, stderr) => {
-    if (error) {
-      console.log(`error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.log(`stderr: ${stderr}`);
-      return;
-    }
-    console.log(`stdout: ${stdout}`);
-  });
+  nodes[key] = nodeSpec;
 }
-write();

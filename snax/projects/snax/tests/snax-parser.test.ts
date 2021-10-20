@@ -531,6 +531,31 @@ describe('files', () => {
       })
     );
   });
+  it('should not generate an empty main function when a main function is given', () => {
+    expect(
+      parse(`
+        func main() {}
+      `)
+    ).toEqual(
+      AST.makeFileWith({
+        funcs: [makeFunc('main')],
+        globals: [],
+        decls: [],
+      })
+    );
+  });
+  it('should throw an error if both a main function and top-level statements are given', () => {
+    expect(() =>
+      parse(`
+      func main() {
+        return 3+4;
+      }
+      5+7;
+    `)
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"Both free statements and a main function were provided. Choose one or the other"`
+    );
+  });
 });
 
 describe('externals', () => {

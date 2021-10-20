@@ -883,3 +883,21 @@ describe('extern declarations', () => {
     expect(result).toEqual(6);
   });
 });
+
+describe('bugs that came up', () => {
+  it('infers types in the right order across functions', async () => {
+    const code = `
+      func run() {
+        let input = read(100);
+      }
+      
+      func read(numBytes:i32) {
+        let s = String::{buffer: malloc(numBytes), length: numBytes};
+        return s;
+      }
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+  });
+});

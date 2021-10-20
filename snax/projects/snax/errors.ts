@@ -25,7 +25,7 @@ export class TypeResolutionError extends Error {
   resolver: TypeResolver;
 
   constructor(resolver: TypeResolver, node: ASTNode, message: string) {
-    super(`TypeResolutionError as ${atString(node.location)}: ${message}`);
+    super(`TypeResolutionError at ${atString(node.location)}: ${message}`);
     this.node = node;
     this.resolver = resolver;
   }

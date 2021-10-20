@@ -368,11 +368,10 @@ function peg$parse(input: string, options?: IParseOptions) {
     return spec.makeExternDeclWith({
       libName: name,
       funcs: decls.map((begin:any) => {
-        return spec.makeFuncDecl(
+        return spec.makeExternFuncDecl(
           begin.name,
           begin.parameters,
           begin.returnType,
-          spec.makeBlock([]),
         );
       })
     });

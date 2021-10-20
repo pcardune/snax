@@ -10,6 +10,7 @@ import {
   File,
   TypeRef,
   isMemberAccessExpr,
+  ExternFuncDecl,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -53,7 +54,10 @@ export class SymbolTable {
   }
 }
 
-export type SymbolTableMap = OrderedMap<Block | FuncDecl | File, SymbolTable>;
+export type SymbolTableMap = OrderedMap<
+  Block | FuncDecl | ExternFuncDecl | File,
+  SymbolTable
+>;
 export type SymbolRefMap = OrderedMap<SymbolRef | TypeRef, SymbolRecord>;
 
 export function resolveSymbols(astNode: ASTNode) {
@@ -107,6 +111,7 @@ function innerResolveSymbols(
   switch (astNode.name) {
     case 'File':
     case 'FuncDecl':
+    case 'ExternFuncDecl':
     case 'Block': {
       currentTable = new SymbolTable(currentTable);
       tables.set(astNode, currentTable);

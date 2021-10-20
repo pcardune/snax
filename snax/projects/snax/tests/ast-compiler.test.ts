@@ -158,7 +158,7 @@ describe('ModuleCompiler', () => {
         AST.makeExternDeclWith({
           libName: 'wasi_unstable',
           funcs: [
-            AST.makeFuncDeclWith({
+            AST.makeExternFuncDeclWith({
               symbol: 'fd_write',
               parameters: AST.makeParameterList([
                 AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
@@ -167,7 +167,6 @@ describe('ModuleCompiler', () => {
                 AST.makeParameter('numWrittenPointer', AST.makeTypeRef('i32')),
               ]),
               returnType: AST.makeTypeRef('i32'),
-              body: AST.makeBlock([]),
             }),
           ],
         }),

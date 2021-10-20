@@ -556,7 +556,7 @@ describe('externals', () => {
           AST.makeExternDeclWith({
             libName: 'WASI',
             funcs: [
-              AST.makeFuncDeclWith({
+              AST.makeExternFuncDeclWith({
                 symbol: 'fd_write',
                 parameters: AST.makeParameterList([
                   AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
@@ -568,7 +568,6 @@ describe('externals', () => {
                   ),
                 ]),
                 returnType: AST.makeTypeRef('i32'),
-                body: AST.makeBlock([]),
               }),
             ],
           }),

@@ -166,6 +166,13 @@ export const nodes: Record<string, NodeSpec> = {
       typeExpr: 'TypeExpr',
     },
   },
+  ExternFuncDecl: {
+    fields: {
+      symbol: 'string',
+      parameters: 'ParameterList',
+      returnType: { type: 'TypeExpr' },
+    },
+  },
   FuncDecl: {
     fields: {
       symbol: 'string',
@@ -199,7 +206,7 @@ export const nodes: Record<string, NodeSpec> = {
   ExternDecl: {
     fields: {
       libName: 'string',
-      funcs: 'FuncDecl[]',
+      funcs: 'ExternFuncDecl[]',
     },
   },
   TypeExpr: {

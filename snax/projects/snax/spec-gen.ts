@@ -918,6 +918,48 @@ export function makeParameterWith(fields: {
   };
 }
 
+type ExternFuncDeclFields = {
+  symbol: string;
+  parameters: ParameterList;
+  returnType: TypeExpr;
+};
+
+export type ExternFuncDecl = {
+  name: 'ExternFuncDecl';
+  fields: ExternFuncDeclFields;
+  location?: Location;
+};
+
+export function isExternFuncDecl(node: ASTNode): node is ExternFuncDecl {
+  return node.name === 'ExternFuncDecl';
+}
+
+export function makeExternFuncDecl(
+  symbol: string,
+  parameters: ParameterList,
+  returnType: TypeExpr
+): ExternFuncDecl {
+  return {
+    name: 'ExternFuncDecl',
+    fields: {
+      symbol,
+      parameters,
+      returnType,
+    },
+  };
+}
+
+export function makeExternFuncDeclWith(fields: {
+  symbol: string;
+  parameters: ParameterList;
+  returnType: TypeExpr;
+}): ExternFuncDecl {
+  return {
+    name: 'ExternFuncDecl',
+    fields,
+  };
+}
+
 type FuncDeclFields = {
   symbol: string;
   parameters: ParameterList;
@@ -1094,7 +1136,7 @@ export function makeFileWith(fields: {
   };
 }
 
-type ExternDeclFields = { libName: string; funcs: FuncDecl[] };
+type ExternDeclFields = { libName: string; funcs: ExternFuncDecl[] };
 
 export type ExternDecl = {
   name: 'ExternDecl';
@@ -1106,7 +1148,10 @@ export function isExternDecl(node: ASTNode): node is ExternDecl {
   return node.name === 'ExternDecl';
 }
 
-export function makeExternDecl(libName: string, funcs: FuncDecl[]): ExternDecl {
+export function makeExternDecl(
+  libName: string,
+  funcs: ExternFuncDecl[]
+): ExternDecl {
   return {
     name: 'ExternDecl',
     fields: {
@@ -1118,7 +1163,7 @@ export function makeExternDecl(libName: string, funcs: FuncDecl[]): ExternDecl {
 
 export function makeExternDeclWith(fields: {
   libName: string;
-  funcs: FuncDecl[];
+  funcs: ExternFuncDecl[];
 }): ExternDecl {
   return {
     name: 'ExternDecl',
@@ -1225,6 +1270,7 @@ export type ASTNode =
   | StructLiteralProp
   | ParameterList
   | Parameter
+  | ExternFuncDecl
   | FuncDecl
   | ReturnStatement
   | ExprStatement
@@ -1264,6 +1310,7 @@ export type ASTNodeName =
   | 'StructLiteralProp'
   | 'ParameterList'
   | 'Parameter'
+  | 'ExternFuncDecl'
   | 'FuncDecl'
   | 'ReturnStatement'
   | 'ExprStatement'

@@ -41,7 +41,13 @@ beforeEach(() => {
     decls: [
       AST.makeExternDeclWith({
         libName: 'someLib',
-        funcs: [makeFunc('externalFunc')],
+        funcs: [
+          AST.makeExternFuncDecl(
+            'externalFunc',
+            AST.makeParameterList([]),
+            AST.makeTypeRef('void')
+          ),
+        ],
       }),
     ],
   });

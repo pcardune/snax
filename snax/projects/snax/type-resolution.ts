@@ -91,7 +91,7 @@ export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   return resolver.typeMap;
 }
 
-class TypeResolver {
+export class TypeResolver {
   refMap: SymbolRefMap;
   typeMap = new ResolvedTypeMap();
   inProgress: Set<ASTNode> = new Set();
@@ -309,6 +309,7 @@ class TypeResolver {
         }
         return new ArrayType(type, node.fields.elements.length);
       }
+      case 'ExternFuncDecl':
       case 'FuncDecl': {
         let paramTypes = node.fields.parameters.fields.parameters.map((p) =>
           this.resolveType(p)
@@ -316,20 +317,31 @@ class TypeResolver {
         let returnType: BaseType | null = node.fields.returnType
           ? this.resolveType(node.fields.returnType)
           : null;
-        for (const child of depthFirstIter(node.fields.body)) {
-          if (isReturnStatement(child)) {
-            let alternativeReturnType = this.resolveType(child);
-            if (returnType === null) {
-              returnType = alternativeReturnType;
-            } else if (
-              alternativeReturnType !== returnType &&
-              alternativeReturnType.name !== returnType.name
-            ) {
-              throw this.error(
-                node,
-                `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`
-              );
+        if (isFuncDecl(node)) {
+          let foundReturn = false;
+          for (const child of depthFirstIter(node.fields.body)) {
+            this.resolveType(child);
+            if (isReturnStatement(child)) {
+              let alternativeReturnType = this.resolveType(child);
+              foundReturn = true;
+              if (returnType === null) {
+                returnType = alternativeReturnType;
+              } else if (
+                alternativeReturnType !== returnType &&
+                alternativeReturnType.name !== returnType.name
+              ) {
+                throw this.error(
+                  node,
+                  `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`
+                );
+              }
             }
+          }
+          if (!foundReturn && returnType) {
+            throw this.error(
+              node,
+              `FuncDecl: function ${node.fields.symbol} must return ${returnType.name} but has no return statements`
+            );
           }
         }
         return new FuncType(paramTypes, returnType ?? Intrinsics.void);

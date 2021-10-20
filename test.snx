@@ -37,7 +37,7 @@ func print(s:&String) {
 }
 
 func read(numBytes:i32) {
-  let s:String = String::{buffer: malloc(numBytes), length: numBytes};
+  let s = String::{buffer: malloc(numBytes), length: numBytes};
   let iovec = [s.buffer as usize, s.length];
   let bytesRead = 0;
   fd_read(

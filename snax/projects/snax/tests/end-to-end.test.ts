@@ -917,4 +917,22 @@ describe('bugs that came up', () => {
     });
     expect(exports._start()).toBe(undefined);
   });
+
+  it('lets you call functions that return floats', async () => {
+    const code = `
+      func giveMeAFloat() {
+        return 3.4;
+      }
+      func foo() {
+        let afloat:f32;
+        afloat = giveMeAFloat();
+      }
+      giveMeAFloat();
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+      validate: false,
+    });
+    expect(exports._start()).toBeCloseTo(3.4, 4);
+  });
 });

@@ -493,7 +493,12 @@ class MemoryResolver {
       case 'DataLiteral':
         this.moduleAllocator.allocateConstData(root, root.fields.value);
         break;
-      case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
+      case 'CallExpr': {
+        // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
+        const type = this.typeMap.get(root).toValueType();
+        allocateTemp(type ?? NumberType.i32);
+        return;
+      }
       case 'ArrayLiteral':
         allocateTemp(NumberType.i32);
         return;

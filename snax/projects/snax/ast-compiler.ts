@@ -763,6 +763,11 @@ function memLoad(
       }
       break;
     }
+    case NumberType.f64:
+    case NumberType.f32: {
+      loadFunc = module[valueType].load;
+      break;
+    }
     default:
       throw new Error(`Don't know how to load into ${valueType} yet`);
   }
@@ -919,8 +924,7 @@ export abstract class ExprCompiler<
               binaryen[location.valueType]
             );
           case 'stack': {
-            const { arp } = funcAllocs;
-            const ptr = lget(module, arp);
+            const ptr = lget(module, funcAllocs.arp);
             return this.copy(
               lvalueDynamic(ptr, location.offset),
               rvalue,

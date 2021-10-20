@@ -194,7 +194,7 @@ describe('reg statements', () => {
     );
   });
 
-  it('does allow reg statements to be used pointers to compound data types', async () => {
+  it('does allow reg statements to be used for pointers to compound data types', async () => {
     const code = `
       struct Vector {x: i32; y:i32;}
       reg v:&Vector;
@@ -227,6 +227,7 @@ describe('let statements', () => {
     const code = `
       let x:i32;
       let y:bool;
+      let z:f32;
       x;
     `;
     const { wat, exports, compiler } = await compileToWasmModule(code, {
@@ -237,6 +238,7 @@ describe('let statements', () => {
       "stack:
           0: <x>s0-4 (i32)
           4: <y>s4-5 (bool)
+          5: <z>s5-9 (f32)
       locals:
           0: <arp>r0:i32 (i32)"
     `);
@@ -899,5 +901,20 @@ describe('bugs that came up', () => {
     const { exports } = await compileToWasmModule(code, {
       includeRuntime: true,
     });
+  });
+
+  it('lets you have functions that return floats', async () => {
+    const code = `
+      func run() {
+        let sum:f32;
+        sum = 3.4;
+        return 3.4;
+      }
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+      validate: false,
+    });
+    expect(exports._start()).toBe(undefined);
   });
 });

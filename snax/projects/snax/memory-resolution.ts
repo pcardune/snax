@@ -478,8 +478,7 @@ class MemoryResolver {
       }
       case 'BinaryExpr': {
         if (root.fields.op === BinOp.ASSIGN) {
-          let type = this.typeMap.get(root);
-          allocateTemp(type.toValueType() ?? NumberType.i32);
+          allocateTemp(NumberType.i32);
           return;
         }
         break;

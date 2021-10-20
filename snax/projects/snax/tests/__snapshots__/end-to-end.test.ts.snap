@@ -217,7 +217,7 @@ exports[`let statements allocates space on the stack, and initializes values to 
   (global.set $g0:#SP
    (i32.sub
     (global.get $g0:#SP)
-    (i32.const 5)
+    (i32.const 9)
    )
   )
   (local.set $0
@@ -239,6 +239,15 @@ exports[`let statements allocates space on the stack, and initializes values to 
    (i32.const 1)
   )
   ;;@ :4:7
+  (memory.fill
+   (i32.add
+    (i32.const 5)
+    (local.get $0)
+   )
+   (i32.const 0)
+   (i32.const 4)
+  )
+  ;;@ :5:7
   (return
    (i32.load
     (local.get $0)

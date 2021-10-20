@@ -43,9 +43,6 @@ function compileSnaxFile(file: string) {
     }
     throw e;
   }
-  if (!module.validate()) {
-    throw new Error('validation error');
-  }
   return { module, compiler };
 }
 
@@ -76,6 +73,9 @@ async function loadWasmModuleFromPath(
       const label = `compiling ${inPath}`;
       if (opts.verbose) console.time(label);
       const { module } = compileSnaxFile(inPath);
+      if (!module.validate()) {
+        throw new Error('validation error');
+      }
       if (opts.verbose) console.timeEnd(label);
       const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);
@@ -137,6 +137,9 @@ const parser = yargs(hideBin(process.argv))
       let inPath = args.file;
       console.log('Compiling file', inPath);
       const { module, compiler } = compileSnaxFile(inPath);
+      if (!module.validate()) {
+        console.warn('validation error');
+      }
 
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'

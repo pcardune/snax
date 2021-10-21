@@ -103,6 +103,12 @@ const specInput: Record<
       right: 'Expression',
     },
   },
+  CompilerCallExpr: {
+    fields: {
+      symbol: 'string',
+      right: 'ArgList',
+    },
+  },
   CallExpr: {
     fields: {
       left: 'Expression',
@@ -214,7 +220,7 @@ const specInput: Record<
   ExternDecl: {
     fields: {
       libName: 'string',
-      funcs: { type: 'ExternFuncDecl', list: true},
+      funcs: { type: 'ExternFuncDecl', list: true },
     },
   },
   StructField: {
@@ -244,6 +250,7 @@ const specInput: Record<
       'CastExpr',
       'LiteralExpr',
       'CallExpr',
+      'CompilerCallExpr',
       'CastExpr',
       'ArgList',
       'MemberAccessExpr',

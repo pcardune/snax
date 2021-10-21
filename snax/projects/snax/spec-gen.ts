@@ -517,6 +517,41 @@ export function makeBinaryExprWith(fields: {
   };
 }
 
+type CompilerCallExprFields = { symbol: string; right: ArgList };
+
+export type CompilerCallExpr = {
+  name: 'CompilerCallExpr';
+  fields: CompilerCallExprFields;
+  location?: Location;
+};
+
+export function isCompilerCallExpr(node: ASTNode): node is CompilerCallExpr {
+  return node.name === 'CompilerCallExpr';
+}
+
+export function makeCompilerCallExpr(
+  symbol: string,
+  right: ArgList
+): CompilerCallExpr {
+  return {
+    name: 'CompilerCallExpr',
+    fields: {
+      symbol,
+      right,
+    },
+  };
+}
+
+export function makeCompilerCallExprWith(fields: {
+  symbol: string;
+  right: ArgList;
+}): CompilerCallExpr {
+  return {
+    name: 'CompilerCallExpr',
+    fields,
+  };
+}
+
 type CallExprFields = { left: Expression; right: ArgList };
 
 export type CallExpr = {
@@ -1212,6 +1247,7 @@ export type Expression =
   | CastExpr
   | LiteralExpr
   | CallExpr
+  | CompilerCallExpr
   | CastExpr
   | ArgList
   | MemberAccessExpr;
@@ -1222,6 +1258,7 @@ export function isExpression(node: ASTNode): node is Expression {
     isCastExpr(node) ||
     isLiteralExpr(node) ||
     isCallExpr(node) ||
+    isCompilerCallExpr(node) ||
     isCastExpr(node) ||
     isArgList(node) ||
     isMemberAccessExpr(node)
@@ -1263,6 +1300,7 @@ export type ASTNode =
   | WhileStatement
   | Block
   | BinaryExpr
+  | CompilerCallExpr
   | CallExpr
   | MemberAccessExpr
   | CastExpr
@@ -1304,6 +1342,7 @@ export type ASTNodeName =
   | 'WhileStatement'
   | 'Block'
   | 'BinaryExpr'
+  | 'CompilerCallExpr'
   | 'CallExpr'
   | 'MemberAccessExpr'
   | 'CastExpr'

@@ -1009,6 +1009,8 @@ export abstract class ExprCompiler<
         return new BinaryExprCompiler(node, context);
       case 'CallExpr':
         return new CallExprCompiler(node, context);
+      case 'CompilerCallExpr':
+        return new CompilerCallExpr(node, context);
       case 'MemberAccessExpr':
         return new MemberAccessExprCompiler(node, context);
       case 'NumberLiteral':
@@ -1378,6 +1380,37 @@ class MemberAccessExprCompiler extends ExprCompiler<AST.MemberAccessExpr> {
   }
 }
 
+class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
+  getLValue(): LValue {
+    throw new Error(`CompilerCallExpr doesn't have an LValue`);
+  }
+
+  getRValue(): RValue {
+    const { symbol, right } = this.root.fields;
+    const { module } = this.context;
+
+    const arg0Value = () =>
+      this.getChildRValue(right.fields.args[0]).expectDirect().valueExpr;
+
+    const compilerFuncs: { [name: string]: () => RValue } = {
+      i32_trunc_f32_s: () =>
+        rvalueDirect(Intrinsics.i32, module.i32.trunc_s.f32(arg0Value())),
+      f64_floor: () =>
+        rvalueDirect(Intrinsics.f64, module.f64.floor(arg0Value())),
+      f32_floor: () =>
+        rvalueDirect(Intrinsics.f32, module.f32.floor(arg0Value())),
+    };
+    const getRValue = compilerFuncs[symbol];
+    if (!getRValue) {
+      throw new CompilerError(
+        this.root,
+        `Unrecognized compiler function $${symbol}`
+      );
+    }
+    return getRValue();
+  }
+}
+
 class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   private getFuncLocation() {
     const { left } = this.root.fields;
@@ -1393,8 +1426,9 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   }
 
   getRValue() {
-    const { right } = this.root.fields;
+    const { left, right } = this.root.fields;
     const { module } = this.context;
+
     const location = this.getFuncLocation();
     const tempLocation = this.context.allocationMap.getLocalOrThrow(
       this.root,

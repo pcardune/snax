@@ -151,6 +151,11 @@ describe('empty module', () => {
     expect(await exec('5%3;')).toBe(2);
   });
 
+  it('compiles internal wasm operators', async () => {
+    expect(await exec('$f32_floor(3.56);')).toBeCloseTo(3);
+    expect(await exec('$i32_trunc_f32_s(3.56);')).toBe(3);
+  });
+
   it('compiles expressions', async () => {
     const { wat, exports } = await compileToWasmModule('3+5*2-10/10;', {
       includeRuntime: false,

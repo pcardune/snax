@@ -344,7 +344,10 @@ casting "cast"
   / calling
 
 calling "calling"
-  = funcExpr:indexing ws "(" ws argList:exprList? ws ")" {
+  = "$" id:identifier ws "(" ws argList:exprList? ws ")" {
+    return spec.makeCompilerCallExpr(id, spec.makeArgList(argList || []));
+  }
+  / funcExpr:indexing ws "(" ws argList:exprList? ws ")" {
     return spec.makeCallExpr(funcExpr, spec.makeArgList(argList || []));
   }
   / indexing

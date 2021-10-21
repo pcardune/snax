@@ -508,6 +508,14 @@ describe('functions', () => {
       )
     );
   });
+  it('should parse a compiler call', () => {
+    expect(parse('$specialFunc(3,4)', 'expr')).toEqual(
+      AST.makeCompilerCallExpr(
+        'specialFunc',
+        AST.makeArgList([makeNum(3), makeNum(4)])
+      )
+    );
+  });
 });
 
 describe('files', () => {

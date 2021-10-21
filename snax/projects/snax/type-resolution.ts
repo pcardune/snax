@@ -272,6 +272,21 @@ export class TypeResolver {
             );
         }
       }
+      case 'CompilerCallExpr': {
+        switch (node.fields.symbol) {
+          case 'i32_trunc_f32_s':
+            return Intrinsics.i32;
+          case 'f64_floor':
+            return Intrinsics.f64;
+          case 'f32_floor':
+            return Intrinsics.f32;
+          default:
+            throw this.error(
+              node,
+              `Unrecognized internal ${node.fields.symbol}`
+            );
+        }
+      }
       case 'CallExpr': {
         const leftType = this.resolveType(node.fields.left);
         if (leftType instanceof FuncType) {
@@ -279,7 +294,10 @@ export class TypeResolver {
         } else if (leftType instanceof TupleType) {
           return new PointerType(leftType);
         } else {
-          throw this.error(node, "Can't call something that is not a function");
+          throw this.error(
+            node,
+            `Can't call ${leftType.name} that is not a function`
+          );
         }
       }
       case 'UnaryExpr': {

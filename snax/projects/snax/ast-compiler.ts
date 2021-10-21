@@ -35,7 +35,8 @@ import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
 
 export const PAGE_SIZE = 65536;
-
+export const WASM_FEATURE_FLAGS =
+  binaryen.Features.BulkMemory | binaryen.Features.MutableGlobals;
 abstract class ASTCompiler<
   Root extends AST.ASTNode = AST.ASTNode,
   Context = unknown
@@ -330,9 +331,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
-    module.setFeatures(
-      binaryen.Features.BulkMemory | binaryen.Features.MutableGlobals
-    );
+    module.setFeatures(WASM_FEATURE_FLAGS);
     // module.setFeatures(binaryen.Features.MutableGlobals);
     for (const func of this.root.fields.funcs) {
       new FuncDeclCompiler(func, {

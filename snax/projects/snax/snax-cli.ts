@@ -6,7 +6,7 @@ import path from 'path';
 // eslint-disable-next-line import/no-unresolved
 import { WASI } from 'wasi';
 import { SNAXParser } from './snax-parser.js';
-import { ModuleCompiler } from './ast-compiler.js';
+import { ModuleCompiler, WASM_FEATURE_FLAGS } from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
 import binaryen from 'binaryen';
 import { dumpASTData } from './spec-util.js';
@@ -87,6 +87,7 @@ async function loadWasmModuleFromPath(
       const module = binaryen.parseText(
         await readFile(inPath, { encoding: 'utf8' })
       );
+      module.setFeatures(WASM_FEATURE_FLAGS);
       module.validate();
       const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);

@@ -242,6 +242,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
         global next = 0;
         func malloc(numBytes:usize) {
           reg startAddress = next;
+          $memory_fill(startAddress, 0, numBytes);
           next = next + numBytes;
           return startAddress;
         }
@@ -1389,16 +1390,26 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
     const { symbol, right } = this.root.fields;
     const { module } = this.context;
 
-    const arg0Value = () =>
-      this.getChildRValue(right.fields.args[0]).expectDirect().valueExpr;
+    const argValue = (index: number) =>
+      this.getChildRValue(right.fields.args[index]).expectDirect().valueExpr;
 
     const compilerFuncs: { [name: string]: () => RValue } = {
+      memory_copy: () =>
+        rvalueDirect(
+          Intrinsics.void,
+          module.memory.copy(argValue(0), argValue(1), argValue(2))
+        ),
+      memory_fill: () =>
+        rvalueDirect(
+          Intrinsics.void,
+          module.memory.fill(argValue(0), argValue(1), argValue(2))
+        ),
       i32_trunc_f32_s: () =>
-        rvalueDirect(Intrinsics.i32, module.i32.trunc_s.f32(arg0Value())),
+        rvalueDirect(Intrinsics.i32, module.i32.trunc_s.f32(argValue(0))),
       f64_floor: () =>
-        rvalueDirect(Intrinsics.f64, module.f64.floor(arg0Value())),
+        rvalueDirect(Intrinsics.f64, module.f64.floor(argValue(0))),
       f32_floor: () =>
-        rvalueDirect(Intrinsics.f32, module.f32.floor(arg0Value())),
+        rvalueDirect(Intrinsics.f32, module.f32.floor(argValue(0))),
     };
     const getRValue = compilerFuncs[symbol];
     if (!getRValue) {

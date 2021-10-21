@@ -1,6 +1,6 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { getPropNameOrThrow } from './ast-util.js';
-import { TypeResolutionError } from './errors.js';
+import { CompilerError, TypeResolutionError } from './errors.js';
 import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
@@ -20,12 +20,14 @@ import type { SymbolRefMap } from './symbol-resolution.js';
 type Fields<N> = N extends { fields: infer F } ? F : never;
 
 export const getTypeForBinaryOp = (
+  node: ASTNode,
   op: string,
   leftType: BaseType,
   rightType: BaseType
 ): BaseType => {
   let { i32, f32, bool } = Intrinsics;
-  const error = new Error(
+  const error = new CompilerError(
+    node,
     `TypeError: Can't perform ${leftType} ${op} ${rightType}`
   );
   switch (op) {
@@ -68,7 +70,7 @@ export class ResolvedTypeMap extends OrderedMap<ASTNode, BaseType> {
   get(key: ASTNode): BaseType {
     const type = super.get(key);
     if (!type) {
-      throw new Error(`No type was bound to ${key.name}`);
+      throw new CompilerError(key, `No type was bound to ${key.name}`);
     }
     return type;
   }
@@ -266,6 +268,7 @@ export class TypeResolver {
           }
           default:
             return getTypeForBinaryOp(
+              node,
               op,
               this.resolveType(left),
               this.resolveType(right)
@@ -280,6 +283,10 @@ export class TypeResolver {
             return Intrinsics.f64;
           case 'f32_floor':
             return Intrinsics.f32;
+          case 'memory_fill':
+            return Intrinsics.void;
+          case 'memory_copy':
+            return Intrinsics.void;
           default:
             throw this.error(
               node,

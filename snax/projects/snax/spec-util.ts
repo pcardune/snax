@@ -131,7 +131,11 @@ function nodeDataToElem(
     props['_loc'] = `${node.location.source}:${line}:${column}`;
   }
   if (data.typeMap) {
-    props['_type'] = data.typeMap.get(node).name;
+    if (data.typeMap.has(node)) {
+      props['_type'] = data.typeMap.get(node).name;
+    } else {
+      props['_type'] = 'MISSING';
+    }
   }
 
   return elem(node.name, props, childElems);

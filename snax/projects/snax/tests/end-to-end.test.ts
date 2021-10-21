@@ -163,6 +163,12 @@ describe('empty module', () => {
     expect(exports._start()).toEqual(12);
   });
 
+  it('allows adding/subtracting among different integer types that fit within 32 bits', async () => {
+    expect(await exec('5 + 7_u8;')).toBe(12);
+    expect(await exec('7_u8 + 5;')).toBe(12);
+    expect(await exec('7_u16 + 5;')).toBe(12);
+  });
+
   it('converts between ints and floats', async () => {
     // const { exports, wasmModule } = await compileToWasmModule('3+5.2;');
     // expect(exports._start()).toBeCloseTo(8.2);

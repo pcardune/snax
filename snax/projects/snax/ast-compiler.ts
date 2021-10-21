@@ -653,6 +653,8 @@ export class IfStatementCompiler extends StmtCompiler<AST.IfStatement> {
 }
 
 export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
+  private static index = 0;
+
   compile() {
     const { module } = this.context;
     const { condExpr, thenBlock } = this.root.fields;
@@ -660,9 +662,10 @@ export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
       .getRValue()
       .expectDirect().valueExpr;
     const value = this.compileChildStmt(thenBlock);
+    const label = `while_${WhileStatementCompiler.index++}`;
     return module.loop(
-      'while_0',
-      module.block('', [value, module.br_if('while_0', cond)], binaryen.auto)
+      label,
+      module.block('', [value, module.br_if(label, cond)], binaryen.auto)
     );
   }
 }

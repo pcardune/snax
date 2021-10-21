@@ -361,17 +361,41 @@ describe('control flow', () => {
       `;
     expect(await exec(code)).toBe(9);
   });
-  it('compiles while statements', async () => {
-    const code = `
-        reg i = 0;
-        while (i < 10) {
-          i = i+1;
+  describe('while loops', () => {
+    it('compiles while statements', async () => {
+      const code = `
+          reg i = 0;
+          while (i < 10) {
+            i = i+1;
+          }
+          i;
+        `;
+      const { wat } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      expect(wat).toMatchSnapshot();
+      expect(await exec(code)).toBe(10);
+    });
+
+    it('compiles nested while loops', async () => {
+      const code = `
+      reg i = 0;
+      reg s = 1;
+      while (i < 10) {
+        reg j = 0;
+        while (j < i) {
+          j = j+1;
+          s = s + j;
         }
-        i;
-      `;
-    const { wat } = await compileToWasmModule(code, { includeRuntime: false });
-    expect(wat).toMatchSnapshot();
-    expect(await exec(code)).toBe(10);
+        i = i+1;
+      }
+      s;
+    `;
+      const { exports } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      expect(exports._start()).toBe(167);
+    });
   });
 });
 

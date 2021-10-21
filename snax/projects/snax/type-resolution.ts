@@ -1,6 +1,7 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError, TypeResolutionError } from './errors.js';
+import { Sign } from './numbers.js';
 import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
@@ -8,6 +9,7 @@ import {
   FuncType,
   Intrinsics,
   isIntrinsicSymbol,
+  NumericalType,
   PointerType,
   RecordType,
   TupleType,
@@ -336,6 +338,19 @@ export class TypeResolver {
           case UnaryOp.ADDR_OF:
             const exprType = this.resolveType(node.fields.expr);
             return new PointerType(exprType);
+          case UnaryOp.NEG: {
+            const exprType = this.resolveType(node.fields.expr);
+            if (
+              exprType instanceof NumericalType &&
+              exprType.sign === Sign.Signed
+            ) {
+              return exprType;
+            }
+            throw this.error(
+              node,
+              `Can't negate ${exprType.name}, which is not a signed float or int`
+            );
+          }
           default:
             throw this.error(
               node,

@@ -312,7 +312,7 @@ additive "additive"
   }
 
 term "term"
-  = rest:(casting ws ("*" / "/" / "%") ws)* val:casting {
+  = rest:(unary ws ("*" / "/" / "%") ws)* val:unary {
     const opMap:{[s:string]: AST.BinOp} = {
       "*": AST.BinOp.MUL,
       "/": AST.BinOp.DIV,
@@ -332,6 +332,12 @@ term "term"
       }
     );
   }
+
+unary "unary"
+  = "-" ws expr:casting {
+    return spec.makeUnaryExpr(AST.UnaryOp.NEG, expr);
+  }
+  / casting
 
 casting "cast"
   = expr:calling ws "as" force:"!"? ws typeExpr:typeExpr {

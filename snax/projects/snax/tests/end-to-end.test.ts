@@ -113,6 +113,11 @@ describe('empty module', () => {
     expect(exports._start()).toEqual(123);
   });
 
+  it('compiles negative integers and floats', async () => {
+    expect(await exec('-34;')).toBe(-34);
+    expect(await exec('-3.14;')).toBeCloseTo(-3.14, 4);
+  });
+
   it('compiles floats', async () => {
     const { exports } = await compileToWasmModule('1.23;');
     expect(exports._start()).toBeCloseTo(1.23, 4);

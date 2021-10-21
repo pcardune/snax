@@ -1599,11 +1599,36 @@ class UnaryExprCompiler extends ExprCompiler<AST.UnaryExpr> {
 
   getRValue() {
     const type = this.context.typeCache.get(this.root);
+    const { expr } = this.root.fields;
+    const { module } = this.context;
 
     switch (this.root.fields.op) {
+      case UnaryOp.NEG: {
+        const rvalue = this.getChildRValue(expr);
+        const valueType = rvalue.type.toValueTypeOrThrow();
+        switch (valueType) {
+          case NumberType.f64:
+          case NumberType.f32: {
+            return rvalueDirect(
+              type,
+              module[valueType].neg(rvalue.expectDirect().valueExpr)
+            );
+          }
+          case NumberType.i64:
+          case NumberType.i32: {
+            return rvalueDirect(
+              type,
+              module[valueType].sub(
+                module[valueType].const(0, 0),
+                rvalue.expectDirect().valueExpr
+              )
+            );
+          }
+          default:
+            throw this.error(`Don't know how to negate a ${rvalue.type}`);
+        }
+      }
       case UnaryOp.ADDR_OF: {
-        const { expr } = this.root.fields;
-        const { module } = this.context;
         const lvalue = ExprCompiler.forNode(expr, this.context).getLValue();
         switch (lvalue.kind) {
           case 'immediate': {

@@ -15,7 +15,12 @@ import {
   TupleType,
   UnionType,
 } from './snax-types.js';
-import { ASTNode, isFuncDecl, isReturnStatement } from './spec-gen.js';
+import {
+  ASTNode,
+  isFuncDecl,
+  isNumberLiteral,
+  isReturnStatement,
+} from './spec-gen.js';
 import { depthFirstIter } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
@@ -359,8 +364,33 @@ export class TypeResolver {
         }
       }
       case 'ArrayLiteral': {
+        const { size, elements } = node.fields;
+        if (size) {
+          if (
+            isNumberLiteral(size) &&
+            size.fields.numberType === 'int' &&
+            size.fields.value >= 0
+          ) {
+            if (elements.length !== 1) {
+              throw this.error(
+                node,
+                `When specifying a size, you can only have one element`
+              );
+            }
+            return new ArrayType(
+              this.resolveType(elements[0]),
+              size.fields.value
+            );
+          } else {
+            throw this.error(
+              node,
+              `Invalid size expression for array literal. Must be an integer number >= 0`
+            );
+          }
+        }
+
         let type = Intrinsics.void;
-        for (const [i, element] of node.fields.elements.entries()) {
+        for (const [i, element] of elements.entries()) {
           const elemType = this.resolveType(element);
           if (i == 0) {
             type = elemType;

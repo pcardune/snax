@@ -137,6 +137,7 @@ const specInput: Record<
   ArrayLiteral: {
     fields: {
       elements: { type: 'Expression', list: true },
+      size: { type: 'NumberLiteral', optional: true },
     },
   },
   TupleStructDecl: {

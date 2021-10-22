@@ -1809,7 +1809,7 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
     const { module } = this.context;
 
     const fieldInstr = [];
-    const { elements } = this.root.fields;
+    const { elements, size } = this.root.fields;
     for (const [i, prop] of elements.entries()) {
       const ptr = lget(module, location);
 
@@ -1817,6 +1817,22 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
       const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
       fieldInstr.push(this.copy(lvalue, rvalue));
     }
+    if (size) {
+      if (AST.isNumberLiteral(size) && size.fields.numberType === 'int') {
+        for (let i = 1; i < size.fields.value; i++) {
+          const ptr = lget(module, location);
+          const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
+          // TODO: only calculate the rvalue once
+          // TODO: use memory.fill when the rvalue fits into an i32/i64
+          const rvalue = ExprCompiler.forNode(
+            elements[0],
+            this.context
+          ).getRValue();
+          fieldInstr.push(this.copy(lvalue, rvalue));
+        }
+      }
+    }
+
     return rvalueAddress(
       arrayType,
       module.block(

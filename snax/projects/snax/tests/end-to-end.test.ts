@@ -649,6 +649,30 @@ describe('arrays', () => {
       ]
     `);
   });
+
+  it('compiles array initializers', async () => {
+    const code = `
+      let arr = [32+22:5];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 5 * 4)
+    );
+    expect([...mem]).toMatchInlineSnapshot(`
+      Array [
+        54,
+        54,
+        54,
+        54,
+        54,
+      ]
+    `);
+  });
+
   it('supports arrays of structs', async () => {
     const code = `
       struct Point {x:i32; y:i32;}

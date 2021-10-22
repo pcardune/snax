@@ -28,11 +28,23 @@ describe('boolean literals', () => {
 });
 describe('array literals', () => {
   it('should parse [] into an array literal', () => {
-    expect(parse('[]', 'expr')).toEqual(AST.makeArrayLiteral([]));
+    expect(parse('[]', 'expr')).toEqual(
+      AST.makeArrayLiteralWith({ elements: [] })
+    );
   });
   it('should parse [3,4,5] into an array literal', () => {
     expect(parse('[3, 4, 5]', 'expr')).toEqual(
-      AST.makeArrayLiteral([makeNum(3), makeNum(4), makeNum(5)])
+      AST.makeArrayLiteralWith({
+        elements: [makeNum(3), makeNum(4), makeNum(5)],
+      })
+    );
+  });
+  it('should parse [3+4: 100] into an array literal', () => {
+    expect(parse('[3+4: 100]', 'expr')).toEqual(
+      AST.makeArrayLiteralWith({
+        elements: [AST.makeBinaryExpr(BinOp.ADD, makeNum(3), makeNum(4))],
+        size: makeNum(100),
+      })
     );
   });
 });

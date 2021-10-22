@@ -1,10 +1,15 @@
 import { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
-import { FuncType, Intrinsics, RecordType, TupleType } from '../snax-types.js';
+import {
+  ArrayType,
+  FuncType,
+  Intrinsics,
+  RecordType,
+  TupleType,
+} from '../snax-types.js';
 import {
   makeArgList,
   makeBlock,
   makeFile,
-  makeFuncDecl,
   makeNumberLiteral,
   makeParameterList,
 } from '../spec-gen.js';
@@ -241,6 +246,32 @@ describe('ExternDecl', () => {
     expect(typeMap.get(externDecl)).toEqual(
       new RecordType(new OrderedMap([['fd_write', typeMap.get(fdWriteFunc)]]))
     );
+  });
+});
+
+describe('ArrayLiteral', () => {
+  it('types an array literal as an ArrayType', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3), makeNum(4), makeNum(5)],
+    });
+    expect(getType(arrayLiteral)).toEqual(new ArrayType(Intrinsics.i32, 3));
+  });
+
+  it('throws a type error if the elements have different types', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3), makeNum(4, 'float'), makeNum(5)],
+    });
+    expect(() => getType(arrayLiteral)).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: Can't have an array with mixed types. Expected i32, found f32"`
+    );
+  });
+
+  it('types an array literal with a size entry correctly', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3)],
+      size: makeNum(45),
+    });
+    expect(getType(arrayLiteral)).toEqual(new ArrayType(Intrinsics.i32, 45));
   });
 });
 

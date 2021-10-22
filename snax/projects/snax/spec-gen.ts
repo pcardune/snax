@@ -689,7 +689,7 @@ export function makeUnaryExprWith(fields: {
   };
 }
 
-type ArrayLiteralFields = { elements: Expression[] };
+type ArrayLiteralFields = { elements: Expression[]; size?: NumberLiteral };
 
 export type ArrayLiteral = {
   name: 'ArrayLiteral';
@@ -701,17 +701,22 @@ export function isArrayLiteral(node: ASTNode): node is ArrayLiteral {
   return node.name === 'ArrayLiteral';
 }
 
-export function makeArrayLiteral(elements: Expression[]): ArrayLiteral {
+export function makeArrayLiteral(
+  elements: Expression[],
+  size: NumberLiteral | undefined
+): ArrayLiteral {
   return {
     name: 'ArrayLiteral',
     fields: {
       elements,
+      size,
     },
   };
 }
 
 export function makeArrayLiteralWith(fields: {
   elements: Expression[];
+  size?: NumberLiteral;
 }): ArrayLiteral {
   return {
     name: 'ArrayLiteral',

@@ -436,7 +436,12 @@ charLiteral "char"
   }
 
 arrayLiteral "array"
-  = "[" ws items:exprList? ws "]" { return spec.makeArrayLiteral(items || []); }
+  = "[" ws value:expr ws ":" ws size:integer ws "]" {
+    return spec.makeArrayLiteralWith({elements:[value], size});
+  }
+  / "[" ws items:exprList? ws "]" {
+    return spec.makeArrayLiteralWith({elements:items || []});
+  }
 
 exprList "exprList"
   = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map((t:any[])=>t[3])]; }

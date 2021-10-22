@@ -660,7 +660,7 @@ describe('arrays', () => {
     ).toEqual(3);
   });
 
-  xit('compiles array indexing assignment', async () => {
+  it('compiles array indexing assignment', async () => {
     expect(
       await exec(`
         let arr = [1,2,3];

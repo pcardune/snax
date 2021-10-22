@@ -1254,6 +1254,7 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
           ptr
         );
       } else {
+        // Must be an ArrayType
         const lvalue = this.getChildLValue(refExpr);
         switch (lvalue.kind) {
           case 'static': {
@@ -1291,21 +1292,53 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
     ): LValue => {
       const { module } = this.context;
       const leftType = this.context.typeCache.get(left);
-      let numBytes = 4;
+      let typeAtIndex: BaseType;
       if (leftType instanceof PointerType) {
-        numBytes = leftType.toType.numBytes;
-        const ptr = module.i32.add(
-          this.getChildRValue(left).expectDirect().valueExpr,
-          module.i32.mul(
-            this.getChildRValue(right).expectDirect().valueExpr,
-            module.i32.const(numBytes)
-          )
-        );
-        return lvalueDynamic(ptr);
+        typeAtIndex = leftType.toType;
+      } else if (leftType instanceof ArrayType) {
+        typeAtIndex = leftType.elementType;
       } else {
         throw this.error(
-          `Don't know how to compute offset for ${leftType.name}`
+          `Can't determine size of type at offset of ${leftType.name}`
         );
+      }
+      const indexByteOffsetExpr = module.i32.mul(
+        this.getChildRValue(right).expectDirect().valueExpr,
+        module.i32.const(typeAtIndex.numBytes)
+      );
+
+      if (leftType instanceof PointerType) {
+        return lvalueDynamic(
+          module.i32.add(
+            this.getChildRValue(left).expectDirect().valueExpr,
+            indexByteOffsetExpr
+          )
+        );
+      } else {
+        // must be ArrayType
+        const lvalue = this.getChildLValue(left);
+        switch (lvalue.kind) {
+          case 'static': {
+            switch (lvalue.location.area) {
+              case Area.STACK: {
+                return lvalueDynamic(
+                  module.i32.add(
+                    lget(module, this.context.funcAllocs.arp),
+                    indexByteOffsetExpr
+                  )
+                );
+              }
+              default:
+                throw this.error(
+                  `Don't know how to compute offset on lvalue in area ${lvalue.location.area}`
+                );
+            }
+          }
+          default:
+            throw this.error(
+              `Don't know how to compute offset on ${lvalue.kind} lvalue`
+            );
+        }
       }
     },
   };

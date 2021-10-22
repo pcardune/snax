@@ -428,6 +428,17 @@ describe('functions', () => {
         `)
     ).toBe(8);
   });
+  it('exports functions marked pub', async () => {
+    const code = `
+      pub func addNums(x:i32, y:i32) {
+        return x+y;
+      }
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect((exports as any).addNums(3, 4)).toEqual(7);
+  });
 });
 
 describe('globals', () => {

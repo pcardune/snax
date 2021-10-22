@@ -32,36 +32,35 @@ describe('CastExpr', () => {
 });
 
 describe('Functions', () => {
+  const makeFunc = (
+    symbol: string,
+    params?: AST.Parameter[],
+    returnType?: AST.TypeExpr,
+    body?: AST.Statement[]
+  ) => {
+    return AST.makeFuncDeclWith({
+      symbol,
+      parameters: makeParameterList(params ?? []),
+      returnType,
+      body: makeBlock(body ?? []),
+    });
+  };
+
   it('types an empty function as func():void', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      undefined,
-      makeBlock([])
-    );
+    const func = makeFunc('myFunc', [], undefined, []);
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.void));
     expect(typeMap.get(func).name).toMatchInlineSnapshot(`"func():void"`);
   });
   it('types a function with an explicit return type as a func type with that return type', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      AST.makeTypeRef('i32'),
-      makeBlock([
-        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
-      ])
-    );
+    const func = makeFunc('myFunc', [], AST.makeTypeRef('i32'), [
+      AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+    ]);
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
   });
   it('Checks that a function with an explicit return type actually returns that type', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      AST.makeTypeRef('i32'),
-      makeBlock([])
-    );
+    const func = makeFunc('myFunc', [], AST.makeTypeRef('i32'), []);
     expect(() =>
       resolveTypes(func, new OrderedMap())
     ).toThrowErrorMatchingInlineSnapshot(
@@ -70,27 +69,17 @@ describe('Functions', () => {
   });
   describe('without an explicit return type', () => {
     it('infer the return type from the return statements in the function', () => {
-      const func = makeFuncDecl(
-        'myFunc',
-        makeParameterList([]),
-        undefined,
-        makeBlock([
-          AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
-        ])
-      );
+      const func = makeFunc('myFunc', [], undefined, [
+        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+      ]);
       const typeMap = resolveTypes(func, new OrderedMap());
       expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
     });
     it('Fail if there are multiple return statements with conflicting types', () => {
-      const func = makeFuncDecl(
-        'myFunc',
-        makeParameterList([]),
-        undefined,
-        makeBlock([
-          AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
-          AST.makeReturnStatement(AST.makeNumberLiteral(1, 'float', undefined)),
-        ])
-      );
+      const func = makeFunc('myFunc', [], undefined, [
+        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'float', undefined)),
+      ]);
       expect(() =>
         resolveTypes(func, new OrderedMap())
       ).toThrowErrorMatchingInlineSnapshot(
@@ -119,12 +108,11 @@ describe('Files', () => {
     expect(typeMap.get(file)).toEqual(new RecordType(new OrderedMap()));
   });
   it('puts function declarations in the record type', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      undefined,
-      makeBlock([])
-    );
+    const func = AST.makeFuncDeclWith({
+      symbol: 'myFunc',
+      parameters: makeParameterList([]),
+      body: makeBlock([]),
+    });
     const file = makeFile([func], [], []);
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(

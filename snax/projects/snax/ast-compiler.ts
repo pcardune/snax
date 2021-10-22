@@ -562,6 +562,10 @@ export class FuncDeclCompiler extends ASTCompiler<
     const location = this.context.allocationMap.getFuncOrThrow(this.root);
     const func = module.addFunction(location.id, params, results, vars, body);
 
+    if (this.root.fields.isPublic) {
+      module.addFunctionExport(location.id, this.root.fields.symbol);
+    }
+
     // add debug info
     const fileIndices: { [key: string]: number } = {};
     for (const debugLocation of debugLocations) {

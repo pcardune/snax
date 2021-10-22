@@ -8,7 +8,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
     <main/>
   </SymbolTable>
   <funcs>
-    <FuncDecl symbol=\\"main\\" returnType=\\"undefined\\">
+    <FuncDecl symbol=\\"main\\" isPublic=\\"false\\" returnType=\\"undefined\\">
       <SymbolTable id=\\"32\\" parent=\\"31\\"/>
       <ParameterList>
         <parameters/>

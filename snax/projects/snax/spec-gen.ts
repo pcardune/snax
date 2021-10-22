@@ -996,6 +996,7 @@ export function makeExternFuncDeclWith(fields: {
 }
 
 type FuncDeclFields = {
+  isPublic?: boolean;
   symbol: string;
   parameters: ParameterList;
   returnType?: TypeExpr;
@@ -1013,6 +1014,7 @@ export function isFuncDecl(node: ASTNode): node is FuncDecl {
 }
 
 export function makeFuncDecl(
+  isPublic: boolean | undefined,
   symbol: string,
   parameters: ParameterList,
   returnType: TypeExpr | undefined,
@@ -1021,6 +1023,7 @@ export function makeFuncDecl(
   return {
     name: 'FuncDecl',
     fields: {
+      isPublic,
       symbol,
       parameters,
       returnType,
@@ -1030,6 +1033,7 @@ export function makeFuncDecl(
 }
 
 export function makeFuncDeclWith(fields: {
+  isPublic?: boolean;
   symbol: string;
   parameters: ParameterList;
   returnType?: TypeExpr;

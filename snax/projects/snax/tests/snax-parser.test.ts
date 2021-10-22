@@ -449,6 +449,7 @@ describe('structs', () => {
           AST.makeStructProp('x', AST.makeTypeRef('i32')),
           AST.makeStructProp('y', AST.makeTypeRef('i32')),
           AST.makeFuncDeclWith({
+            isPublic: false,
             symbol: 'mag',
             parameters: AST.makeParameterList([]),
             body: AST.makeBlock([]),
@@ -498,6 +499,16 @@ describe('functions', () => {
           ),
         ]
       )
+    );
+  });
+  it('should parse a function marked public', () => {
+    expect(parse('pub func foo() {}', 'funcDecl')).toEqual(
+      AST.makeFuncDeclWith({
+        isPublic: true,
+        symbol: 'foo',
+        parameters: AST.makeParameterList([]),
+        body: AST.makeBlock([]),
+      })
     );
   });
   it('should parse a function call', () => {
@@ -577,12 +588,12 @@ describe('externals', () => {
     ).toEqual(
       AST.makeFileWith({
         funcs: [
-          AST.makeFuncDecl(
-            'main',
-            AST.makeParameterList([]),
-            undefined,
-            AST.makeBlock([])
-          ),
+          AST.makeFuncDeclWith({
+            symbol: 'main',
+            isPublic: false,
+            parameters: AST.makeParameterList([]),
+            body: AST.makeBlock([]),
+          }),
         ],
         globals: [],
         decls: [

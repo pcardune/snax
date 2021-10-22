@@ -91,7 +91,13 @@ file "file"
     }
     if (!hasMainFunc) {
       funcs.push(
-        spec.makeFuncDecl('main', spec.makeParameterList([]), undefined, spec.makeBlock(mainFuncBody)));
+        spec.makeFuncDeclWith({
+          symbol:'main',
+          isPublic: false,
+          parameters: spec.makeParameterList([]),
+          body: spec.makeBlock(mainFuncBody)
+        })
+      );
     } else if (mainFuncBody.length > 0 ) {
       throw new Error('Both free statements and a main function were provided. Choose one or the other');
     }
@@ -208,13 +214,16 @@ structProp "struct prop"
 typeList = head:typeExpr tail:(ws "," ws typeExpr)* {
   return [head, ...tail.map((p:any[]) => p[3])];
 }
-funcDecl = begin:funcDeclBegin ws "{" ws body:block? ws "}" {
-    return spec.makeFuncDecl(
-      begin.name,
-      begin.parameters,
-      begin.returnType,
-      body || spec.makeBlock([]),
-    );
+funcDecl = 
+  pubFlag:"pub"? ws
+  begin:funcDeclBegin ws "{" ws body:block? ws "}" {
+    return spec.makeFuncDeclWith({
+      symbol: begin.name,
+      isPublic: Boolean(pubFlag),
+      parameters: begin.parameters,
+      returnType: begin.returnType,
+      body: body || spec.makeBlock([]),
+    });
   }
 funcDeclBegin =
   "func" ws name:identifier ws

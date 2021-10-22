@@ -189,6 +189,7 @@ const specInput: Record<
   },
   FuncDecl: {
     fields: {
+      isPublic: { type: 'boolean', optional: true },
       symbol: 'string',
       parameters: 'ParameterList',
       returnType: { type: 'TypeExpr', optional: true },

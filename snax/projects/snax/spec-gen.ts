@@ -248,6 +248,41 @@ export function makePointerTypeExprWith(fields: {
   };
 }
 
+type ArrayTypeExprFields = { valueTypeExpr: TypeExpr; size: number };
+
+export type ArrayTypeExpr = {
+  name: 'ArrayTypeExpr';
+  fields: ArrayTypeExprFields;
+  location?: Location;
+};
+
+export function isArrayTypeExpr(node: ASTNode): node is ArrayTypeExpr {
+  return node.name === 'ArrayTypeExpr';
+}
+
+export function makeArrayTypeExpr(
+  valueTypeExpr: TypeExpr,
+  size: number
+): ArrayTypeExpr {
+  return {
+    name: 'ArrayTypeExpr',
+    fields: {
+      valueTypeExpr,
+      size,
+    },
+  };
+}
+
+export function makeArrayTypeExprWith(fields: {
+  valueTypeExpr: TypeExpr;
+  size: number;
+}): ArrayTypeExpr {
+  return {
+    name: 'ArrayTypeExpr',
+    fields,
+  };
+}
+
 type GlobalDeclFields = {
   symbol: string;
   typeExpr?: TypeExpr;
@@ -1220,9 +1255,9 @@ export function isStructField(node: ASTNode): node is StructField {
   return isStructProp(node) || isFuncDecl(node);
 }
 
-export type TypeExpr = PointerTypeExpr | TypeRef;
+export type TypeExpr = PointerTypeExpr | ArrayTypeExpr | TypeRef;
 export function isTypeExpr(node: ASTNode): node is TypeExpr {
-  return isPointerTypeExpr(node) || isTypeRef(node);
+  return isPointerTypeExpr(node) || isArrayTypeExpr(node) || isTypeRef(node);
 }
 
 export type LiteralExpr =
@@ -1302,6 +1337,7 @@ export type ASTNode =
   | SymbolRef
   | TypeRef
   | PointerTypeExpr
+  | ArrayTypeExpr
   | GlobalDecl
   | RegStatement
   | LetStatement
@@ -1344,6 +1380,7 @@ export type ASTNodeName =
   | 'SymbolRef'
   | 'TypeRef'
   | 'PointerTypeExpr'
+  | 'ArrayTypeExpr'
   | 'GlobalDecl'
   | 'RegStatement'
   | 'LetStatement'

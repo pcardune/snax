@@ -246,6 +246,9 @@ parameter "parameter"
 
 typeExpr "typeExpr"
   = "&" expr:typeExpr { return spec.makePointerTypeExpr(expr); }
+  / "[" ws valueTypeExpr:typeExpr ws ":" ws size:digits ws"]" {
+    return spec.makeArrayTypeExpr(valueTypeExpr, size);
+  }
   / typeRef
 
 typeRef "typeRef"

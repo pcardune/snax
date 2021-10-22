@@ -314,6 +314,11 @@ describe('type expressions', () => {
       AST.makePointerTypeExpr(AST.makeTypeRef('i32'))
     );
   });
+  it('parses array types', () => {
+    expect(parse('[i32:25]', 'typeExpr')).toEqual(
+      AST.makeArrayTypeExpr(AST.makeTypeRef('i32'), 25)
+    );
+  });
 });
 
 describe('while loops', () => {

@@ -673,6 +673,28 @@ describe('arrays', () => {
     `);
   });
 
+  it('compiles array type expressions', async () => {
+    const code = `
+      let arr:[i32:3];
+      arr = [1, 2, 3];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 3 * 4)
+    );
+    expect([...mem]).toMatchInlineSnapshot(`
+      Array [
+        1,
+        2,
+        3,
+      ]
+    `);
+  });
+
   it('supports arrays of structs', async () => {
     const code = `
       struct Point {x:i32; y:i32;}

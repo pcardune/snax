@@ -57,6 +57,12 @@ const specInput: Record<
       pointerToExpr: 'TypeExpr',
     },
   },
+  ArrayTypeExpr: {
+    fields: {
+      valueTypeExpr: 'TypeExpr',
+      size: 'number',
+    },
+  },
   GlobalDecl: {
     fields: {
       symbol: 'string',
@@ -229,7 +235,7 @@ const specInput: Record<
     union: ['StructProp', 'FuncDecl'],
   },
   TypeExpr: {
-    union: ['PointerTypeExpr', 'TypeRef'],
+    union: ['PointerTypeExpr', 'ArrayTypeExpr', 'TypeRef'],
   },
   LiteralExpr: {
     union: [

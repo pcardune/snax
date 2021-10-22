@@ -210,6 +210,11 @@ export class TypeResolver {
         );
       case 'PointerTypeExpr':
         return new PointerType(this.resolveType(node.fields.pointerToExpr));
+      case 'ArrayTypeExpr':
+        return new ArrayType(
+          this.resolveType(node.fields.valueTypeExpr),
+          node.fields.size
+        );
       case 'CastExpr':
         return this.resolveType(node.fields.typeExpr);
       case 'ExprStatement':

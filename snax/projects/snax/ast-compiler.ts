@@ -850,8 +850,7 @@ export abstract class ExprCompiler<
               )
             );
           case 'stack': {
-            const { arp } = this.context.funcAllocs;
-            const ptr = lget(module, arp);
+            const ptr = lget(module, this.context.funcAllocs.arp);
             return this.deref(lvalueDynamic(ptr, location.offset), type);
           }
 
@@ -1043,11 +1042,9 @@ export abstract class ExprCompiler<
     return rvalue;
   }
 
-  // compile(): binaryen.ExpressionRef {
-  //   throw new Error(
-  //     'should not be calling compile() on an ExpressionCompiler. Use getRValue() instead.'
-  //   );
-  // }
+  getChildLValue<N extends AST.Expression>(child: N): LValue {
+    return ExprCompiler.forNode(child, this.context).getLValue();
+  }
 }
 
 class SymbolRefCompiler extends ExprCompiler<AST.SymbolRef> {
@@ -1126,7 +1123,10 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
 
   private opCompilers: Record<
     string,
-    (left: AST.Expression, right: AST.Expression) => binaryen.ExpressionRef
+    (
+      left: AST.Expression,
+      right: AST.Expression
+    ) => binaryen.ExpressionRef | RValue
   > = {
     [BinOp.ADD]: (left: AST.Expression, right: AST.Expression) =>
       this.context.module[
@@ -1217,30 +1217,67 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       refExpr: AST.Expression,
       indexExpr: AST.Expression
     ) => {
+      const { module } = this.context;
       const refExprType = this.context.typeCache.get(refExpr);
-      if (!(refExprType instanceof PointerType)) {
+
+      let typeToLoad: BaseType;
+      if (refExprType instanceof PointerType) {
+        typeToLoad = refExprType.toType;
+      } else if (refExprType instanceof ArrayType) {
+        typeToLoad = refExprType.elementType;
+      } else {
         throw this.error(
-          `Don't know how to compile indexing operation for a ${refExprType.name}`
+          `Can't figure out what type to load from ${refExprType.name}`
         );
       }
-      let align = refExprType.toType.numBytes;
-      let sign = Sign.Signed;
-      if (refExprType.toType instanceof NumericalType) {
-        sign = refExprType.toType.sign;
+
+      const align = typeToLoad.numBytes;
+      const sign =
+        typeToLoad instanceof NumericalType ? typeToLoad.sign : Sign.Signed;
+      const indexByteOffsetExpr = module.i32.mul(
+        this.getChildRValue(indexExpr).expectDirect().valueExpr,
+        module.i32.const(align)
+      );
+      if (refExprType instanceof PointerType) {
+        const ptr = module.i32.add(
+          this.getChildRValue(refExpr).expectDirect().valueExpr,
+          indexByteOffsetExpr
+        );
+        return this.memLoad(
+          {
+            valueType: refExprType.toValueTypeOrThrow(),
+            offset: 0,
+            align,
+            bytes: align,
+            sign,
+          },
+          ptr
+        );
+      } else {
+        const lvalue = this.getChildLValue(refExpr);
+        switch (lvalue.kind) {
+          case 'static': {
+            switch (lvalue.location.area) {
+              case Area.STACK: {
+                const ptr = module.i32.add(
+                  lget(module, this.context.funcAllocs.arp),
+                  indexByteOffsetExpr
+                );
+                return this.deref(lvalueDynamic(ptr), typeToLoad);
+              }
+              default:
+                throw this.error(
+                  `Don't know how to index into a static lvalue in ${lvalue.location.area}`
+                );
+            }
+          }
+          default: {
+            throw this.error(
+              `Don't know how to index into a ${lvalue.kind} lvalue`
+            );
+          }
+        }
       }
-      const valueType = refExprType.toValueTypeOrThrow();
-      const { module } = this.context;
-      const ptr = module[valueType].add(
-        this.getChildRValue(refExpr).expectDirect().valueExpr,
-        module[valueType].mul(
-          this.getChildRValue(indexExpr).expectDirect().valueExpr,
-          module[valueType].const(align, align)
-        )
-      );
-      return this.memLoad(
-        { valueType, offset: 0, align, bytes: align, sign },
-        ptr
-      );
     },
   };
 
@@ -1257,19 +1294,19 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       let numBytes = 4;
       if (leftType instanceof PointerType) {
         numBytes = leftType.toType.numBytes;
+        const ptr = module.i32.add(
+          this.getChildRValue(left).expectDirect().valueExpr,
+          module.i32.mul(
+            this.getChildRValue(right).expectDirect().valueExpr,
+            module.i32.const(numBytes)
+          )
+        );
+        return lvalueDynamic(ptr);
       } else {
         throw this.error(
           `Don't know how to compute offset for ${leftType.name}`
         );
       }
-      const ptr = module.i32.add(
-        this.getChildRValue(left).expectDirect().valueExpr,
-        module.i32.mul(
-          this.getChildRValue(right).expectDirect().valueExpr,
-          module.i32.const(numBytes)
-        )
-      );
-      return lvalueDynamic(ptr);
     },
   };
 
@@ -1290,14 +1327,12 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       (() => {
         throw this.error(`Don't know how to compile ${op} yet`);
       });
-    return rvalueDirect(
-      this.context.typeCache.get(this.root),
-      compile(left, right)
-    );
-  }
-
-  compile(): binaryen.ExpressionRef {
-    return this.getRValue().valueExpr;
+    const rvalue = compile(left, right);
+    if (typeof rvalue === 'number') {
+      return rvalueDirect(this.context.typeCache.get(this.root), rvalue);
+    } else {
+      return rvalue;
+    }
   }
 }
 

@@ -5,15 +5,20 @@
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
-  function leftAssoc(rest:any[], val:any, func:(p:{operator:any, left:any, right:any})=>any):any {
+  function leftAssoc(
+    rest:any[],
+    val:any,
+    func:(p:{operator:any, left:any, right:any})=>any,
+    getVal=(last:any) => last[0],
+  ):any {
     if (rest.length == 0) {
       return val; 
     }
     const last = rest.pop();
     return func({
-      left:leftAssoc(rest, last[0], func),
-      operator:last[last.length-2],
-      right:val
+      left: leftAssoc(rest, getVal(last), func, getVal),
+      operator: last[last.length-2],
+      right: val
     });
   }
   function rightAssoc(val:any, rest:any[], func:(p:{operator:any, left:any, right:any})=>any):any {
@@ -371,8 +376,18 @@ calling "calling"
   / indexing
 
 indexing "indexing"
-  = element:deref ws "[" ws index:expr ws "]" {
-    return spec.makeBinaryExpr(AST.BinOp.ARRAY_INDEX, element, index);
+  = element:deref rest:(ws "[" ws expr ws "]")* {
+    function build(val:any, rest:any[]) {
+      if (rest.length === 0) {
+        return val;
+      }
+      const first = rest.shift()
+      return build(
+        spec.makeBinaryExpr(AST.BinOp.ARRAY_INDEX, val, first[3]),
+        rest
+      )
+    }
+    return build(element, rest);
   }
   / deref
 

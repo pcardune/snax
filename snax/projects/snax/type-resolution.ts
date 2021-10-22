@@ -399,7 +399,7 @@ export class TypeResolver {
           const elemType = this.resolveType(element);
           if (i == 0) {
             type = elemType;
-          } else if (elemType !== type) {
+          } else if (!elemType.equals(type)) {
             throw this.error(
               node,
               `Can't have an array with mixed types. Expected ${type.name}, found ${elemType.name}`

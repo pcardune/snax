@@ -651,6 +651,25 @@ describe('arrays', () => {
     `);
   });
 
+  it('compiles array indexing', async () => {
+    expect(
+      await exec(`
+        let arr = [1,2,3];
+        arr[2];
+      `)
+    ).toEqual(3);
+  });
+
+  xit('compiles array indexing assignment', async () => {
+    expect(
+      await exec(`
+        let arr = [1,2,3];
+        arr[2] = 5;
+        arr[2];
+      `)
+    ).toEqual(5);
+  });
+
   it('compiles array initializers', async () => {
     const code = `
       let arr = [32+22:5];
@@ -692,6 +711,30 @@ describe('arrays', () => {
         1,
         2,
         3,
+      ]
+    `);
+  });
+
+  xit('supports multi-dimensional arrays', async () => {
+    const code = `
+      let arr:[[i32:2]:2];
+      arr = [[1, 2], [3, 4]];
+      arr[1][1] = 7;
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 4 * 4)
+    );
+    expect([...mem]).toMatchInlineSnapshot(`
+      Array [
+        1,
+        2,
+        7,
+        4,
       ]
     `);
   });

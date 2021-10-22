@@ -236,6 +236,19 @@ describe('expression', () => {
         )
       );
     });
+    it('should parse sub-array indexing', () => {
+      expect(parse('x[1][2]', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinOp.ARRAY_INDEX,
+          AST.makeBinaryExpr(
+            BinOp.ARRAY_INDEX,
+            AST.makeSymbolRef('x'),
+            makeNum(1)
+          ),
+          makeNum(2)
+        )
+      );
+    });
   });
 
   describe('member access expression', () => {
@@ -636,11 +649,4 @@ describe('externals', () => {
       })
     );
   });
-});
-
-describe('includeLocations', () => {
-  const ast = SNAXParser.parseStrOrThrow('123 + 4.32', 'expr', {
-    includeLocations: true,
-  });
-  expect(ast).toMatchSnapshot();
 });

@@ -204,6 +204,11 @@ export class BlockCompiler extends StmtCompiler<AST.Block> {
 export type ModuleCompilerOptions = {
   includeRuntime?: boolean;
   includeWASI?: boolean;
+
+  /**
+   * The number of pages of memory to use for the stack
+   */
+  stackSize?: number;
 };
 export class ModuleCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
@@ -217,6 +222,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     this.options = {
       includeRuntime: true,
       includeWASI: false,
+      stackSize: 10,
       ...options,
     };
   }
@@ -281,7 +287,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
 
     // initialize the heap start pointer to the last memIndex
     // that got used.
-    const numPagesOfMemory = 1;
     heapStartLiteral.fields.value = moduleAllocator.memIndex;
 
     let runtime: Runtime;
@@ -315,20 +320,13 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       typeCache,
       moduleAllocator,
       runtime,
-      numPagesOfMemory,
       stackPointer,
     };
   }
 
   compile(): binaryen.Module {
-    const {
-      refMap,
-      typeCache,
-      moduleAllocator,
-      runtime,
-      numPagesOfMemory,
-      stackPointer,
-    } = this.setup();
+    const { refMap, typeCache, moduleAllocator, runtime, stackPointer } =
+      this.setup();
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
@@ -367,7 +365,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
           [
             module.global.set(
               runtime.stackPointer.id,
-              module.i32.const(numPagesOfMemory * PAGE_SIZE)
+              module.i32.const(this.options.stackSize * PAGE_SIZE)
             ),
             module.return(module.call(mainFuncLocation.id, [], returnType)),
           ],
@@ -427,8 +425,8 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     }
 
     module.setMemory(
-      numPagesOfMemory,
-      numPagesOfMemory,
+      this.options.stackSize,
+      this.options.stackSize,
       'memory',
       segments.length > 0 ? segments : undefined,
       undefined,

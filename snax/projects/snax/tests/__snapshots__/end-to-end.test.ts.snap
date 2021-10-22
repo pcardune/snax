@@ -101,7 +101,7 @@ exports[`empty module compiles an empty program 1`] = `
  (type $i32_=>_i32 (func (param i32) (result i32)))
  (global $g0:#SP (mut i32) (i32.const 0))
  (global $g1:next (mut i32) (i32.const 0))
- (memory $0 1 1)
+ (memory $0 10 10)
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
@@ -148,7 +148,7 @@ exports[`empty module compiles an empty program 1`] = `
  )
  (func $_start
   (global.set $g0:#SP
-   (i32.const 65536)
+   (i32.const 655360)
   )
   (return
    (call $<main>f0)
@@ -162,7 +162,7 @@ exports[`empty module compiles integers 1`] = `
 "(module
  (type $none_=>_i32 (func (result i32)))
  (global $g0:#SP (mut i32) (i32.const 0))
- (memory $0 1 1)
+ (memory $0 10 10)
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
@@ -176,7 +176,7 @@ exports[`empty module compiles integers 1`] = `
  )
  (func $_start (result i32)
   (global.set $g0:#SP
-   (i32.const 65536)
+   (i32.const 655360)
   )
   (return
    (call $<main>f0)

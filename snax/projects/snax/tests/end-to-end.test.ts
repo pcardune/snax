@@ -17,6 +17,7 @@ async function compileToWasmModule(
 ) {
   const { wat, ast, compiler, binary, sourceMap } = compileToWAT(input, {
     includeRuntime: false,
+    stackSize: 1,
     ...options,
   });
   const module = await WebAssembly.instantiate(binary);

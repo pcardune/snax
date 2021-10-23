@@ -377,7 +377,7 @@ calling "calling"
 
 indexing "indexing"
   = element:deref rest:(ws "[" ws expr ws "]")* {
-    function build(val:any, rest:any[]) {
+    function build(val:any, rest:any[]):any {
       if (rest.length === 0) {
         return val;
       }

@@ -595,7 +595,7 @@ function peg$parse(input: string, options?: IParseOptions) {
     };
   const peg$c136 = peg$otherExpectation("indexing");
   const peg$c137 = function(element: any, rest: any): any {
-      function build(val:any, rest:any[]) {
+      function build(val:any, rest:any[]):any {
         if (rest.length === 0) {
           return val;
         }

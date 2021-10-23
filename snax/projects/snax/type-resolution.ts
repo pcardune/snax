@@ -26,77 +26,6 @@ import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
 
-export const getTypeForBinaryOp = (
-  node: ASTNode,
-  op: string,
-  leftType: BaseType,
-  rightType: BaseType
-): BaseType => {
-  let { i32, f32, u32, u16, u8, bool } = Intrinsics;
-  const error = new CompilerError(
-    node,
-    `TypeError: Can't perform ${leftType} ${op} ${rightType}`
-  );
-  switch (op) {
-    default:
-      if (leftType === rightType) {
-        return leftType;
-      }
-      switch (leftType) {
-        case bool:
-          switch (rightType) {
-            case bool:
-              return bool;
-            default:
-              throw error;
-          }
-        case i32:
-          switch (rightType) {
-            case u8:
-            case u16:
-            case u32:
-            case i32:
-              return i32;
-            case f32:
-              return f32;
-            default:
-              throw error;
-          }
-        case f32:
-          switch (rightType) {
-            case i32:
-            case f32:
-              return f32;
-            default:
-              throw error;
-          }
-        case u32:
-          switch (rightType) {
-            case i32:
-              return u32;
-            default:
-              throw error;
-          }
-        case u8:
-          switch (rightType) {
-            case i32:
-              return u8;
-            default:
-              throw error;
-          }
-        case u16:
-          switch (rightType) {
-            case i32:
-              return u16;
-            default:
-              throw error;
-          }
-        default:
-          throw error;
-      }
-  }
-};
-
 export class ResolvedTypeMap extends OrderedMap<ASTNode, BaseType> {
   get(key: ASTNode): BaseType {
     const type = super.get(key);
@@ -303,7 +232,7 @@ export class TypeResolver {
             );
           }
           default:
-            return getTypeForBinaryOp(
+            return this.getTypeForBinaryOp(
               node,
               op,
               this.resolveType(left),
@@ -538,5 +467,76 @@ export class TypeResolver {
       node,
       `No type resolution exists for ${(node as any).name}`
     );
+  }
+
+  private getTypeForBinaryOp(
+    node: ASTNode,
+    op: string,
+    leftType: BaseType,
+    rightType: BaseType
+  ): BaseType {
+    let { i32, f32, u32, u16, u8, bool } = Intrinsics;
+    const error = this.error(
+      node,
+      `TypeError: Can't perform ${leftType} ${op} ${rightType}`
+    );
+    switch (op) {
+      default:
+        if (leftType === rightType) {
+          return leftType;
+        }
+        switch (leftType) {
+          case bool:
+            switch (rightType) {
+              case bool:
+                return bool;
+              default:
+                throw error;
+            }
+          case i32:
+            switch (rightType) {
+              case u8:
+              case u16:
+              case u32:
+              case i32:
+                return i32;
+              case f32:
+                return f32;
+              default:
+                throw error;
+            }
+          case f32:
+            switch (rightType) {
+              case i32:
+              case f32:
+                return f32;
+              default:
+                throw error;
+            }
+          case u32:
+            switch (rightType) {
+              case i32:
+                return u32;
+              default:
+                throw error;
+            }
+          case u8:
+            switch (rightType) {
+              case i32:
+                return u8;
+              default:
+                throw error;
+            }
+          case u16:
+            switch (rightType) {
+              case i32:
+                return u16;
+              default:
+                throw error;
+            }
+          default:
+            throw error;
+        }
+    }
   }
 }

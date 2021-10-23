@@ -273,6 +273,33 @@ describe('ArrayLiteral', () => {
     });
     expect(getType(arrayLiteral)).toEqual(new ArrayType(Intrinsics.i32, 45));
   });
+
+  it('types array indexing correctly', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3)],
+      size: makeNum(45),
+    });
+    expect(
+      getType(AST.makeBinaryExpr(BinOp.ARRAY_INDEX, arrayLiteral, makeNum(1)))
+    ).toEqual(Intrinsics.i32);
+  });
+  it('types multi-dimensional array indexing correctly', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [
+        AST.makeArrayLiteralWith({ elements: [makeNum(1), makeNum(2)] }),
+        AST.makeArrayLiteralWith({ elements: [makeNum(3), makeNum(4)] }),
+      ],
+    });
+    expect(
+      getType(
+        AST.makeBinaryExpr(
+          BinOp.ARRAY_INDEX,
+          AST.makeBinaryExpr(BinOp.ARRAY_INDEX, arrayLiteral, makeNum(1)),
+          makeNum(0)
+        )
+      )
+    ).toEqual(Intrinsics.i32);
+  });
 });
 
 describe('TupleStructDecl', () => {

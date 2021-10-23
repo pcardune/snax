@@ -124,7 +124,7 @@ export class ArrayType extends BaseType {
   elementType: BaseType;
   length: number;
   constructor(elementType: BaseType, length: number) {
-    super(`${elementType}[]`);
+    super(`[${elementType}:${length}]`);
     this.elementType = elementType;
     this.length = length;
   }

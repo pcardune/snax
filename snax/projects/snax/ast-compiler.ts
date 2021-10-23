@@ -1272,6 +1272,10 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
                 );
             }
           }
+          case 'dynamic': {
+            const ptr = module.i32.add(lvalue.ptr, indexByteOffsetExpr);
+            return this.deref(lvalueDynamic(ptr, lvalue.offset), typeToLoad);
+          }
           default: {
             throw this.error(
               `Don't know how to index into a ${lvalue.kind} lvalue`
@@ -1333,6 +1337,12 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
                   `Don't know how to compute offset on lvalue in area ${lvalue.location.area}`
                 );
             }
+          }
+          case 'dynamic': {
+            return lvalueDynamic(
+              module.i32.add(lvalue.ptr, indexByteOffsetExpr),
+              lvalue.offset
+            );
           }
           default:
             throw this.error(

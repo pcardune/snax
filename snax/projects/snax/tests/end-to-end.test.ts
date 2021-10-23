@@ -715,11 +715,10 @@ describe('arrays', () => {
     `);
   });
 
-  xit('supports multi-dimensional arrays', async () => {
+  it('supports multidimensional arrays', async () => {
     const code = `
       let arr:[[i32:2]:2];
       arr = [[1, 2], [3, 4]];
-      arr[1][1] = 7;
       @arr;
     `;
     const { exports } = await compileToWasmModule(code, {
@@ -729,14 +728,26 @@ describe('arrays', () => {
     const mem = new Int32Array(
       exports.memory.buffer.slice(result, result + 4 * 4)
     );
-    expect([...mem]).toMatchInlineSnapshot(`
-      Array [
-        1,
-        2,
-        7,
-        4,
-      ]
-    `);
+    expect([...mem]).toEqual([1, 2, 3, 4]);
+  });
+
+  it('supports accessing values in multi-dimensional', async () => {
+    const code = `
+      let arr:[[i32:2]:2];
+      arr = [[1, 2], [3, 4]];
+      arr[1][0];
+    `;
+    expect(await exec(code)).toBe(3);
+  });
+
+  it('supports assigning values in multi-dimensional', async () => {
+    const code = `
+      let arr:[[i32:2]:2];
+      arr = [[1, 2], [3, 4]];
+      arr[1][0] = 52;
+      arr[1][0];
+    `;
+    expect(await exec(code)).toBe(52);
   });
 
   it('supports arrays of structs', async () => {

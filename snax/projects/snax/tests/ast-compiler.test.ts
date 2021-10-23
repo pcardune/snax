@@ -10,7 +10,7 @@ describe('ModuleCompiler', () => {
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 10 10)
+       (memory $0 1 1)
        (export \\"stackPointer\\" (global $g0:#SP))
        (export \\"memory\\" (memory $0))
       )
@@ -26,7 +26,7 @@ describe('ModuleCompiler', () => {
       "(module
        (global $g0:foo (mut i32) (i32.const 0))
        (global $g1:#SP (mut i32) (i32.const 0))
-       (memory $0 10 10)
+       (memory $0 1 1)
        (export \\"stackPointer\\" (global $g1:#SP))
        (export \\"memory\\" (memory $0))
       )
@@ -41,7 +41,7 @@ describe('ModuleCompiler', () => {
       "(module
        (type $none_=>_none (func))
        (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 10 10)
+       (memory $0 1 1)
        (export \\"_start\\" (func $_start))
        (export \\"stackPointer\\" (global $g0:#SP))
        (export \\"memory\\" (memory $0))
@@ -53,7 +53,7 @@ describe('ModuleCompiler', () => {
        )
        (func $_start
         (global.set $g0:#SP
-         (i32.const 655360)
+         (i32.const 65536)
         )
         (return
          (call $<main>f0)
@@ -83,7 +83,7 @@ describe('ModuleCompiler', () => {
       "(module
        (type $none_=>_none (func))
        (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 10 10)
+       (memory $0 1 1)
        (data (i32.const 0) \\"hello world!\\")
        (export \\"_start\\" (func $_start))
        (export \\"stackPointer\\" (global $g0:#SP))
@@ -96,7 +96,7 @@ describe('ModuleCompiler', () => {
        )
        (func $_start
         (global.set $g0:#SP
-         (i32.const 655360)
+         (i32.const 65536)
         )
         (return
          (call $<main>f0)
@@ -124,7 +124,7 @@ describe('ModuleCompiler', () => {
        (type $none_=>_none (func))
        (type $i32_=>_i32 (func (param i32) (result i32)))
        (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 10 10)
+       (memory $0 1 1)
        (export \\"_start\\" (func $_start))
        (export \\"stackPointer\\" (global $g0:#SP))
        (export \\"memory\\" (memory $0))
@@ -139,7 +139,7 @@ describe('ModuleCompiler', () => {
        )
        (func $_start
         (global.set $g0:#SP
-         (i32.const 655360)
+         (i32.const 65536)
         )
         (return
          (call $<main>f1)
@@ -179,7 +179,7 @@ describe('ModuleCompiler', () => {
        (type $i32_i32_i32_i32_=>_i32 (func (param i32 i32 i32 i32) (result i32)))
        (import \\"wasi_unstable\\" \\"fd_write\\" (func $<fd_write>f0 (param i32 i32 i32 i32) (result i32)))
        (global $g0:#SP (mut i32) (i32.const 0))
-       (memory $0 10 10)
+       (memory $0 1 1)
        (export \\"stackPointer\\" (global $g0:#SP))
        (export \\"memory\\" (memory $0))
       )

@@ -161,7 +161,7 @@ const parser = yargs(hideBin(process.argv))
         );
       }
 
-      binaryen.setOptimizeLevel(0);
+      binaryen.setOptimizeLevel(2);
       module.optimize();
 
       writeFile(fileWithExtension(inPath, '.wat'), module.emitText());

@@ -1,0 +1,93 @@
+extern console {
+  func log(x:f32):void;
+  func log2(x:f32, y:f32);
+  func logPixel(x:i32, y:i32);
+  func draw(data:i32, width:i32, height:i32);
+}
+pub func addFloats(x:f32, y:f32):f32 {
+  return x+y;
+}
+
+// adapted from http://www.cprogrammingnotes.com/question/cos-series.html
+pub func cosf32(x:f32):f32 {
+  let n = 20; // first 20 terms of the sequence
+  let sum:f32 = 0.0;
+  let sign = -1;
+
+  let i = 2;
+  while (i < n+1) {
+    let p:f32 = 1.0;
+    let fact = 1.0;
+    let j = 1;
+    while (j < i+1) {
+      p = p * x;
+      fact = fact * j;
+      j = j+1;
+    }
+
+    sum = sum + sign * p / fact;
+    sign = -sign;
+    i = i+2;
+  }
+  return 1+sum;
+}
+
+// adapted from http://www.cprogrammingnotes.com/question/sine-series.html
+pub func sinf32(x:f32):f32 {
+  let n = 20; // first 20 terms of the sequence
+  let sum:f32 = 0.0;
+  let sign = -1;
+
+  let i = 1;
+  while (i < n+1) {
+    let p:f32 = 1.0;
+    let fact = 1.0;
+    let j = 1;
+    while (j < i+1) {
+      p = p * x;
+      fact = fact * j;
+      j = j+1;
+    }
+
+    sign = -sign;
+    sum = sum + sign * p / fact;
+    i = i+2;
+  }
+  return sum;
+}
+
+pub func clifford(a:f32, b:f32, c:f32, d:f32) {
+  let x0:f32 = 0.0;
+  let y0:f32 = 0.0;
+  let x1:f32;
+  let y1:f32;
+
+  let width = 600;
+  let height = 600;
+
+  let buffer:[[[u8:4]:600]:600];
+  let i = 0;
+  while (i < 1000000) {
+
+    x1 = sinf32(a*y0) + c*cosf32(a*x0);
+    y1 = sinf32(b*x0) + d*cosf32(b*y0);
+
+    let px = $i32_trunc_f32_s((x1 + 1.5) * 150);
+    let py = $i32_trunc_f32_s((y1 + 1.5) * 180);
+    // logPixel(px, py);
+    if (px < width && py < height) {
+      if (buffer[py][px][3] < 255) {
+        buffer[py][px][3] = buffer[py][px][3] + 10;
+      }
+      // buffer[py][px][3] = 255_u8;
+    }
+    
+    x0 = x1;
+    y0 = y1;
+
+    i = i+1;
+  }
+  draw(@buffer, width, height);
+  // buffer[0][0] = 125;
+  return @buffer;
+}

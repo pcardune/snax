@@ -31,7 +31,7 @@ export function compileToWAT(
   if (!spec.isFile(ast)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  const compiler = new ModuleCompiler(ast, options);
+  const compiler = new ModuleCompiler(ast, { stackSize: 1, ...options });
   let binaryenModule;
   try {
     binaryenModule = compiler.compile();

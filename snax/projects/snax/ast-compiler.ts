@@ -222,7 +222,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     this.options = {
       includeRuntime: true,
       includeWASI: false,
-      stackSize: 10,
+      stackSize: 100,
       ...options,
     };
   }

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <title>Clifford Attractor</title>
+  <head>
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.6/build/pure-min.css" integrity="sha384-Uu6IeWbM+gzNVXJcM9XV3SohHtmWE+3VGi496jvgX1jyvDTXfdK+rfZc8C1Aehk5" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.6/build/grids-responsive-min.css">
+    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <div class="content">
+      <div class="pure-g">
+        <div class="pure-u pure-u-sm-1-1 pure-u-md-1-2 l-box">
+          <canvas id="canvas"></canvas>
+        </div>
+        <div class="pure-u pure-u-sm-1-1 pure-u-md-1-2 l-box">
+          <h4>The Clifford Attractor</h4>
+          <p id="formula">
+            x<sub>n+1</sub> = sin(a y<sub>n</sub>) + c cos(a x<sub>n</sub>)<br>
+            y<sub>n+1</sub> = sin(b x<sub>n</sub>) + d cos(b y<sub>n</sub>)<br>
+          </p>
+          <p>
+            compiled from
+            <a href="clifford.snx">snax code</a>
+            to webassembly
+          </p>
+          <div id="container"></div>
+        </div>
+      </div>
+    </div>
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="clifford.js"></script>
+  </body>
+</html>

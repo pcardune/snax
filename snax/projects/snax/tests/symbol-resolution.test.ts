@@ -1,6 +1,6 @@
 import * as AST from '../spec-gen.js';
 import { makeFunc, makeNum } from '../ast-util.js';
-import { dumpSymbolTables } from '../spec-util.js';
+import { dumpASTData } from '../spec-util.js';
 import {
   resolveSymbols,
   SymbolRecord,
@@ -41,7 +41,13 @@ beforeEach(() => {
     decls: [
       AST.makeExternDeclWith({
         libName: 'someLib',
-        funcs: [makeFunc('externalFunc')],
+        funcs: [
+          AST.makeExternFuncDecl(
+            'externalFunc',
+            AST.makeParameterList([]),
+            AST.makeTypeRef('void')
+          ),
+        ],
       }),
     ],
   });
@@ -78,6 +84,6 @@ describe('resolveSymbols', () => {
     expect(tables.get(file)?.has('externalFunc')).toBe(true);
   });
   it('spits out the right debug info', () => {
-    expect(dumpSymbolTables(file, tables)).toMatchSnapshot();
+    expect(dumpASTData(file, { symbolTables: tables })).toMatchSnapshot();
   });
 });

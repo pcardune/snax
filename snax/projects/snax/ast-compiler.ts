@@ -12,7 +12,11 @@ import {
 import { NumberType, Sign, isFloatType, isIntType } from './numbers.js';
 import { BinOp, UnaryOp } from './snax-ast.js';
 import { ResolvedTypeMap, resolveTypes } from './type-resolution.js';
-import { resolveSymbols, SymbolRefMap } from './symbol-resolution.js';
+import {
+  resolveSymbols,
+  SymbolRefMap,
+  SymbolTableMap,
+} from './symbol-resolution.js';
 import {
   AllocationMap,
   Area,
@@ -31,7 +35,8 @@ import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
 
 export const PAGE_SIZE = 65536;
-
+export const WASM_FEATURE_FLAGS =
+  binaryen.Features.BulkMemory | binaryen.Features.MutableGlobals;
 abstract class ASTCompiler<
   Root extends AST.ASTNode = AST.ASTNode,
   Context = unknown
@@ -132,6 +137,9 @@ class DirectRValue {
   expectAddress(): AddressRValue {
     throw new Error(`Not an address`);
   }
+  get ptrOrValueExpr() {
+    return this.valueExpr;
+  }
 }
 
 class AddressRValue {
@@ -147,6 +155,9 @@ class AddressRValue {
   }
   expectAddress(): AddressRValue {
     return this;
+  }
+  get ptrOrValueExpr() {
+    return this.valuePtrExpr;
   }
 }
 type RValue = DirectRValue | AddressRValue;
@@ -193,18 +204,25 @@ export class BlockCompiler extends StmtCompiler<AST.Block> {
 export type ModuleCompilerOptions = {
   includeRuntime?: boolean;
   includeWASI?: boolean;
+
+  /**
+   * The number of pages of memory to use for the stack
+   */
+  stackSize?: number;
 };
 export class ModuleCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
   refMap?: SymbolRefMap;
   typeCache?: ResolvedTypeMap;
   moduleAllocator = new ModuleAllocator();
+  tables?: SymbolTableMap;
 
   constructor(file: AST.File, options?: ModuleCompilerOptions) {
     super(file, undefined);
     this.options = {
       includeRuntime: true,
       includeWASI: false,
+      stackSize: 100,
       ...options,
     };
   }
@@ -230,6 +248,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
         global next = 0;
         func malloc(numBytes:usize) {
           reg startAddress = next;
+          $memory_fill(startAddress, 0, numBytes);
           next = next + numBytes;
           return startAddress;
         }
@@ -256,8 +275,9 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       }
     }
 
-    const { refMap } = resolveSymbols(this.root);
+    const { refMap, tables } = resolveSymbols(this.root);
     this.refMap = refMap;
+    this.tables = tables;
 
     const typeCache = resolveTypes(this.root, refMap);
     this.typeCache = typeCache;
@@ -267,7 +287,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
 
     // initialize the heap start pointer to the last memIndex
     // that got used.
-    const numPagesOfMemory = 1;
     heapStartLiteral.fields.value = moduleAllocator.memIndex;
 
     let runtime: Runtime;
@@ -301,26 +320,17 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       typeCache,
       moduleAllocator,
       runtime,
-      numPagesOfMemory,
       stackPointer,
     };
   }
 
   compile(): binaryen.Module {
-    const {
-      refMap,
-      typeCache,
-      moduleAllocator,
-      runtime,
-      numPagesOfMemory,
-      stackPointer,
-    } = this.setup();
+    const { refMap, typeCache, moduleAllocator, runtime, stackPointer } =
+      this.setup();
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
-    module.setFeatures(
-      binaryen.Features.BulkMemory | binaryen.Features.MutableGlobals
-    );
+    module.setFeatures(WASM_FEATURE_FLAGS);
     // module.setFeatures(binaryen.Features.MutableGlobals);
     for (const func of this.root.fields.funcs) {
       new FuncDeclCompiler(func, {
@@ -355,7 +365,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
           [
             module.global.set(
               runtime.stackPointer.id,
-              module.i32.const(numPagesOfMemory * PAGE_SIZE)
+              module.i32.const(this.options.stackSize * PAGE_SIZE)
             ),
             module.return(module.call(mainFuncLocation.id, [], returnType)),
           ],
@@ -415,8 +425,8 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     }
 
     module.setMemory(
-      numPagesOfMemory,
-      numPagesOfMemory,
+      this.options.stackSize,
+      this.options.stackSize,
       'memory',
       segments.length > 0 ? segments : undefined,
       undefined,
@@ -550,6 +560,10 @@ export class FuncDeclCompiler extends ASTCompiler<
     const location = this.context.allocationMap.getFuncOrThrow(this.root);
     const func = module.addFunction(location.id, params, results, vars, body);
 
+    if (this.root.fields.isPublic) {
+      module.addFunctionExport(location.id, this.root.fields.symbol);
+    }
+
     // add debug info
     const fileIndices: { [key: string]: number } = {};
     for (const debugLocation of debugLocations) {
@@ -641,6 +655,8 @@ export class IfStatementCompiler extends StmtCompiler<AST.IfStatement> {
 }
 
 export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
+  private static index = 0;
+
   compile() {
     const { module } = this.context;
     const { condExpr, thenBlock } = this.root.fields;
@@ -648,9 +664,10 @@ export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
       .getRValue()
       .expectDirect().valueExpr;
     const value = this.compileChildStmt(thenBlock);
+    const label = `while_${WhileStatementCompiler.index++}`;
     return module.loop(
-      'while_0',
-      module.block('', [value, module.br_if('while_0', cond)], binaryen.auto)
+      label,
+      module.block('', [value, module.br_if(label, cond)], binaryen.auto)
     );
   }
 }
@@ -751,6 +768,11 @@ function memLoad(
       }
       break;
     }
+    case NumberType.f64:
+    case NumberType.f32: {
+      loadFunc = module[valueType].load;
+      break;
+    }
     default:
       throw new Error(`Don't know how to load into ${valueType} yet`);
   }
@@ -828,8 +850,7 @@ export abstract class ExprCompiler<
               )
             );
           case 'stack': {
-            const { arp } = this.context.funcAllocs;
-            const ptr = lget(module, arp);
+            const ptr = lget(module, this.context.funcAllocs.arp);
             return this.deref(lvalueDynamic(ptr, location.offset), type);
           }
 
@@ -907,8 +928,7 @@ export abstract class ExprCompiler<
               binaryen[location.valueType]
             );
           case 'stack': {
-            const { arp } = funcAllocs;
-            const ptr = lget(module, arp);
+            const ptr = lget(module, funcAllocs.arp);
             return this.copy(
               lvalueDynamic(ptr, location.offset),
               rvalue,
@@ -991,6 +1011,8 @@ export abstract class ExprCompiler<
         return new BinaryExprCompiler(node, context);
       case 'CallExpr':
         return new CallExprCompiler(node, context);
+      case 'CompilerCallExpr':
+        return new CompilerCallExpr(node, context);
       case 'MemberAccessExpr':
         return new MemberAccessExprCompiler(node, context);
       case 'NumberLiteral':
@@ -1020,11 +1042,9 @@ export abstract class ExprCompiler<
     return rvalue;
   }
 
-  // compile(): binaryen.ExpressionRef {
-  //   throw new Error(
-  //     'should not be calling compile() on an ExpressionCompiler. Use getRValue() instead.'
-  //   );
-  // }
+  getChildLValue<N extends AST.Expression>(child: N): LValue {
+    return ExprCompiler.forNode(child, this.context).getLValue();
+  }
 }
 
 class SymbolRefCompiler extends ExprCompiler<AST.SymbolRef> {
@@ -1103,7 +1123,10 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
 
   private opCompilers: Record<
     string,
-    (left: AST.Expression, right: AST.Expression) => binaryen.ExpressionRef
+    (
+      left: AST.Expression,
+      right: AST.Expression
+    ) => binaryen.ExpressionRef | RValue
   > = {
     [BinOp.ADD]: (left: AST.Expression, right: AST.Expression) =>
       this.context.module[
@@ -1194,30 +1217,72 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       refExpr: AST.Expression,
       indexExpr: AST.Expression
     ) => {
+      const { module } = this.context;
       const refExprType = this.context.typeCache.get(refExpr);
-      if (!(refExprType instanceof PointerType)) {
+
+      let typeToLoad: BaseType;
+      if (refExprType instanceof PointerType) {
+        typeToLoad = refExprType.toType;
+      } else if (refExprType instanceof ArrayType) {
+        typeToLoad = refExprType.elementType;
+      } else {
         throw this.error(
-          `Don't know how to compile indexing operation for a ${refExprType.name}`
+          `Can't figure out what type to load from ${refExprType.name}`
         );
       }
-      let align = refExprType.toType.numBytes;
-      let sign = Sign.Signed;
-      if (refExprType.toType instanceof NumericalType) {
-        sign = refExprType.toType.sign;
+
+      const align = typeToLoad.numBytes;
+      const sign =
+        typeToLoad instanceof NumericalType ? typeToLoad.sign : Sign.Signed;
+      const indexByteOffsetExpr = module.i32.mul(
+        this.getChildRValue(indexExpr).expectDirect().valueExpr,
+        module.i32.const(align)
+      );
+      if (refExprType instanceof PointerType) {
+        const ptr = module.i32.add(
+          this.getChildRValue(refExpr).expectDirect().valueExpr,
+          indexByteOffsetExpr
+        );
+        return this.memLoad(
+          {
+            valueType: refExprType.toValueTypeOrThrow(),
+            offset: 0,
+            align,
+            bytes: align,
+            sign,
+          },
+          ptr
+        );
+      } else {
+        // Must be an ArrayType
+        const lvalue = this.getChildLValue(refExpr);
+        switch (lvalue.kind) {
+          case 'static': {
+            switch (lvalue.location.area) {
+              case Area.STACK: {
+                const ptr = module.i32.add(
+                  lget(module, this.context.funcAllocs.arp),
+                  indexByteOffsetExpr
+                );
+                return this.deref(lvalueDynamic(ptr), typeToLoad);
+              }
+              default:
+                throw this.error(
+                  `Don't know how to index into a static lvalue in ${lvalue.location.area}`
+                );
+            }
+          }
+          case 'dynamic': {
+            const ptr = module.i32.add(lvalue.ptr, indexByteOffsetExpr);
+            return this.deref(lvalueDynamic(ptr, lvalue.offset), typeToLoad);
+          }
+          default: {
+            throw this.error(
+              `Don't know how to index into a ${lvalue.kind} lvalue`
+            );
+          }
+        }
       }
-      const valueType = refExprType.toValueTypeOrThrow();
-      const { module } = this.context;
-      const ptr = module[valueType].add(
-        this.getChildRValue(refExpr).expectDirect().valueExpr,
-        module[valueType].mul(
-          this.getChildRValue(indexExpr).expectDirect().valueExpr,
-          module[valueType].const(align, align)
-        )
-      );
-      return this.memLoad(
-        { valueType, offset: 0, align, bytes: align, sign },
-        ptr
-      );
     },
   };
 
@@ -1231,22 +1296,60 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
     ): LValue => {
       const { module } = this.context;
       const leftType = this.context.typeCache.get(left);
-      let numBytes = 4;
+      let typeAtIndex: BaseType;
       if (leftType instanceof PointerType) {
-        numBytes = leftType.toType.numBytes;
+        typeAtIndex = leftType.toType;
+      } else if (leftType instanceof ArrayType) {
+        typeAtIndex = leftType.elementType;
       } else {
         throw this.error(
-          `Don't know how to compute offset for ${leftType.name}`
+          `Can't determine size of type at offset of ${leftType.name}`
         );
       }
-      const ptr = module.i32.add(
-        this.getChildRValue(left).expectDirect().valueExpr,
-        module.i32.mul(
-          this.getChildRValue(right).expectDirect().valueExpr,
-          module.i32.const(numBytes)
-        )
+      const indexByteOffsetExpr = module.i32.mul(
+        this.getChildRValue(right).expectDirect().valueExpr,
+        module.i32.const(typeAtIndex.numBytes)
       );
-      return lvalueDynamic(ptr);
+
+      if (leftType instanceof PointerType) {
+        return lvalueDynamic(
+          module.i32.add(
+            this.getChildRValue(left).expectDirect().valueExpr,
+            indexByteOffsetExpr
+          )
+        );
+      } else {
+        // must be ArrayType
+        const lvalue = this.getChildLValue(left);
+        switch (lvalue.kind) {
+          case 'static': {
+            switch (lvalue.location.area) {
+              case Area.STACK: {
+                return lvalueDynamic(
+                  module.i32.add(
+                    lget(module, this.context.funcAllocs.arp),
+                    indexByteOffsetExpr
+                  )
+                );
+              }
+              default:
+                throw this.error(
+                  `Don't know how to compute offset on lvalue in area ${lvalue.location.area}`
+                );
+            }
+          }
+          case 'dynamic': {
+            return lvalueDynamic(
+              module.i32.add(lvalue.ptr, indexByteOffsetExpr),
+              lvalue.offset
+            );
+          }
+          default:
+            throw this.error(
+              `Don't know how to compute offset on ${lvalue.kind} lvalue`
+            );
+        }
+      }
     },
   };
 
@@ -1267,14 +1370,12 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       (() => {
         throw this.error(`Don't know how to compile ${op} yet`);
       });
-    return rvalueDirect(
-      this.context.typeCache.get(this.root),
-      compile(left, right)
-    );
-  }
-
-  compile(): binaryen.ExpressionRef {
-    return this.getRValue().valueExpr;
+    const rvalue = compile(left, right);
+    if (typeof rvalue === 'number') {
+      return rvalueDirect(this.context.typeCache.get(this.root), rvalue);
+    } else {
+      return rvalue;
+    }
   }
 }
 
@@ -1360,6 +1461,47 @@ class MemberAccessExprCompiler extends ExprCompiler<AST.MemberAccessExpr> {
   }
 }
 
+class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
+  getLValue(): LValue {
+    throw new Error(`CompilerCallExpr doesn't have an LValue`);
+  }
+
+  getRValue(): RValue {
+    const { symbol, right } = this.root.fields;
+    const { module } = this.context;
+
+    const argValue = (index: number) =>
+      this.getChildRValue(right.fields.args[index]).expectDirect().valueExpr;
+
+    const compilerFuncs: { [name: string]: () => RValue } = {
+      memory_copy: () =>
+        rvalueDirect(
+          Intrinsics.void,
+          module.memory.copy(argValue(0), argValue(1), argValue(2))
+        ),
+      memory_fill: () =>
+        rvalueDirect(
+          Intrinsics.void,
+          module.memory.fill(argValue(0), argValue(1), argValue(2))
+        ),
+      i32_trunc_f32_s: () =>
+        rvalueDirect(Intrinsics.i32, module.i32.trunc_s.f32(argValue(0))),
+      f64_floor: () =>
+        rvalueDirect(Intrinsics.f64, module.f64.floor(argValue(0))),
+      f32_floor: () =>
+        rvalueDirect(Intrinsics.f32, module.f32.floor(argValue(0))),
+    };
+    const getRValue = compilerFuncs[symbol];
+    if (!getRValue) {
+      throw new CompilerError(
+        this.root,
+        `Unrecognized compiler function $${symbol}`
+      );
+    }
+    return getRValue();
+  }
+}
+
 class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   private getFuncLocation() {
     const { left } = this.root.fields;
@@ -1375,8 +1517,9 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   }
 
   getRValue() {
-    const { right } = this.root.fields;
+    const { left, right } = this.root.fields;
     const { module } = this.context;
+
     const location = this.getFuncLocation();
     const tempLocation = this.context.allocationMap.getLocalOrThrow(
       this.root,
@@ -1391,7 +1534,7 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
       lget(module, this.context.funcAllocs.arp)
     );
     const args = right.fields.args.map(
-      (arg) => this.getChildRValue(arg).expectDirect().valueExpr
+      (arg) => this.getChildRValue(arg).ptrOrValueExpr
     );
 
     if (returnType.equals(Intrinsics.void)) {
@@ -1536,11 +1679,36 @@ class UnaryExprCompiler extends ExprCompiler<AST.UnaryExpr> {
 
   getRValue() {
     const type = this.context.typeCache.get(this.root);
+    const { expr } = this.root.fields;
+    const { module } = this.context;
 
     switch (this.root.fields.op) {
+      case UnaryOp.NEG: {
+        const rvalue = this.getChildRValue(expr);
+        const valueType = rvalue.type.toValueTypeOrThrow();
+        switch (valueType) {
+          case NumberType.f64:
+          case NumberType.f32: {
+            return rvalueDirect(
+              type,
+              module[valueType].neg(rvalue.expectDirect().valueExpr)
+            );
+          }
+          case NumberType.i64:
+          case NumberType.i32: {
+            return rvalueDirect(
+              type,
+              module[valueType].sub(
+                module[valueType].const(0, 0),
+                rvalue.expectDirect().valueExpr
+              )
+            );
+          }
+          default:
+            throw this.error(`Don't know how to negate a ${rvalue.type}`);
+        }
+      }
       case UnaryOp.ADDR_OF: {
-        const { expr } = this.root.fields;
-        const { module } = this.context;
         const lvalue = ExprCompiler.forNode(expr, this.context).getLValue();
         switch (lvalue.kind) {
           case 'immediate': {
@@ -1717,7 +1885,7 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
     const { module } = this.context;
 
     const fieldInstr = [];
-    const { elements } = this.root.fields;
+    const { elements, size } = this.root.fields;
     for (const [i, prop] of elements.entries()) {
       const ptr = lget(module, location);
 
@@ -1725,6 +1893,22 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
       const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
       fieldInstr.push(this.copy(lvalue, rvalue));
     }
+    if (size) {
+      if (AST.isNumberLiteral(size) && size.fields.numberType === 'int') {
+        for (let i = 1; i < size.fields.value; i++) {
+          const ptr = lget(module, location);
+          const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
+          // TODO: only calculate the rvalue once
+          // TODO: use memory.fill when the rvalue fits into an i32/i64
+          const rvalue = ExprCompiler.forNode(
+            elements[0],
+            this.context
+          ).getRValue();
+          fieldInstr.push(this.copy(lvalue, rvalue));
+        }
+      }
+    }
+
     return rvalueAddress(
       arrayType,
       module.block(

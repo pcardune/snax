@@ -2,36 +2,36 @@
 
 exports[`resolveSymbols spits out the right debug info 1`] = `
 "<File>
-  <SymbolTable id=36 parent=35>
+  <SymbolTable id=\\"31\\" parent=\\"30\\">
     <externalFunc/>
     <g/>
     <main/>
   </SymbolTable>
   <funcs>
-    <FuncDecl symbol=\\"main\\" returnType=undefined>
-      <SymbolTable id=37 parent=36/>
+    <FuncDecl symbol=\\"main\\" isPublic=\\"false\\" returnType=\\"undefined\\">
+      <SymbolTable id=\\"32\\" parent=\\"31\\"/>
       <ParameterList>
         <parameters/>
       </ParameterList>
       <Block>
-        <SymbolTable id=38 parent=37>
+        <SymbolTable id=\\"33\\" parent=\\"32\\">
           <x/>
           <y/>
         </SymbolTable>
         <statements>
-          <LetStatement symbol=\\"x\\" typeExpr=undefined>
-            <NumberLiteral value=1 numberType=\\"int\\" explicitType=undefined/>
+          <LetStatement symbol=\\"x\\" typeExpr=\\"undefined\\">
+            <NumberLiteral value=\\"1\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
           </LetStatement>
-          <LetStatement symbol=\\"y\\" typeExpr=undefined>
-            <NumberLiteral value=2 numberType=\\"int\\" explicitType=undefined/>
+          <LetStatement symbol=\\"y\\" typeExpr=\\"undefined\\">
+            <NumberLiteral value=\\"2\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
           </LetStatement>
           <Block>
-            <SymbolTable id=39 parent=38>
+            <SymbolTable id=\\"34\\" parent=\\"33\\">
               <x/>
             </SymbolTable>
             <statements>
-              <LetStatement symbol=\\"x\\" typeExpr=undefined>
-                <NumberLiteral value=3 numberType=\\"int\\" explicitType=undefined/>
+              <LetStatement symbol=\\"x\\" typeExpr=\\"undefined\\">
+                <NumberLiteral value=\\"3\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
               </LetStatement>
               <ExprStatement>
                 <SymbolRef symbol=\\"x\\"/>
@@ -49,23 +49,20 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
     </FuncDecl>
   </funcs>
   <globals>
-    <GlobalDecl symbol=\\"g\\" typeExpr=undefined>
-      <NumberLiteral value=10 numberType=\\"int\\" explicitType=undefined/>
+    <GlobalDecl symbol=\\"g\\" typeExpr=\\"undefined\\">
+      <NumberLiteral value=\\"10\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
     </GlobalDecl>
   </globals>
   <decls>
     <ExternDecl libName=\\"someLib\\">
       <funcs>
-        <FuncDecl symbol=\\"externalFunc\\" returnType=undefined>
-          <SymbolTable id=40 parent=36/>
+        <ExternFuncDecl symbol=\\"externalFunc\\">
+          <SymbolTable id=\\"35\\" parent=\\"31\\"/>
           <ParameterList>
             <parameters/>
           </ParameterList>
-          <Block>
-            <SymbolTable id=41 parent=40/>
-            <statements/>
-          </Block>
-        </FuncDecl>
+          <TypeRef symbol=\\"void\\"/>
+        </ExternFuncDecl>
       </funcs>
     </ExternDecl>
   </decls>

@@ -1,6 +1,7 @@
 import type { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import type { ASTNode } from './spec-gen.js';
 import type { SymbolTable } from './symbol-resolution.js';
+import type { ResolvedTypeMap } from './type-resolution.js';
 
 function isASTNode(node: any): node is ASTNode {
   return typeof node === 'object' && node !== null && node.name && node.fields;
@@ -59,7 +60,9 @@ function elemToString(elem: Elem, indent = '') {
   let s = `${indent}<${elem.tag}`;
 
   let props = Object.entries(elem.props)
-    .map(([propName, propValue]) => `${propName}=${JSON.stringify(propValue)}`)
+    .map(
+      ([propName, propValue]) => `${propName}=${JSON.stringify('' + propValue)}`
+    )
     .join(' ');
   if (props.length > 0) {
     s += ' ' + props;
@@ -80,49 +83,73 @@ function elemToString(elem: Elem, indent = '') {
 
 function nodeDataToElem(
   node: ASTNode,
-  symbolTables: OrderedMap<ASTNode, SymbolTable>
+  data: {
+    symbolTables?: OrderedMap<ASTNode, SymbolTable>;
+    typeMap?: ResolvedTypeMap;
+  }
 ) {
   let props: Record<string, any> = {};
   let childElems: Elem[] = [];
 
-  let symbolTable = symbolTables.get(node);
-  if (symbolTable) {
-    childElems.push(
-      elem(
-        'SymbolTable',
-        { id: symbolTable.id, parent: symbolTable.parent?.id },
-        symbolTable.table
-          .entries()
-          .map(([i, symbol, record]) => {
-            let props = {};
-            return elem(symbol, props, []);
-          })
-          .toArray()
-      )
-    );
+  if (data.symbolTables) {
+    let symbolTable = data.symbolTables.get(node);
+    if (symbolTable) {
+      childElems.push(
+        elem(
+          'SymbolTable',
+          { id: symbolTable.id, parent: symbolTable.parent?.id },
+          symbolTable.table
+            .entries()
+            .map(([i, symbol, record]) => {
+              let props = {};
+              return elem(symbol, props, []);
+            })
+            .toArray()
+        )
+      );
+    }
   }
 
   for (let [fieldName, value] of Object.entries(node.fields)) {
     if (isASTNode(value)) {
-      childElems.push(nodeDataToElem(value, symbolTables));
+      childElems.push(nodeDataToElem(value, data));
     } else if (value instanceof Array) {
       childElems.push(
         elem(
           fieldName,
           {},
-          value.map((v) => nodeDataToElem(v, symbolTables))
+          value.map((v) => nodeDataToElem(v, data))
         )
       );
     } else {
       props[fieldName] = value;
     }
   }
+
+  if (node.location) {
+    const { line, column } = node.location.start;
+    props['_loc'] = `${node.location.source}:${line}:${column}`;
+  }
+  if (data.typeMap) {
+    if (data.typeMap.has(node)) {
+      props['_type'] = data.typeMap.get(node).name;
+    } else {
+      props['_type'] = 'MISSING';
+    }
+  }
+
   return elem(node.name, props, childElems);
 }
 
-export function dumpSymbolTables(
+export function dumpASTData(
   node: ASTNode,
-  symbolTables: OrderedMap<ASTNode, SymbolTable>
+  {
+    symbolTables,
+    typeMap,
+  }: {
+    symbolTables?: OrderedMap<ASTNode, SymbolTable>;
+    typeMap?: ResolvedTypeMap;
+  }
 ) {
-  return elemToString(nodeDataToElem(node, symbolTables));
+  return elemToString(nodeDataToElem(node, { symbolTables, typeMap }));
 }

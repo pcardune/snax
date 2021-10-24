@@ -1,5 +1,7 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { getPropNameOrThrow } from './ast-util.js';
+import { CompilerError, TypeResolutionError } from './errors.js';
+import { Sign } from './numbers.js';
 import { BinOp, NumberLiteralType, UnaryOp } from './snax-ast.js';
 import {
   ArrayType,
@@ -7,75 +9,28 @@ import {
   FuncType,
   Intrinsics,
   isIntrinsicSymbol,
+  NumericalType,
   PointerType,
   RecordType,
   TupleType,
   UnionType,
 } from './snax-types.js';
-import { ASTNode, isFuncDecl, isReturnStatement } from './spec-gen.js';
+import {
+  ASTNode,
+  isFuncDecl,
+  isNumberLiteral,
+  isReturnStatement,
+} from './spec-gen.js';
 import { depthFirstIter } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
 
-class TypeResolutionError extends Error {
-  node: ASTNode;
-  constructor(node: ASTNode, message: string) {
-    super(`TypeResolutionError: ${message}`);
-    this.node = node;
-  }
-}
-
-export const getTypeForBinaryOp = (
-  op: string,
-  leftType: BaseType,
-  rightType: BaseType
-): BaseType => {
-  let { i32, f32, bool } = Intrinsics;
-  const error = new Error(
-    `TypeError: Can't perform ${leftType} ${op} ${rightType}`
-  );
-  switch (op) {
-    default:
-      if (leftType === rightType) {
-        return leftType;
-      }
-      switch (leftType) {
-        case bool:
-          switch (rightType) {
-            case bool:
-              return bool;
-            default:
-              throw error;
-          }
-        case i32:
-          switch (rightType) {
-            case i32:
-              return i32;
-            case f32:
-              return f32;
-            default:
-              throw error;
-          }
-        case f32:
-          switch (rightType) {
-            case i32:
-            case f32:
-              return f32;
-            default:
-              throw error;
-          }
-        default:
-          throw error;
-      }
-  }
-};
-
 export class ResolvedTypeMap extends OrderedMap<ASTNode, BaseType> {
   get(key: ASTNode): BaseType {
     const type = super.get(key);
     if (!type) {
-      throw new Error(`No type was bound to ${key.name}`);
+      throw new CompilerError(key, `No type was bound to ${key.name}`);
     }
     return type;
   }
@@ -86,10 +41,19 @@ export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   for (const node of depthFirstIter(root)) {
     resolver.resolveType(node);
   }
+  for (const [index, node, type] of resolver.typeMap.entries()) {
+    if (type.equals(Intrinsics.unknown)) {
+      throw new TypeResolutionError(
+        resolver,
+        node,
+        `Couldn't resolve type for ${node.name}`
+      );
+    }
+  }
   return resolver.typeMap;
 }
 
-class TypeResolver {
+export class TypeResolver {
   refMap: SymbolRefMap;
   typeMap = new ResolvedTypeMap();
   inProgress: Set<ASTNode> = new Set();
@@ -98,9 +62,13 @@ class TypeResolver {
     this.refMap = refMap;
   }
 
+  private error(node: ASTNode, message: string) {
+    return new TypeResolutionError(this, node, message);
+  }
+
   resolveType(node: ASTNode): BaseType {
     if (this.inProgress.has(node)) {
-      throw new TypeResolutionError(node, 'Detected cycle in type references');
+      throw this.error(node, 'Detected cycle in type references');
     }
     let resolvedType: BaseType;
     if (!this.typeMap.has(node)) {
@@ -124,7 +92,7 @@ class TypeResolver {
         if (explicitType) {
           const type = Intrinsics[explicitType as keyof typeof Intrinsics];
           if (!type) {
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `${explicitType} is not a known numeric type`
             );
@@ -147,14 +115,10 @@ class TypeResolver {
         const record = refMap.get(node);
         if (!record) {
           return Intrinsics.unknown;
-          // throw new TypeResolutionError(
-          //   node,
-          //   `Can't resolve type for undeclard symbol ${node.fields.symbol}`
-          // );
         }
         const resolvedType = this.resolveType(record.declNode);
         if (!resolvedType) {
-          throw new TypeResolutionError(
+          throw this.error(
             node,
             `Can't resolve type for symbol ${node.fields.symbol}, whose declaration hasn't had its type resolved`
           );
@@ -169,12 +133,17 @@ class TypeResolver {
         if (record) {
           return this.resolveType(record.declNode);
         }
-        throw new TypeResolutionError(
+        throw this.error(
           node,
           `TypeRef: Can't resolve type ${node.fields.symbol}`
         );
       case 'PointerTypeExpr':
         return new PointerType(this.resolveType(node.fields.pointerToExpr));
+      case 'ArrayTypeExpr':
+        return new ArrayType(
+          this.resolveType(node.fields.valueTypeExpr),
+          node.fields.size
+        );
       case 'CastExpr':
         return this.resolveType(node.fields.typeExpr);
       case 'ExprStatement':
@@ -195,7 +164,7 @@ class TypeResolver {
           // have been specified. Make sure they match.
           let exprType = this.resolveType(node.fields.expr);
           if (!explicitType.equals(exprType)) {
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `${node.name} has explicit type ${explicitType.name} but is being initialized to incompatible type ${exprType.name}.`
             );
@@ -225,10 +194,7 @@ class TypeResolver {
             } else if (leftType instanceof PointerType) {
               return leftType.toType;
             }
-            throw new TypeResolutionError(
-              node,
-              `Can't index into a ${leftType.name}`
-            );
+            throw this.error(node, `Can't index into a ${leftType.name}`);
           }
           case BinOp.LESS_THAN:
           case BinOp.GREATER_THAN:
@@ -242,7 +208,7 @@ class TypeResolver {
               if (left.name === 'SymbolRef') {
                 const ref = refMap.get(left);
                 if (!ref) {
-                  throw new TypeResolutionError(
+                  throw this.error(
                     node,
                     `Can't assign to undeclared symbol ${left.fields.symbol}`
                   );
@@ -251,7 +217,7 @@ class TypeResolver {
                 this.typeMap.set(ref.declNode, leftType);
                 this.typeMap.set(left, leftType);
               } else {
-                throw new TypeResolutionError(
+                throw this.error(
                   node,
                   `Can't assign to ${leftType.name}, and not smart enough yet to infer what it should be.`
                 );
@@ -260,16 +226,36 @@ class TypeResolver {
             if (leftType.equals(rightType)) {
               return leftType;
             }
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `Can't assign value of type ${rightType.name} to a ${leftType.name}`
             );
           }
           default:
-            return getTypeForBinaryOp(
+            return this.getTypeForBinaryOp(
+              node,
               op,
               this.resolveType(left),
               this.resolveType(right)
+            );
+        }
+      }
+      case 'CompilerCallExpr': {
+        switch (node.fields.symbol) {
+          case 'i32_trunc_f32_s':
+            return Intrinsics.i32;
+          case 'f64_floor':
+            return Intrinsics.f64;
+          case 'f32_floor':
+            return Intrinsics.f32;
+          case 'memory_fill':
+            return Intrinsics.void;
+          case 'memory_copy':
+            return Intrinsics.void;
+          default:
+            throw this.error(
+              node,
+              `Unrecognized internal ${node.fields.symbol}`
             );
         }
       }
@@ -280,9 +266,9 @@ class TypeResolver {
         } else if (leftType instanceof TupleType) {
           return new PointerType(leftType);
         } else {
-          throw new TypeResolutionError(
+          throw this.error(
             node,
-            "Can't call something that is not a function"
+            `Can't call ${leftType.name} that is not a function`
           );
         }
       }
@@ -291,21 +277,59 @@ class TypeResolver {
           case UnaryOp.ADDR_OF:
             const exprType = this.resolveType(node.fields.expr);
             return new PointerType(exprType);
+          case UnaryOp.NEG: {
+            const exprType = this.resolveType(node.fields.expr);
+            if (
+              exprType instanceof NumericalType &&
+              exprType.sign === Sign.Signed
+            ) {
+              return exprType;
+            }
+            throw this.error(
+              node,
+              `Can't negate ${exprType.name}, which is not a signed float or int`
+            );
+          }
           default:
-            throw new TypeResolutionError(
+            throw this.error(
               node,
               `UnaryExpr: Don't know how to resolve type for unary operator ${node.fields.op}`
             );
         }
       }
       case 'ArrayLiteral': {
+        const { size, elements } = node.fields;
+        if (size) {
+          if (
+            isNumberLiteral(size) &&
+            size.fields.numberType === 'int' &&
+            size.fields.value >= 0
+          ) {
+            if (elements.length !== 1) {
+              throw this.error(
+                node,
+                `When specifying a size, you can only have one element`
+              );
+            }
+            return new ArrayType(
+              this.resolveType(elements[0]),
+              size.fields.value
+            );
+          } else {
+            throw this.error(
+              node,
+              `Invalid size expression for array literal. Must be an integer number >= 0`
+            );
+          }
+        }
+
         let type = Intrinsics.void;
-        for (const [i, element] of node.fields.elements.entries()) {
+        for (const [i, element] of elements.entries()) {
           const elemType = this.resolveType(element);
           if (i == 0) {
             type = elemType;
-          } else if (elemType !== type) {
-            throw new TypeResolutionError(
+          } else if (!elemType.equals(type)) {
+            throw this.error(
               node,
               `Can't have an array with mixed types. Expected ${type.name}, found ${elemType.name}`
             );
@@ -313,6 +337,7 @@ class TypeResolver {
         }
         return new ArrayType(type, node.fields.elements.length);
       }
+      case 'ExternFuncDecl':
       case 'FuncDecl': {
         let paramTypes = node.fields.parameters.fields.parameters.map((p) =>
           this.resolveType(p)
@@ -320,20 +345,31 @@ class TypeResolver {
         let returnType: BaseType | null = node.fields.returnType
           ? this.resolveType(node.fields.returnType)
           : null;
-        for (const child of depthFirstIter(node.fields.body)) {
-          if (isReturnStatement(child)) {
-            let alternativeReturnType = this.resolveType(child);
-            if (returnType === null) {
-              returnType = alternativeReturnType;
-            } else if (
-              alternativeReturnType !== returnType &&
-              alternativeReturnType.name !== returnType.name
-            ) {
-              throw new TypeResolutionError(
-                node,
-                `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`
-              );
+        if (isFuncDecl(node)) {
+          let foundReturn = false;
+          for (const child of depthFirstIter(node.fields.body)) {
+            this.resolveType(child);
+            if (isReturnStatement(child)) {
+              let alternativeReturnType = this.resolveType(child);
+              foundReturn = true;
+              if (returnType === null) {
+                returnType = alternativeReturnType;
+              } else if (
+                alternativeReturnType !== returnType &&
+                alternativeReturnType.name !== returnType.name
+              ) {
+                throw this.error(
+                  node,
+                  `FuncDecl: can't resolve type for function ${node.fields.symbol}: return statements have varying types. Expected ${returnType.name}, found ${alternativeReturnType.name}`
+                );
+              }
             }
+          }
+          if (!foundReturn && returnType) {
+            throw this.error(
+              node,
+              `FuncDecl: function ${node.fields.symbol} must return ${returnType.name} but has no return statements`
+            );
           }
         }
         return new FuncType(paramTypes, returnType ?? Intrinsics.void);
@@ -412,23 +448,95 @@ class TypeResolver {
           const propName: string = getPropNameOrThrow(right);
           const propType = leftType.fields.get(propName);
           if (!propType) {
-            throw new TypeResolutionError(
+            throw this.error(
               right,
               `${propName} is not a valid accessor for ${leftType.name}`
             );
           }
+          this.typeMap.set(right, propType.type);
           return propType.type;
         } else {
-          throw new TypeResolutionError(
+          throw this.error(
             right,
             `Don't know hot to do member access on a ${leftType.name}`
           );
         }
       }
     }
-    throw new TypeResolutionError(
+    throw this.error(
       node,
       `No type resolution exists for ${(node as any).name}`
     );
+  }
+
+  private getTypeForBinaryOp(
+    node: ASTNode,
+    op: string,
+    leftType: BaseType,
+    rightType: BaseType
+  ): BaseType {
+    let { i32, f32, u32, u16, u8, bool } = Intrinsics;
+    const error = this.error(
+      node,
+      `TypeError: Can't perform ${leftType} ${op} ${rightType}`
+    );
+    switch (op) {
+      default:
+        if (leftType === rightType) {
+          return leftType;
+        }
+        switch (leftType) {
+          case bool:
+            switch (rightType) {
+              case bool:
+                return bool;
+              default:
+                throw error;
+            }
+          case i32:
+            switch (rightType) {
+              case u8:
+              case u16:
+              case u32:
+              case i32:
+                return i32;
+              case f32:
+                return f32;
+              default:
+                throw error;
+            }
+          case f32:
+            switch (rightType) {
+              case i32:
+              case f32:
+                return f32;
+              default:
+                throw error;
+            }
+          case u32:
+            switch (rightType) {
+              case i32:
+                return u32;
+              default:
+                throw error;
+            }
+          case u8:
+            switch (rightType) {
+              case i32:
+                return u8;
+              default:
+                throw error;
+            }
+          case u16:
+            switch (rightType) {
+              case i32:
+                return u16;
+              default:
+                throw error;
+            }
+          default:
+            throw error;
+        }
+    }
   }
 }

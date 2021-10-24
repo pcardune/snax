@@ -8,6 +8,10 @@
       {
         "match": "snax/projects/snax/peggy/snax\\.peggy",
         "cmd": "node --loader ts-node/esm snax/projects/snax/peggy/build.ts"
+      },
+      {
+        "match": "examples/.*\\.snx$",
+        "cmd": "snax compile ${file}"
       }
     ]
   }

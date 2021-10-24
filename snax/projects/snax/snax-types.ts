@@ -90,7 +90,9 @@ class VoidType extends BaseType {
 }
 
 class UnknownType extends BaseType {
-  numBytes = 0;
+  get numBytes(): number {
+    throw new Error('unknown type has an unknown number of bytes');
+  }
   constructor() {
     super('unknown');
   }
@@ -122,7 +124,7 @@ export class ArrayType extends BaseType {
   elementType: BaseType;
   length: number;
   constructor(elementType: BaseType, length: number) {
-    super(`${elementType}[]`);
+    super(`[${elementType}:${length}]`);
     this.elementType = elementType;
     this.length = length;
   }

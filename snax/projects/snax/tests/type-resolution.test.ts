@@ -1,10 +1,15 @@
 import { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
-import { FuncType, Intrinsics, RecordType, TupleType } from '../snax-types.js';
+import {
+  ArrayType,
+  FuncType,
+  Intrinsics,
+  RecordType,
+  TupleType,
+} from '../snax-types.js';
 import {
   makeArgList,
   makeBlock,
   makeFile,
-  makeFuncDecl,
   makeNumberLiteral,
   makeParameterList,
 } from '../spec-gen.js';
@@ -12,6 +17,7 @@ import * as AST from '../spec-gen.js';
 import { resolveTypes } from '../type-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { makeNum } from '../ast-util.js';
+import { BinOp } from '../snax-ast.js';
 
 describe('ParameterList', () => {
   it('types an empty parameter list as a tuple type', () => {
@@ -31,25 +37,60 @@ describe('CastExpr', () => {
 });
 
 describe('Functions', () => {
-  it('types an empty function as an empty func type', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      undefined,
-      makeBlock([])
-    );
+  const makeFunc = (
+    symbol: string,
+    params?: AST.Parameter[],
+    returnType?: AST.TypeExpr,
+    body?: AST.Statement[]
+  ) => {
+    return AST.makeFuncDeclWith({
+      symbol,
+      parameters: makeParameterList(params ?? []),
+      returnType,
+      body: makeBlock(body ?? []),
+    });
+  };
+
+  it('types an empty function as func():void', () => {
+    const func = makeFunc('myFunc', [], undefined, []);
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.void));
+    expect(typeMap.get(func).name).toMatchInlineSnapshot(`"func():void"`);
   });
   it('types a function with an explicit return type as a func type with that return type', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      AST.makeTypeRef('i32'),
-      makeBlock([])
-    );
+    const func = makeFunc('myFunc', [], AST.makeTypeRef('i32'), [
+      AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+    ]);
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
+  });
+  it('Checks that a function with an explicit return type actually returns that type', () => {
+    const func = makeFunc('myFunc', [], AST.makeTypeRef('i32'), []);
+    expect(() =>
+      resolveTypes(func, new OrderedMap())
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: FuncDecl: function myFunc must return i32 but has no return statements"`
+    );
+  });
+  describe('without an explicit return type', () => {
+    it('infer the return type from the return statements in the function', () => {
+      const func = makeFunc('myFunc', [], undefined, [
+        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+      ]);
+      const typeMap = resolveTypes(func, new OrderedMap());
+      expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
+    });
+    it('Fail if there are multiple return statements with conflicting types', () => {
+      const func = makeFunc('myFunc', [], undefined, [
+        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'float', undefined)),
+      ]);
+      expect(() =>
+        resolveTypes(func, new OrderedMap())
+      ).toThrowErrorMatchingInlineSnapshot(
+        `"TypeResolutionError at <unknown>: FuncDecl: can't resolve type for function myFunc: return statements have varying types. Expected i32, found f32"`
+      );
+    });
   });
 });
 
@@ -72,12 +113,11 @@ describe('Files', () => {
     expect(typeMap.get(file)).toEqual(new RecordType(new OrderedMap()));
   });
   it('puts function declarations in the record type', () => {
-    const func = makeFuncDecl(
-      'myFunc',
-      makeParameterList([]),
-      undefined,
-      makeBlock([])
-    );
+    const func = AST.makeFuncDeclWith({
+      symbol: 'myFunc',
+      parameters: makeParameterList([]),
+      body: makeBlock([]),
+    });
     const file = makeFile([func], [], []);
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(
@@ -131,14 +171,63 @@ describe('LetStatement', () => {
       expr: AST.makeNumberLiteral(3, 'int', 'f64'),
     });
     expect(() => getType(badLetStatement)).toThrowErrorMatchingInlineSnapshot(
-      `"TypeResolutionError: LetStatement has explicit type i32 but is being initialized to incompatible type f64."`
+      `"TypeResolutionError at <unknown>: LetStatement has explicit type i32 but is being initialized to incompatible type f64."`
+    );
+  });
+
+  it('uses assignments to infer the type', () => {
+    const letStatement = AST.makeLetStatementWith({
+      symbol: 'x',
+      typeExpr: undefined,
+      expr: undefined,
+    });
+    const assign = AST.makeBinaryExpr(
+      BinOp.ASSIGN,
+      AST.makeSymbolRef('x'),
+      AST.makeNumberLiteral(1, 'int', undefined)
+    );
+    const assignStatement = AST.makeExprStatement(assign);
+    const block = AST.makeBlock([letStatement, assignStatement]);
+    const { refMap } = resolveSymbols(block);
+    const typeMap = resolveTypes(block, refMap);
+    expect(typeMap.get(letStatement)).toEqual(Intrinsics.i32);
+  });
+
+  it('throws when inferences determines multiple types', () => {
+    const letStatement = AST.makeLetStatementWith({
+      symbol: 'x',
+      typeExpr: undefined,
+      expr: undefined,
+    });
+    const block = AST.makeBlock([
+      letStatement,
+      AST.makeExprStatement(
+        AST.makeBinaryExpr(
+          BinOp.ASSIGN,
+          AST.makeSymbolRef('x'),
+          AST.makeNumberLiteral(1, 'int', undefined)
+        )
+      ),
+      AST.makeExprStatement(
+        AST.makeBinaryExpr(
+          BinOp.ASSIGN,
+          AST.makeSymbolRef('x'),
+          AST.makeNumberLiteral(1, 'float', undefined)
+        )
+      ),
+    ]);
+    const { refMap } = resolveSymbols(block);
+    expect(() =>
+      resolveTypes(block, refMap)
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: Can't assign value of type f32 to a i32"`
     );
   });
 });
 
 describe('ExternDecl', () => {
   it('types an extern decl as a record type', () => {
-    const fdWriteFunc = AST.makeFuncDeclWith({
+    const fdWriteFunc = AST.makeExternFuncDeclWith({
       symbol: 'fd_write',
       parameters: AST.makeParameterList([
         AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
@@ -146,8 +235,7 @@ describe('ExternDecl', () => {
         AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
         AST.makeParameter('numWrittenPointer', AST.makeTypeRef('i32')),
       ]),
-      returnType: AST.makeTypeRef('i32'),
-      body: AST.makeBlock([]),
+      returnType: AST.makeTypeRef('void'),
     });
     const externDecl = AST.makeExternDeclWith({
       libName: 'wasi_unstable',
@@ -158,6 +246,59 @@ describe('ExternDecl', () => {
     expect(typeMap.get(externDecl)).toEqual(
       new RecordType(new OrderedMap([['fd_write', typeMap.get(fdWriteFunc)]]))
     );
+  });
+});
+
+describe('ArrayLiteral', () => {
+  it('types an array literal as an ArrayType', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3), makeNum(4), makeNum(5)],
+    });
+    expect(getType(arrayLiteral)).toEqual(new ArrayType(Intrinsics.i32, 3));
+  });
+
+  it('throws a type error if the elements have different types', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3), makeNum(4, 'float'), makeNum(5)],
+    });
+    expect(() => getType(arrayLiteral)).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: Can't have an array with mixed types. Expected i32, found f32"`
+    );
+  });
+
+  it('types an array literal with a size entry correctly', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3)],
+      size: makeNum(45),
+    });
+    expect(getType(arrayLiteral)).toEqual(new ArrayType(Intrinsics.i32, 45));
+  });
+
+  it('types array indexing correctly', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [makeNum(3)],
+      size: makeNum(45),
+    });
+    expect(
+      getType(AST.makeBinaryExpr(BinOp.ARRAY_INDEX, arrayLiteral, makeNum(1)))
+    ).toEqual(Intrinsics.i32);
+  });
+  it('types multi-dimensional array indexing correctly', () => {
+    const arrayLiteral = AST.makeArrayLiteralWith({
+      elements: [
+        AST.makeArrayLiteralWith({ elements: [makeNum(1), makeNum(2)] }),
+        AST.makeArrayLiteralWith({ elements: [makeNum(3), makeNum(4)] }),
+      ],
+    });
+    expect(
+      getType(
+        AST.makeBinaryExpr(
+          BinOp.ARRAY_INDEX,
+          AST.makeBinaryExpr(BinOp.ARRAY_INDEX, arrayLiteral, makeNum(1)),
+          makeNum(0)
+        )
+      )
+    ).toEqual(Intrinsics.i32);
   });
 });
 
@@ -248,7 +389,7 @@ describe('StructDecl', () => {
     });
     const { refMap } = resolveSymbols(file);
     expect(() => resolveTypes(file, refMap)).toThrowErrorMatchingInlineSnapshot(
-      `"TypeResolutionError: Detected cycle in type references"`
+      `"TypeResolutionError at <unknown>: Detected cycle in type references"`
     );
   });
 });

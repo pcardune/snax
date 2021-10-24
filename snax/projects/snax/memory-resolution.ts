@@ -6,6 +6,7 @@ import {
   isExternDecl,
   ParameterList,
   DataLiteral,
+  ExternFuncDecl,
 } from './spec-gen.js';
 import { children } from './spec-util.js';
 import { NumberType } from './numbers.js';
@@ -73,7 +74,7 @@ export class AllocationMap extends OrderedMap<ASTNode, StorageLocation> {
     }
     return loc;
   }
-  getFuncOrThrow(func: FuncDecl): FuncStorageLocation {
+  getFuncOrThrow(func: FuncDecl | ExternFuncDecl): FuncStorageLocation {
     const loc = this.get(func);
     if (!loc || loc.area !== Area.FUNCS) {
       throw new Error(
@@ -122,7 +123,10 @@ export type FuncAllocations = {
   stack: StackStorageLocation[];
 };
 
-export class FuncAllocatorMap extends OrderedMap<FuncDecl, FuncLocalAllocator> {
+export class FuncAllocatorMap extends OrderedMap<
+  FuncDecl | ExternFuncDecl,
+  FuncLocalAllocator
+> {
   getByFuncNameOrThrow(funcName: string): FuncLocalAllocator {
     const index = this.findIndex(
       (funcDecl) => funcDecl.fields.symbol === funcName
@@ -145,14 +149,14 @@ export class ModuleAllocator implements ConstAllocator {
   funcAllocatorMap = new FuncAllocatorMap();
 
   private alloc<Loc extends StorageLocation>(
-    node: FuncDecl | GlobalDecl | DataLiteral,
+    node: FuncDecl | ExternFuncDecl | GlobalDecl | DataLiteral,
     location: Loc
   ) {
     this.allocationMap.set(node, location);
     return location;
   }
 
-  allocateFunc(node: FuncDecl, typeMap: ResolvedTypeMap) {
+  allocateFunc(node: FuncDecl | ExternFuncDecl, typeMap: ResolvedTypeMap) {
     const funcType = typeMap.get(node);
     if (!(funcType instanceof FuncType)) {
       throw new Error(`expected funcdecl to have func type`);
@@ -430,6 +434,7 @@ class MemoryResolver {
         );
         return;
       }
+      case 'ExternFuncDecl':
       case 'FuncDecl': {
         resolveChildren(
           this.moduleAllocator.allocateFunc(root, this.typeMap).localAllocator
@@ -473,8 +478,7 @@ class MemoryResolver {
       }
       case 'BinaryExpr': {
         if (root.fields.op === BinOp.ASSIGN) {
-          let type = this.typeMap.get(root);
-          allocateTemp(type.toValueType() ?? NumberType.i32);
+          allocateTemp(NumberType.i32);
           return;
         }
         break;
@@ -489,7 +493,12 @@ class MemoryResolver {
       case 'DataLiteral':
         this.moduleAllocator.allocateConstData(root, root.fields.value);
         break;
-      case 'CallExpr': // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
+      case 'CallExpr': {
+        // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
+        const type = this.typeMap.get(root).toValueType();
+        allocateTemp(type ?? NumberType.i32);
+        return;
+      }
       case 'ArrayLiteral':
         allocateTemp(NumberType.i32);
         return;

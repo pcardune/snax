@@ -248,6 +248,41 @@ export function makePointerTypeExprWith(fields: {
   };
 }
 
+type ArrayTypeExprFields = { valueTypeExpr: TypeExpr; size: number };
+
+export type ArrayTypeExpr = {
+  name: 'ArrayTypeExpr';
+  fields: ArrayTypeExprFields;
+  location?: Location;
+};
+
+export function isArrayTypeExpr(node: ASTNode): node is ArrayTypeExpr {
+  return node.name === 'ArrayTypeExpr';
+}
+
+export function makeArrayTypeExpr(
+  valueTypeExpr: TypeExpr,
+  size: number
+): ArrayTypeExpr {
+  return {
+    name: 'ArrayTypeExpr',
+    fields: {
+      valueTypeExpr,
+      size,
+    },
+  };
+}
+
+export function makeArrayTypeExprWith(fields: {
+  valueTypeExpr: TypeExpr;
+  size: number;
+}): ArrayTypeExpr {
+  return {
+    name: 'ArrayTypeExpr',
+    fields,
+  };
+}
+
 type GlobalDeclFields = {
   symbol: string;
   typeExpr?: TypeExpr;
@@ -517,6 +552,41 @@ export function makeBinaryExprWith(fields: {
   };
 }
 
+type CompilerCallExprFields = { symbol: string; right: ArgList };
+
+export type CompilerCallExpr = {
+  name: 'CompilerCallExpr';
+  fields: CompilerCallExprFields;
+  location?: Location;
+};
+
+export function isCompilerCallExpr(node: ASTNode): node is CompilerCallExpr {
+  return node.name === 'CompilerCallExpr';
+}
+
+export function makeCompilerCallExpr(
+  symbol: string,
+  right: ArgList
+): CompilerCallExpr {
+  return {
+    name: 'CompilerCallExpr',
+    fields: {
+      symbol,
+      right,
+    },
+  };
+}
+
+export function makeCompilerCallExprWith(fields: {
+  symbol: string;
+  right: ArgList;
+}): CompilerCallExpr {
+  return {
+    name: 'CompilerCallExpr',
+    fields,
+  };
+}
+
 type CallExprFields = { left: Expression; right: ArgList };
 
 export type CallExpr = {
@@ -654,7 +724,7 @@ export function makeUnaryExprWith(fields: {
   };
 }
 
-type ArrayLiteralFields = { elements: Expression[] };
+type ArrayLiteralFields = { elements: Expression[]; size?: NumberLiteral };
 
 export type ArrayLiteral = {
   name: 'ArrayLiteral';
@@ -666,17 +736,22 @@ export function isArrayLiteral(node: ASTNode): node is ArrayLiteral {
   return node.name === 'ArrayLiteral';
 }
 
-export function makeArrayLiteral(elements: Expression[]): ArrayLiteral {
+export function makeArrayLiteral(
+  elements: Expression[],
+  size: NumberLiteral | undefined
+): ArrayLiteral {
   return {
     name: 'ArrayLiteral',
     fields: {
       elements,
+      size,
     },
   };
 }
 
 export function makeArrayLiteralWith(fields: {
   elements: Expression[];
+  size?: NumberLiteral;
 }): ArrayLiteral {
   return {
     name: 'ArrayLiteral',
@@ -918,7 +993,50 @@ export function makeParameterWith(fields: {
   };
 }
 
+type ExternFuncDeclFields = {
+  symbol: string;
+  parameters: ParameterList;
+  returnType: TypeExpr;
+};
+
+export type ExternFuncDecl = {
+  name: 'ExternFuncDecl';
+  fields: ExternFuncDeclFields;
+  location?: Location;
+};
+
+export function isExternFuncDecl(node: ASTNode): node is ExternFuncDecl {
+  return node.name === 'ExternFuncDecl';
+}
+
+export function makeExternFuncDecl(
+  symbol: string,
+  parameters: ParameterList,
+  returnType: TypeExpr
+): ExternFuncDecl {
+  return {
+    name: 'ExternFuncDecl',
+    fields: {
+      symbol,
+      parameters,
+      returnType,
+    },
+  };
+}
+
+export function makeExternFuncDeclWith(fields: {
+  symbol: string;
+  parameters: ParameterList;
+  returnType: TypeExpr;
+}): ExternFuncDecl {
+  return {
+    name: 'ExternFuncDecl',
+    fields,
+  };
+}
+
 type FuncDeclFields = {
+  isPublic?: boolean;
   symbol: string;
   parameters: ParameterList;
   returnType?: TypeExpr;
@@ -936,6 +1054,7 @@ export function isFuncDecl(node: ASTNode): node is FuncDecl {
 }
 
 export function makeFuncDecl(
+  isPublic: boolean | undefined,
   symbol: string,
   parameters: ParameterList,
   returnType: TypeExpr | undefined,
@@ -944,6 +1063,7 @@ export function makeFuncDecl(
   return {
     name: 'FuncDecl',
     fields: {
+      isPublic,
       symbol,
       parameters,
       returnType,
@@ -953,6 +1073,7 @@ export function makeFuncDecl(
 }
 
 export function makeFuncDeclWith(fields: {
+  isPublic?: boolean;
   symbol: string;
   parameters: ParameterList;
   returnType?: TypeExpr;
@@ -1094,7 +1215,7 @@ export function makeFileWith(fields: {
   };
 }
 
-type ExternDeclFields = { libName: string; funcs: FuncDecl[] };
+type ExternDeclFields = { libName: string; funcs: ExternFuncDecl[] };
 
 export type ExternDecl = {
   name: 'ExternDecl';
@@ -1106,7 +1227,10 @@ export function isExternDecl(node: ASTNode): node is ExternDecl {
   return node.name === 'ExternDecl';
 }
 
-export function makeExternDecl(libName: string, funcs: FuncDecl[]): ExternDecl {
+export function makeExternDecl(
+  libName: string,
+  funcs: ExternFuncDecl[]
+): ExternDecl {
   return {
     name: 'ExternDecl',
     fields: {
@@ -1118,7 +1242,7 @@ export function makeExternDecl(libName: string, funcs: FuncDecl[]): ExternDecl {
 
 export function makeExternDeclWith(fields: {
   libName: string;
-  funcs: FuncDecl[];
+  funcs: ExternFuncDecl[];
 }): ExternDecl {
   return {
     name: 'ExternDecl',
@@ -1131,9 +1255,9 @@ export function isStructField(node: ASTNode): node is StructField {
   return isStructProp(node) || isFuncDecl(node);
 }
 
-export type TypeExpr = PointerTypeExpr | TypeRef;
+export type TypeExpr = PointerTypeExpr | ArrayTypeExpr | TypeRef;
 export function isTypeExpr(node: ASTNode): node is TypeExpr {
-  return isPointerTypeExpr(node) || isTypeRef(node);
+  return isPointerTypeExpr(node) || isArrayTypeExpr(node) || isTypeRef(node);
 }
 
 export type LiteralExpr =
@@ -1167,6 +1291,7 @@ export type Expression =
   | CastExpr
   | LiteralExpr
   | CallExpr
+  | CompilerCallExpr
   | CastExpr
   | ArgList
   | MemberAccessExpr;
@@ -1177,6 +1302,7 @@ export function isExpression(node: ASTNode): node is Expression {
     isCastExpr(node) ||
     isLiteralExpr(node) ||
     isCallExpr(node) ||
+    isCompilerCallExpr(node) ||
     isCastExpr(node) ||
     isArgList(node) ||
     isMemberAccessExpr(node)
@@ -1211,6 +1337,7 @@ export type ASTNode =
   | SymbolRef
   | TypeRef
   | PointerTypeExpr
+  | ArrayTypeExpr
   | GlobalDecl
   | RegStatement
   | LetStatement
@@ -1218,6 +1345,7 @@ export type ASTNode =
   | WhileStatement
   | Block
   | BinaryExpr
+  | CompilerCallExpr
   | CallExpr
   | MemberAccessExpr
   | CastExpr
@@ -1230,6 +1358,7 @@ export type ASTNode =
   | StructLiteralProp
   | ParameterList
   | Parameter
+  | ExternFuncDecl
   | FuncDecl
   | ReturnStatement
   | ExprStatement
@@ -1251,6 +1380,7 @@ export type ASTNodeName =
   | 'SymbolRef'
   | 'TypeRef'
   | 'PointerTypeExpr'
+  | 'ArrayTypeExpr'
   | 'GlobalDecl'
   | 'RegStatement'
   | 'LetStatement'
@@ -1258,6 +1388,7 @@ export type ASTNodeName =
   | 'WhileStatement'
   | 'Block'
   | 'BinaryExpr'
+  | 'CompilerCallExpr'
   | 'CallExpr'
   | 'MemberAccessExpr'
   | 'CastExpr'
@@ -1270,6 +1401,7 @@ export type ASTNodeName =
   | 'StructLiteralProp'
   | 'ParameterList'
   | 'Parameter'
+  | 'ExternFuncDecl'
   | 'FuncDecl'
   | 'ReturnStatement'
   | 'ExprStatement'

@@ -1,0 +1,40 @@
+#canvas {
+  border: 1px solid black;
+  margin-left: auto;
+  max-width: 100%;
+  display: block;
+  box-sizing: border-box;
+}
+.pure-control-group.param label {
+  width: 3em;
+  text-align: right;
+  margin-right: 1ex;
+}
+.pure-control-group.param label,
+.pure-control-group.param input {
+  display: inline-block;
+}
+.param input[type=range] {
+  margin-left: 1ex;
+}
+
+input[type=number] {
+  width: 4em;
+}
+
+.pure-g > div {
+  box-sizing: border-box;
+}
+
+.l-box {
+  padding: 1em;
+}
+
+#parameters {
+  white-space: pre-line;
+}
+
+pre.code {
+  width: 100%;
+  overflow: hidden;
+}

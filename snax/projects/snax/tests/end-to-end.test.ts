@@ -3,7 +3,7 @@ import {
   ModuleCompilerOptions,
   PAGE_SIZE,
 } from '../ast-compiler.js';
-import { compileToWAT } from './test-util';
+import { compileToWAT, CompileToWatOptions } from './test-util';
 
 type SnaxExports = {
   memory: WebAssembly.Memory;
@@ -13,10 +13,11 @@ type SnaxExports = {
 
 async function compileToWasmModule(
   input: string,
-  options?: ModuleCompilerOptions
+  options?: CompileToWatOptions
 ) {
   const { wat, ast, compiler, binary, sourceMap } = compileToWAT(input, {
     includeRuntime: false,
+    stackSize: 1,
     ...options,
   });
   const module = await WebAssembly.instantiate(binary);
@@ -113,6 +114,11 @@ describe('empty module', () => {
     expect(exports._start()).toEqual(123);
   });
 
+  it('compiles negative integers and floats', async () => {
+    expect(await exec('-34;')).toBe(-34);
+    expect(await exec('-3.14;')).toBeCloseTo(-3.14, 4);
+  });
+
   it('compiles floats', async () => {
     const { exports } = await compileToWasmModule('1.23;');
     expect(exports._start()).toBeCloseTo(1.23, 4);
@@ -151,11 +157,22 @@ describe('empty module', () => {
     expect(await exec('5%3;')).toBe(2);
   });
 
+  it('compiles internal wasm operators', async () => {
+    expect(await exec('$f32_floor(3.56);')).toBeCloseTo(3);
+    expect(await exec('$i32_trunc_f32_s(3.56);')).toBe(3);
+  });
+
   it('compiles expressions', async () => {
     const { wat, exports } = await compileToWasmModule('3+5*2-10/10;', {
       includeRuntime: false,
     });
     expect(exports._start()).toEqual(12);
+  });
+
+  it('allows adding/subtracting among different integer types that fit within 32 bits', async () => {
+    expect(await exec('5 + 7_u8;')).toBe(12);
+    expect(await exec('7_u8 + 5;')).toBe(12);
+    expect(await exec('7_u16 + 5;')).toBe(12);
   });
 
   it('converts between ints and floats', async () => {
@@ -194,7 +211,7 @@ describe('reg statements', () => {
     );
   });
 
-  it('does allow reg statements to be used pointers to compound data types', async () => {
+  it('does allow reg statements to be used for pointers to compound data types', async () => {
     const code = `
       struct Vector {x: i32; y:i32;}
       reg v:&Vector;
@@ -227,6 +244,7 @@ describe('let statements', () => {
     const code = `
       let x:i32;
       let y:bool;
+      let z:f32;
       x;
     `;
     const { wat, exports, compiler } = await compileToWasmModule(code, {
@@ -237,6 +255,7 @@ describe('let statements', () => {
       "stack:
           0: <x>s0-4 (i32)
           4: <y>s4-5 (bool)
+          5: <z>s5-9 (f32)
       locals:
           0: <arp>r0:i32 (i32)"
     `);
@@ -359,17 +378,41 @@ describe('control flow', () => {
       `;
     expect(await exec(code)).toBe(9);
   });
-  it('compiles while statements', async () => {
-    const code = `
-        reg i = 0;
-        while (i < 10) {
-          i = i+1;
+  describe('while loops', () => {
+    it('compiles while statements', async () => {
+      const code = `
+          reg i = 0;
+          while (i < 10) {
+            i = i+1;
+          }
+          i;
+        `;
+      const { wat } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      expect(wat).toMatchSnapshot();
+      expect(await exec(code)).toBe(10);
+    });
+
+    it('compiles nested while loops', async () => {
+      const code = `
+      reg i = 0;
+      reg s = 1;
+      while (i < 10) {
+        reg j = 0;
+        while (j < i) {
+          j = j+1;
+          s = s + j;
         }
-        i;
-      `;
-    const { wat } = await compileToWasmModule(code, { includeRuntime: false });
-    expect(wat).toMatchSnapshot();
-    expect(await exec(code)).toBe(10);
+        i = i+1;
+      }
+      s;
+    `;
+      const { exports } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      expect(exports._start()).toBe(167);
+    });
   });
 });
 
@@ -385,6 +428,17 @@ describe('functions', () => {
           plus5;
         `)
     ).toBe(8);
+  });
+  it('exports functions marked pub', async () => {
+    const code = `
+      pub func addNums(x:i32, y:i32) {
+        return x+y;
+      }
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect((exports as any).addNums(3, 4)).toEqual(7);
   });
 });
 
@@ -596,6 +650,106 @@ describe('arrays', () => {
       ]
     `);
   });
+
+  it('compiles array indexing', async () => {
+    expect(
+      await exec(`
+        let arr = [1,2,3];
+        arr[2];
+      `)
+    ).toEqual(3);
+  });
+
+  it('compiles array indexing assignment', async () => {
+    expect(
+      await exec(`
+        let arr = [1,2,3];
+        arr[2] = 5;
+        arr[2];
+      `)
+    ).toEqual(5);
+  });
+
+  it('compiles array initializers', async () => {
+    const code = `
+      let arr = [32+22:5];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 5 * 4)
+    );
+    expect([...mem]).toMatchInlineSnapshot(`
+      Array [
+        54,
+        54,
+        54,
+        54,
+        54,
+      ]
+    `);
+  });
+
+  it('compiles array type expressions', async () => {
+    const code = `
+      let arr:[i32:3];
+      arr = [1, 2, 3];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 3 * 4)
+    );
+    expect([...mem]).toMatchInlineSnapshot(`
+      Array [
+        1,
+        2,
+        3,
+      ]
+    `);
+  });
+
+  it('supports multidimensional arrays', async () => {
+    const code = `
+      let arr:[[i32:2]:2];
+      arr = [[1, 2], [3, 4]];
+      @arr;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+    const result = exports._start();
+    const mem = new Int32Array(
+      exports.memory.buffer.slice(result, result + 4 * 4)
+    );
+    expect([...mem]).toEqual([1, 2, 3, 4]);
+  });
+
+  it('supports accessing values in multi-dimensional', async () => {
+    const code = `
+      let arr:[[i32:2]:2];
+      arr = [[1, 2], [3, 4]];
+      arr[1][0];
+    `;
+    expect(await exec(code)).toBe(3);
+  });
+
+  it('supports assigning values in multi-dimensional', async () => {
+    const code = `
+      let arr:[[i32:2]:2];
+      arr = [[1, 2], [3, 4]];
+      arr[1][0] = 52;
+      arr[1][0];
+    `;
+    expect(await exec(code)).toBe(52);
+  });
+
   it('supports arrays of structs', async () => {
     const code = `
       struct Point {x:i32; y:i32;}
@@ -881,5 +1035,56 @@ describe('extern declarations', () => {
     const result = (module.instance.exports as any)._start();
     expect(printedNum).toEqual(1);
     expect(result).toEqual(6);
+  });
+});
+
+describe('bugs that came up', () => {
+  it('infers types in the right order across functions', async () => {
+    const code = `
+      func run() {
+        let input = read(100);
+      }
+      
+      func read(numBytes:i32) {
+        let s = String::{buffer: malloc(numBytes), length: numBytes};
+        return s;
+      }
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: true,
+    });
+  });
+
+  it('lets you have functions that return floats', async () => {
+    const code = `
+      func run() {
+        let sum:f32;
+        sum = 3.4;
+        return 3.4;
+      }
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+      validate: false,
+    });
+    expect(exports._start()).toBe(undefined);
+  });
+
+  it('lets you call functions that return floats', async () => {
+    const code = `
+      func giveMeAFloat() {
+        return 3.4;
+      }
+      func foo() {
+        let afloat:f32;
+        afloat = giveMeAFloat();
+      }
+      giveMeAFloat();
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+      validate: false,
+    });
+    expect(exports._start()).toBeCloseTo(3.4, 4);
   });
 });

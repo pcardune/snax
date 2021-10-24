@@ -3,6 +3,7 @@ import {
   Block,
   makeBlock,
   makeFuncDecl,
+  makeFuncDeclWith,
   makeNumberLiteral,
   makeParameterList,
   Parameter,
@@ -21,12 +22,13 @@ export function makeFunc(
   params: Parameter[] = [],
   body: Statement[] | Block = []
 ) {
-  return makeFuncDecl(
-    name,
-    makeParameterList(params ?? []),
-    undefined,
-    body instanceof Array ? makeBlock(body) : body
-  );
+  return makeFuncDeclWith({
+    symbol: name,
+    isPublic: false,
+    parameters: makeParameterList(params ?? []),
+    returnType: undefined,
+    body: body instanceof Array ? makeBlock(body) : body,
+  });
 }
 
 export function getPropNameOrThrow(node: ASTNode): string {

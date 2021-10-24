@@ -6,9 +6,11 @@ import path from 'path';
 // eslint-disable-next-line import/no-unresolved
 import { WASI } from 'wasi';
 import { SNAXParser } from './snax-parser.js';
-import { ModuleCompiler } from './ast-compiler.js';
+import { ModuleCompiler, WASM_FEATURE_FLAGS } from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
 import binaryen from 'binaryen';
+import { dumpASTData } from './spec-util.js';
+import { TypeResolutionError } from './errors.js';
 
 const wasi = new WASI({
   args: process.argv,
@@ -29,14 +31,19 @@ function parseFile(inPath: string) {
   return ast;
 }
 
-async function compileSnaxFile(file: string) {
+function compileSnaxFile(file: string) {
   const ast = parseFile(file);
   const compiler = new ModuleCompiler(ast, { includeRuntime: true });
-  const module = compiler.compile();
-  if (!module.validate()) {
-    throw new Error('validation error');
+  let module;
+  try {
+    module = compiler.compile();
+  } catch (e) {
+    if (e instanceof TypeResolutionError) {
+      console.log(dumpASTData(ast, { typeMap: e.resolver.typeMap }));
+    }
+    throw e;
   }
-  return module;
+  return { module, compiler };
 }
 
 function fileWithExtension(file: string, ext: string) {
@@ -65,7 +72,10 @@ async function loadWasmModuleFromPath(
     case '.snx': {
       const label = `compiling ${inPath}`;
       if (opts.verbose) console.time(label);
-      const module = await compileSnaxFile(inPath);
+      const { module } = compileSnaxFile(inPath);
+      if (!module.validate()) {
+        throw new Error('validation error');
+      }
       if (opts.verbose) console.timeEnd(label);
       const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);
@@ -77,6 +87,7 @@ async function loadWasmModuleFromPath(
       const module = binaryen.parseText(
         await readFile(inPath, { encoding: 'utf8' })
       );
+      module.setFeatures(WASM_FEATURE_FLAGS);
       module.validate();
       const result = module.emitBinary();
       return await WebAssembly.compile(result.buffer);
@@ -97,6 +108,11 @@ function builder<T>(yargs: yargs.Argv<T>) {
       alias: 'v',
       type: 'boolean',
       description: 'Run with verbose logging',
+      default: false,
+    })
+    .option('dumpDebugInfo', {
+      type: 'boolean',
+      description: 'Dump compiler debug information to a file',
       default: false,
     });
 }
@@ -121,7 +137,10 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      const module = await compileSnaxFile(inPath);
+      const { module, compiler } = compileSnaxFile(inPath);
+      if (!module.validate()) {
+        console.warn('validation error');
+      }
 
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'
@@ -132,6 +151,17 @@ const parser = yargs(hideBin(process.argv))
         console.log(`wrote ${path}`);
       };
 
+      if (args.dumpDebugInfo) {
+        writeFile(
+          fileWithExtension(inPath, '.dump'),
+          dumpASTData(compiler.root, {
+            symbolTables: compiler.tables,
+            typeMap: compiler.typeCache,
+          })
+        );
+      }
+
+      binaryen.setOptimizeLevel(2);
       module.optimize();
 
       writeFile(fileWithExtension(inPath, '.wat'), module.emitText());

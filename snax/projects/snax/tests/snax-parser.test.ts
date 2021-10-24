@@ -28,11 +28,23 @@ describe('boolean literals', () => {
 });
 describe('array literals', () => {
   it('should parse [] into an array literal', () => {
-    expect(parse('[]', 'expr')).toEqual(AST.makeArrayLiteral([]));
+    expect(parse('[]', 'expr')).toEqual(
+      AST.makeArrayLiteralWith({ elements: [] })
+    );
   });
   it('should parse [3,4,5] into an array literal', () => {
     expect(parse('[3, 4, 5]', 'expr')).toEqual(
-      AST.makeArrayLiteral([makeNum(3), makeNum(4), makeNum(5)])
+      AST.makeArrayLiteralWith({
+        elements: [makeNum(3), makeNum(4), makeNum(5)],
+      })
+    );
+  });
+  it('should parse [3+4: 100] into an array literal', () => {
+    expect(parse('[3+4: 100]', 'expr')).toEqual(
+      AST.makeArrayLiteralWith({
+        elements: [AST.makeBinaryExpr(BinOp.ADD, makeNum(3), makeNum(4))],
+        size: makeNum(100),
+      })
     );
   });
 });
@@ -224,6 +236,19 @@ describe('expression', () => {
         )
       );
     });
+    it('should parse sub-array indexing', () => {
+      expect(parse('x[1][2]', 'expr')).toEqual(
+        AST.makeBinaryExpr(
+          BinOp.ARRAY_INDEX,
+          AST.makeBinaryExpr(
+            BinOp.ARRAY_INDEX,
+            AST.makeSymbolRef('x'),
+            makeNum(1)
+          ),
+          makeNum(2)
+        )
+      );
+    });
   });
 
   describe('member access expression', () => {
@@ -300,6 +325,11 @@ describe('type expressions', () => {
   it('parses pointer types', () => {
     expect(parse('&i32', 'typeExpr')).toEqual(
       AST.makePointerTypeExpr(AST.makeTypeRef('i32'))
+    );
+  });
+  it('parses array types', () => {
+    expect(parse('[i32:25]', 'typeExpr')).toEqual(
+      AST.makeArrayTypeExpr(AST.makeTypeRef('i32'), 25)
     );
   });
 });
@@ -449,6 +479,7 @@ describe('structs', () => {
           AST.makeStructProp('x', AST.makeTypeRef('i32')),
           AST.makeStructProp('y', AST.makeTypeRef('i32')),
           AST.makeFuncDeclWith({
+            isPublic: false,
             symbol: 'mag',
             parameters: AST.makeParameterList([]),
             body: AST.makeBlock([]),
@@ -500,10 +531,28 @@ describe('functions', () => {
       )
     );
   });
+  it('should parse a function marked public', () => {
+    expect(parse('pub func foo() {}', 'funcDecl')).toEqual(
+      AST.makeFuncDeclWith({
+        isPublic: true,
+        symbol: 'foo',
+        parameters: AST.makeParameterList([]),
+        body: AST.makeBlock([]),
+      })
+    );
+  });
   it('should parse a function call', () => {
     expect(parse('foo(3,4)', 'expr')).toEqual(
       AST.makeCallExpr(
         AST.makeSymbolRef('foo'),
+        AST.makeArgList([makeNum(3), makeNum(4)])
+      )
+    );
+  });
+  it('should parse a compiler call', () => {
+    expect(parse('$specialFunc(3,4)', 'expr')).toEqual(
+      AST.makeCompilerCallExpr(
+        'specialFunc',
         AST.makeArgList([makeNum(3), makeNum(4)])
       )
     );
@@ -569,19 +618,19 @@ describe('externals', () => {
     ).toEqual(
       AST.makeFileWith({
         funcs: [
-          AST.makeFuncDecl(
-            'main',
-            AST.makeParameterList([]),
-            undefined,
-            AST.makeBlock([])
-          ),
+          AST.makeFuncDeclWith({
+            symbol: 'main',
+            isPublic: false,
+            parameters: AST.makeParameterList([]),
+            body: AST.makeBlock([]),
+          }),
         ],
         globals: [],
         decls: [
           AST.makeExternDeclWith({
             libName: 'WASI',
             funcs: [
-              AST.makeFuncDeclWith({
+              AST.makeExternFuncDeclWith({
                 symbol: 'fd_write',
                 parameters: AST.makeParameterList([
                   AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
@@ -593,7 +642,6 @@ describe('externals', () => {
                   ),
                 ]),
                 returnType: AST.makeTypeRef('i32'),
-                body: AST.makeBlock([]),
               }),
             ],
           }),
@@ -601,11 +649,4 @@ describe('externals', () => {
       })
     );
   });
-});
-
-describe('includeLocations', () => {
-  const ast = SNAXParser.parseStrOrThrow('123 + 4.32', 'expr', {
-    includeLocations: true,
-  });
-  expect(ast).toMatchSnapshot();
 });

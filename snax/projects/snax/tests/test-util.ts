@@ -14,10 +14,16 @@ import { resolveTypes } from '../type-resolution.js';
 import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
 import { FuncType, Intrinsics } from '../snax-types.js';
+import { CompilerError, TypeResolutionError } from '../errors.js';
+import { dumpASTData } from '../spec-util.js';
 
+export type CompileToWatOptions = ModuleCompilerOptions & {
+  validate?: boolean;
+  debug?: boolean;
+};
 export function compileToWAT(
   input: string | spec.File,
-  options: ModuleCompilerOptions & { validate?: boolean } = {}
+  options: CompileToWatOptions = {}
 ) {
   const ast =
     typeof input === 'string' ? SNAXParser.parseStrOrThrow(input) : input;
@@ -25,8 +31,31 @@ export function compileToWAT(
   if (!spec.isFile(ast)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  const compiler = new ModuleCompiler(ast, options);
-  const binaryenModule = compiler.compile();
+  const compiler = new ModuleCompiler(ast, { stackSize: 1, ...options });
+  let binaryenModule;
+  try {
+    binaryenModule = compiler.compile();
+  } catch (e) {
+    if (e instanceof CompilerError) {
+      e.attachModuleCompiler(compiler);
+      if (typeof input === 'string') {
+        e.attachSource(input);
+      }
+    }
+    if (options.debug) {
+      if (e instanceof TypeResolutionError) {
+        console.log(dumpASTData(ast, { typeMap: e.resolver.typeMap }));
+      } else {
+        console.log(
+          dumpASTData(ast, {
+            symbolTables: compiler.tables,
+            typeMap: compiler.typeCache,
+          })
+        );
+      }
+    }
+    throw e;
+  }
 
   const oldWarn = console.warn;
   const warnings: string[] = [];

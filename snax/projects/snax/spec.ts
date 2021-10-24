@@ -57,6 +57,12 @@ const specInput: Record<
       pointerToExpr: 'TypeExpr',
     },
   },
+  ArrayTypeExpr: {
+    fields: {
+      valueTypeExpr: 'TypeExpr',
+      size: 'number',
+    },
+  },
   GlobalDecl: {
     fields: {
       symbol: 'string',
@@ -103,6 +109,12 @@ const specInput: Record<
       right: 'Expression',
     },
   },
+  CompilerCallExpr: {
+    fields: {
+      symbol: 'string',
+      right: 'ArgList',
+    },
+  },
   CallExpr: {
     fields: {
       left: 'Expression',
@@ -131,6 +143,7 @@ const specInput: Record<
   ArrayLiteral: {
     fields: {
       elements: { type: 'Expression', list: true },
+      size: { type: 'NumberLiteral', optional: true },
     },
   },
   TupleStructDecl: {
@@ -174,8 +187,16 @@ const specInput: Record<
       typeExpr: 'TypeExpr',
     },
   },
+  ExternFuncDecl: {
+    fields: {
+      symbol: 'string',
+      parameters: 'ParameterList',
+      returnType: { type: 'TypeExpr' },
+    },
+  },
   FuncDecl: {
     fields: {
+      isPublic: { type: 'boolean', optional: true },
       symbol: 'string',
       parameters: 'ParameterList',
       returnType: { type: 'TypeExpr', optional: true },
@@ -207,14 +228,14 @@ const specInput: Record<
   ExternDecl: {
     fields: {
       libName: 'string',
-      funcs: { type: 'FuncDecl', list: true },
+      funcs: { type: 'ExternFuncDecl', list: true },
     },
   },
   StructField: {
     union: ['StructProp', 'FuncDecl'],
   },
   TypeExpr: {
-    union: ['PointerTypeExpr', 'TypeRef'],
+    union: ['PointerTypeExpr', 'ArrayTypeExpr', 'TypeRef'],
   },
   LiteralExpr: {
     union: [
@@ -237,6 +258,7 @@ const specInput: Record<
       'CastExpr',
       'LiteralExpr',
       'CallExpr',
+      'CompilerCallExpr',
       'CastExpr',
       'ArgList',
       'MemberAccessExpr',

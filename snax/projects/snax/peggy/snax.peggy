@@ -5,15 +5,20 @@
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
-  function leftAssoc(rest:any[], val:any, func:(p:{operator:any, left:any, right:any})=>any):any {
+  function leftAssoc(
+    rest:any[],
+    val:any,
+    func:(p:{operator:any, left:any, right:any})=>any,
+    getVal=(last:any) => last[0],
+  ):any {
     if (rest.length == 0) {
       return val; 
     }
     const last = rest.pop();
     return func({
-      left:leftAssoc(rest, last[0], func),
-      operator:last[last.length-2],
-      right:val
+      left: leftAssoc(rest, getVal(last), func, getVal),
+      operator: last[last.length-2],
+      right: val
     });
   }
   function rightAssoc(val:any, rest:any[], func:(p:{operator:any, left:any, right:any})=>any):any {
@@ -91,7 +96,13 @@ file "file"
     }
     if (!hasMainFunc) {
       funcs.push(
-        spec.makeFuncDecl('main', spec.makeParameterList([]), undefined, spec.makeBlock(mainFuncBody)));
+        spec.makeFuncDeclWith({
+          symbol:'main',
+          isPublic: false,
+          parameters: spec.makeParameterList([]),
+          body: spec.makeBlock(mainFuncBody)
+        })
+      );
     } else if (mainFuncBody.length > 0 ) {
       throw new Error('Both free statements and a main function were provided. Choose one or the other');
     }
@@ -174,11 +185,10 @@ externDecl = "extern" ws name:identifier ws "{" ws decls:externDeclList ws "}" {
   return spec.makeExternDeclWith({
     libName: name,
     funcs: decls.map((begin:any) => {
-      return spec.makeFuncDecl(
+      return spec.makeExternFuncDecl(
         begin.name,
         begin.parameters,
         begin.returnType,
-        spec.makeBlock([]),
       );
     })
   });
@@ -209,13 +219,16 @@ structProp "struct prop"
 typeList = head:typeExpr tail:(ws "," ws typeExpr)* {
   return [head, ...tail.map((p:any[]) => p[3])];
 }
-funcDecl = begin:funcDeclBegin ws "{" ws body:block? ws "}" {
-    return spec.makeFuncDecl(
-      begin.name,
-      begin.parameters,
-      begin.returnType,
-      body || spec.makeBlock([]),
-    );
+funcDecl = 
+  pubFlag:"pub"? ws
+  begin:funcDeclBegin ws "{" ws body:block? ws "}" {
+    return spec.makeFuncDeclWith({
+      symbol: begin.name,
+      isPublic: Boolean(pubFlag),
+      parameters: begin.parameters,
+      returnType: begin.returnType,
+      body: body || spec.makeBlock([]),
+    });
   }
 funcDeclBegin =
   "func" ws name:identifier ws
@@ -238,6 +251,9 @@ parameter "parameter"
 
 typeExpr "typeExpr"
   = "&" expr:typeExpr { return spec.makePointerTypeExpr(expr); }
+  / "[" ws valueTypeExpr:typeExpr ws ":" ws size:digits ws"]" {
+    return spec.makeArrayTypeExpr(valueTypeExpr, size);
+  }
   / typeRef
 
 typeRef "typeRef"
@@ -313,7 +329,7 @@ additive "additive"
   }
 
 term "term"
-  = rest:(casting ws ("*" / "/" / "%") ws)* val:casting {
+  = rest:(unary ws ("*" / "/" / "%") ws)* val:unary {
     const opMap:{[s:string]: AST.BinOp} = {
       "*": AST.BinOp.MUL,
       "/": AST.BinOp.DIV,
@@ -334,6 +350,12 @@ term "term"
     );
   }
 
+unary "unary"
+  = "-" ws expr:casting {
+    return spec.makeUnaryExpr(AST.UnaryOp.NEG, expr);
+  }
+  / casting
+
 casting "cast"
   = expr:calling ws "as" force:"!"? ws typeExpr:typeExpr {
     return spec.makeCastExprWith({
@@ -345,14 +367,27 @@ casting "cast"
   / calling
 
 calling "calling"
-  = funcExpr:indexing ws "(" ws argList:exprList? ws ")" {
+  = "$" id:identifier ws "(" ws argList:exprList? ws ")" {
+    return spec.makeCompilerCallExpr(id, spec.makeArgList(argList || []));
+  }
+  / funcExpr:indexing ws "(" ws argList:exprList? ws ")" {
     return spec.makeCallExpr(funcExpr, spec.makeArgList(argList || []));
   }
   / indexing
 
 indexing "indexing"
-  = element:deref ws "[" ws index:expr ws "]" {
-    return spec.makeBinaryExpr(AST.BinOp.ARRAY_INDEX, element, index);
+  = element:deref rest:(ws "[" ws expr ws "]")* {
+    function build(val:any, rest:any[]):any {
+      if (rest.length === 0) {
+        return val;
+      }
+      const first = rest.shift()
+      return build(
+        spec.makeBinaryExpr(AST.BinOp.ARRAY_INDEX, val, first[3]),
+        rest
+      )
+    }
+    return build(element, rest);
   }
   / deref
 
@@ -419,7 +454,12 @@ charLiteral "char"
   }
 
 arrayLiteral "array"
-  = "[" ws items:exprList? ws "]" { return spec.makeArrayLiteral(items || []); }
+  = "[" ws value:expr ws ":" ws size:integer ws "]" {
+    return spec.makeArrayLiteralWith({elements:[value], size});
+  }
+  / "[" ws items:exprList? ws "]" {
+    return spec.makeArrayLiteralWith({elements:items || []});
+  }
 
 exprList "exprList"
   = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map((t:any[])=>t[3])]; }

@@ -127,6 +127,12 @@ const specInput: Record<
       right: 'Expression',
     },
   },
+  NamespaceAccessExpr: {
+    fields: {
+      left: 'Expression',
+      right: 'Expression',
+    },
+  },
   CastExpr: {
     fields: {
       expr: 'Expression',
@@ -273,6 +279,7 @@ const specInput: Record<
       'CastExpr',
       'ArgList',
       'MemberAccessExpr',
+      'NamespaceAccessExpr',
     ],
   },
   Statement: {

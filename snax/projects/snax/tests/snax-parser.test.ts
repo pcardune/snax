@@ -677,4 +677,18 @@ describe('modules', () => {
       })
     );
   });
+  it('should parse a namespace reference', () => {
+    expect(parse(`std::math::add(1,2)`, 'expr')).toEqual(
+      AST.makeCallExpr(
+        AST.makeNamespaceAccessExpr(
+          AST.makeNamespaceAccessExpr(
+            AST.makeSymbolRef('std'),
+            AST.makeSymbolRef('math')
+          ),
+          AST.makeSymbolRef('add')
+        ),
+        AST.makeArgList([makeNum(1), makeNum(2)])
+      )
+    );
+  });
 });

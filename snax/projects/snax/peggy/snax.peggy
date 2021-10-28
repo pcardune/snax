@@ -408,11 +408,20 @@ deref "deref"
   / memberAccess
 
 memberAccess "memberAccess"
-  = rest:(factor ws (".") ws)* val:factor {
+  = rest:(namespaceAccess ws (".") ws)* val:namespaceAccess {
     return leftAssoc(
       rest,
       val,
       ({left, right, operator}) => spec.makeMemberAccessExpr(left, right)
+    );
+  }
+
+namespaceAccess "namespaceAccess"
+  = rest:(factor ws ("::") ws)* val:factor {
+    return leftAssoc(
+      rest,
+      val,
+      ({left, right, operator}) => spec.makeNamespaceAccessExpr(left, right)
     );
   }
 

@@ -654,6 +654,43 @@ export function makeMemberAccessExprWith(fields: {
   };
 }
 
+type NamespaceAccessExprFields = { left: Expression; right: Expression };
+
+export type NamespaceAccessExpr = {
+  name: 'NamespaceAccessExpr';
+  fields: NamespaceAccessExprFields;
+  location?: Location;
+};
+
+export function isNamespaceAccessExpr(
+  node: ASTNode
+): node is NamespaceAccessExpr {
+  return node.name === 'NamespaceAccessExpr';
+}
+
+export function makeNamespaceAccessExpr(
+  left: Expression,
+  right: Expression
+): NamespaceAccessExpr {
+  return {
+    name: 'NamespaceAccessExpr',
+    fields: {
+      left,
+      right,
+    },
+  };
+}
+
+export function makeNamespaceAccessExprWith(fields: {
+  left: Expression;
+  right: Expression;
+}): NamespaceAccessExpr {
+  return {
+    name: 'NamespaceAccessExpr',
+    fields,
+  };
+}
+
 type CastExprFields = { expr: Expression; typeExpr: TypeExpr; force: boolean };
 
 export type CastExpr = {
@@ -1328,7 +1365,8 @@ export type Expression =
   | CompilerCallExpr
   | CastExpr
   | ArgList
-  | MemberAccessExpr;
+  | MemberAccessExpr
+  | NamespaceAccessExpr;
 export function isExpression(node: ASTNode): node is Expression {
   return (
     isBinaryExpr(node) ||
@@ -1339,7 +1377,8 @@ export function isExpression(node: ASTNode): node is Expression {
     isCompilerCallExpr(node) ||
     isCastExpr(node) ||
     isArgList(node) ||
-    isMemberAccessExpr(node)
+    isMemberAccessExpr(node) ||
+    isNamespaceAccessExpr(node)
   );
 }
 
@@ -1382,6 +1421,7 @@ export type ASTNode =
   | CompilerCallExpr
   | CallExpr
   | MemberAccessExpr
+  | NamespaceAccessExpr
   | CastExpr
   | UnaryExpr
   | ArrayLiteral
@@ -1426,6 +1466,7 @@ export type ASTNodeName =
   | 'CompilerCallExpr'
   | 'CallExpr'
   | 'MemberAccessExpr'
+  | 'NamespaceAccessExpr'
   | 'CastExpr'
   | 'UnaryExpr'
   | 'ArrayLiteral'

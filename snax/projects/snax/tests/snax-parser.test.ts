@@ -617,14 +617,7 @@ describe('externals', () => {
       `)
     ).toEqual(
       AST.makeFileWith({
-        funcs: [
-          AST.makeFuncDeclWith({
-            symbol: 'main',
-            isPublic: false,
-            parameters: AST.makeParameterList([]),
-            body: AST.makeBlock([]),
-          }),
-        ],
+        funcs: [],
         globals: [],
         decls: [
           AST.makeExternDeclWith({

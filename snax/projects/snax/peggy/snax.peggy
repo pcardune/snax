@@ -95,14 +95,16 @@ file "file"
       }
     }
     if (!hasMainFunc) {
-      funcs.push(
-        spec.makeFuncDeclWith({
-          symbol:'main',
-          isPublic: false,
-          parameters: spec.makeParameterList([]),
-          body: spec.makeBlock(mainFuncBody)
-        })
-      );
+      if (mainFuncBody.length > 0) {
+        funcs.push(
+          spec.makeFuncDeclWith({
+            symbol:'main',
+            isPublic: false,
+            parameters: spec.makeParameterList([]),
+            body: spec.makeBlock(mainFuncBody)
+          })
+        );
+      }
     } else if (mainFuncBody.length > 0 ) {
       throw new Error('Both free statements and a main function were provided. Choose one or the other');
     }

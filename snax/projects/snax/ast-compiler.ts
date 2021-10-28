@@ -33,6 +33,7 @@ import { desugar } from './desugar.js';
 import binaryen from 'binaryen';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
+import { pretty } from './spec-util.js';
 
 export const PAGE_SIZE = 65536;
 export const WASM_FEATURE_FLAGS =
@@ -1031,11 +1032,10 @@ export abstract class ExprCompiler<
         return new CompilerCallExpr(node, context);
       case 'MemberAccessExpr':
         return new MemberAccessExprCompiler(node, context);
-      case 'NamespaceAccessExpr':
-        return new NamespaceAccessExprCompiler(node, context);
       case 'NumberLiteral':
       case 'CharLiteral':
         return new NumberLiteralCompiler(node, context);
+      case 'NamespacedRef':
       case 'SymbolRef':
         return new SymbolRefCompiler(node, context);
       case 'BooleanLiteral':
@@ -1065,7 +1065,9 @@ export abstract class ExprCompiler<
   }
 }
 
-class SymbolRefCompiler extends ExprCompiler<AST.SymbolRef> {
+class SymbolRefCompiler extends ExprCompiler<
+  AST.SymbolRef | AST.NamespacedRef
+> {
   override getRValue(): RValue {
     const lvalue = this.getLValue();
     const type = this.context.typeCache.get(this.root);
@@ -1076,13 +1078,17 @@ class SymbolRefCompiler extends ExprCompiler<AST.SymbolRef> {
     const symbolRecord = this.context.refMap.get(this.root);
     if (!symbolRecord) {
       throw this.error(
-        `ASTCompiler: can't compile reference to unresolved symbol ${this.root.fields.symbol}`
+        `ASTCompiler: can't compile reference to unresolved symbol ${pretty(
+          this.root
+        )}`
       );
     }
     const location = this.context.allocationMap.get(symbolRecord.declNode);
     if (!location) {
       throw this.error(
-        `ASTCompiler: Can't compile reference to unlocated symbol ${this.root.fields.symbol}`
+        `ASTCompiler: Can't compile reference to unlocated symbol ${pretty(
+          this.root
+        )}`
       );
     }
     return lvalueStatic(location);
@@ -1394,32 +1400,6 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
     } else {
       return rvalue;
     }
-  }
-}
-
-class NamespaceAccessExprCompiler extends ExprCompiler<AST.NamespaceAccessExpr> {
-  getLValue(): LValue {
-    const { left, right } = this.root.fields;
-    const leftType = this.context.typeCache.get(left);
-    if (!AST.isSymbolRef(right)) {
-      throw this.error(`Can't do a namespace lookup with a ${right.name}`);
-    }
-    if (!(leftType instanceof RecordType)) {
-      throw this.error(`Don't know how to get LValue for ${leftType.name}`);
-    }
-    if (!AST.isSymbolRef(left)) {
-      throw this.error(`Don't know how to lookup namespace from ${left.name}`);
-    }
-    const moduleDecl = this.context.refMap.get(left);
-    if (!moduleDecl) {
-      throw this.error(`No declaration found for ${left.fields.symbol}`);
-    }
-    throw this.error(`I don't know how to do this yet...`);
-    // this.context.right.fields.symbol;
-    // return lvalueStatic(this.context.allocationMap.getFuncOrThrow(func));
-  }
-  getRValue(): RValue {
-    throw new Error('Method not implemented.');
   }
 }
 

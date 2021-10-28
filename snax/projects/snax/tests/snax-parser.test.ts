@@ -2,7 +2,6 @@ import * as AST from '../spec-gen.js';
 import { BinOp, NumberLiteralType, UnaryOp } from '../snax-ast.js';
 import { SNAXParser } from '../snax-parser.js';
 import { makeFunc, makeNum } from '../ast-util.js';
-import { depthFirstIter } from '../spec-util.js';
 
 function parse(code: string, start?: string) {
   const ast = SNAXParser.parseStrOrThrow(code, start, {
@@ -680,13 +679,7 @@ describe('modules', () => {
   it('should parse a namespace reference', () => {
     expect(parse(`std::math::add(1,2)`, 'expr')).toEqual(
       AST.makeCallExpr(
-        AST.makeNamespaceAccessExpr(
-          AST.makeNamespaceAccessExpr(
-            AST.makeSymbolRef('std'),
-            AST.makeSymbolRef('math')
-          ),
-          AST.makeSymbolRef('add')
-        ),
+        AST.makeNamespacedRef(['std', 'math', 'add']),
         AST.makeArgList([makeNum(1), makeNum(2)])
       )
     );

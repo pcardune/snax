@@ -7,6 +7,17 @@ function isASTNode(node: any): node is ASTNode {
   return typeof node === 'object' && node !== null && node.name && node.fields;
 }
 
+export function pretty(node: ASTNode): string {
+  switch (node.name) {
+    case 'SymbolRef':
+      return node.fields.symbol;
+    case 'NamespacedRef':
+      return node.fields.path.join('::');
+    default:
+      return node.name;
+  }
+}
+
 export function children(node: ASTNode): ASTNode[] {
   let children: ASTNode[] = [];
   if (isASTNode(node)) {

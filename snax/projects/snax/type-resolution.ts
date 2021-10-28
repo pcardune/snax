@@ -21,7 +21,7 @@ import {
   isNumberLiteral,
   isReturnStatement,
 } from './spec-gen.js';
-import { depthFirstIter } from './spec-util.js';
+import { depthFirstIter, pretty } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
@@ -111,6 +111,7 @@ export class TypeResolver {
         return Intrinsics.u8;
       case 'DataLiteral':
         return new ArrayType(Intrinsics.u8, node.fields.value.length);
+      case 'NamespacedRef':
       case 'SymbolRef': {
         const record = refMap.get(node);
         if (!record) {
@@ -120,7 +121,9 @@ export class TypeResolver {
         if (!resolvedType) {
           throw this.error(
             node,
-            `Can't resolve type for symbol ${node.fields.symbol}, whose declaration hasn't had its type resolved`
+            `Can't resolve type for symbol ${pretty(
+              node
+            )}, whose declaration hasn't had its type resolved`
           );
         }
         return resolvedType;
@@ -441,26 +444,6 @@ export class TypeResolver {
       }
       case 'StructLiteralProp':
         return this.resolveType(node.fields.expr);
-      case 'NamespaceAccessExpr': {
-        const { left, right } = node.fields;
-        const leftType = this.resolveType(left);
-        if (leftType instanceof RecordType) {
-          const propName: string = getPropNameOrThrow(right);
-          const propType = leftType.fields.get(propName);
-          if (!propType) {
-            throw this.error(
-              right,
-              `${propName} is not a valid accessor for ${leftType.name}`
-            );
-          }
-          this.typeMap.set(right, propType.type);
-          return propType.type;
-        }
-        throw this.error(
-          node,
-          `Don't know how to access namespace member on ${leftType.name}`
-        );
-      }
       case 'MemberAccessExpr': {
         const { left, right } = node.fields;
         let leftType = this.resolveType(left);

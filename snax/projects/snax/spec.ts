@@ -42,9 +42,14 @@ const specInput: Record<
       value: 'number',
     },
   },
+  NamespacedRef: {
+    fields: {
+      path: { type: 'string', list: true },
+    },
+  },
   SymbolRef: {
     fields: {
-      symbols: 'string',
+      symbol: 'string',
     },
   },
   TypeRef: {
@@ -125,11 +130,6 @@ const specInput: Record<
     fields: {
       left: 'Expression',
       right: 'Expression',
-    },
-  },
-  NamespaceAccessExpr: {
-    fields: {
-      path: { type: 'string', list: true },
     },
   },
   CastExpr: {
@@ -254,6 +254,7 @@ const specInput: Record<
       'ArrayLiteral',
       'BooleanLiteral',
       'SymbolRef',
+      'NamespacedRef',
       'StructLiteral',
     ],
   },
@@ -278,7 +279,6 @@ const specInput: Record<
       'CastExpr',
       'ArgList',
       'MemberAccessExpr',
-      'NamespaceAccessExpr',
     ],
   },
   Statement: {

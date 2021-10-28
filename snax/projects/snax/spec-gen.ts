@@ -654,39 +654,32 @@ export function makeMemberAccessExprWith(fields: {
   };
 }
 
-type NamespaceAccessExprFields = { left: Expression; right: Expression };
+type NamespacedRefFields = { path: string[] };
 
-export type NamespaceAccessExpr = {
-  name: 'NamespaceAccessExpr';
-  fields: NamespaceAccessExprFields;
+export type NamespacedRef = {
+  name: 'NamespacedRef';
+  fields: NamespacedRefFields;
   location?: Location;
 };
 
-export function isNamespaceAccessExpr(
-  node: ASTNode
-): node is NamespaceAccessExpr {
-  return node.name === 'NamespaceAccessExpr';
+export function isNamespacedRef(node: ASTNode): node is NamespacedRef {
+  return node.name === 'NamespacedRef';
 }
 
-export function makeNamespaceAccessExpr(
-  left: Expression,
-  right: Expression
-): NamespaceAccessExpr {
+export function makeNamespacedRef(path: string[]): NamespacedRef {
   return {
-    name: 'NamespaceAccessExpr',
+    name: 'NamespacedRef',
     fields: {
-      left,
-      right,
+      path,
     },
   };
 }
 
-export function makeNamespaceAccessExprWith(fields: {
-  left: Expression;
-  right: Expression;
-}): NamespaceAccessExpr {
+export function makeNamespacedRefWith(fields: {
+  path: string[];
+}): NamespacedRef {
   return {
-    name: 'NamespaceAccessExpr',
+    name: 'NamespacedRef',
     fields,
   };
 }
@@ -1325,6 +1318,7 @@ export type LiteralExpr =
   | ArrayLiteral
   | BooleanLiteral
   | SymbolRef
+  | NamespacedRef
   | StructLiteral;
 export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
   return (
@@ -1334,6 +1328,7 @@ export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
     isArrayLiteral(node) ||
     isBooleanLiteral(node) ||
     isSymbolRef(node) ||
+    isNamespacedRef(node) ||
     isStructLiteral(node)
   );
 }
@@ -1365,8 +1360,7 @@ export type Expression =
   | CompilerCallExpr
   | CastExpr
   | ArgList
-  | MemberAccessExpr
-  | NamespaceAccessExpr;
+  | MemberAccessExpr;
 export function isExpression(node: ASTNode): node is Expression {
   return (
     isBinaryExpr(node) ||
@@ -1377,8 +1371,7 @@ export function isExpression(node: ASTNode): node is Expression {
     isCompilerCallExpr(node) ||
     isCastExpr(node) ||
     isArgList(node) ||
-    isMemberAccessExpr(node) ||
-    isNamespaceAccessExpr(node)
+    isMemberAccessExpr(node)
   );
 }
 
@@ -1421,7 +1414,7 @@ export type ASTNode =
   | CompilerCallExpr
   | CallExpr
   | MemberAccessExpr
-  | NamespaceAccessExpr
+  | NamespacedRef
   | CastExpr
   | UnaryExpr
   | ArrayLiteral
@@ -1466,7 +1459,7 @@ export type ASTNodeName =
   | 'CompilerCallExpr'
   | 'CallExpr'
   | 'MemberAccessExpr'
-  | 'NamespaceAccessExpr'
+  | 'NamespacedRef'
   | 'CastExpr'
   | 'UnaryExpr'
   | 'ArrayLiteral'

@@ -504,9 +504,9 @@ bool = "true" { return spec.makeBooleanLiteral(true); }
 
 id "symbol"
   = name:identifier rest:("::" identifier)+ {
-    return spec.makeNamespaceAccessExpr(name);
+    return spec.makeNamespacedRef([name, ...rest.map((r:any) => r[1])]);
   }
-  = name:identifier {
+  / name:identifier {
     return spec.makeSymbolRef(name);
   }
 

@@ -16,8 +16,8 @@ import {
   isFuncDecl,
   ModuleDecl,
   isModuleDecl,
-  isNamespaceAccessExpr,
-  NamespaceAccessExpr,
+  isNamespacedRef,
+  NamespacedRef,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -66,7 +66,7 @@ export type SymbolTableMap = OrderedMap<
   SymbolTable
 >;
 export type SymbolRefMap = OrderedMap<
-  SymbolRef | TypeRef | NamespaceAccessExpr,
+  SymbolRef | TypeRef | NamespacedRef,
   SymbolRecord
 >;
 
@@ -115,45 +115,41 @@ function innerResolveSymbols(
       refMap.set(astNode, symbolRecord);
       break;
     }
-    case 'NamespaceAccessExpr': {
-      const { left, right } = astNode.fields;
-      if (left.name !== 'SymbolRef') {
-        throw new SymbolResolutionError(
-          astNode,
-          `Can't access namespace from a ${left.name}`
-        );
+    case 'NamespacedRef': {
+      const { path } = astNode.fields;
+      const namesToLookup = [...path];
+      let table = currentTable;
+      while (namesToLookup.length > 1) {
+        const symbol = namesToLookup.shift()!;
+        const namespaceRecord = table.get(symbol);
+        if (!namespaceRecord) {
+          throw new SymbolResolutionError(
+            astNode,
+            `No declaration found for ${symbol}`
+          );
+        }
+        const moduleDecl = namespaceRecord.declNode;
+        if (moduleDecl.name !== 'ModuleDecl') {
+          throw new SymbolResolutionError(
+            astNode,
+            `Can't resolve namespace access to a ${moduleDecl.name}`
+          );
+        }
+        const moduleSymbolTable = tables.get(moduleDecl);
+        if (!moduleSymbolTable) {
+          throw new SymbolResolutionError(
+            astNode,
+            `No symbol table found for namespace ${moduleDecl.fields.symbol}`
+          );
+        }
+        table = moduleSymbolTable;
       }
-      const moduleDecl = currentTable.get(left.fields.symbol);
-      if (!moduleDecl) {
-        throw new SymbolResolutionError(
-          astNode,
-          `No declaration for namespace ${left.fields.symbol}`
-        );
-      }
-      if (moduleDecl.declNode.name !== 'ModuleDecl') {
-        throw new SymbolResolutionError(
-          astNode,
-          `Can't resolve namespace access to a ${moduleDecl.declNode.name}`
-        );
-      }
-      const moduleSymbolTable = tables.get(moduleDecl.declNode);
-      if (!moduleSymbolTable) {
-        throw new SymbolResolutionError(
-          astNode,
-          `No symbol table found for namespace ${moduleDecl.declNode.fields.symbol}`
-        );
-      }
-      if (right.name !== 'SymbolRef') {
-        throw new SymbolResolutionError(
-          astNode,
-          `Can't lookup a symbol from a ${right.name}`
-        );
-      }
-      const symbolRecord = moduleSymbolTable.get(right.fields.symbol);
+      const symbol = namesToLookup.shift()!;
+      const symbolRecord = table.get(symbol);
       if (!symbolRecord) {
         throw new SymbolResolutionError(
           astNode,
-          `Reference to undeclared symbol ${right.fields.symbol}`
+          `Reference to undeclared symbol ${symbol}`
         );
       }
       refMap.set(astNode, symbolRecord);

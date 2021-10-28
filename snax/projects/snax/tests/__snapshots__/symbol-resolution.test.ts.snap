@@ -4,10 +4,10 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
 "<File>
   <SymbolTable id=\\"31\\" parent=\\"30\\">
     <externalFunc/>
-    <g/>
     <main/>
+    <g/>
   </SymbolTable>
-  <funcs>
+  <decls>
     <FuncDecl symbol=\\"main\\" isPublic=\\"false\\" returnType=\\"undefined\\">
       <SymbolTable id=\\"32\\" parent=\\"31\\"/>
       <ParameterList>
@@ -47,8 +47,6 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
         </statements>
       </Block>
     </FuncDecl>
-  </funcs>
-  <decls>
     <GlobalDecl symbol=\\"g\\" typeExpr=\\"undefined\\">
       <NumberLiteral value=\\"10\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
     </GlobalDecl>

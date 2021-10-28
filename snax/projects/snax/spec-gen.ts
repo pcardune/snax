@@ -1173,7 +1173,7 @@ export function makeArgListWith(fields: { args: Expression[] }): ArgList {
   };
 }
 
-type FileFields = { funcs: FuncDecl[]; decls: TopLevelDecl[] };
+type FileFields = { decls: TopLevelDecl[] };
 
 export type File = {
   name: 'File';
@@ -1185,20 +1185,16 @@ export function isFile(node: ASTNode): node is File {
   return node.name === 'File';
 }
 
-export function makeFile(funcs: FuncDecl[], decls: TopLevelDecl[]): File {
+export function makeFile(decls: TopLevelDecl[]): File {
   return {
     name: 'File',
     fields: {
-      funcs,
       decls,
     },
   };
 }
 
-export function makeFileWith(fields: {
-  funcs: FuncDecl[];
-  decls: TopLevelDecl[];
-}): File {
+export function makeFileWith(fields: { decls: TopLevelDecl[] }): File {
   return {
     name: 'File',
     fields,
@@ -1274,13 +1270,15 @@ export type TopLevelDecl =
   | ExternDecl
   | TupleStructDecl
   | StructDecl
-  | GlobalDecl;
+  | GlobalDecl
+  | FuncDecl;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
   return (
     isExternDecl(node) ||
     isTupleStructDecl(node) ||
     isStructDecl(node) ||
-    isGlobalDecl(node)
+    isGlobalDecl(node) ||
+    isFuncDecl(node)
   );
 }
 

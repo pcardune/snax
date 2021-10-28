@@ -389,13 +389,15 @@ export class TypeResolver {
       case 'File':
         return new RecordType(
           new OrderedMap([
-            ...node.fields.funcs.map(
-              (funcDecl) =>
-                [funcDecl.fields.symbol, this.resolveType(funcDecl)] as [
-                  string,
-                  BaseType
-                ]
-            ),
+            ...node.fields.decls
+              .filter(isFuncDecl)
+              .map(
+                (funcDecl) =>
+                  [funcDecl.fields.symbol, this.resolveType(funcDecl)] as [
+                    string,
+                    BaseType
+                  ]
+              ),
           ])
         );
       case 'ExternDecl':

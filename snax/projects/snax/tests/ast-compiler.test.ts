@@ -4,7 +4,7 @@ import { compileToWAT } from './test-util';
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', async () => {
-    const { wat } = compileToWAT(AST.makeFileWith({ funcs: [], decls: [] }), {
+    const { wat } = compileToWAT(AST.makeFileWith({ decls: [] }), {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
@@ -20,7 +20,6 @@ describe('ModuleCompiler', () => {
   it('compiles globals in the module', async () => {
     const { wat } = compileToWAT(
       AST.makeFileWith({
-        funcs: [],
         decls: [AST.makeGlobalDecl('foo', undefined, makeNum(0))],
       }),
       { includeRuntime: false }
@@ -39,8 +38,7 @@ describe('ModuleCompiler', () => {
   it('compiles functions in the module', async () => {
     const num = AST.makeExprStatement(makeNum(32));
     const file = AST.makeFileWith({
-      funcs: [makeFunc('main', [], [num])],
-      decls: [],
+      decls: [makeFunc('main', [], [num])],
     });
     const { wat } = compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
@@ -73,14 +71,13 @@ describe('ModuleCompiler', () => {
   it('compiles string literals into data segments', async () => {
     const { wat } = compileToWAT(
       AST.makeFileWith({
-        funcs: [
+        decls: [
           makeFunc(
             'main',
             [],
             [AST.makeExprStatement(AST.makeDataLiteral('hello world!'))]
           ),
         ],
-        decls: [],
       }),
       { includeRuntime: false }
     );
@@ -119,8 +116,7 @@ describe('ModuleCompiler', () => {
       [AST.makeReturnStatement(AST.makeSymbolRef('a'))]
     );
     const file = AST.makeFileWith({
-      funcs: [funcDecl, makeFunc('main')],
-      decls: [],
+      decls: [funcDecl, makeFunc('main')],
     });
     const { wat } = compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
@@ -156,7 +152,6 @@ describe('ModuleCompiler', () => {
 
   it('compiles extern declarations into wasm imports', async () => {
     const file = AST.makeFileWith({
-      funcs: [],
       decls: [
         AST.makeExternDeclWith({
           libName: 'wasi_unstable',

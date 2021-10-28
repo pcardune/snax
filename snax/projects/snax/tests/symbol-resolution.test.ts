@@ -36,8 +36,8 @@ beforeEach(() => {
   globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
   funcDecl = makeFunc('main', [], outerBlock);
   file = AST.makeFileWith({
-    funcs: [funcDecl],
     decls: [
+      funcDecl,
       globalDecl,
       AST.makeExternDeclWith({
         libName: 'someLib',

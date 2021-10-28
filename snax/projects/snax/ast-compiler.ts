@@ -258,22 +258,19 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
         }
       `);
       if (AST.isFile(runtimeAST)) {
-        for (const runtimeFunc of runtimeAST.fields.funcs) {
-          const { symbol } = runtimeFunc.fields;
-          if (symbol !== 'main') {
-            this.root.fields.funcs.push(runtimeFunc);
-            if (symbol === 'malloc') {
-              mallocDecl = runtimeFunc;
-            }
-          }
-        }
         for (const decl of runtimeAST.fields.decls) {
           if (AST.isGlobalDecl(decl) && decl.fields.symbol === 'next') {
             decl.fields.expr = heapStartLiteral;
-            break;
+          } else if (AST.isFuncDecl(decl)) {
+            if (decl.fields.symbol === 'main') {
+              continue;
+            }
+            if (decl.fields.symbol === 'malloc') {
+              mallocDecl = decl;
+            }
           }
+          this.root.fields.decls.push(decl);
         }
-        this.root.fields.decls.push(...runtimeAST.fields.decls);
       } else {
         throw this.error(`this should never happen`);
       }
@@ -336,19 +333,21 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     const module = new binaryen.Module();
     module.setFeatures(WASM_FEATURE_FLAGS);
     // module.setFeatures(binaryen.Features.MutableGlobals);
-    for (const func of this.root.fields.funcs) {
-      new FuncDeclCompiler(func, {
-        refMap,
-        typeCache,
-        allocationMap: moduleAllocator.allocationMap,
-        funcAllocs: moduleAllocator.getLocalsForFunc(func),
-        runtime,
-        module,
-      }).compile();
+    for (const func of this.root.fields.decls) {
+      if (AST.isFuncDecl(func)) {
+        new FuncDeclCompiler(func, {
+          refMap,
+          typeCache,
+          allocationMap: moduleAllocator.allocationMap,
+          funcAllocs: moduleAllocator.getLocalsForFunc(func),
+          runtime,
+          module,
+        }).compile();
+      }
     }
-    const mainFunc = this.root.fields.funcs.find(
-      (decl) => decl.fields.symbol === 'main'
-    );
+    const mainFunc = this.root.fields.decls.find(
+      (decl) => AST.isFuncDecl(decl) && decl.fields.symbol === 'main'
+    ) as AST.FuncDecl;
     if (mainFunc) {
       const mainFuncLocation =
         moduleAllocator.allocationMap.getFuncOrThrow(mainFunc);
@@ -427,6 +426,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
           );
           break;
         }
+        case 'FuncDecl': // handled above
         case 'StructDecl':
           break;
         default:

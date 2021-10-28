@@ -65,7 +65,6 @@ start
 
 file "file"
   = ws statements:fileStatementList? ws {
-    let funcs: specGen.FuncDecl[] = [];
     let decls = [];
     let mainFuncBody = [];
     let hasMainFunc = false;
@@ -74,7 +73,7 @@ file "file"
         if (statement.fields.symbol === "main") {
           hasMainFunc = true;
         }
-        funcs.push(statement);
+        decls.push(statement);
       } else if (spec.isStatement(statement)) {
         mainFuncBody.push(statement);
       } else {
@@ -93,7 +92,7 @@ file "file"
     }
     if (!hasMainFunc) {
       if (mainFuncBody.length > 0) {
-        funcs.push(
+        decls.push(
           spec.makeFuncDeclWith({
             symbol:'main',
             isPublic: false,
@@ -106,7 +105,6 @@ file "file"
       throw new Error('Both free statements and a main function were provided. Choose one or the other');
     }
     return spec.makeFileWith({
-      funcs,
       decls,
     });
   }

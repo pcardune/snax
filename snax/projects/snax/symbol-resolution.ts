@@ -13,6 +13,7 @@ import {
   ExternFuncDecl,
   TopLevelDecl,
   isGlobalDecl,
+  isFuncDecl,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -141,30 +142,29 @@ function innerResolveSymbols(
       }
     }
     for (const decl of astNode.fields.decls) {
-      if (isGlobalDecl(decl)) {
+      if (isGlobalDecl(decl) || isFuncDecl(decl)) {
         currentTable.declare(decl.fields.symbol, decl);
       }
     }
-    for (const funcDecl of astNode.fields.funcs) {
-      currentTable.declare(funcDecl.fields.symbol, funcDecl);
-    }
-    for (const funcDecl of astNode.fields.funcs) {
-      const funcSymbols = new SymbolTable(currentTable);
-      tables.set(funcDecl, funcSymbols);
-      innerResolveSymbols(
-        funcDecl.fields.parameters,
-        funcSymbols,
-        tables,
-        refMap
-      );
-      innerResolveSymbols(funcDecl.fields.body, funcSymbols, tables, refMap);
+    for (const funcDecl of astNode.fields.decls) {
+      if (isFuncDecl(funcDecl)) {
+        const funcSymbols = new SymbolTable(currentTable);
+        tables.set(funcDecl, funcSymbols);
+        innerResolveSymbols(
+          funcDecl.fields.parameters,
+          funcSymbols,
+          tables,
+          refMap
+        );
+        innerResolveSymbols(funcDecl.fields.body, funcSymbols, tables, refMap);
+      }
     }
 
     for (const decl of astNode.fields.decls) {
       switch (decl.name) {
-        case 'GlobalDecl': {
+        case 'FuncDecl':
+        case 'GlobalDecl':
           break;
-        }
         default:
           childrenOf(decl).forEach((node) =>
             innerResolveSymbols(node, currentTable, tables, refMap)

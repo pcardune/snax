@@ -255,7 +255,6 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c1 = function(): any { return spec.makeBlock([]); };
   const peg$c2 = peg$otherExpectation("file");
   const peg$c3 = function(statements: any): any {
-      let funcs: specGen.FuncDecl[] = [];
       let decls = [];
       let mainFuncBody = [];
       let hasMainFunc = false;
@@ -264,7 +263,7 @@ function peg$parse(input: string, options?: IParseOptions) {
           if (statement.fields.symbol === "main") {
             hasMainFunc = true;
           }
-          funcs.push(statement);
+          decls.push(statement);
         } else if (spec.isStatement(statement)) {
           mainFuncBody.push(statement);
         } else {
@@ -283,7 +282,7 @@ function peg$parse(input: string, options?: IParseOptions) {
       }
       if (!hasMainFunc) {
         if (mainFuncBody.length > 0) {
-          funcs.push(
+          decls.push(
             spec.makeFuncDeclWith({
               symbol:'main',
               isPublic: false,
@@ -296,7 +295,6 @@ function peg$parse(input: string, options?: IParseOptions) {
         throw new Error('Both free statements and a main function were provided. Choose one or the other');
       }
       return spec.makeFileWith({
-        funcs,
         decls,
       });
     };

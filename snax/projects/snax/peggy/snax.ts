@@ -256,7 +256,6 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c2 = peg$otherExpectation("file");
   const peg$c3 = function(statements: any): any {
       let funcs: specGen.FuncDecl[] = [];
-      let globals: specGen.GlobalDecl[] = [];
       let decls = [];
       let mainFuncBody = [];
       let hasMainFunc = false;
@@ -266,8 +265,6 @@ function peg$parse(input: string, options?: IParseOptions) {
             hasMainFunc = true;
           }
           funcs.push(statement);
-        } else if (spec.isGlobalDecl(statement)) {
-          globals.push(statement);
         } else if (spec.isStatement(statement)) {
           mainFuncBody.push(statement);
         } else {
@@ -300,7 +297,6 @@ function peg$parse(input: string, options?: IParseOptions) {
       }
       return spec.makeFileWith({
         funcs,
-        globals,
         decls,
       });
     };

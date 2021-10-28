@@ -575,8 +575,7 @@ describe('files', () => {
           makeFunc('bar'),
           makeFunc('main', [], [AST.makeReturnStatement(makeNum(1))]),
         ],
-        globals: [AST.makeGlobalDecl('counter', undefined, makeNum(0))],
-        decls: [],
+        decls: [AST.makeGlobalDecl('counter', undefined, makeNum(0))],
       })
     );
   });
@@ -588,7 +587,6 @@ describe('files', () => {
     ).toEqual(
       AST.makeFileWith({
         funcs: [makeFunc('main')],
-        globals: [],
         decls: [],
       })
     );
@@ -618,7 +616,6 @@ describe('externals', () => {
     ).toEqual(
       AST.makeFileWith({
         funcs: [],
-        globals: [],
         decls: [
           AST.makeExternDeclWith({
             libName: 'WASI',

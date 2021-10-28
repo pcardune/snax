@@ -48,12 +48,10 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
       </Block>
     </FuncDecl>
   </funcs>
-  <globals>
+  <decls>
     <GlobalDecl symbol=\\"g\\" typeExpr=\\"undefined\\">
       <NumberLiteral value=\\"10\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
     </GlobalDecl>
-  </globals>
-  <decls>
     <ExternDecl libName=\\"someLib\\">
       <funcs>
         <ExternFuncDecl symbol=\\"externalFunc\\">

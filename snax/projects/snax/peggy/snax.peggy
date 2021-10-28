@@ -66,7 +66,6 @@ start
 file "file"
   = ws statements:fileStatementList? ws {
     let funcs: specGen.FuncDecl[] = [];
-    let globals: specGen.GlobalDecl[] = [];
     let decls = [];
     let mainFuncBody = [];
     let hasMainFunc = false;
@@ -76,8 +75,6 @@ file "file"
           hasMainFunc = true;
         }
         funcs.push(statement);
-      } else if (spec.isGlobalDecl(statement)) {
-        globals.push(statement);
       } else if (spec.isStatement(statement)) {
         mainFuncBody.push(statement);
       } else {
@@ -110,7 +107,6 @@ file "file"
     }
     return spec.makeFileWith({
       funcs,
-      globals,
       decls,
     });
   }

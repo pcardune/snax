@@ -11,6 +11,8 @@ import {
   TypeRef,
   isMemberAccessExpr,
   ExternFuncDecl,
+  TopLevelDecl,
+  isGlobalDecl,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -138,8 +140,10 @@ function innerResolveSymbols(
         }
       }
     }
-    for (const globalDecl of astNode.fields.globals) {
-      currentTable.declare(globalDecl.fields.symbol, globalDecl);
+    for (const decl of astNode.fields.decls) {
+      if (isGlobalDecl(decl)) {
+        currentTable.declare(decl.fields.symbol, decl);
+      }
     }
     for (const funcDecl of astNode.fields.funcs) {
       currentTable.declare(funcDecl.fields.symbol, funcDecl);
@@ -157,9 +161,15 @@ function innerResolveSymbols(
     }
 
     for (const decl of astNode.fields.decls) {
-      childrenOf(decl).forEach((node) =>
-        innerResolveSymbols(node, currentTable, tables, refMap)
-      );
+      switch (decl.name) {
+        case 'GlobalDecl': {
+          break;
+        }
+        default:
+          childrenOf(decl).forEach((node) =>
+            innerResolveSymbols(node, currentTable, tables, refMap)
+          );
+      }
     }
   } else if (isMemberAccessExpr(astNode)) {
     innerResolveSymbols(astNode.fields.left, currentTable, tables, refMap);

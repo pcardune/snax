@@ -7,6 +7,7 @@ import {
   ParameterList,
   DataLiteral,
   ExternFuncDecl,
+  isGlobalDecl,
 } from './spec-gen.js';
 import { children } from './spec-util.js';
 import { NumberType } from './numbers.js';
@@ -425,13 +426,11 @@ class MemoryResolver {
     switch (root.name) {
       case 'File': {
         for (const decl of root.fields.decls) {
-          if (isExternDecl(decl)) {
+          if (isExternDecl(decl) || isGlobalDecl(decl)) {
             this.resolve(decl);
           }
         }
-        [...root.fields.globals, ...root.fields.funcs].forEach((child) =>
-          this.resolve(child)
-        );
+        root.fields.funcs.forEach((child) => this.resolve(child));
         return;
       }
       case 'ExternFuncDecl':

@@ -108,7 +108,7 @@ describe('ArgList', () => {
 
 describe('Files', () => {
   it('types an empty file as an empty record type', () => {
-    const file = makeFile([], [], []);
+    const file = makeFile([], []);
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(new RecordType(new OrderedMap()));
   });
@@ -118,7 +118,7 @@ describe('Files', () => {
       parameters: makeParameterList([]),
       body: makeBlock([]),
     });
-    const file = makeFile([func], [], []);
+    const file = makeFile([func], []);
     const typeMap = resolveTypes(file, new OrderedMap());
     expect(typeMap.get(file)).toEqual(
       new RecordType(new OrderedMap([['myFunc', typeMap.get(func)!]]))
@@ -364,7 +364,6 @@ describe('StructDecl', () => {
     });
     const file = AST.makeFileWith({
       funcs: [],
-      globals: [],
       decls: [vecStructDecl, lineStructDecl],
     });
     const { refMap } = resolveSymbols(file);
@@ -384,7 +383,6 @@ describe('StructDecl', () => {
     });
     const file = AST.makeFileWith({
       funcs: [],
-      globals: [],
       decls: [vecStructDecl],
     });
     const { refMap } = resolveSymbols(file);

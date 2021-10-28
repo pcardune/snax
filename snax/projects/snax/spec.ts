@@ -221,7 +221,6 @@ const specInput: Record<
   File: {
     fields: {
       funcs: { type: 'FuncDecl', list: true },
-      globals: { type: 'GlobalDecl', list: true },
       decls: { type: 'TopLevelDecl', list: true },
     },
   },
@@ -249,7 +248,7 @@ const specInput: Record<
     ],
   },
   TopLevelDecl: {
-    union: ['ExternDecl', 'TupleStructDecl', 'StructDecl'],
+    union: ['ExternDecl', 'TupleStructDecl', 'StructDecl', 'GlobalDecl'],
   },
   Expression: {
     union: [

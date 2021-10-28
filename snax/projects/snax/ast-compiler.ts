@@ -235,7 +235,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       symbol: '#SP',
       expr: stackPointerLiteral,
     });
-    this.root.fields.globals.push(stackPointerGlobal);
+    this.root.fields.decls.push(stackPointerGlobal);
 
     let heapStartLiteral = AST.makeNumberLiteralWith({
       value: 0,
@@ -267,8 +267,12 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
             }
           }
         }
-        runtimeAST.fields.globals[0].fields.expr = heapStartLiteral;
-        this.root.fields.globals.push(...runtimeAST.fields.globals);
+        for (const decl of runtimeAST.fields.decls) {
+          if (AST.isGlobalDecl(decl) && decl.fields.symbol === 'next') {
+            decl.fields.expr = heapStartLiteral;
+            break;
+          }
+        }
         this.root.fields.decls.push(...runtimeAST.fields.decls);
       } else {
         throw this.error(`this should never happen`);
@@ -375,32 +379,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       module.addFunctionExport('_start', '_start');
     }
 
-    // ADD GLOBALS
-    for (const global of this.root.fields.globals) {
-      const location = moduleAllocator.allocationMap.getGlobalOrThrow(global);
-      module.addGlobal(
-        location.id,
-        binaryen[location.valueType],
-        true,
-        ExprCompiler.forNode(global.fields.expr, {
-          refMap,
-          typeCache,
-          allocationMap: moduleAllocator.allocationMap,
-          get funcAllocs(): FuncAllocations {
-            throw new Error(
-              `global expressions should not be attempting to access stack variables`
-            );
-          },
-          runtime: runtime,
-          setDebugLocation: () => {},
-          module,
-        })
-          .getRValue()
-          .expectDirect().valueExpr
-      );
-    }
-    module.addGlobalExport(stackPointer.id, 'stackPointer');
-
     // ADD DATA
     const segments: binaryen.MemorySegment[] = [];
     for (const loc of moduleAllocator.allocationMap.values()) {
@@ -413,16 +391,54 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       }
     }
 
-    // ADD IMPORTS
     for (const decl of this.root.fields.decls) {
-      if (AST.isExternDecl(decl)) {
-        new ExternDeclCompiler(decl, {
-          typeCache,
-          allocationMap: moduleAllocator.allocationMap,
-          module,
-        }).compile();
+      switch (decl.name) {
+        case 'ExternDecl': {
+          // ADD IMPORTS
+          new ExternDeclCompiler(decl, {
+            typeCache,
+            allocationMap: moduleAllocator.allocationMap,
+            module,
+          }).compile();
+          break;
+        }
+        case 'GlobalDecl': {
+          // ADD GLOBALS
+          const location = moduleAllocator.allocationMap.getGlobalOrThrow(decl);
+          module.addGlobal(
+            location.id,
+            binaryen[location.valueType],
+            true,
+            ExprCompiler.forNode(decl.fields.expr, {
+              refMap,
+              typeCache,
+              allocationMap: moduleAllocator.allocationMap,
+              get funcAllocs(): FuncAllocations {
+                throw new Error(
+                  `global expressions should not be attempting to access stack variables`
+                );
+              },
+              runtime: runtime,
+              setDebugLocation: () => {},
+              module,
+            })
+              .getRValue()
+              .expectDirect().valueExpr
+          );
+          break;
+        }
+        case 'StructDecl':
+          break;
+        default:
+          throw new CompilerError(
+            decl,
+            `Unrecognized file-level declaration ${decl.name}`
+          );
       }
     }
+
+    // export the stack pointer for debugging purposes
+    module.addGlobalExport(stackPointer.id, 'stackPointer');
 
     module.setMemory(
       this.options.stackSize,

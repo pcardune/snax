@@ -44,7 +44,7 @@ const specInput: Record<
   },
   SymbolRef: {
     fields: {
-      symbol: 'string',
+      symbols: 'string',
     },
   },
   TypeRef: {
@@ -129,8 +129,7 @@ const specInput: Record<
   },
   NamespaceAccessExpr: {
     fields: {
-      left: 'Expression',
-      right: 'Expression',
+      path: { type: 'string', list: true },
     },
   },
   CastExpr: {

@@ -408,20 +408,11 @@ deref "deref"
   / memberAccess
 
 memberAccess "memberAccess"
-  = rest:(namespaceAccess ws (".") ws)* val:namespaceAccess {
+  = rest:(factor ws (".") ws)* val:factor {
     return leftAssoc(
       rest,
       val,
       ({left, right, operator}) => spec.makeMemberAccessExpr(left, right)
-    );
-  }
-
-namespaceAccess "namespaceAccess"
-  = rest:(factor ws ("::") ws)* val:factor {
-    return leftAssoc(
-      rest,
-      val,
-      ({left, right, operator}) => spec.makeNamespaceAccessExpr(left, right)
     );
   }
 
@@ -512,7 +503,12 @@ bool = "true" { return spec.makeBooleanLiteral(true); }
      / "false" { return spec.makeBooleanLiteral(false); }
 
 id "symbol"
-  = name:identifier { return spec.makeSymbolRef(name); }
+  = name:identifier rest:("::" identifier)+ {
+    return spec.makeNamespaceAccessExpr(name);
+  }
+  = name:identifier {
+    return spec.makeSymbolRef(name);
+  }
 
 identifier "identifier"
   = prefix:[a-z_]i suffix:[a-z0-9_]i* { return prefix+suffix.join(''); }

@@ -22,7 +22,7 @@ export function children(node: ASTNode): ASTNode[] {
   let children: ASTNode[] = [];
   if (isASTNode(node)) {
     for (let field of Object.values(node.fields)) {
-      if (field instanceof Array) {
+      if (field instanceof Array && field.length > 0 && isASTNode(field[0])) {
         children.push(...field);
       } else if (isASTNode(field)) {
         children.push(field);

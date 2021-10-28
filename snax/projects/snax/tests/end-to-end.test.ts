@@ -1,5 +1,5 @@
 import {
-  ModuleCompiler,
+  FileCompiler,
   ModuleCompilerOptions,
   PAGE_SIZE,
 } from '../ast-compiler.js';
@@ -63,7 +63,7 @@ function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {
   }
 }
 
-function dumpFuncAllocations(compiler: ModuleCompiler, funcName: string) {
+function dumpFuncAllocations(compiler: FileCompiler, funcName: string) {
   const funcAllocator =
     compiler.moduleAllocator.funcAllocatorMap.getByFuncNameOrThrow(funcName);
   return [
@@ -939,7 +939,7 @@ describe('object structs', () => {
 describe('tuple structs', () => {
   describe('construction', () => {
     let snax: SnaxExports;
-    let compiler: ModuleCompiler;
+    let compiler: FileCompiler;
     beforeEach(async () => {
       const code = `
         struct Vector(u8,i32);
@@ -1037,20 +1037,31 @@ describe('extern declarations', () => {
   });
 });
 
-xdescribe('module declarations', () => {
+describe('module declarations', () => {
   it('allows calling functions inside a module declaration', async () => {
     const code = `
       module math {
         func add(a:i32, b:i32) {
           return a+b;
         }
+        func add100(a:i32) {
+          return add(a, 100);
+        }
       }
-      func main() {
+      func add(a:i32, b:i32) {
+        return a + 500;
+      }
+      pub func test1() {
         return math::add(1,2);
       }
+      pub func test2() {
+        return math::add100(1);
+      }
     `;
-    const { exports } = await compileToWasmModule(code);
-    expect(exports._start()).toBe(3);
+    const { exports, wat } = await compileToWasmModule(code);
+    expect((exports as any).test1()).toBe(3);
+    expect((exports as any).test2()).toBe(101);
+    expect(wat).toMatchSnapshot();
   });
 });
 

@@ -249,6 +249,110 @@ exports[`let statements allocates space on the stack, and initializes values to 
 "
 `;
 
+exports[`module declarations allows calling functions inside a module declaration 1`] = `
+"(module
+ (type $i32_i32_=>_i32 (func (param i32 i32) (result i32)))
+ (type $none_=>_i32 (func (result i32)))
+ (type $i32_=>_i32 (func (param i32) (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"test1\\" (func $<test1>f3))
+ (export \\"test2\\" (func $<test2>f4))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<math::add>f0 (param $0 i32) (param $1 i32) (result i32)
+  (local $2 i32)
+  ;;@ :4:11
+  (return
+   ;;@ :4:18
+   (i32.add
+    ;;@ :4:18
+    (local.get $0)
+    ;;@ :4:20
+    (local.get $1)
+   )
+  )
+ )
+ (func $<math::add100>f1 (param $0 i32) (result i32)
+  (local $1 i32)
+  (local $2 i32)
+  ;;@ :7:11
+  (return
+   ;;@ :7:18
+   (block (result i32)
+    (local.set $2
+     (call $<math::add>f0
+      ;;@ :7:22
+      (local.get $0)
+      ;;@ :7:25
+      (i32.const 100)
+     )
+    )
+    (global.set $g0:#SP
+     (local.get $1)
+    )
+    (local.get $2)
+   )
+  )
+ )
+ (func $<add>f2 (param $0 i32) (param $1 i32) (result i32)
+  (local $2 i32)
+  ;;@ :11:9
+  (return
+   ;;@ :11:16
+   (i32.add
+    (local.get $0)
+    ;;@ :11:20
+    (i32.const 500)
+   )
+  )
+ )
+ (func $<test1>f3 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :14:9
+  (return
+   ;;@ :14:16
+   (block (result i32)
+    (local.set $1
+     (call $<math::add>f0
+      ;;@ :14:26
+      (i32.const 1)
+      ;;@ :14:28
+      (i32.const 2)
+     )
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+ )
+ (func $<test2>f4 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :17:9
+  (return
+   ;;@ :17:16
+   (block (result i32)
+    (local.set $1
+     (call $<math::add100>f1
+      ;;@ :17:29
+      (i32.const 1)
+     )
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+ )
+)
+"
+`;
+
 exports[`reg statements compiles reg statements 1`] = `
 "(module
  (type $none_=>_i32 (func (result i32)))

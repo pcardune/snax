@@ -211,7 +211,7 @@ export type ModuleCompilerOptions = {
    */
   stackSize?: number;
 };
-export class ModuleCompiler extends ASTCompiler<AST.File> {
+export class FileCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
   refMap?: SymbolRefMap;
   typeCache?: ResolvedTypeMap;
@@ -344,6 +344,14 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
           runtime,
           module,
         }).compile();
+      } else if (AST.isModuleDecl(func)) {
+        new ModuleDeclCompiler(func, {
+          refMap,
+          typeCache,
+          moduleAllocator,
+          runtime,
+          module,
+        }).compile();
       }
     }
     const mainFunc = this.root.fields.decls.find(
@@ -427,6 +435,7 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
           );
           break;
         }
+        case 'ModuleDecl': // handled above
         case 'FuncDecl': // handled above
         case 'StructDecl':
           break;
@@ -451,6 +460,34 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     );
 
     return module;
+  }
+}
+
+export class ModuleDeclCompiler extends ASTCompiler<
+  AST.ModuleDecl,
+  {
+    refMap: SymbolRefMap;
+    typeCache: ResolvedTypeMap;
+    moduleAllocator: ModuleAllocator;
+    runtime: Runtime;
+    module: binaryen.Module;
+  }
+> {
+  compile() {
+    const { moduleAllocator } = this.context;
+    for (const decl of this.root.fields.decls) {
+      if (AST.isFuncDecl(decl)) {
+        new FuncDeclCompiler(decl, {
+          ...this.context,
+          allocationMap: moduleAllocator.allocationMap,
+          funcAllocs: moduleAllocator.getLocalsForFunc(decl),
+        }).compile();
+      } else {
+        throw this.error(
+          `Don't know how to compile ${decl.name} inside module decls yet...`
+        );
+      }
+    }
   }
 }
 

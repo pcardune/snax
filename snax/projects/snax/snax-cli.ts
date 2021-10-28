@@ -6,7 +6,7 @@ import path from 'path';
 // eslint-disable-next-line import/no-unresolved
 import { WASI } from 'wasi';
 import { SNAXParser } from './snax-parser.js';
-import { ModuleCompiler, WASM_FEATURE_FLAGS } from './ast-compiler.js';
+import { FileCompiler, WASM_FEATURE_FLAGS } from './ast-compiler.js';
 import { isFile } from './spec-gen.js';
 import binaryen from 'binaryen';
 import { dumpASTData } from './spec-util.js';
@@ -33,7 +33,7 @@ function parseFile(inPath: string) {
 
 function compileSnaxFile(file: string) {
   const ast = parseFile(file);
-  const compiler = new ModuleCompiler(ast, { includeRuntime: true });
+  const compiler = new FileCompiler(ast, { includeRuntime: true });
   let module;
   try {
     module = compiler.compile();

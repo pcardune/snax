@@ -11,12 +11,9 @@ import {
   TypeRef,
   isMemberAccessExpr,
   ExternFuncDecl,
-  TopLevelDecl,
-  isGlobalDecl,
   isFuncDecl,
   ModuleDecl,
   isModuleDecl,
-  isNamespacedRef,
   NamespacedRef,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
@@ -212,6 +209,7 @@ function innerResolveSymbols(
     for (const decl of astNode.fields.decls) {
       switch (decl.name) {
         case 'FuncDecl':
+        case 'ModuleDecl':
         case 'GlobalDecl':
           break;
         default:

@@ -3,7 +3,7 @@ import {
   CompilesToIR,
   ExprCompiler,
   StmtCompiler,
-  ModuleCompiler,
+  FileCompiler,
   ModuleCompilerOptions,
   Runtime,
 } from '../ast-compiler.js';
@@ -31,7 +31,7 @@ export function compileToWAT(
   if (!spec.isFile(ast)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  const compiler = new ModuleCompiler(ast, { stackSize: 1, ...options });
+  const compiler = new FileCompiler(ast, { stackSize: 1, ...options });
   let binaryenModule;
   try {
     binaryenModule = compiler.compile();

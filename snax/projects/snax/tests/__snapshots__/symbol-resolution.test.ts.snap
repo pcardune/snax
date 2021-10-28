@@ -2,7 +2,7 @@
 
 exports[`resolveSymbols spits out the right debug info 1`] = `
 "<File>
-  <SymbolTable id=\\"67\\" parent=\\"66\\">
+  <SymbolTable id=\\"55\\" parent=\\"54\\">
     <math/>
     <main/>
     <g/>
@@ -10,29 +10,29 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
   </SymbolTable>
   <decls>
     <ModuleDecl symbol=\\"math\\">
-      <SymbolTable id=\\"68\\" parent=\\"undefined\\">
+      <SymbolTable id=\\"56\\" parent=\\"undefined\\">
         <calcPi/>
       </SymbolTable>
       <decls>
         <FuncDecl symbol=\\"calcPi\\" isPublic=\\"false\\" returnType=\\"undefined\\">
-          <SymbolTable id=\\"74\\" parent=\\"67\\"/>
+          <SymbolTable id=\\"57\\" parent=\\"56\\"/>
           <ParameterList>
             <parameters/>
           </ParameterList>
           <Block>
-            <SymbolTable id=\\"75\\" parent=\\"74\\"/>
+            <SymbolTable id=\\"58\\" parent=\\"57\\"/>
             <statements/>
           </Block>
         </FuncDecl>
       </decls>
     </ModuleDecl>
     <FuncDecl symbol=\\"main\\" isPublic=\\"false\\" returnType=\\"undefined\\">
-      <SymbolTable id=\\"71\\" parent=\\"67\\"/>
+      <SymbolTable id=\\"59\\" parent=\\"55\\"/>
       <ParameterList>
         <parameters/>
       </ParameterList>
       <Block>
-        <SymbolTable id=\\"72\\" parent=\\"71\\">
+        <SymbolTable id=\\"60\\" parent=\\"59\\">
           <x/>
           <y/>
         </SymbolTable>
@@ -44,7 +44,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
             <NumberLiteral value=\\"2\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
           </LetStatement>
           <Block>
-            <SymbolTable id=\\"73\\" parent=\\"72\\">
+            <SymbolTable id=\\"61\\" parent=\\"60\\">
               <x/>
             </SymbolTable>
             <statements>
@@ -71,7 +71,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
     <ExternDecl libName=\\"someLib\\">
       <funcs>
         <ExternFuncDecl symbol=\\"externalFunc\\">
-          <SymbolTable id=\\"76\\" parent=\\"67\\"/>
+          <SymbolTable id=\\"62\\" parent=\\"55\\"/>
           <ParameterList>
             <parameters/>
           </ParameterList>

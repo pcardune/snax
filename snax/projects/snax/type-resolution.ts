@@ -469,10 +469,7 @@ export class TypeResolver {
         }
       }
     }
-    throw this.error(
-      node,
-      `No type resolution exists for ${(node as any).name}`
-    );
+    throw this.error(node, `No type resolution exists for ${node as any}`);
   }
 
   private getTypeForBinaryOp(

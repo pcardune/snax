@@ -33,5 +33,5 @@ export function compileAST(
   file: spec.File,
   options?: ASTCompiler.ModuleCompilerOptions
 ): binaryen.Module {
-  return new ASTCompiler.ModuleCompiler(file, options).compile();
+  return new ASTCompiler.FileCompiler(file, options).compile();
 }

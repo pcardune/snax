@@ -115,13 +115,27 @@ fileStatementList "file statements"
   }
 
 fileStatement "file statement"
+  = moduleStatement
+  / statement
+
+moduleDecl "module declaration"
+  = "module" ws name:identifier ws "{" ws decls:moduleDeclList ws "}" {
+    return spec.makeModuleDeclWith({name, decls});
+  }
+
+moduleDeclList "module declarations"
+  = head:moduleStatement tail:(ws moduleStatement)* {
+    return [head, ...tail.map((t:any)=>t[1])];
+  }
+
+moduleStatement "declaration"
   = "global" ws varDecl:varDecl ws ";" ws {
     return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
   }
   / funcDecl
   / externDecl
   / structDecl
-  / statement
+  / moduleDecl
 
 block "block"
   = ws head:statement tail:(ws statement)* ws {

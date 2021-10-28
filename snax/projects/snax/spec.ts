@@ -223,6 +223,12 @@ const specInput: Record<
       decls: { type: 'TopLevelDecl', list: true },
     },
   },
+  ModuleDecl: {
+    fields: {
+      name: 'string',
+      decls: { type: 'TopLevelDecl', list: true },
+    },
+  },
   ExternDecl: {
     fields: {
       libName: 'string',
@@ -253,6 +259,7 @@ const specInput: Record<
       'StructDecl',
       'GlobalDecl',
       'FuncDecl',
+      'ModuleDecl',
     ],
   },
   Expression: {

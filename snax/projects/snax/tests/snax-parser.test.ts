@@ -638,3 +638,43 @@ describe('externals', () => {
     );
   });
 });
+
+describe('modules', () => {
+  it('should parse a module declaration', () => {
+    expect(
+      parse(`
+        module math {
+          func add(a:i32, b:i32) {
+            return a+b;
+          }
+        }
+      `)
+    ).toEqual(
+      AST.makeFileWith({
+        decls: [
+          AST.makeModuleDeclWith({
+            name: 'math',
+            decls: [
+              makeFunc(
+                'add',
+                [
+                  AST.makeParameter('a', AST.makeTypeRef('i32')),
+                  AST.makeParameter('b', AST.makeTypeRef('i32')),
+                ],
+                [
+                  AST.makeReturnStatement(
+                    AST.makeBinaryExpr(
+                      BinOp.ADD,
+                      AST.makeSymbolRef('a'),
+                      AST.makeSymbolRef('b')
+                    )
+                  ),
+                ]
+              ),
+            ],
+          }),
+        ],
+      })
+    );
+  });
+});

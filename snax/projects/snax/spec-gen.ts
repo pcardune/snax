@@ -1201,6 +1201,41 @@ export function makeFileWith(fields: { decls: TopLevelDecl[] }): File {
   };
 }
 
+type ModuleDeclFields = { name: string; decls: TopLevelDecl[] };
+
+export type ModuleDecl = {
+  name: 'ModuleDecl';
+  fields: ModuleDeclFields;
+  location?: Location;
+};
+
+export function isModuleDecl(node: ASTNode): node is ModuleDecl {
+  return node.name === 'ModuleDecl';
+}
+
+export function makeModuleDecl(
+  name: string,
+  decls: TopLevelDecl[]
+): ModuleDecl {
+  return {
+    name: 'ModuleDecl',
+    fields: {
+      name,
+      decls,
+    },
+  };
+}
+
+export function makeModuleDeclWith(fields: {
+  name: string;
+  decls: TopLevelDecl[];
+}): ModuleDecl {
+  return {
+    name: 'ModuleDecl',
+    fields,
+  };
+}
+
 type ExternDeclFields = { libName: string; funcs: ExternFuncDecl[] };
 
 export type ExternDecl = {
@@ -1271,14 +1306,16 @@ export type TopLevelDecl =
   | TupleStructDecl
   | StructDecl
   | GlobalDecl
-  | FuncDecl;
+  | FuncDecl
+  | ModuleDecl;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
   return (
     isExternDecl(node) ||
     isTupleStructDecl(node) ||
     isStructDecl(node) ||
     isGlobalDecl(node) ||
-    isFuncDecl(node)
+    isFuncDecl(node) ||
+    isModuleDecl(node)
   );
 }
 
@@ -1361,6 +1398,7 @@ export type ASTNode =
   | ExprStatement
   | ArgList
   | File
+  | ModuleDecl
   | ExternDecl
   | StructField
   | TypeExpr
@@ -1404,4 +1442,5 @@ export type ASTNodeName =
   | 'ExprStatement'
   | 'ArgList'
   | 'File'
+  | 'ModuleDecl'
   | 'ExternDecl';

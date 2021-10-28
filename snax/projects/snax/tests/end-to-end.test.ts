@@ -1037,6 +1037,23 @@ describe('extern declarations', () => {
   });
 });
 
+xdescribe('module declarations', () => {
+  it('allows calling functions inside a module declaration', async () => {
+    const code = `
+      module math {
+        func add(a:i32, b:i32) {
+          return a+b;
+        }
+      }
+      func main() {
+        return math::add(1,2);
+      }
+    `;
+    const { exports } = await compileToWasmModule(code);
+    expect(exports._start()).toBe(3);
+  });
+});
+
 describe('bugs that came up', () => {
   it('infers types in the right order across functions', async () => {
     const code = `

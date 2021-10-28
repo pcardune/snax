@@ -10,6 +10,7 @@ import type { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
 
 let file: AST.File;
 let funcDecl: AST.FuncDecl;
+let moduleDecl: AST.ModuleDecl;
 let globalDecl: AST.GlobalDecl;
 let outerBlock: AST.Block;
 let innerBlock: AST.Block;
@@ -35,8 +36,10 @@ beforeEach(() => {
   ]);
   globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
   funcDecl = makeFunc('main', [], outerBlock);
+  moduleDecl = AST.makeModuleDecl('math', [makeFunc('calcPi', [], [])]);
   file = AST.makeFileWith({
     decls: [
+      moduleDecl,
       funcDecl,
       globalDecl,
       AST.makeExternDeclWith({
@@ -82,6 +85,14 @@ describe('resolveSymbols', () => {
   });
   it('external funcs appear in the file symbol table', () => {
     expect(tables.get(file)?.has('externalFunc')).toBe(true);
+  });
+  it('modules declarations have their own symbol table', () => {
+    const moduleSymbols = tables.get(moduleDecl);
+    expect(moduleSymbols).toBeDefined();
+    expect(moduleSymbols!.parent).toBeNull();
+    expect(moduleSymbols?.get('calcPi')?.declNode).toBe(
+      moduleDecl.fields.decls[0]
+    );
   });
   it('spits out the right debug info', () => {
     expect(dumpASTData(file, { symbolTables: tables })).toMatchSnapshot();

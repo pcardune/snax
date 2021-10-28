@@ -310,8 +310,8 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c11 = peg$literalExpectation("{", false);
   const peg$c12 = "}";
   const peg$c13 = peg$literalExpectation("}", false);
-  const peg$c14 = function(name: any, decls: any): any {
-      return spec.makeModuleDeclWith({name, decls});
+  const peg$c14 = function(symbol: any, decls: any): any {
+      return spec.makeModuleDeclWith({symbol, decls});
     };
   const peg$c15 = peg$otherExpectation("module declarations");
   const peg$c16 = peg$otherExpectation("declaration");

@@ -386,6 +386,7 @@ export class TypeResolver {
         return node.fields.expr
           ? this.resolveType(node.fields.expr)
           : Intrinsics.void;
+      case 'ModuleDecl':
       case 'File':
         return new RecordType(
           new OrderedMap([
@@ -440,6 +441,26 @@ export class TypeResolver {
       }
       case 'StructLiteralProp':
         return this.resolveType(node.fields.expr);
+      case 'NamespaceAccessExpr': {
+        const { left, right } = node.fields;
+        const leftType = this.resolveType(left);
+        if (leftType instanceof RecordType) {
+          const propName: string = getPropNameOrThrow(right);
+          const propType = leftType.fields.get(propName);
+          if (!propType) {
+            throw this.error(
+              right,
+              `${propName} is not a valid accessor for ${leftType.name}`
+            );
+          }
+          this.typeMap.set(right, propType.type);
+          return propType.type;
+        }
+        throw this.error(
+          node,
+          `Don't know how to access namespace member on ${leftType.name}`
+        );
+      }
       case 'MemberAccessExpr': {
         const { left, right } = node.fields;
         let leftType = this.resolveType(left);

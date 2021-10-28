@@ -1238,7 +1238,7 @@ export function makeFileWith(fields: { decls: TopLevelDecl[] }): File {
   };
 }
 
-type ModuleDeclFields = { name: string; decls: TopLevelDecl[] };
+type ModuleDeclFields = { symbol: string; decls: TopLevelDecl[] };
 
 export type ModuleDecl = {
   name: 'ModuleDecl';
@@ -1251,20 +1251,20 @@ export function isModuleDecl(node: ASTNode): node is ModuleDecl {
 }
 
 export function makeModuleDecl(
-  name: string,
+  symbol: string,
   decls: TopLevelDecl[]
 ): ModuleDecl {
   return {
     name: 'ModuleDecl',
     fields: {
-      name,
+      symbol,
       decls,
     },
   };
 }
 
 export function makeModuleDeclWith(fields: {
-  name: string;
+  symbol: string;
   decls: TopLevelDecl[];
 }): ModuleDecl {
   return {

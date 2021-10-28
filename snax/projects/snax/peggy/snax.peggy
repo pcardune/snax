@@ -119,8 +119,8 @@ fileStatement "file statement"
   / statement
 
 moduleDecl "module declaration"
-  = "module" ws name:identifier ws "{" ws decls:moduleDeclList ws "}" {
-    return spec.makeModuleDeclWith({name, decls});
+  = "module" ws symbol:identifier ws "{" ws decls:moduleDeclList ws "}" {
+    return spec.makeModuleDeclWith({symbol, decls});
   }
 
 moduleDeclList "module declarations"

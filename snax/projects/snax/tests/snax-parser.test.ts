@@ -653,7 +653,7 @@ describe('modules', () => {
       AST.makeFileWith({
         decls: [
           AST.makeModuleDeclWith({
-            name: 'math',
+            symbol: 'math',
             decls: [
               makeFunc(
                 'add',

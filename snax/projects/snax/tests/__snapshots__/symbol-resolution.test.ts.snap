@@ -2,19 +2,37 @@
 
 exports[`resolveSymbols spits out the right debug info 1`] = `
 "<File>
-  <SymbolTable id=\\"31\\" parent=\\"30\\">
-    <externalFunc/>
+  <SymbolTable id=\\"67\\" parent=\\"66\\">
+    <math/>
     <main/>
     <g/>
+    <externalFunc/>
   </SymbolTable>
   <decls>
+    <ModuleDecl symbol=\\"math\\">
+      <SymbolTable id=\\"68\\" parent=\\"undefined\\">
+        <calcPi/>
+      </SymbolTable>
+      <decls>
+        <FuncDecl symbol=\\"calcPi\\" isPublic=\\"false\\" returnType=\\"undefined\\">
+          <SymbolTable id=\\"74\\" parent=\\"67\\"/>
+          <ParameterList>
+            <parameters/>
+          </ParameterList>
+          <Block>
+            <SymbolTable id=\\"75\\" parent=\\"74\\"/>
+            <statements/>
+          </Block>
+        </FuncDecl>
+      </decls>
+    </ModuleDecl>
     <FuncDecl symbol=\\"main\\" isPublic=\\"false\\" returnType=\\"undefined\\">
-      <SymbolTable id=\\"32\\" parent=\\"31\\"/>
+      <SymbolTable id=\\"71\\" parent=\\"67\\"/>
       <ParameterList>
         <parameters/>
       </ParameterList>
       <Block>
-        <SymbolTable id=\\"33\\" parent=\\"32\\">
+        <SymbolTable id=\\"72\\" parent=\\"71\\">
           <x/>
           <y/>
         </SymbolTable>
@@ -26,7 +44,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
             <NumberLiteral value=\\"2\\" numberType=\\"int\\" explicitType=\\"undefined\\"/>
           </LetStatement>
           <Block>
-            <SymbolTable id=\\"34\\" parent=\\"33\\">
+            <SymbolTable id=\\"73\\" parent=\\"72\\">
               <x/>
             </SymbolTable>
             <statements>
@@ -53,7 +71,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
     <ExternDecl libName=\\"someLib\\">
       <funcs>
         <ExternFuncDecl symbol=\\"externalFunc\\">
-          <SymbolTable id=\\"35\\" parent=\\"31\\"/>
+          <SymbolTable id=\\"76\\" parent=\\"67\\"/>
           <ParameterList>
             <parameters/>
           </ParameterList>

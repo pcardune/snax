@@ -231,7 +231,7 @@ const specInput: Record<
   },
   ModuleDecl: {
     fields: {
-      name: 'string',
+      symbol: 'string',
       decls: { type: 'TopLevelDecl', list: true },
     },
   },

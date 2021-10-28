@@ -1031,6 +1031,8 @@ export abstract class ExprCompiler<
         return new CompilerCallExpr(node, context);
       case 'MemberAccessExpr':
         return new MemberAccessExprCompiler(node, context);
+      case 'NamespaceAccessExpr':
+        return new NamespaceAccessExprCompiler(node, context);
       case 'NumberLiteral':
       case 'CharLiteral':
         return new NumberLiteralCompiler(node, context);
@@ -1392,6 +1394,32 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
     } else {
       return rvalue;
     }
+  }
+}
+
+class NamespaceAccessExprCompiler extends ExprCompiler<AST.NamespaceAccessExpr> {
+  getLValue(): LValue {
+    const { left, right } = this.root.fields;
+    const leftType = this.context.typeCache.get(left);
+    if (!AST.isSymbolRef(right)) {
+      throw this.error(`Can't do a namespace lookup with a ${right.name}`);
+    }
+    if (!(leftType instanceof RecordType)) {
+      throw this.error(`Don't know how to get LValue for ${leftType.name}`);
+    }
+    if (!AST.isSymbolRef(left)) {
+      throw this.error(`Don't know how to lookup namespace from ${left.name}`);
+    }
+    const moduleDecl = this.context.refMap.get(left);
+    if (!moduleDecl) {
+      throw this.error(`No declaration found for ${left.fields.symbol}`);
+    }
+    throw this.error(`I don't know how to do this yet...`);
+    // this.context.right.fields.symbol;
+    // return lvalueStatic(this.context.allocationMap.getFuncOrThrow(func));
+  }
+  getRValue(): RValue {
+    throw new Error('Method not implemented.');
   }
 }
 

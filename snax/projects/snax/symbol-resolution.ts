@@ -14,6 +14,10 @@ import {
   TopLevelDecl,
   isGlobalDecl,
   isFuncDecl,
+  ModuleDecl,
+  isModuleDecl,
+  isNamespaceAccessExpr,
+  NamespaceAccessExpr,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -58,10 +62,13 @@ export class SymbolTable {
 }
 
 export type SymbolTableMap = OrderedMap<
-  Block | FuncDecl | ExternFuncDecl | File,
+  Block | FuncDecl | ExternFuncDecl | ModuleDecl | File,
   SymbolTable
 >;
-export type SymbolRefMap = OrderedMap<SymbolRef | TypeRef, SymbolRecord>;
+export type SymbolRefMap = OrderedMap<
+  SymbolRef | TypeRef | NamespaceAccessExpr,
+  SymbolRecord
+>;
 
 export function resolveSymbols(astNode: ASTNode) {
   const tables: SymbolTableMap = new OrderedMap();
@@ -108,6 +115,49 @@ function innerResolveSymbols(
       refMap.set(astNode, symbolRecord);
       break;
     }
+    case 'NamespaceAccessExpr': {
+      const { left, right } = astNode.fields;
+      if (left.name !== 'SymbolRef') {
+        throw new SymbolResolutionError(
+          astNode,
+          `Can't access namespace from a ${left.name}`
+        );
+      }
+      const moduleDecl = currentTable.get(left.fields.symbol);
+      if (!moduleDecl) {
+        throw new SymbolResolutionError(
+          astNode,
+          `No declaration for namespace ${left.fields.symbol}`
+        );
+      }
+      if (moduleDecl.declNode.name !== 'ModuleDecl') {
+        throw new SymbolResolutionError(
+          astNode,
+          `Can't resolve namespace access to a ${moduleDecl.declNode.name}`
+        );
+      }
+      const moduleSymbolTable = tables.get(moduleDecl.declNode);
+      if (!moduleSymbolTable) {
+        throw new SymbolResolutionError(
+          astNode,
+          `No symbol table found for namespace ${moduleDecl.declNode.fields.symbol}`
+        );
+      }
+      if (right.name !== 'SymbolRef') {
+        throw new SymbolResolutionError(
+          astNode,
+          `Can't lookup a symbol from a ${right.name}`
+        );
+      }
+      const symbolRecord = moduleSymbolTable.get(right.fields.symbol);
+      if (!symbolRecord) {
+        throw new SymbolResolutionError(
+          astNode,
+          `Reference to undeclared symbol ${right.fields.symbol}`
+        );
+      }
+      refMap.set(astNode, symbolRecord);
+    }
   }
 
   // some nodes cause a new scope to be created
@@ -122,7 +172,7 @@ function innerResolveSymbols(
   }
 
   // descend into the child nodes to continue resolving symbols.
-  if (isFile(astNode)) {
+  if (isFile(astNode) || isModuleDecl(astNode)) {
     for (const decl of astNode.fields.decls) {
       switch (decl.name) {
         case 'ExternDecl': {
@@ -131,21 +181,24 @@ function innerResolveSymbols(
           }
           break;
         }
-        case 'StructDecl': {
-          currentTable.declare(decl.fields.symbol, decl);
-          break;
-        }
+        case 'GlobalDecl':
+        case 'FuncDecl':
+        case 'ModuleDecl':
+        case 'StructDecl':
         case 'TupleStructDecl': {
           currentTable.declare(decl.fields.symbol, decl);
           break;
         }
       }
     }
-    for (const decl of astNode.fields.decls) {
-      if (isGlobalDecl(decl) || isFuncDecl(decl)) {
-        currentTable.declare(decl.fields.symbol, decl);
+    for (const moduleDecl of astNode.fields.decls) {
+      if (isModuleDecl(moduleDecl)) {
+        const moduleSymbols = new SymbolTable(null);
+        tables.set(moduleDecl, moduleSymbols);
+        innerResolveSymbols(moduleDecl, moduleSymbols, tables, refMap);
       }
     }
+
     for (const funcDecl of astNode.fields.decls) {
       if (isFuncDecl(funcDecl)) {
         const funcSymbols = new SymbolTable(currentTable);

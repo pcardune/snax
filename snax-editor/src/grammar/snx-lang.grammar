@@ -1,0 +1,90 @@
+@top File { statement+ }
+
+Block {
+  "{" statement+ "}"
+}
+
+statement[@isGroup=Statement] {
+  FuncDecl |
+  StructDecl |
+  ReturnStatement { kw<"return"> expression ";" } |
+  WhileStatement { kw<"while"> "(" expression ")" Block } |
+  RegStatement { kw<"reg"> Identifier "=" expression ";"} |
+  LetStatement { kw<"let"> Identifier "=" expression ";"} |
+  ExprStatement { expression ";" }
+}
+
+StructDecl {
+  kw<"struct"> Identifier "{"
+  StructPropDecl*
+  "}"
+}
+
+StructPropDecl { Identifier ":" TypeExpr ";" }
+
+FuncDecl {
+  kw<"func"> Identifier "(" ParameterList ")" Block
+}
+
+ParameterList {
+  Identifier ":" TypeExpr
+}
+
+TypeExpr {
+  Identifier
+}
+
+expression {
+  Identifier |
+  String |
+  Boolean |
+  Number |
+  BinaryExpression
+}
+
+@precedence {
+  times @left,
+  plus @left,
+  rel @left,
+  equal @left,
+  and @left,
+  or @left,
+  assign @right
+}
+
+BinaryExpression {
+  expression !plus ArithOp<"+"|"-"> expression |
+  expression !assign "=" expression |
+  expression !rel CompareOp<"<" | ">"> expression |
+  expression !equal CompareOp<"==" | "!="> expression |
+  expression !and LogicOp<"&&"> expression |
+  expression !or LogicOp<"||"> expression
+}
+
+CompareOp<expr> { expr }
+ArithOp<expr> { expr }
+LogicOp<expr> { expr }
+
+@tokens {
+  Identifier { $[a-zA-Z_] $[a-zA-Z_0-9]* }
+
+  String { '"' (!["\\] | "\\" _)* '"' }
+
+  Number { std.digit+ }
+
+  Boolean { "#t" | "#f" }
+
+  LineComment { "//" ![\n]* }
+
+  space { $[ \t\n\r]+ }
+
+  "(" ")"
+}
+
+// Keywords
+
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+@skip { space | LineComment }
+
+@detectDelim

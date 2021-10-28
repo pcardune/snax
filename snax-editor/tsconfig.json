@@ -10,6 +10,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react",
+    "allowJs": true,
+    "checkJs": true,
     "downlevelIteration": true
   },
   "include": ["**/*.ts", "**/*.tsx"],

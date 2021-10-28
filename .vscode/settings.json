@@ -12,6 +12,10 @@
       {
         "match": "examples/.*\\.snx$",
         "cmd": "snax compile ${file}"
+      },
+      {
+        "match": "snax-editor/src/grammar/snx-lang.grammar$",
+        "cmd": "npm run build-grammar --workspace snax-editor"
       }
     ]
   }

@@ -11,7 +11,7 @@ export interface HasWAT {
 
 export function compileStr(
   input: string,
-  options?: ASTCompiler.ModuleCompilerOptions
+  options: ASTCompiler.ModuleCompilerOptions
 ): Result<binaryen.Module, any> {
   const maybeAST = SNAXParser.parseStr(input);
   if (maybeAST.isOk()) {
@@ -31,7 +31,7 @@ export function compileStr(
 
 export function compileAST(
   file: spec.File,
-  options?: ASTCompiler.ModuleCompilerOptions
+  options: ASTCompiler.ModuleCompilerOptions
 ): binaryen.Module {
   return new ASTCompiler.FileCompiler(file, options).compile();
 }

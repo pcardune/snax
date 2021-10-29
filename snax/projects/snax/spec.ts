@@ -228,6 +228,12 @@ const specInput: Record<
       decls: { type: 'TopLevelDecl', list: true },
     },
   },
+  ImportDecl: {
+    fields: {
+      symbol: 'string',
+      path: 'string',
+    },
+  },
   ModuleDecl: {
     fields: {
       symbol: 'string',
@@ -266,6 +272,7 @@ const specInput: Record<
       'GlobalDecl',
       'FuncDecl',
       'ModuleDecl',
+      'ImportDecl',
     ],
   },
   Expression: {

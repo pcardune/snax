@@ -17,7 +17,7 @@ import { FuncType, Intrinsics } from '../snax-types.js';
 import { CompilerError, TypeResolutionError } from '../errors.js';
 import { dumpASTData } from '../spec-util.js';
 
-export type CompileToWatOptions = ModuleCompilerOptions & {
+export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
   debug?: boolean;
 };
@@ -31,7 +31,13 @@ export function compileToWAT(
   if (!spec.isFile(ast)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  const compiler = new FileCompiler(ast, { stackSize: 1, ...options });
+  const compiler = new FileCompiler(ast, {
+    importResolver: () => {
+      throw new Error(`Imports not allowed in tests yet...`);
+    },
+    stackSize: 1,
+    ...options,
+  });
   let binaryenModule;
   try {
     binaryenModule = compiler.compile();

@@ -25,7 +25,7 @@ async function compileToWasmModule(
   return { exports: exports as SnaxExports, wat, ast, compiler, sourceMap };
 }
 
-async function exec(input: string, options?: ModuleCompilerOptions) {
+async function exec(input: string, options?: Partial<ModuleCompilerOptions>) {
   const { exports } = await compileToWasmModule(input, options);
   return exports._start();
 }

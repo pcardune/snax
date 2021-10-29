@@ -210,6 +210,12 @@ export type ModuleCompilerOptions = {
    * The number of pages of memory to use for the stack
    */
   stackSize?: number;
+
+  /**
+   * A function resolves a path to the file contents for
+   * that path.
+   */
+  importResolver: (path: string) => Promise<string>;
 };
 export class FileCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
@@ -218,7 +224,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   moduleAllocator = new ModuleAllocator();
   tables?: SymbolTableMap;
 
-  constructor(file: AST.File, options?: ModuleCompilerOptions) {
+  constructor(file: AST.File, options: ModuleCompilerOptions) {
     super(file, undefined);
     this.options = {
       includeRuntime: true,

@@ -33,7 +33,12 @@ function parseFile(inPath: string) {
 
 function compileSnaxFile(file: string) {
   const ast = parseFile(file);
-  const compiler = new FileCompiler(ast, { includeRuntime: true });
+  const compiler = new FileCompiler(ast, {
+    importResolver: () => {
+      throw new Error(`Imports haven't been implemented yet...`);
+    },
+    includeRuntime: true,
+  });
   let module;
   try {
     module = compiler.compile();

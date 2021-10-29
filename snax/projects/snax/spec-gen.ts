@@ -162,6 +162,36 @@ export function makeCharLiteralWith(fields: { value: number }): CharLiteral {
   };
 }
 
+type NamespacedRefFields = { path: string[] };
+
+export type NamespacedRef = {
+  name: 'NamespacedRef';
+  fields: NamespacedRefFields;
+  location?: Location;
+};
+
+export function isNamespacedRef(node: ASTNode): node is NamespacedRef {
+  return node.name === 'NamespacedRef';
+}
+
+export function makeNamespacedRef(path: string[]): NamespacedRef {
+  return {
+    name: 'NamespacedRef',
+    fields: {
+      path,
+    },
+  };
+}
+
+export function makeNamespacedRefWith(fields: {
+  path: string[];
+}): NamespacedRef {
+  return {
+    name: 'NamespacedRef',
+    fields,
+  };
+}
+
 type SymbolRefFields = { symbol: string };
 
 export type SymbolRef = {
@@ -650,36 +680,6 @@ export function makeMemberAccessExprWith(fields: {
 }): MemberAccessExpr {
   return {
     name: 'MemberAccessExpr',
-    fields,
-  };
-}
-
-type NamespacedRefFields = { path: string[] };
-
-export type NamespacedRef = {
-  name: 'NamespacedRef';
-  fields: NamespacedRefFields;
-  location?: Location;
-};
-
-export function isNamespacedRef(node: ASTNode): node is NamespacedRef {
-  return node.name === 'NamespacedRef';
-}
-
-export function makeNamespacedRef(path: string[]): NamespacedRef {
-  return {
-    name: 'NamespacedRef',
-    fields: {
-      path,
-    },
-  };
-}
-
-export function makeNamespacedRefWith(fields: {
-  path: string[];
-}): NamespacedRef {
-  return {
-    name: 'NamespacedRef',
     fields,
   };
 }
@@ -1231,6 +1231,38 @@ export function makeFileWith(fields: { decls: TopLevelDecl[] }): File {
   };
 }
 
+type ImportDeclFields = { symbol: string; path: string };
+
+export type ImportDecl = {
+  name: 'ImportDecl';
+  fields: ImportDeclFields;
+  location?: Location;
+};
+
+export function isImportDecl(node: ASTNode): node is ImportDecl {
+  return node.name === 'ImportDecl';
+}
+
+export function makeImportDecl(symbol: string, path: string): ImportDecl {
+  return {
+    name: 'ImportDecl',
+    fields: {
+      symbol,
+      path,
+    },
+  };
+}
+
+export function makeImportDeclWith(fields: {
+  symbol: string;
+  path: string;
+}): ImportDecl {
+  return {
+    name: 'ImportDecl',
+    fields,
+  };
+}
+
 type ModuleDeclFields = { symbol: string; decls: TopLevelDecl[] };
 
 export type ModuleDecl = {
@@ -1339,7 +1371,8 @@ export type TopLevelDecl =
   | StructDecl
   | GlobalDecl
   | FuncDecl
-  | ModuleDecl;
+  | ModuleDecl
+  | ImportDecl;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
   return (
     isExternDecl(node) ||
@@ -1347,7 +1380,8 @@ export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
     isStructDecl(node) ||
     isGlobalDecl(node) ||
     isFuncDecl(node) ||
-    isModuleDecl(node)
+    isModuleDecl(node) ||
+    isImportDecl(node)
   );
 }
 
@@ -1400,6 +1434,7 @@ export type ASTNode =
   | StringLiteral
   | DataLiteral
   | CharLiteral
+  | NamespacedRef
   | SymbolRef
   | TypeRef
   | PointerTypeExpr
@@ -1414,7 +1449,6 @@ export type ASTNode =
   | CompilerCallExpr
   | CallExpr
   | MemberAccessExpr
-  | NamespacedRef
   | CastExpr
   | UnaryExpr
   | ArrayLiteral
@@ -1431,6 +1465,7 @@ export type ASTNode =
   | ExprStatement
   | ArgList
   | File
+  | ImportDecl
   | ModuleDecl
   | ExternDecl
   | StructField
@@ -1445,6 +1480,7 @@ export type ASTNodeName =
   | 'StringLiteral'
   | 'DataLiteral'
   | 'CharLiteral'
+  | 'NamespacedRef'
   | 'SymbolRef'
   | 'TypeRef'
   | 'PointerTypeExpr'
@@ -1459,7 +1495,6 @@ export type ASTNodeName =
   | 'CompilerCallExpr'
   | 'CallExpr'
   | 'MemberAccessExpr'
-  | 'NamespacedRef'
   | 'CastExpr'
   | 'UnaryExpr'
   | 'ArrayLiteral'
@@ -1476,5 +1511,6 @@ export type ASTNodeName =
   | 'ExprStatement'
   | 'ArgList'
   | 'File'
+  | 'ImportDecl'
   | 'ModuleDecl'
   | 'ExternDecl';

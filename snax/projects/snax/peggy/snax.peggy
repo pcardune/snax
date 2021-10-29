@@ -132,6 +132,9 @@ moduleStatement "declaration"
   = "global" ws varDecl:varDecl ws ";" ws {
     return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
   }
+  / "import" ws symbol:identifier ws "from" ws path:quotedString {
+    return spec.makeImportDecl(symbol, path);
+  }
   / funcDecl
   / externDecl
   / structDecl
@@ -447,10 +450,16 @@ structPropValue
   }
 
 stringLiteral "string"
+  = value:quotedString {
+    return spec.makeStringLiteral(value);
+  }
+
+quotedString "quotedString"
   = '"' content:(('\\' .) / [^"])* '"' {
     const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
-    return spec.makeStringLiteral(JSON.parse('"'+inner+'"'));
+    return JSON.parse('"'+inner+'"');
   }
+
 
 charLiteral "char"
   = "'" content:('\\'? .) "'" {

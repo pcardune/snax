@@ -684,4 +684,10 @@ describe('modules', () => {
       )
     );
   });
+
+  it('should parse an import statement', () => {
+    expect(parse(`import someModule from "./some/path.snx"`)).toEqual(
+      AST.makeFile([AST.makeImportDecl('someModule', './some/path.snx')])
+    );
+  });
 });

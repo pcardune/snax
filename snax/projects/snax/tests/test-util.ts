@@ -16,6 +16,7 @@ import binaryen from 'binaryen';
 import { FuncType, Intrinsics } from '../snax-types.js';
 import { CompilerError, TypeResolutionError } from '../errors.js';
 import { dumpASTData } from '../spec-util.js';
+import nodePathLoader from '../node-path-loader.js';
 
 export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
@@ -32,9 +33,7 @@ export async function compileToWAT(
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
   const compiler = new FileCompiler(ast, {
-    importResolver: () => {
-      throw new Error(`Imports not allowed in tests yet...`);
-    },
+    importResolver: nodePathLoader,
     stackSize: 1,
     ...options,
   });

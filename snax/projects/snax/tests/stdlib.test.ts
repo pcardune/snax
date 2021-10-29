@@ -3,9 +3,10 @@ import { exec } from './test-util.js';
 describe('malloc', () => {
   it('allocates from the beginning of memory', async () => {
     const code = `
+      import mem from "snax/memory.snx"
       let start = "static content";
-      let x = malloc(7);
-      let y = malloc(4);
+      let x = mem::malloc(7);
+      let y = mem::malloc(4);
       y;
     `;
     const startAddress = 'static content'.length + 7;

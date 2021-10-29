@@ -411,28 +411,13 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         }
         case 'GlobalDecl': {
           // ADD GLOBALS
-          const location = moduleAllocator.allocationMap.getGlobalOrThrow(decl);
-          module.addGlobal(
-            location.id,
-            binaryen[location.valueType],
-            true,
-            ExprCompiler.forNode(decl.fields.expr, {
-              refMap,
-              typeCache,
-              allocationMap: moduleAllocator.allocationMap,
-              heapStart: moduleAllocator.memIndex,
-              get funcAllocs(): FuncAllocations {
-                throw new Error(
-                  `global expressions should not be attempting to access stack variables`
-                );
-              },
-              runtime: runtime,
-              setDebugLocation: () => {},
-              module,
-            })
-              .getRValue()
-              .expectDirect().valueExpr
-          );
+          new GlobalDeclCompiler(decl, {
+            refMap,
+            module,
+            typeCache,
+            moduleAllocator,
+            runtime,
+          }).compile();
           break;
         }
         case 'ModuleDecl': // handled above
@@ -464,7 +449,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
 }
 
 export class ModuleDeclCompiler extends ASTCompiler<
-  AST.ModuleDecl,
+  AST.ModuleDecl | AST.File,
   {
     refMap: SymbolRefMap;
     typeCache: ResolvedTypeMap;
@@ -476,19 +461,69 @@ export class ModuleDeclCompiler extends ASTCompiler<
   compile() {
     const { moduleAllocator } = this.context;
     for (const decl of this.root.fields.decls) {
-      if (AST.isFuncDecl(decl)) {
-        new FuncDeclCompiler(decl, {
-          ...this.context,
-          allocationMap: moduleAllocator.allocationMap,
-          funcAllocs: moduleAllocator.getLocalsForFunc(decl),
-          heapStart: moduleAllocator.memIndex,
-        }).compile();
-      } else {
-        throw this.error(
-          `Don't know how to compile ${decl.name} inside module decls yet...`
-        );
+      switch (decl.name) {
+        case 'ModuleDecl': {
+          new ModuleDeclCompiler(decl, this.context).compile();
+          break;
+        }
+        case 'FuncDecl': {
+          new FuncDeclCompiler(decl, {
+            ...this.context,
+            allocationMap: moduleAllocator.allocationMap,
+            funcAllocs: moduleAllocator.getLocalsForFunc(decl),
+            heapStart: moduleAllocator.memIndex,
+          }).compile();
+          break;
+        }
+        case 'GlobalDecl': {
+          new GlobalDeclCompiler(decl, this.context).compile();
+          break;
+        }
+        default:
+          throw this.error(
+            `Don't know how to compile ${decl.name} inside module decls yet...`
+          );
       }
     }
+  }
+}
+
+export class GlobalDeclCompiler extends ASTCompiler<
+  AST.GlobalDecl,
+  {
+    refMap: SymbolRefMap;
+    module: binaryen.Module;
+    typeCache: ResolvedTypeMap;
+    moduleAllocator: ModuleAllocator;
+    runtime: Runtime;
+  }
+> {
+  compile() {
+    const decl = this.root;
+    const { moduleAllocator, module, refMap, typeCache, runtime } =
+      this.context;
+    const location = moduleAllocator.allocationMap.getGlobalOrThrow(decl);
+    module.addGlobal(
+      location.id,
+      binaryen[location.valueType],
+      true,
+      ExprCompiler.forNode(decl.fields.expr, {
+        refMap,
+        typeCache,
+        allocationMap: moduleAllocator.allocationMap,
+        heapStart: moduleAllocator.memIndex,
+        get funcAllocs(): FuncAllocations {
+          throw new Error(
+            `global expressions should not be attempting to access stack variables`
+          );
+        },
+        runtime: runtime,
+        setDebugLocation: () => {},
+        module,
+      })
+        .getRValue()
+        .expectDirect().valueExpr
+    );
   }
 }
 

@@ -1,0 +1,7 @@
+global next = $heap_start();
+func malloc(numBytes:usize) {
+  reg startAddress = next;
+  $memory_fill(startAddress, 0, numBytes);
+  next = next + numBytes;
+  return startAddress;
+}

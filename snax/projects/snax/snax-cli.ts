@@ -31,7 +31,7 @@ function parseFile(inPath: string) {
   return ast;
 }
 
-function compileSnaxFile(file: string) {
+async function compileSnaxFile(file: string) {
   const ast = parseFile(file);
   const compiler = new FileCompiler(ast, {
     importResolver: () => {
@@ -41,7 +41,7 @@ function compileSnaxFile(file: string) {
   });
   let module;
   try {
-    module = compiler.compile();
+    module = await compiler.compile();
   } catch (e) {
     if (e instanceof TypeResolutionError) {
       console.log(dumpASTData(ast, { typeMap: e.resolver.typeMap }));
@@ -77,7 +77,7 @@ async function loadWasmModuleFromPath(
     case '.snx': {
       const label = `compiling ${inPath}`;
       if (opts.verbose) console.time(label);
-      const { module } = compileSnaxFile(inPath);
+      const { module } = await compileSnaxFile(inPath);
       if (!module.validate()) {
         throw new Error('validation error');
       }
@@ -142,7 +142,7 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      const { module, compiler } = compileSnaxFile(inPath);
+      const { module, compiler } = await compileSnaxFile(inPath);
       if (!module.validate()) {
         console.warn('validation error');
       }

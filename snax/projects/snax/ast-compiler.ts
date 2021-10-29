@@ -34,6 +34,7 @@ import binaryen from 'binaryen';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
 import { pretty } from './spec-util.js';
+import { resolveImports } from './import-resolver.js';
 
 export const PAGE_SIZE = 65536;
 export const WASM_FEATURE_FLAGS =
@@ -215,7 +216,7 @@ export type ModuleCompilerOptions = {
    * A function resolves a path to the file contents for
    * that path.
    */
-  importResolver: (path: string) => Promise<string>;
+  importResolver: (path: string) => Promise<AST.File>;
 };
 export class FileCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
@@ -234,7 +235,8 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     };
   }
 
-  private setup() {
+  private async setup() {
+    await resolveImports(this.root, this.options.importResolver);
     desugar(this.root);
 
     const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
@@ -332,9 +334,9 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     };
   }
 
-  compile(): binaryen.Module {
+  async compile(): Promise<binaryen.Module> {
     const { refMap, typeCache, moduleAllocator, runtime, stackPointer } =
-      this.setup();
+      await this.setup();
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();

@@ -4,7 +4,7 @@ import { compileToWAT } from './test-util';
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', async () => {
-    const { wat } = compileToWAT(AST.makeFileWith({ decls: [] }), {
+    const { wat } = await compileToWAT(AST.makeFileWith({ decls: [] }), {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
@@ -18,7 +18,7 @@ describe('ModuleCompiler', () => {
     `);
   });
   it('compiles globals in the module', async () => {
-    const { wat } = compileToWAT(
+    const { wat } = await compileToWAT(
       AST.makeFileWith({
         decls: [AST.makeGlobalDecl('foo', undefined, makeNum(0))],
       }),
@@ -40,7 +40,7 @@ describe('ModuleCompiler', () => {
     const file = AST.makeFileWith({
       decls: [makeFunc('main', [], [num])],
     });
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (type $none_=>_none (func))
@@ -69,7 +69,7 @@ describe('ModuleCompiler', () => {
   });
 
   it('compiles string literals into data segments', async () => {
-    const { wat } = compileToWAT(
+    const { wat } = await compileToWAT(
       AST.makeFileWith({
         decls: [
           makeFunc(
@@ -118,7 +118,7 @@ describe('ModuleCompiler', () => {
     const file = AST.makeFileWith({
       decls: [funcDecl, makeFunc('main')],
     });
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (type $none_=>_none (func))
@@ -171,7 +171,7 @@ describe('ModuleCompiler', () => {
       ],
     });
 
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (type $i32_i32_i32_i32_=>_i32 (func (param i32 i32 i32 i32) (result i32)))

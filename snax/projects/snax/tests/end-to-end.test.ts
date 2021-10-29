@@ -3,6 +3,8 @@ import {
   ModuleCompilerOptions,
   PAGE_SIZE,
 } from '../ast-compiler.js';
+import { SNAXParser } from '../snax-parser.js';
+import { isFile } from '../spec-gen.js';
 import { compileToWAT, CompileToWatOptions } from './test-util';
 
 type SnaxExports = {
@@ -15,7 +17,7 @@ async function compileToWasmModule(
   input: string,
   options?: CompileToWatOptions
 ) {
-  const { wat, ast, compiler, binary, sourceMap } = compileToWAT(input, {
+  const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(input, {
     includeRuntime: false,
     stackSize: 1,
     ...options,
@@ -97,12 +99,12 @@ describe('empty module', () => {
   });
 
   it('compiles an empty program', async () => {
-    const { wat } = compileToWAT('', { includeRuntime: true });
+    const { wat } = await compileToWAT('', { includeRuntime: true });
     expect(wat).toMatchSnapshot();
   });
 
   it('compiles integers', async () => {
-    const { wat, sourceMap } = compileToWAT('123;', {
+    const { wat, sourceMap } = await compileToWAT('123;', {
       includeRuntime: false,
     });
     expect(wat).toMatchSnapshot();
@@ -1019,7 +1021,7 @@ describe('extern declarations', () => {
 
       print_num(1);
     `;
-    const { binary } = compileToWAT(code);
+    const { binary } = await compileToWAT(code);
 
     let printedNum: number | undefined = undefined;
     const module = await WebAssembly.instantiate(binary, {
@@ -1062,6 +1064,34 @@ describe('module declarations', () => {
     expect((exports as any).test1()).toBe(3);
     expect((exports as any).test2()).toBe(101);
     expect(wat).toMatchSnapshot();
+  });
+});
+
+describe('importing modules from other files', () => {
+  it('lets you import other files', async () => {
+    const files: { [path: string]: string } = {
+      './path/to/file.snx': `
+        pub func doSomething() {
+          return 34;
+        }
+      `,
+    };
+    const code = `
+      import someModule from "./path/to/file.snx"
+      someModule::doSomething();
+    `;
+    await compileToWasmModule(code, {
+      importResolver: async (path: string) => {
+        const content = files[path];
+        const ast = SNAXParser.parseStrOrThrow(content, 'start', {
+          grammarSource: path,
+        });
+        if (isFile(ast)) {
+          return ast;
+        }
+        throw new Error(`Expected file ${path} to parse to a File ast`);
+      },
+    });
   });
 });
 

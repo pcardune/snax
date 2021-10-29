@@ -21,7 +21,7 @@ export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
   debug?: boolean;
 };
-export function compileToWAT(
+export async function compileToWAT(
   input: string | spec.File,
   options: CompileToWatOptions = {}
 ) {
@@ -40,7 +40,7 @@ export function compileToWAT(
   });
   let binaryenModule;
   try {
-    binaryenModule = compiler.compile();
+    binaryenModule = await compiler.compile();
   } catch (e) {
     if (e instanceof CompilerError) {
       e.attachModuleCompiler(compiler);

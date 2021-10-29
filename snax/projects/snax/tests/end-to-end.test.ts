@@ -1,36 +1,12 @@
-import {
-  FileCompiler,
-  ModuleCompilerOptions,
-  PAGE_SIZE,
-} from '../ast-compiler.js';
+import { FileCompiler, PAGE_SIZE } from '../ast-compiler.js';
 import { SNAXParser } from '../snax-parser.js';
 import { isFile } from '../spec-gen.js';
-import { compileToWAT, CompileToWatOptions } from './test-util';
-
-type SnaxExports = {
-  memory: WebAssembly.Memory;
-  stackPointer: WebAssembly.Global;
-  _start: () => any;
-};
-
-async function compileToWasmModule(
-  input: string,
-  options?: CompileToWatOptions
-) {
-  const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(input, {
-    includeRuntime: false,
-    stackSize: 1,
-    ...options,
-  });
-  const module = await WebAssembly.instantiate(binary);
-  const exports = module.instance.exports;
-  return { exports: exports as SnaxExports, wat, ast, compiler, sourceMap };
-}
-
-async function exec(input: string, options?: Partial<ModuleCompilerOptions>) {
-  const { exports } = await compileToWasmModule(input, options);
-  return exports._start();
-}
+import {
+  compileToWasmModule,
+  compileToWAT,
+  exec,
+  SnaxExports,
+} from './test-util';
 
 /**
  * Get a 32 bit number out of a memory buffer from the given byte offset
@@ -455,21 +431,6 @@ describe('globals', () => {
         counter;
       `;
     expect(await exec(code)).toEqual(2);
-  });
-});
-
-xdescribe('runtime', () => {
-  it('has malloc', async () => {
-    expect(
-      await exec(
-        `
-          let x = malloc(3);
-          let y = malloc(4);
-          y;
-        `,
-        { includeRuntime: true }
-      )
-    ).toEqual(3);
   });
 });
 

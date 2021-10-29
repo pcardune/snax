@@ -255,6 +255,8 @@ export class TypeResolver {
             return Intrinsics.void;
           case 'memory_copy':
             return Intrinsics.void;
+          case 'heap_start':
+            return Intrinsics.i32;
           default:
             throw this.error(
               node,

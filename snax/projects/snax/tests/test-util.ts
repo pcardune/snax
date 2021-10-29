@@ -108,6 +108,7 @@ function stubContext(node: CompilesToIR) {
   return {
     refMap,
     typeCache,
+    heapStart: 0,
     allocationMap: new AllocationMap(),
     runtime: runtimeStub,
     get funcAllocs(): FuncAllocations {
@@ -124,4 +125,31 @@ export function irCompiler(node: CompilesToIR) {
 
 export function exprCompiler(node: spec.Expression) {
   return ExprCompiler.forNode(node, stubContext(node));
+}
+
+export type SnaxExports = {
+  memory: WebAssembly.Memory;
+  stackPointer: WebAssembly.Global;
+  _start: () => any;
+};
+
+export async function compileToWasmModule<
+  Exports extends SnaxExports = SnaxExports
+>(input: string, options?: CompileToWatOptions) {
+  const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(input, {
+    includeRuntime: false,
+    stackSize: 1,
+    ...options,
+  });
+  const module = await WebAssembly.instantiate(binary);
+  const exports = module.instance.exports;
+  return { exports: exports as Exports, wat, ast, compiler, sourceMap };
+}
+
+export async function exec(
+  input: string,
+  options?: Partial<ModuleCompilerOptions>
+) {
+  const { exports } = await compileToWasmModule(input, options);
+  return exports._start();
 }

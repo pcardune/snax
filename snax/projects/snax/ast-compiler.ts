@@ -68,6 +68,7 @@ type FuncDeclContext = {
   typeCache: ResolvedTypeMap;
   funcAllocs: FuncAllocations;
   runtime: Runtime;
+  heapStart: number;
   allocationMap: AllocationMap;
   module: binaryen.Module;
 };
@@ -246,15 +247,10 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     });
     this.root.fields.decls.push(stackPointerGlobal);
 
-    let heapStartLiteral = AST.makeNumberLiteralWith({
-      value: 0,
-      numberType: 'int',
-      explicitType: 'usize',
-    });
     let mallocDecl: AST.FuncDecl | undefined;
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
-        global next = 0;
+        global next = $heap_start();
         func malloc(numBytes:usize) {
           reg startAddress = next;
           $memory_fill(startAddress, 0, numBytes);
@@ -268,9 +264,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
       `);
       if (AST.isFile(runtimeAST)) {
         for (const decl of runtimeAST.fields.decls) {
-          if (AST.isGlobalDecl(decl) && decl.fields.symbol === 'next') {
-            decl.fields.expr = heapStartLiteral;
-          } else if (AST.isFuncDecl(decl)) {
+          if (AST.isFuncDecl(decl)) {
             if (decl.fields.symbol === 'main') {
               continue;
             }
@@ -294,10 +288,6 @@ export class FileCompiler extends ASTCompiler<AST.File> {
 
     const moduleAllocator = resolveMemory(this.root, typeCache);
     this.moduleAllocator = moduleAllocator;
-
-    // initialize the heap start pointer to the last memIndex
-    // that got used.
-    heapStartLiteral.fields.value = moduleAllocator.memIndex;
 
     let runtime: Runtime;
     const stackPointer =
@@ -347,6 +337,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         new FuncDeclCompiler(func, {
           refMap,
           typeCache,
+          heapStart: moduleAllocator.memIndex,
           allocationMap: moduleAllocator.allocationMap,
           funcAllocs: moduleAllocator.getLocalsForFunc(func),
           runtime,
@@ -429,6 +420,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
               refMap,
               typeCache,
               allocationMap: moduleAllocator.allocationMap,
+              heapStart: moduleAllocator.memIndex,
               get funcAllocs(): FuncAllocations {
                 throw new Error(
                   `global expressions should not be attempting to access stack variables`
@@ -489,6 +481,7 @@ export class ModuleDeclCompiler extends ASTCompiler<
           ...this.context,
           allocationMap: moduleAllocator.allocationMap,
           funcAllocs: moduleAllocator.getLocalsForFunc(decl),
+          heapStart: moduleAllocator.memIndex,
         }).compile();
       } else {
         throw this.error(
@@ -1559,6 +1552,8 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         rvalueDirect(Intrinsics.f64, module.f64.floor(argValue(0))),
       f32_floor: () =>
         rvalueDirect(Intrinsics.f32, module.f32.floor(argValue(0))),
+      heap_start: () =>
+        rvalueDirect(Intrinsics.i32, module.i32.const(this.context.heapStart)),
     };
     const getRValue = compilerFuncs[symbol];
     if (!getRValue) {

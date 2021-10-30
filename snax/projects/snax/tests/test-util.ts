@@ -13,10 +13,10 @@ import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
-import { FuncType, Intrinsics } from '../snax-types.js';
 import { CompilerError, TypeResolutionError } from '../errors.js';
 import { dumpASTData } from '../spec-util.js';
-import nodePathLoader from '../node-path-loader.js';
+import { getNodePathLoader } from '../node-path-loader.js';
+import path from 'path';
 
 export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
@@ -33,7 +33,9 @@ export async function compileToWAT(
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
   const compiler = new FileCompiler(ast, {
-    importResolver: nodePathLoader,
+    importResolver: getNodePathLoader(
+      path.resolve(__dirname, '../../../stdlib/')
+    ),
     stackSize: 1,
     ...options,
   });

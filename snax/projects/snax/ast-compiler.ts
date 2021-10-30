@@ -59,7 +59,6 @@ abstract class ASTCompiler<
 export type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
 
 export type Runtime = {
-  malloc: FuncStorageLocation;
   stackPointer: GlobalStorageLocation;
 };
 
@@ -247,16 +246,8 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     });
     this.root.fields.decls.push(stackPointerGlobal);
 
-    let mallocDecl: AST.FuncDecl | undefined;
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
-        global next = $heap_start();
-        func malloc(numBytes:usize) {
-          reg startAddress = next;
-          $memory_fill(startAddress, 0, numBytes);
-          next = next + numBytes;
-          return startAddress;
-        }
         struct String {
           buffer: &u8;
           length: usize;
@@ -267,9 +258,6 @@ export class FileCompiler extends ASTCompiler<AST.File> {
           if (AST.isFuncDecl(decl)) {
             if (decl.fields.symbol === 'main') {
               continue;
-            }
-            if (decl.fields.symbol === 'malloc') {
-              mallocDecl = decl;
             }
           }
           this.root.fields.decls.push(decl);
@@ -294,23 +282,12 @@ export class FileCompiler extends ASTCompiler<AST.File> {
       moduleAllocator.allocationMap.getGlobalOrThrow(stackPointerGlobal);
 
     if (this.options.includeRuntime) {
-      if (!mallocDecl) {
-        throw this.error(`I need a decl for malloc`);
-      }
-      let malloc = moduleAllocator.allocationMap.getFuncOrThrow(mallocDecl);
       runtime = {
-        malloc,
         stackPointer,
       };
     } else {
       // TODO, find a better alternative for optional compilation
       runtime = {
-        malloc: {
-          area: Area.FUNCS,
-          offset: 1000,
-          id: 'f1000:malloc',
-          funcType: new FuncType([], Intrinsics.void),
-        },
         stackPointer,
       };
     }

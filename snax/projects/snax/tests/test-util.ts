@@ -87,12 +87,6 @@ export async function compileToWAT(
 }
 
 export const runtimeStub: Runtime = {
-  malloc: {
-    area: Area.FUNCS,
-    offset: 1000,
-    id: 'f1000:malloc',
-    funcType: new FuncType([], Intrinsics.i32),
-  },
   stackPointer: {
     area: Area.GLOBALS,
     offset: 1000,

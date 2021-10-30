@@ -8,6 +8,8 @@ async function getStdRoot(): Promise<string> {
   if (_cachedRoot) {
     return _cachedRoot;
   }
+  // this isn't working yet unfortunately...
+  // let currentDir = path.parse(new URL(import.meta.url).pathname).dir;
   let currentDir = __dirname;
   do {
     const files = await fs.readdir(currentDir);

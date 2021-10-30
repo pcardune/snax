@@ -1064,7 +1064,7 @@ describe('bugs that came up', () => {
       }
       
       func read(numBytes:i32) {
-        let s = String::{buffer: malloc(numBytes), length: numBytes};
+        let s = String::{buffer: $heap_start(), length: numBytes};
         return s;
       }
     `;

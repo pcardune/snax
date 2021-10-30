@@ -11,6 +11,7 @@ import { isFile } from './spec-gen.js';
 import binaryen from 'binaryen';
 import { dumpASTData } from './spec-util.js';
 import { TypeResolutionError } from './errors.js';
+import loadSourcePath from './node-path-loader.js';
 
 const wasi = new WASI({
   args: process.argv,
@@ -34,9 +35,7 @@ function parseFile(inPath: string) {
 async function compileSnaxFile(file: string) {
   const ast = parseFile(file);
   const compiler = new FileCompiler(ast, {
-    importResolver: () => {
-      throw new Error(`Imports haven't been implemented yet...`);
-    },
+    importResolver: loadSourcePath,
     includeRuntime: true,
   });
   let module;

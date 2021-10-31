@@ -1,4 +1,4 @@
-import type { ModuleCompiler } from './ast-compiler.js';
+import type { FileCompiler } from './ast-compiler.js';
 import type { ASTNode, Location } from './spec-gen.js';
 import type { TypeResolver } from './type-resolution.js';
 
@@ -35,7 +35,7 @@ export class CompilerError extends Error {
   node: ASTNode;
   private _message: string;
   private source?: string;
-  moduleCompiler?: ModuleCompiler;
+  moduleCompiler?: FileCompiler;
 
   constructor(node: ASTNode, message: string) {
     super();
@@ -60,7 +60,7 @@ export class CompilerError extends Error {
     this.source = source;
     this.message = this.getMessage();
   }
-  attachModuleCompiler(moduleCompiler: ModuleCompiler) {
+  attachModuleCompiler(moduleCompiler: FileCompiler) {
     this.moduleCompiler = moduleCompiler;
   }
 }

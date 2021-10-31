@@ -33,6 +33,8 @@ import { desugar } from './desugar.js';
 import binaryen from 'binaryen';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
+import { pretty } from './spec-util.js';
+import { resolveImports } from './import-resolver.js';
 
 export const PAGE_SIZE = 65536;
 export const WASM_FEATURE_FLAGS =
@@ -57,7 +59,6 @@ abstract class ASTCompiler<
 export type CompilesToIR = AST.Expression | AST.Statement | AST.LiteralExpr;
 
 export type Runtime = {
-  malloc: FuncStorageLocation;
   stackPointer: GlobalStorageLocation;
 };
 
@@ -66,6 +67,7 @@ type FuncDeclContext = {
   typeCache: ResolvedTypeMap;
   funcAllocs: FuncAllocations;
   runtime: Runtime;
+  heapStart: number;
   allocationMap: AllocationMap;
   module: binaryen.Module;
 };
@@ -209,15 +211,21 @@ export type ModuleCompilerOptions = {
    * The number of pages of memory to use for the stack
    */
   stackSize?: number;
+
+  /**
+   * A function resolves a path to the file contents for
+   * that path.
+   */
+  importResolver: (path: string) => Promise<AST.File>;
 };
-export class ModuleCompiler extends ASTCompiler<AST.File> {
+export class FileCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
   refMap?: SymbolRefMap;
   typeCache?: ResolvedTypeMap;
   moduleAllocator = new ModuleAllocator();
   tables?: SymbolTableMap;
 
-  constructor(file: AST.File, options?: ModuleCompilerOptions) {
+  constructor(file: AST.File, options: ModuleCompilerOptions) {
     super(file, undefined);
     this.options = {
       includeRuntime: true,
@@ -227,7 +235,8 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     };
   }
 
-  private setup() {
+  private async setup() {
+    await resolveImports(this.root, this.options.importResolver);
     desugar(this.root);
 
     const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
@@ -235,41 +244,24 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       symbol: '#SP',
       expr: stackPointerLiteral,
     });
-    this.root.fields.globals.push(stackPointerGlobal);
+    this.root.fields.decls.push(stackPointerGlobal);
 
-    let heapStartLiteral = AST.makeNumberLiteralWith({
-      value: 0,
-      numberType: 'int',
-      explicitType: 'usize',
-    });
-    let mallocDecl: AST.FuncDecl | undefined;
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
-        global next = 0;
-        func malloc(numBytes:usize) {
-          reg startAddress = next;
-          $memory_fill(startAddress, 0, numBytes);
-          next = next + numBytes;
-          return startAddress;
-        }
         struct String {
           buffer: &u8;
           length: usize;
         }
       `);
       if (AST.isFile(runtimeAST)) {
-        for (const runtimeFunc of runtimeAST.fields.funcs) {
-          const { symbol } = runtimeFunc.fields;
-          if (symbol !== 'main') {
-            this.root.fields.funcs.push(runtimeFunc);
-            if (symbol === 'malloc') {
-              mallocDecl = runtimeFunc;
+        for (const decl of runtimeAST.fields.decls) {
+          if (AST.isFuncDecl(decl)) {
+            if (decl.fields.symbol === 'main') {
+              continue;
             }
           }
+          this.root.fields.decls.push(decl);
         }
-        runtimeAST.fields.globals[0].fields.expr = heapStartLiteral;
-        this.root.fields.globals.push(...runtimeAST.fields.globals);
-        this.root.fields.decls.push(...runtimeAST.fields.decls);
       } else {
         throw this.error(`this should never happen`);
       }
@@ -285,32 +277,17 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     const moduleAllocator = resolveMemory(this.root, typeCache);
     this.moduleAllocator = moduleAllocator;
 
-    // initialize the heap start pointer to the last memIndex
-    // that got used.
-    heapStartLiteral.fields.value = moduleAllocator.memIndex;
-
     let runtime: Runtime;
     const stackPointer =
       moduleAllocator.allocationMap.getGlobalOrThrow(stackPointerGlobal);
 
     if (this.options.includeRuntime) {
-      if (!mallocDecl) {
-        throw this.error(`I need a decl for malloc`);
-      }
-      let malloc = moduleAllocator.allocationMap.getFuncOrThrow(mallocDecl);
       runtime = {
-        malloc,
         stackPointer,
       };
     } else {
       // TODO, find a better alternative for optional compilation
       runtime = {
-        malloc: {
-          area: Area.FUNCS,
-          offset: 1000,
-          id: 'f1000:malloc',
-          funcType: new FuncType([], Intrinsics.void),
-        },
         stackPointer,
       };
     }
@@ -324,27 +301,38 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     };
   }
 
-  compile(): binaryen.Module {
+  async compile(): Promise<binaryen.Module> {
     const { refMap, typeCache, moduleAllocator, runtime, stackPointer } =
-      this.setup();
+      await this.setup();
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
     module.setFeatures(WASM_FEATURE_FLAGS);
     // module.setFeatures(binaryen.Features.MutableGlobals);
-    for (const func of this.root.fields.funcs) {
-      new FuncDeclCompiler(func, {
-        refMap,
-        typeCache,
-        allocationMap: moduleAllocator.allocationMap,
-        funcAllocs: moduleAllocator.getLocalsForFunc(func),
-        runtime,
-        module,
-      }).compile();
+    for (const func of this.root.fields.decls) {
+      if (AST.isFuncDecl(func)) {
+        new FuncDeclCompiler(func, {
+          refMap,
+          typeCache,
+          heapStart: moduleAllocator.memIndex,
+          allocationMap: moduleAllocator.allocationMap,
+          funcAllocs: moduleAllocator.getLocalsForFunc(func),
+          runtime,
+          module,
+        }).compile();
+      } else if (AST.isModuleDecl(func)) {
+        new ModuleDeclCompiler(func, {
+          refMap,
+          typeCache,
+          moduleAllocator,
+          runtime,
+          module,
+        }).compile();
+      }
     }
-    const mainFunc = this.root.fields.funcs.find(
-      (decl) => decl.fields.symbol === 'main'
-    );
+    const mainFunc = this.root.fields.decls.find(
+      (decl) => AST.isFuncDecl(decl) && decl.fields.symbol === 'main'
+    ) as AST.FuncDecl;
     if (mainFunc) {
       const mainFuncLocation =
         moduleAllocator.allocationMap.getFuncOrThrow(mainFunc);
@@ -375,32 +363,6 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       module.addFunctionExport('_start', '_start');
     }
 
-    // ADD GLOBALS
-    for (const global of this.root.fields.globals) {
-      const location = moduleAllocator.allocationMap.getGlobalOrThrow(global);
-      module.addGlobal(
-        location.id,
-        binaryen[location.valueType],
-        true,
-        ExprCompiler.forNode(global.fields.expr, {
-          refMap,
-          typeCache,
-          allocationMap: moduleAllocator.allocationMap,
-          get funcAllocs(): FuncAllocations {
-            throw new Error(
-              `global expressions should not be attempting to access stack variables`
-            );
-          },
-          runtime: runtime,
-          setDebugLocation: () => {},
-          module,
-        })
-          .getRValue()
-          .expectDirect().valueExpr
-      );
-    }
-    module.addGlobalExport(stackPointer.id, 'stackPointer');
-
     // ADD DATA
     const segments: binaryen.MemorySegment[] = [];
     for (const loc of moduleAllocator.allocationMap.values()) {
@@ -413,16 +375,42 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
       }
     }
 
-    // ADD IMPORTS
     for (const decl of this.root.fields.decls) {
-      if (AST.isExternDecl(decl)) {
-        new ExternDeclCompiler(decl, {
-          typeCache,
-          allocationMap: moduleAllocator.allocationMap,
-          module,
-        }).compile();
+      switch (decl.name) {
+        case 'ExternDecl': {
+          // ADD IMPORTS
+          new ExternDeclCompiler(decl, {
+            typeCache,
+            allocationMap: moduleAllocator.allocationMap,
+            module,
+          }).compile();
+          break;
+        }
+        case 'GlobalDecl': {
+          // ADD GLOBALS
+          new GlobalDeclCompiler(decl, {
+            refMap,
+            module,
+            typeCache,
+            moduleAllocator,
+            runtime,
+          }).compile();
+          break;
+        }
+        case 'ModuleDecl': // handled above
+        case 'FuncDecl': // handled above
+        case 'StructDecl':
+          break;
+        default:
+          throw new CompilerError(
+            decl,
+            `Unrecognized file-level declaration ${decl.name}`
+          );
       }
     }
+
+    // export the stack pointer for debugging purposes
+    module.addGlobalExport(stackPointer.id, 'stackPointer');
 
     module.setMemory(
       this.options.stackSize,
@@ -434,6 +422,85 @@ export class ModuleCompiler extends ASTCompiler<AST.File> {
     );
 
     return module;
+  }
+}
+
+export class ModuleDeclCompiler extends ASTCompiler<
+  AST.ModuleDecl | AST.File,
+  {
+    refMap: SymbolRefMap;
+    typeCache: ResolvedTypeMap;
+    moduleAllocator: ModuleAllocator;
+    runtime: Runtime;
+    module: binaryen.Module;
+  }
+> {
+  compile() {
+    const { moduleAllocator } = this.context;
+    for (const decl of this.root.fields.decls) {
+      switch (decl.name) {
+        case 'ModuleDecl': {
+          new ModuleDeclCompiler(decl, this.context).compile();
+          break;
+        }
+        case 'FuncDecl': {
+          new FuncDeclCompiler(decl, {
+            ...this.context,
+            allocationMap: moduleAllocator.allocationMap,
+            funcAllocs: moduleAllocator.getLocalsForFunc(decl),
+            heapStart: moduleAllocator.memIndex,
+          }).compile();
+          break;
+        }
+        case 'GlobalDecl': {
+          new GlobalDeclCompiler(decl, this.context).compile();
+          break;
+        }
+        default:
+          throw this.error(
+            `Don't know how to compile ${decl.name} inside module decls yet...`
+          );
+      }
+    }
+  }
+}
+
+export class GlobalDeclCompiler extends ASTCompiler<
+  AST.GlobalDecl,
+  {
+    refMap: SymbolRefMap;
+    module: binaryen.Module;
+    typeCache: ResolvedTypeMap;
+    moduleAllocator: ModuleAllocator;
+    runtime: Runtime;
+  }
+> {
+  compile() {
+    const decl = this.root;
+    const { moduleAllocator, module, refMap, typeCache, runtime } =
+      this.context;
+    const location = moduleAllocator.allocationMap.getGlobalOrThrow(decl);
+    module.addGlobal(
+      location.id,
+      binaryen[location.valueType],
+      true,
+      ExprCompiler.forNode(decl.fields.expr, {
+        refMap,
+        typeCache,
+        allocationMap: moduleAllocator.allocationMap,
+        heapStart: moduleAllocator.memIndex,
+        get funcAllocs(): FuncAllocations {
+          throw new Error(
+            `global expressions should not be attempting to access stack variables`
+          );
+        },
+        runtime: runtime,
+        setDebugLocation: () => {},
+        module,
+      })
+        .getRValue()
+        .expectDirect().valueExpr
+    );
   }
 }
 
@@ -1018,6 +1085,7 @@ export abstract class ExprCompiler<
       case 'NumberLiteral':
       case 'CharLiteral':
         return new NumberLiteralCompiler(node, context);
+      case 'NamespacedRef':
       case 'SymbolRef':
         return new SymbolRefCompiler(node, context);
       case 'BooleanLiteral':
@@ -1047,7 +1115,9 @@ export abstract class ExprCompiler<
   }
 }
 
-class SymbolRefCompiler extends ExprCompiler<AST.SymbolRef> {
+class SymbolRefCompiler extends ExprCompiler<
+  AST.SymbolRef | AST.NamespacedRef
+> {
   override getRValue(): RValue {
     const lvalue = this.getLValue();
     const type = this.context.typeCache.get(this.root);
@@ -1058,13 +1128,17 @@ class SymbolRefCompiler extends ExprCompiler<AST.SymbolRef> {
     const symbolRecord = this.context.refMap.get(this.root);
     if (!symbolRecord) {
       throw this.error(
-        `ASTCompiler: can't compile reference to unresolved symbol ${this.root.fields.symbol}`
+        `ASTCompiler: can't compile reference to unresolved symbol ${pretty(
+          this.root
+        )}`
       );
     }
     const location = this.context.allocationMap.get(symbolRecord.declNode);
     if (!location) {
       throw this.error(
-        `ASTCompiler: Can't compile reference to unlocated symbol ${this.root.fields.symbol}`
+        `ASTCompiler: Can't compile reference to unlocated symbol ${pretty(
+          this.root
+        )}`
       );
     }
     return lvalueStatic(location);
@@ -1490,6 +1564,8 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         rvalueDirect(Intrinsics.f64, module.f64.floor(argValue(0))),
       f32_floor: () =>
         rvalueDirect(Intrinsics.f32, module.f32.floor(argValue(0))),
+      heap_start: () =>
+        rvalueDirect(Intrinsics.i32, module.i32.const(this.context.heapStart)),
     };
     const getRValue = compilerFuncs[symbol];
     if (!getRValue) {

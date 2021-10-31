@@ -4,7 +4,7 @@ import { compileToWAT } from './test-util';
 
 describe('ModuleCompiler', () => {
   it('compiles an empty module to an empty wasm module', async () => {
-    const { wat } = compileToWAT(AST.makeFile([], [], []), {
+    const { wat } = await compileToWAT(AST.makeFileWith({ decls: [] }), {
       includeRuntime: false,
     });
     expect(wat).toMatchInlineSnapshot(`
@@ -18,8 +18,10 @@ describe('ModuleCompiler', () => {
     `);
   });
   it('compiles globals in the module', async () => {
-    const { wat } = compileToWAT(
-      AST.makeFile([], [AST.makeGlobalDecl('foo', undefined, makeNum(0))], []),
+    const { wat } = await compileToWAT(
+      AST.makeFileWith({
+        decls: [AST.makeGlobalDecl('foo', undefined, makeNum(0))],
+      }),
       { includeRuntime: false }
     );
     expect(wat).toMatchInlineSnapshot(`
@@ -35,8 +37,10 @@ describe('ModuleCompiler', () => {
   });
   it('compiles functions in the module', async () => {
     const num = AST.makeExprStatement(makeNum(32));
-    const file = AST.makeFile([makeFunc('main', [], [num])], [], []);
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const file = AST.makeFileWith({
+      decls: [makeFunc('main', [], [num])],
+    });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (type $none_=>_none (func))
@@ -65,18 +69,16 @@ describe('ModuleCompiler', () => {
   });
 
   it('compiles string literals into data segments', async () => {
-    const { wat } = compileToWAT(
-      AST.makeFile(
-        [
+    const { wat } = await compileToWAT(
+      AST.makeFileWith({
+        decls: [
           makeFunc(
             'main',
             [],
             [AST.makeExprStatement(AST.makeDataLiteral('hello world!'))]
           ),
         ],
-        [],
-        []
-      ),
+      }),
       { includeRuntime: false }
     );
     expect(wat).toMatchInlineSnapshot(`
@@ -114,11 +116,9 @@ describe('ModuleCompiler', () => {
       [AST.makeReturnStatement(AST.makeSymbolRef('a'))]
     );
     const file = AST.makeFileWith({
-      funcs: [funcDecl, makeFunc('main')],
-      globals: [],
-      decls: [],
+      decls: [funcDecl, makeFunc('main')],
     });
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (type $none_=>_none (func))
@@ -152,8 +152,6 @@ describe('ModuleCompiler', () => {
 
   it('compiles extern declarations into wasm imports', async () => {
     const file = AST.makeFileWith({
-      funcs: [],
-      globals: [],
       decls: [
         AST.makeExternDeclWith({
           libName: 'wasi_unstable',
@@ -173,7 +171,7 @@ describe('ModuleCompiler', () => {
       ],
     });
 
-    const { wat } = compileToWAT(file, { includeRuntime: false });
+    const { wat } = await compileToWAT(file, { includeRuntime: false });
     expect(wat).toMatchInlineSnapshot(`
       "(module
        (type $i32_i32_i32_i32_=>_i32 (func (param i32 i32 i32 i32) (result i32)))

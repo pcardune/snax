@@ -2,7 +2,6 @@ import * as AST from '../spec-gen.js';
 import { BinOp, NumberLiteralType, UnaryOp } from '../snax-ast.js';
 import { SNAXParser } from '../snax-parser.js';
 import { makeFunc, makeNum } from '../ast-util.js';
-import { depthFirstIter } from '../spec-util.js';
 
 function parse(code: string, start?: string) {
   const ast = SNAXParser.parseStrOrThrow(code, start, {
@@ -570,13 +569,12 @@ describe('files', () => {
         `)
     ).toEqual(
       AST.makeFileWith({
-        funcs: [
+        decls: [
+          AST.makeGlobalDecl('counter', undefined, makeNum(0)),
           makeFunc('foo'),
           makeFunc('bar'),
           makeFunc('main', [], [AST.makeReturnStatement(makeNum(1))]),
         ],
-        globals: [AST.makeGlobalDecl('counter', undefined, makeNum(0))],
-        decls: [],
       })
     );
   });
@@ -587,9 +585,7 @@ describe('files', () => {
       `)
     ).toEqual(
       AST.makeFileWith({
-        funcs: [makeFunc('main')],
-        globals: [],
-        decls: [],
+        decls: [makeFunc('main')],
       })
     );
   });
@@ -617,15 +613,6 @@ describe('externals', () => {
       `)
     ).toEqual(
       AST.makeFileWith({
-        funcs: [
-          AST.makeFuncDeclWith({
-            symbol: 'main',
-            isPublic: false,
-            parameters: AST.makeParameterList([]),
-            body: AST.makeBlock([]),
-          }),
-        ],
-        globals: [],
         decls: [
           AST.makeExternDeclWith({
             libName: 'WASI',
@@ -647,6 +634,60 @@ describe('externals', () => {
           }),
         ],
       })
+    );
+  });
+});
+
+describe('modules', () => {
+  it('should parse a module declaration', () => {
+    expect(
+      parse(`
+        module math {
+          func add(a:i32, b:i32) {
+            return a+b;
+          }
+        }
+      `)
+    ).toEqual(
+      AST.makeFileWith({
+        decls: [
+          AST.makeModuleDeclWith({
+            symbol: 'math',
+            decls: [
+              makeFunc(
+                'add',
+                [
+                  AST.makeParameter('a', AST.makeTypeRef('i32')),
+                  AST.makeParameter('b', AST.makeTypeRef('i32')),
+                ],
+                [
+                  AST.makeReturnStatement(
+                    AST.makeBinaryExpr(
+                      BinOp.ADD,
+                      AST.makeSymbolRef('a'),
+                      AST.makeSymbolRef('b')
+                    )
+                  ),
+                ]
+              ),
+            ],
+          }),
+        ],
+      })
+    );
+  });
+  it('should parse a namespace reference', () => {
+    expect(parse(`std::math::add(1,2)`, 'expr')).toEqual(
+      AST.makeCallExpr(
+        AST.makeNamespacedRef(['std', 'math', 'add']),
+        AST.makeArgList([makeNum(1), makeNum(2)])
+      )
+    );
+  });
+
+  it('should parse an import statement', () => {
+    expect(parse(`import someModule from "./some/path.snx"`)).toEqual(
+      AST.makeFile([AST.makeImportDecl('someModule', './some/path.snx')])
     );
   });
 });

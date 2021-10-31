@@ -42,6 +42,11 @@ const specInput: Record<
       value: 'number',
     },
   },
+  NamespacedRef: {
+    fields: {
+      path: { type: 'string', list: true },
+    },
+  },
   SymbolRef: {
     fields: {
       symbol: 'string',
@@ -220,8 +225,18 @@ const specInput: Record<
   },
   File: {
     fields: {
-      funcs: { type: 'FuncDecl', list: true },
-      globals: { type: 'GlobalDecl', list: true },
+      decls: { type: 'TopLevelDecl', list: true },
+    },
+  },
+  ImportDecl: {
+    fields: {
+      symbol: 'string',
+      path: 'string',
+    },
+  },
+  ModuleDecl: {
+    fields: {
+      symbol: 'string',
       decls: { type: 'TopLevelDecl', list: true },
     },
   },
@@ -245,11 +260,20 @@ const specInput: Record<
       'ArrayLiteral',
       'BooleanLiteral',
       'SymbolRef',
+      'NamespacedRef',
       'StructLiteral',
     ],
   },
   TopLevelDecl: {
-    union: ['ExternDecl', 'TupleStructDecl', 'StructDecl'],
+    union: [
+      'ExternDecl',
+      'TupleStructDecl',
+      'StructDecl',
+      'GlobalDecl',
+      'FuncDecl',
+      'ModuleDecl',
+      'ImportDecl',
+    ],
   },
   Expression: {
     union: [

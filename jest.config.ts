@@ -1,26 +1,16 @@
-module.exports = {
-  projects: [
-    {
-      displayName: 'snax',
-      preset: 'ts-jest/presets/default-esm',
-      testEnvironment: 'node',
-      testMatch: ['<rootDir>/snax/projects/**/*.test.ts'],
-      transform: {},
-      extensionsToTreatAsEsm: ['.ts'],
-      resolver: 'jest-ts-webcompat-resolver',
-      globals: {
-        'ts-jest': {
-          supportStaticESM: true,
-          useESM: true,
-          tsconfig: {
-            // include DOM for access too WebAssembly global
-            lib: ['DOM', 'ES2021'],
-            esModuleInterop: true,
-            module: 'ES2020',
-            moduleResolution: 'Node',
-          },
-        },
-      },
+import type { InitialOptionsTsJest } from 'ts-jest/dist/types';
+const config: InitialOptionsTsJest = {
+  displayName: 'snax',
+  preset: 'ts-jest/presets/default-esm',
+  testMatch: ['<rootDir>/snax/projects/**/*.test.ts'],
+  globals: {
+    'ts-jest': {
+      useESM: true,
     },
-  ],
+  },
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
 };
+
+export default config;

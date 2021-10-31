@@ -162,6 +162,36 @@ export function makeCharLiteralWith(fields: { value: number }): CharLiteral {
   };
 }
 
+type NamespacedRefFields = { path: string[] };
+
+export type NamespacedRef = {
+  name: 'NamespacedRef';
+  fields: NamespacedRefFields;
+  location?: Location;
+};
+
+export function isNamespacedRef(node: ASTNode): node is NamespacedRef {
+  return node.name === 'NamespacedRef';
+}
+
+export function makeNamespacedRef(path: string[]): NamespacedRef {
+  return {
+    name: 'NamespacedRef',
+    fields: {
+      path,
+    },
+  };
+}
+
+export function makeNamespacedRefWith(fields: {
+  path: string[];
+}): NamespacedRef {
+  return {
+    name: 'NamespacedRef',
+    fields,
+  };
+}
+
 type SymbolRefFields = { symbol: string };
 
 export type SymbolRef = {
@@ -1173,11 +1203,7 @@ export function makeArgListWith(fields: { args: Expression[] }): ArgList {
   };
 }
 
-type FileFields = {
-  funcs: FuncDecl[];
-  globals: GlobalDecl[];
-  decls: TopLevelDecl[];
-};
+type FileFields = { decls: TopLevelDecl[] };
 
 export type File = {
   name: 'File';
@@ -1189,28 +1215,85 @@ export function isFile(node: ASTNode): node is File {
   return node.name === 'File';
 }
 
-export function makeFile(
-  funcs: FuncDecl[],
-  globals: GlobalDecl[],
-  decls: TopLevelDecl[]
-): File {
+export function makeFile(decls: TopLevelDecl[]): File {
   return {
     name: 'File',
     fields: {
-      funcs,
-      globals,
       decls,
     },
   };
 }
 
-export function makeFileWith(fields: {
-  funcs: FuncDecl[];
-  globals: GlobalDecl[];
-  decls: TopLevelDecl[];
-}): File {
+export function makeFileWith(fields: { decls: TopLevelDecl[] }): File {
   return {
     name: 'File',
+    fields,
+  };
+}
+
+type ImportDeclFields = { symbol: string; path: string };
+
+export type ImportDecl = {
+  name: 'ImportDecl';
+  fields: ImportDeclFields;
+  location?: Location;
+};
+
+export function isImportDecl(node: ASTNode): node is ImportDecl {
+  return node.name === 'ImportDecl';
+}
+
+export function makeImportDecl(symbol: string, path: string): ImportDecl {
+  return {
+    name: 'ImportDecl',
+    fields: {
+      symbol,
+      path,
+    },
+  };
+}
+
+export function makeImportDeclWith(fields: {
+  symbol: string;
+  path: string;
+}): ImportDecl {
+  return {
+    name: 'ImportDecl',
+    fields,
+  };
+}
+
+type ModuleDeclFields = { symbol: string; decls: TopLevelDecl[] };
+
+export type ModuleDecl = {
+  name: 'ModuleDecl';
+  fields: ModuleDeclFields;
+  location?: Location;
+};
+
+export function isModuleDecl(node: ASTNode): node is ModuleDecl {
+  return node.name === 'ModuleDecl';
+}
+
+export function makeModuleDecl(
+  symbol: string,
+  decls: TopLevelDecl[]
+): ModuleDecl {
+  return {
+    name: 'ModuleDecl',
+    fields: {
+      symbol,
+      decls,
+    },
+  };
+}
+
+export function makeModuleDeclWith(fields: {
+  symbol: string;
+  decls: TopLevelDecl[];
+}): ModuleDecl {
+  return {
+    name: 'ModuleDecl',
     fields,
   };
 }
@@ -1267,6 +1350,7 @@ export type LiteralExpr =
   | ArrayLiteral
   | BooleanLiteral
   | SymbolRef
+  | NamespacedRef
   | StructLiteral;
 export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
   return (
@@ -1276,13 +1360,29 @@ export function isLiteralExpr(node: ASTNode): node is LiteralExpr {
     isArrayLiteral(node) ||
     isBooleanLiteral(node) ||
     isSymbolRef(node) ||
+    isNamespacedRef(node) ||
     isStructLiteral(node)
   );
 }
 
-export type TopLevelDecl = ExternDecl | TupleStructDecl | StructDecl;
+export type TopLevelDecl =
+  | ExternDecl
+  | TupleStructDecl
+  | StructDecl
+  | GlobalDecl
+  | FuncDecl
+  | ModuleDecl
+  | ImportDecl;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
-  return isExternDecl(node) || isTupleStructDecl(node) || isStructDecl(node);
+  return (
+    isExternDecl(node) ||
+    isTupleStructDecl(node) ||
+    isStructDecl(node) ||
+    isGlobalDecl(node) ||
+    isFuncDecl(node) ||
+    isModuleDecl(node) ||
+    isImportDecl(node)
+  );
 }
 
 export type Expression =
@@ -1334,6 +1434,7 @@ export type ASTNode =
   | StringLiteral
   | DataLiteral
   | CharLiteral
+  | NamespacedRef
   | SymbolRef
   | TypeRef
   | PointerTypeExpr
@@ -1364,6 +1465,8 @@ export type ASTNode =
   | ExprStatement
   | ArgList
   | File
+  | ImportDecl
+  | ModuleDecl
   | ExternDecl
   | StructField
   | TypeExpr
@@ -1377,6 +1480,7 @@ export type ASTNodeName =
   | 'StringLiteral'
   | 'DataLiteral'
   | 'CharLiteral'
+  | 'NamespacedRef'
   | 'SymbolRef'
   | 'TypeRef'
   | 'PointerTypeExpr'
@@ -1407,4 +1511,6 @@ export type ASTNodeName =
   | 'ExprStatement'
   | 'ArgList'
   | 'File'
+  | 'ImportDecl'
+  | 'ModuleDecl'
   | 'ExternDecl';

@@ -1,0 +1,23 @@
+// adapted from http://www.cprogrammingnotes.com/question/sine-series.html
+func sinf32(x:f32):f32 {
+  reg n = 20;
+  reg sum:f32 = 0.0;
+  reg sign = -1;
+
+  reg i = 1;
+  while (i < n+1) {
+    reg p:f32 = 1.0;
+    reg fact = 1.0;
+    reg j = 1;
+    while (j < i+1) {
+      p = p * x;
+      fact = fact * j;
+      j = j+1;
+    }
+
+    sign = -sign;
+    sum = sum + sign * p / fact;
+    i = i+2;
+  }
+  return sum;
+}

@@ -1,34 +1,12 @@
+import { FileCompiler, PAGE_SIZE } from '../ast-compiler.js';
+import { SNAXParser } from '../snax-parser.js';
+import { isFile } from '../spec-gen.js';
 import {
-  ModuleCompiler,
-  ModuleCompilerOptions,
-  PAGE_SIZE,
-} from '../ast-compiler.js';
-import { compileToWAT, CompileToWatOptions } from './test-util';
-
-type SnaxExports = {
-  memory: WebAssembly.Memory;
-  stackPointer: WebAssembly.Global;
-  _start: () => any;
-};
-
-async function compileToWasmModule(
-  input: string,
-  options?: CompileToWatOptions
-) {
-  const { wat, ast, compiler, binary, sourceMap } = compileToWAT(input, {
-    includeRuntime: false,
-    stackSize: 1,
-    ...options,
-  });
-  const module = await WebAssembly.instantiate(binary);
-  const exports = module.instance.exports;
-  return { exports: exports as SnaxExports, wat, ast, compiler, sourceMap };
-}
-
-async function exec(input: string, options?: ModuleCompilerOptions) {
-  const { exports } = await compileToWasmModule(input, options);
-  return exports._start();
-}
+  compileToWasmModule,
+  compileToWAT,
+  exec,
+  SnaxExports,
+} from './test-util';
 
 /**
  * Get a 32 bit number out of a memory buffer from the given byte offset
@@ -63,7 +41,7 @@ function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {
   }
 }
 
-function dumpFuncAllocations(compiler: ModuleCompiler, funcName: string) {
+function dumpFuncAllocations(compiler: FileCompiler, funcName: string) {
   const funcAllocator =
     compiler.moduleAllocator.funcAllocatorMap.getByFuncNameOrThrow(funcName);
   return [
@@ -97,13 +75,12 @@ describe('empty module', () => {
   });
 
   it('compiles an empty program', async () => {
-    const { wat } = compileToWAT('', { includeRuntime: true });
+    const { wat } = await compileToWAT('', { includeRuntime: true });
     expect(wat).toMatchSnapshot();
-    expect(await exec('')).toBe(undefined);
   });
 
   it('compiles integers', async () => {
-    const { wat, sourceMap } = compileToWAT('123;', {
+    const { wat, sourceMap } = await compileToWAT('123;', {
       includeRuntime: false,
     });
     expect(wat).toMatchSnapshot();
@@ -454,21 +431,6 @@ describe('globals', () => {
         counter;
       `;
     expect(await exec(code)).toEqual(2);
-  });
-});
-
-xdescribe('runtime', () => {
-  it('has malloc', async () => {
-    expect(
-      await exec(
-        `
-          let x = malloc(3);
-          let y = malloc(4);
-          y;
-        `,
-        { includeRuntime: true }
-      )
-    ).toEqual(3);
   });
 });
 
@@ -940,7 +902,7 @@ describe('object structs', () => {
 describe('tuple structs', () => {
   describe('construction', () => {
     let snax: SnaxExports;
-    let compiler: ModuleCompiler;
+    let compiler: FileCompiler;
     beforeEach(async () => {
       const code = `
         struct Vector(u8,i32);
@@ -1020,7 +982,7 @@ describe('extern declarations', () => {
 
       print_num(1);
     `;
-    const { binary } = compileToWAT(code);
+    const { binary } = await compileToWAT(code);
 
     let printedNum: number | undefined = undefined;
     const module = await WebAssembly.instantiate(binary, {
@@ -1038,6 +1000,62 @@ describe('extern declarations', () => {
   });
 });
 
+describe('module declarations', () => {
+  it('allows calling functions inside a module declaration', async () => {
+    const code = `
+      module math {
+        func add(a:i32, b:i32) {
+          return a+b;
+        }
+        func add100(a:i32) {
+          return add(a, 100);
+        }
+      }
+      func add(a:i32, b:i32) {
+        return a + 500;
+      }
+      pub func test1() {
+        return math::add(1,2);
+      }
+      pub func test2() {
+        return math::add100(1);
+      }
+    `;
+    const { exports, wat } = await compileToWasmModule(code);
+    expect((exports as any).test1()).toBe(3);
+    expect((exports as any).test2()).toBe(101);
+    expect(wat).toMatchSnapshot();
+  });
+});
+
+describe('importing modules from other files', () => {
+  it('lets you import other files', async () => {
+    const files: { [path: string]: string } = {
+      './path/to/file.snx': `
+        pub func doSomething() {
+          return 34;
+        }
+      `,
+    };
+    const code = `
+      import someModule from "./path/to/file.snx"
+      someModule::doSomething();
+    `;
+    await compileToWasmModule(code, {
+      importResolver: async (path: string) => {
+        const content = files[path];
+        const ast = SNAXParser.parseStrOrThrow(content, 'start', {
+          grammarSource: path,
+        });
+        if (isFile(ast)) {
+          return ast;
+        }
+        throw new Error(`Expected file ${path} to parse to a File ast`);
+      },
+    });
+  });
+});
+
 describe('bugs that came up', () => {
   it('infers types in the right order across functions', async () => {
     const code = `
@@ -1046,7 +1064,7 @@ describe('bugs that came up', () => {
       }
       
       func read(numBytes:i32) {
-        let s = String::{buffer: malloc(numBytes), length: numBytes};
+        let s = String::{buffer: $heap_start(), length: numBytes};
         return s;
       }
     `;
@@ -1055,7 +1073,7 @@ describe('bugs that came up', () => {
     });
   });
 
-  it('lets you have functions that return floats', async () => {
+  it('compiles functions that return floats', async () => {
     const code = `
       func run() {
         let sum:f32;
@@ -1067,7 +1085,6 @@ describe('bugs that came up', () => {
       includeRuntime: false,
       validate: false,
     });
-    expect(exports._start()).toBe(undefined);
   });
 
   it('lets you call functions that return floats', async () => {

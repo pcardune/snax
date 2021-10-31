@@ -3,7 +3,7 @@ import {
   CompilesToIR,
   ExprCompiler,
   StmtCompiler,
-  ModuleCompiler,
+  FileCompiler,
   ModuleCompilerOptions,
   Runtime,
 } from '../ast-compiler.js';
@@ -13,15 +13,16 @@ import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { NumberType } from '../numbers';
 import binaryen from 'binaryen';
-import { FuncType, Intrinsics } from '../snax-types.js';
 import { CompilerError, TypeResolutionError } from '../errors.js';
 import { dumpASTData } from '../spec-util.js';
+import { getNodePathLoader } from '../node-path-loader.js';
+import path from 'path';
 
-export type CompileToWatOptions = ModuleCompilerOptions & {
+export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
   debug?: boolean;
 };
-export function compileToWAT(
+export async function compileToWAT(
   input: string | spec.File,
   options: CompileToWatOptions = {}
 ) {
@@ -31,10 +32,16 @@ export function compileToWAT(
   if (!spec.isFile(ast)) {
     throw new Error(`parsed to an ast node ${ast}, which isn't a file`);
   }
-  const compiler = new ModuleCompiler(ast, { stackSize: 1, ...options });
+  const compiler = new FileCompiler(ast, {
+    importResolver: getNodePathLoader(
+      path.resolve(__dirname, '../../../stdlib/')
+    ),
+    stackSize: 1,
+    ...options,
+  });
   let binaryenModule;
   try {
-    binaryenModule = compiler.compile();
+    binaryenModule = await compiler.compile();
   } catch (e) {
     if (e instanceof CompilerError) {
       e.attachModuleCompiler(compiler);
@@ -82,12 +89,6 @@ export function compileToWAT(
 }
 
 export const runtimeStub: Runtime = {
-  malloc: {
-    area: Area.FUNCS,
-    offset: 1000,
-    id: 'f1000:malloc',
-    funcType: new FuncType([], Intrinsics.i32),
-  },
   stackPointer: {
     area: Area.GLOBALS,
     offset: 1000,
@@ -102,6 +103,7 @@ function stubContext(node: CompilesToIR) {
   return {
     refMap,
     typeCache,
+    heapStart: 0,
     allocationMap: new AllocationMap(),
     runtime: runtimeStub,
     get funcAllocs(): FuncAllocations {
@@ -118,4 +120,31 @@ export function irCompiler(node: CompilesToIR) {
 
 export function exprCompiler(node: spec.Expression) {
   return ExprCompiler.forNode(node, stubContext(node));
+}
+
+export type SnaxExports = {
+  memory: WebAssembly.Memory;
+  stackPointer: WebAssembly.Global;
+  _start: () => any;
+};
+
+export async function compileToWasmModule<
+  Exports extends SnaxExports = SnaxExports
+>(input: string, options?: CompileToWatOptions) {
+  const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(input, {
+    includeRuntime: false,
+    stackSize: 1,
+    ...options,
+  });
+  const module = await WebAssembly.instantiate(binary);
+  const exports = module.instance.exports;
+  return { exports: exports as Exports, wat, ast, compiler, sourceMap };
+}
+
+export async function exec(
+  input: string,
+  options?: Partial<ModuleCompilerOptions>
+) {
+  const { exports } = await compileToWasmModule(input, options);
+  return exports._start();
 }

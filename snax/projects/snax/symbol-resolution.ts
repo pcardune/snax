@@ -11,6 +11,10 @@ import {
   TypeRef,
   isMemberAccessExpr,
   ExternFuncDecl,
+  isFuncDecl,
+  ModuleDecl,
+  isModuleDecl,
+  NamespacedRef,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 
@@ -55,10 +59,13 @@ export class SymbolTable {
 }
 
 export type SymbolTableMap = OrderedMap<
-  Block | FuncDecl | ExternFuncDecl | File,
+  Block | FuncDecl | ExternFuncDecl | ModuleDecl | File,
   SymbolTable
 >;
-export type SymbolRefMap = OrderedMap<SymbolRef | TypeRef, SymbolRecord>;
+export type SymbolRefMap = OrderedMap<
+  SymbolRef | TypeRef | NamespacedRef,
+  SymbolRecord
+>;
 
 export function resolveSymbols(astNode: ASTNode) {
   const tables: SymbolTableMap = new OrderedMap();
@@ -105,6 +112,45 @@ function innerResolveSymbols(
       refMap.set(astNode, symbolRecord);
       break;
     }
+    case 'NamespacedRef': {
+      const { path } = astNode.fields;
+      const namesToLookup = [...path];
+      let table = currentTable;
+      while (namesToLookup.length > 1) {
+        const symbol = namesToLookup.shift()!;
+        const namespaceRecord = table.get(symbol);
+        if (!namespaceRecord) {
+          throw new SymbolResolutionError(
+            astNode,
+            `No declaration found for ${symbol}`
+          );
+        }
+        const moduleDecl = namespaceRecord.declNode;
+        if (moduleDecl.name !== 'ModuleDecl') {
+          throw new SymbolResolutionError(
+            astNode,
+            `Can't resolve namespace access to a ${moduleDecl.name}`
+          );
+        }
+        const moduleSymbolTable = tables.get(moduleDecl);
+        if (!moduleSymbolTable) {
+          throw new SymbolResolutionError(
+            astNode,
+            `No symbol table found for namespace ${moduleDecl.fields.symbol}`
+          );
+        }
+        table = moduleSymbolTable;
+      }
+      const symbol = namesToLookup.shift()!;
+      const symbolRecord = table.get(symbol);
+      if (!symbolRecord) {
+        throw new SymbolResolutionError(
+          astNode,
+          `Reference to undeclared symbol ${symbol}`
+        );
+      }
+      refMap.set(astNode, symbolRecord);
+    }
   }
 
   // some nodes cause a new scope to be created
@@ -119,7 +165,7 @@ function innerResolveSymbols(
   }
 
   // descend into the child nodes to continue resolving symbols.
-  if (isFile(astNode)) {
+  if (isFile(astNode) || isModuleDecl(astNode)) {
     for (const decl of astNode.fields.decls) {
       switch (decl.name) {
         case 'ExternDecl': {
@@ -128,38 +174,49 @@ function innerResolveSymbols(
           }
           break;
         }
-        case 'StructDecl': {
-          currentTable.declare(decl.fields.symbol, decl);
-          break;
-        }
+        case 'GlobalDecl':
+        case 'FuncDecl':
+        case 'ModuleDecl':
+        case 'StructDecl':
         case 'TupleStructDecl': {
           currentTable.declare(decl.fields.symbol, decl);
           break;
         }
       }
     }
-    for (const globalDecl of astNode.fields.globals) {
-      currentTable.declare(globalDecl.fields.symbol, globalDecl);
+    for (const moduleDecl of astNode.fields.decls) {
+      if (isModuleDecl(moduleDecl)) {
+        const moduleSymbols = new SymbolTable(null);
+        tables.set(moduleDecl, moduleSymbols);
+        innerResolveSymbols(moduleDecl, moduleSymbols, tables, refMap);
+      }
     }
-    for (const funcDecl of astNode.fields.funcs) {
-      currentTable.declare(funcDecl.fields.symbol, funcDecl);
-    }
-    for (const funcDecl of astNode.fields.funcs) {
-      const funcSymbols = new SymbolTable(currentTable);
-      tables.set(funcDecl, funcSymbols);
-      innerResolveSymbols(
-        funcDecl.fields.parameters,
-        funcSymbols,
-        tables,
-        refMap
-      );
-      innerResolveSymbols(funcDecl.fields.body, funcSymbols, tables, refMap);
+
+    for (const funcDecl of astNode.fields.decls) {
+      if (isFuncDecl(funcDecl)) {
+        const funcSymbols = new SymbolTable(currentTable);
+        tables.set(funcDecl, funcSymbols);
+        innerResolveSymbols(
+          funcDecl.fields.parameters,
+          funcSymbols,
+          tables,
+          refMap
+        );
+        innerResolveSymbols(funcDecl.fields.body, funcSymbols, tables, refMap);
+      }
     }
 
     for (const decl of astNode.fields.decls) {
-      childrenOf(decl).forEach((node) =>
-        innerResolveSymbols(node, currentTable, tables, refMap)
-      );
+      switch (decl.name) {
+        case 'FuncDecl':
+        case 'ModuleDecl':
+        case 'GlobalDecl':
+          break;
+        default:
+          childrenOf(decl).forEach((node) =>
+            innerResolveSymbols(node, currentTable, tables, refMap)
+          );
+      }
     }
   } else if (isMemberAccessExpr(astNode)) {
     innerResolveSymbols(astNode.fields.left, currentTable, tables, refMap);

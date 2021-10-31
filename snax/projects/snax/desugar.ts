@@ -6,14 +6,13 @@ import {
   makeExprStatement,
   makeNumberLiteral,
   makeStructDecl,
-  makeStructLiteral,
   makeStructLiteralProp,
   makeStructLiteralWith,
   makeStructProp,
   makeSymbolRef,
   makeUnaryExpr,
 } from './spec-gen.js';
-import { children, depthFirstIter } from './spec-util.js';
+import { children } from './spec-util.js';
 
 function* nodesWithParentIter(
   node: ASTNode,

@@ -1,9 +1,8 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import {
+import type {
   ASTNode,
   FuncDecl,
   GlobalDecl,
-  isExternDecl,
   ParameterList,
   DataLiteral,
   ExternFuncDecl,
@@ -156,7 +155,11 @@ export class ModuleAllocator implements ConstAllocator {
     return location;
   }
 
-  allocateFunc(node: FuncDecl | ExternFuncDecl, typeMap: ResolvedTypeMap) {
+  allocateFunc(
+    node: FuncDecl | ExternFuncDecl,
+    namespace: string,
+    typeMap: ResolvedTypeMap
+  ) {
     const funcType = typeMap.get(node);
     if (!(funcType instanceof FuncType)) {
       throw new Error(`expected funcdecl to have func type`);
@@ -167,7 +170,7 @@ export class ModuleAllocator implements ConstAllocator {
       typeMap
     );
     this.funcAllocatorMap.set(node, funcLocalAllocator);
-    const id = `<${node.fields.symbol}>f${this.funcOffset}`;
+    const id = `<${namespace}${node.fields.symbol}>f${this.funcOffset}`;
     return {
       location: this.alloc(node, {
         area: FUNCS,
@@ -402,7 +405,13 @@ class MemoryResolver {
     this.typeMap = typeMap;
   }
 
-  resolve(root: ASTNode, localAllocator?: ILocalAllocator) {
+  resolve(
+    root: ASTNode,
+    {
+      namespace = '',
+      localAllocator,
+    }: { namespace?: string; localAllocator?: ILocalAllocator } = {}
+  ) {
     function assertLocal(a: ILocalAllocator | undefined): a is ILocalAllocator {
       if (!a) {
         throw new Error(`Need to have a local allocator for ${root.name} node`);
@@ -411,7 +420,9 @@ class MemoryResolver {
     }
 
     const resolveChildren = (localAllocator?: ILocalAllocator) => {
-      children(root).forEach((child) => this.resolve(child, localAllocator));
+      children(root).forEach((child) =>
+        this.resolve(child, { namespace, localAllocator })
+      );
     };
 
     const allocateTemp = (valueType: NumberType) => {
@@ -425,19 +436,26 @@ class MemoryResolver {
     switch (root.name) {
       case 'File': {
         for (const decl of root.fields.decls) {
-          if (isExternDecl(decl)) {
-            this.resolve(decl);
+          switch (decl.name) {
+            case 'FuncDecl':
+            case 'GlobalDecl':
+            case 'ExternDecl':
+              this.resolve(decl);
+              break;
+            case 'ModuleDecl': {
+              this.resolve(decl, {
+                namespace: namespace + decl.fields.symbol + '::',
+              });
+            }
           }
         }
-        [...root.fields.globals, ...root.fields.funcs].forEach((child) =>
-          this.resolve(child)
-        );
         return;
       }
       case 'ExternFuncDecl':
       case 'FuncDecl': {
         resolveChildren(
-          this.moduleAllocator.allocateFunc(root, this.typeMap).localAllocator
+          this.moduleAllocator.allocateFunc(root, namespace, this.typeMap)
+            .localAllocator
         );
         return;
       }

@@ -65,8 +65,6 @@ start
 
 file "file"
   = ws statements:fileStatementList? ws {
-    let funcs: specGen.FuncDecl[] = [];
-    let globals: specGen.GlobalDecl[] = [];
     let decls = [];
     let mainFuncBody = [];
     let hasMainFunc = false;
@@ -75,9 +73,7 @@ file "file"
         if (statement.fields.symbol === "main") {
           hasMainFunc = true;
         }
-        funcs.push(statement);
-      } else if (spec.isGlobalDecl(statement)) {
-        globals.push(statement);
+        decls.push(statement);
       } else if (spec.isStatement(statement)) {
         mainFuncBody.push(statement);
       } else {
@@ -95,20 +91,20 @@ file "file"
       }
     }
     if (!hasMainFunc) {
-      funcs.push(
-        spec.makeFuncDeclWith({
-          symbol:'main',
-          isPublic: false,
-          parameters: spec.makeParameterList([]),
-          body: spec.makeBlock(mainFuncBody)
-        })
-      );
+      if (mainFuncBody.length > 0) {
+        decls.push(
+          spec.makeFuncDeclWith({
+            symbol:'main',
+            isPublic: false,
+            parameters: spec.makeParameterList([]),
+            body: spec.makeBlock(mainFuncBody)
+          })
+        );
+      }
     } else if (mainFuncBody.length > 0 ) {
       throw new Error('Both free statements and a main function were provided. Choose one or the other');
     }
     return spec.makeFileWith({
-      funcs,
-      globals,
       decls,
     });
   }
@@ -119,13 +115,30 @@ fileStatementList "file statements"
   }
 
 fileStatement "file statement"
+  = moduleStatement
+  / statement
+
+moduleDecl "module declaration"
+  = "module" ws symbol:identifier ws "{" ws decls:moduleDeclList ws "}" {
+    return spec.makeModuleDeclWith({symbol, decls});
+  }
+
+moduleDeclList "module declarations"
+  = head:moduleStatement tail:(ws moduleStatement)* {
+    return [head, ...tail.map((t:any)=>t[1])];
+  }
+
+moduleStatement "declaration"
   = "global" ws varDecl:varDecl ws ";" ws {
     return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
+  }
+  / "import" ws symbol:identifier ws "from" ws path:quotedString {
+    return spec.makeImportDecl(symbol, path);
   }
   / funcDecl
   / externDecl
   / structDecl
-  / statement
+  / moduleDecl
 
 block "block"
   = ws head:statement tail:(ws statement)* ws {
@@ -437,10 +450,16 @@ structPropValue
   }
 
 stringLiteral "string"
+  = value:quotedString {
+    return spec.makeStringLiteral(value);
+  }
+
+quotedString "quotedString"
   = '"' content:(('\\' .) / [^"])* '"' {
     const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
-    return spec.makeStringLiteral(JSON.parse('"'+inner+'"'));
+    return JSON.parse('"'+inner+'"');
   }
+
 
 charLiteral "char"
   = "'" content:('\\'? .) "'" {
@@ -493,7 +512,12 @@ bool = "true" { return spec.makeBooleanLiteral(true); }
      / "false" { return spec.makeBooleanLiteral(false); }
 
 id "symbol"
-  = name:identifier { return spec.makeSymbolRef(name); }
+  = name:identifier rest:("::" identifier)+ {
+    return spec.makeNamespacedRef([name, ...rest.map((r:any) => r[1])]);
+  }
+  / name:identifier {
+    return spec.makeSymbolRef(name);
+  }
 
 identifier "identifier"
   = prefix:[a-z_]i suffix:[a-z0-9_]i* { return prefix+suffix.join(''); }

@@ -21,7 +21,7 @@ import {
   isNumberLiteral,
   isReturnStatement,
 } from './spec-gen.js';
-import { depthFirstIter } from './spec-util.js';
+import { depthFirstIter, pretty } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
@@ -111,6 +111,7 @@ export class TypeResolver {
         return Intrinsics.u8;
       case 'DataLiteral':
         return new ArrayType(Intrinsics.u8, node.fields.value.length);
+      case 'NamespacedRef':
       case 'SymbolRef': {
         const record = refMap.get(node);
         if (!record) {
@@ -120,7 +121,9 @@ export class TypeResolver {
         if (!resolvedType) {
           throw this.error(
             node,
-            `Can't resolve type for symbol ${node.fields.symbol}, whose declaration hasn't had its type resolved`
+            `Can't resolve type for symbol ${pretty(
+              node
+            )}, whose declaration hasn't had its type resolved`
           );
         }
         return resolvedType;
@@ -252,6 +255,8 @@ export class TypeResolver {
             return Intrinsics.void;
           case 'memory_copy':
             return Intrinsics.void;
+          case 'heap_start':
+            return Intrinsics.i32;
           default:
             throw this.error(
               node,
@@ -386,16 +391,19 @@ export class TypeResolver {
         return node.fields.expr
           ? this.resolveType(node.fields.expr)
           : Intrinsics.void;
+      case 'ModuleDecl':
       case 'File':
         return new RecordType(
           new OrderedMap([
-            ...node.fields.funcs.map(
-              (funcDecl) =>
-                [funcDecl.fields.symbol, this.resolveType(funcDecl)] as [
-                  string,
-                  BaseType
-                ]
-            ),
+            ...node.fields.decls
+              .filter(isFuncDecl)
+              .map(
+                (funcDecl) =>
+                  [funcDecl.fields.symbol, this.resolveType(funcDecl)] as [
+                    string,
+                    BaseType
+                  ]
+              ),
           ])
         );
       case 'ExternDecl':
@@ -463,10 +471,7 @@ export class TypeResolver {
         }
       }
     }
-    throw this.error(
-      node,
-      `No type resolution exists for ${(node as any).name}`
-    );
+    throw this.error(node, `No type resolution exists for ${node as any}`);
   }
 
   private getTypeForBinaryOp(

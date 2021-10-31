@@ -8,55 +8,57 @@ import {
 } from '../symbol-resolution.js';
 import type { OrderedMap } from '../../utils/data-structures/OrderedMap.js';
 
-let file: AST.File;
-let funcDecl: AST.FuncDecl;
-let globalDecl: AST.GlobalDecl;
-let outerBlock: AST.Block;
-let innerBlock: AST.Block;
-let innerXRef: AST.SymbolRef;
-let innerYRef: AST.SymbolRef;
-let outerXRef: AST.SymbolRef;
-let tables: OrderedMap<AST.ASTNode, SymbolTable>;
-let refMap: OrderedMap<AST.ASTNode, SymbolRecord>;
-beforeEach(() => {
-  innerXRef = AST.makeSymbolRef('x');
-  innerYRef = AST.makeSymbolRef('y');
-  innerBlock = AST.makeBlock([
-    AST.makeLetStatement('x', undefined, makeNum(3)),
-    AST.makeExprStatement(innerXRef),
-    AST.makeExprStatement(innerYRef),
-  ]);
-  outerXRef = AST.makeSymbolRef('x');
-  outerBlock = AST.makeBlock([
-    AST.makeLetStatement('x', undefined, makeNum(1)),
-    AST.makeLetStatement('y', undefined, makeNum(2)),
-    innerBlock,
-    AST.makeExprStatement(outerXRef),
-  ]);
-  globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
-  funcDecl = makeFunc('main', [], outerBlock);
-  file = AST.makeFileWith({
-    funcs: [funcDecl],
-    globals: [globalDecl],
-    decls: [
-      AST.makeExternDeclWith({
-        libName: 'someLib',
-        funcs: [
-          AST.makeExternFuncDecl(
-            'externalFunc',
-            AST.makeParameterList([]),
-            AST.makeTypeRef('void')
-          ),
-        ],
-      }),
-    ],
-  });
-  const resolution = resolveSymbols(file);
-  tables = resolution.tables;
-  refMap = resolution.refMap;
-});
-
 describe('resolveSymbols', () => {
+  let file: AST.File;
+  let funcDecl: AST.FuncDecl;
+  let moduleDecl: AST.ModuleDecl;
+  let globalDecl: AST.GlobalDecl;
+  let outerBlock: AST.Block;
+  let innerBlock: AST.Block;
+  let innerXRef: AST.SymbolRef;
+  let innerYRef: AST.SymbolRef;
+  let outerXRef: AST.SymbolRef;
+  let tables: OrderedMap<AST.ASTNode, SymbolTable>;
+  let refMap: OrderedMap<AST.ASTNode, SymbolRecord>;
+  beforeEach(() => {
+    innerXRef = AST.makeSymbolRef('x');
+    innerYRef = AST.makeSymbolRef('y');
+    innerBlock = AST.makeBlock([
+      AST.makeLetStatement('x', undefined, makeNum(3)),
+      AST.makeExprStatement(innerXRef),
+      AST.makeExprStatement(innerYRef),
+    ]);
+    outerXRef = AST.makeSymbolRef('x');
+    outerBlock = AST.makeBlock([
+      AST.makeLetStatement('x', undefined, makeNum(1)),
+      AST.makeLetStatement('y', undefined, makeNum(2)),
+      innerBlock,
+      AST.makeExprStatement(outerXRef),
+    ]);
+    globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
+    funcDecl = makeFunc('main', [], outerBlock);
+    moduleDecl = AST.makeModuleDecl('math', [makeFunc('calcPi', [], [])]);
+    file = AST.makeFileWith({
+      decls: [
+        moduleDecl,
+        funcDecl,
+        globalDecl,
+        AST.makeExternDeclWith({
+          libName: 'someLib',
+          funcs: [
+            AST.makeExternFuncDecl(
+              'externalFunc',
+              AST.makeParameterList([]),
+              AST.makeTypeRef('void')
+            ),
+          ],
+        }),
+      ],
+    });
+    const resolution = resolveSymbols(file);
+    tables = resolution.tables;
+    refMap = resolution.refMap;
+  });
   it('constructs the correct symbol table', () => {
     let symbolTable = tables.get(outerBlock);
     if (!symbolTable) {
@@ -83,7 +85,44 @@ describe('resolveSymbols', () => {
   it('external funcs appear in the file symbol table', () => {
     expect(tables.get(file)?.has('externalFunc')).toBe(true);
   });
+  it('modules declarations have their own symbol table', () => {
+    const moduleSymbols = tables.get(moduleDecl);
+    expect(moduleSymbols).toBeDefined();
+    expect(moduleSymbols!.parent).toBeNull();
+    expect(moduleSymbols?.get('calcPi')?.declNode).toBe(
+      moduleDecl.fields.decls[0]
+    );
+  });
   it('spits out the right debug info', () => {
     expect(dumpASTData(file, { symbolTables: tables })).toMatchSnapshot();
+  });
+});
+
+describe('module symbol resolution', () => {
+  const setup = () => {
+    const mathModule = AST.makeModuleDecl('math', [
+      makeFunc('calcPi', [], []),
+      makeFunc(
+        'calc2Pi',
+        [],
+        [AST.makeExprStatement(AST.makeSymbolRef('calcPi'))]
+      ),
+    ]);
+    const file = AST.makeFile([mathModule]);
+    const { tables, refMap } = resolveSymbols(file);
+    return { mathModule, tables, refMap };
+  };
+
+  it('modules get their own symbol table without a parent', () => {
+    const { tables, mathModule } = setup();
+    expect(tables.get(mathModule)?.parent).toBeNull();
+  });
+
+  it('the module symbol table contains the funcs defined in the module', () => {
+    const { tables, mathModule } = setup();
+    const mathModuleSymbol = tables.get(mathModule)!;
+    const calcPiRecord = mathModuleSymbol.get('calcPi');
+    expect(calcPiRecord).toBeDefined();
+    expect(calcPiRecord!.declNode).toBe(mathModule.fields.decls[0]);
   });
 });

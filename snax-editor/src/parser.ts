@@ -48,7 +48,7 @@ export const exampleLanguage = LRLanguage.define({
 });
 
 import { completeFromList } from '@codemirror/autocomplete';
-import { EditorView } from '@codemirror/view';
+import hoverTypeInfo from './cm-extensions/hover-type-info';
 
 export const exampleCompletion = exampleLanguage.data.of({
   autocomplete: completeFromList([
@@ -73,5 +73,6 @@ export function example() {
   return new LanguageSupport(exampleLanguage, [
     exampleCompletion,
     myHighlightStyle,
+    hoverTypeInfo,
   ]);
 }

@@ -150,6 +150,7 @@ function useCodeChecker() {
   const [parses, setParses] = useState<boolean | undefined>();
   const [typeChecks, setTypechecks] = useState<boolean | undefined>();
   const [compiles, setCompiles] = useState<boolean | undefined>();
+  const [validates, setValidates] = useState<boolean | undefined>();
   const [error, setError] = useState('');
 
   async function runChecks(code: string) {
@@ -159,7 +160,7 @@ function useCodeChecker() {
       const ast = result.value;
       if (ast.name === 'File') {
         try {
-          await compileAST(ast, {
+          const binaryenModule = await compileAST(ast, {
             importResolver: () => {
               throw new Error('import not working yet...');
             },
@@ -167,6 +168,16 @@ function useCodeChecker() {
           setTypechecks(true);
           setCompiles(true);
           setError('');
+
+          const validates = binaryenModule.validate();
+          setValidates(!!validates);
+          if (validates) {
+            const wasmModule = await WebAssembly.compile(
+              binaryenModule.emitBinary().buffer
+            );
+            const modInstance = await WebAssembly.instantiate(wasmModule);
+            (window as any).wasm = modInstance.exports;
+          }
           return;
         } catch (e) {
           setError(String(e));
@@ -189,6 +200,7 @@ function useCodeChecker() {
     { label: 'parses', state: parses },
     { label: 'type checks', state: typeChecks },
     { label: 'compiles', state: compiles },
+    { label: 'validates', state: validates },
   ];
   return { checks, error, runChecks };
 }

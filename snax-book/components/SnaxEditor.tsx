@@ -124,7 +124,8 @@ export function SnaxEditor() {
 
   const onClickCompile = async () => {
     setParse(null);
-    setWAT(compileStr(text));
+    // TODO: this got deprecated... maybe this whole file should disappear
+    // setWAT(await compileStr(text));
   };
 
   const onClickParse = () => {

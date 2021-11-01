@@ -1560,10 +1560,32 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         ),
       i32_trunc_f32_s: () =>
         rvalueDirect(Intrinsics.i32, module.i32.trunc_s.f32(argValue(0))),
+
+      // unary float operations
       f64_floor: () =>
         rvalueDirect(Intrinsics.f64, module.f64.floor(argValue(0))),
+      f64_trunc: () =>
+        rvalueDirect(Intrinsics.f64, module.f64.trunc(argValue(0))),
+      f64_abs: () => rvalueDirect(Intrinsics.f64, module.f64.abs(argValue(0))),
+      f64_sqrt: () =>
+        rvalueDirect(Intrinsics.f64, module.f64.sqrt(argValue(0))),
+      f64_ceil: () =>
+        rvalueDirect(Intrinsics.f64, module.f64.ceil(argValue(0))),
+      f64_nearest: () =>
+        rvalueDirect(Intrinsics.f64, module.f64.nearest(argValue(0))),
       f32_floor: () =>
         rvalueDirect(Intrinsics.f32, module.f32.floor(argValue(0))),
+      f32_trunc: () =>
+        rvalueDirect(Intrinsics.f32, module.f32.trunc(argValue(0))),
+      f32_abs: () => rvalueDirect(Intrinsics.f32, module.f32.abs(argValue(0))),
+      f32_sqrt: () =>
+        rvalueDirect(Intrinsics.f32, module.f32.sqrt(argValue(0))),
+      f32_ceil: () =>
+        rvalueDirect(Intrinsics.f32, module.f32.ceil(argValue(0))),
+      f32_nearest: () =>
+        rvalueDirect(Intrinsics.f32, module.f32.nearest(argValue(0))),
+
+      // actual interesting stuff
       heap_start: () =>
         rvalueDirect(Intrinsics.i32, module.i32.const(this.context.heapStart)),
     };

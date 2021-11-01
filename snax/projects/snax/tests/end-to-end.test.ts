@@ -136,6 +136,15 @@ describe('empty module', () => {
 
   it('compiles internal wasm operators', async () => {
     expect(await exec('$f32_floor(3.56);')).toBeCloseTo(3);
+    expect(await exec('$f32_floor(-3.56);')).toBeCloseTo(-4);
+    expect(await exec('$f32_trunc(3.56);')).toBeCloseTo(3);
+    expect(await exec('$f32_trunc(-3.56);')).toBeCloseTo(-3);
+    expect(await exec('$f32_abs(3.56);')).toBeCloseTo(3.56);
+    expect(await exec('$f32_abs(-3.56);')).toBeCloseTo(3.56);
+    expect(await exec('$f32_sqrt(3.56);')).toBeCloseTo(Math.sqrt(3.56));
+    expect(await exec('$f32_ceil(3.56);')).toBeCloseTo(4);
+    expect(await exec('$f32_nearest(3.56);')).toBeCloseTo(4);
+
     expect(await exec('$i32_trunc_f32_s(3.56);')).toBe(3);
   });
 

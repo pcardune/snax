@@ -248,8 +248,18 @@ export class TypeResolver {
           case 'i32_trunc_f32_s':
             return Intrinsics.i32;
           case 'f64_floor':
+          case 'f64_trunc':
+          case 'f64_abs':
+          case 'f64_sqrt':
+          case 'f64_ceil':
+          case 'f64_nearest':
             return Intrinsics.f64;
           case 'f32_floor':
+          case 'f32_trunc':
+          case 'f32_abs':
+          case 'f32_sqrt':
+          case 'f32_ceil':
+          case 'f32_nearest':
             return Intrinsics.f32;
           case 'memory_fill':
             return Intrinsics.void;

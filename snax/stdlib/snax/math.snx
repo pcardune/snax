@@ -34,6 +34,10 @@ func sinf32(x:f32):f32 {
   return partial * sign;
 }
 
+func cosf32(x:f32):f32 {
+  return sinf32(x+1.5707963267948966);
+}
+
 // Calculates x % y with floats
 func modf32(x:f32, y:f32):f32 {
   return x - $f32_trunc(x/y) * y;

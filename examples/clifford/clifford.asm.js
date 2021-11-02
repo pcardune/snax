@@ -37,9 +37,34 @@ function asmFunc(env) {
  var abort = env.abort;
  var nan = NaN;
  var infinity = Infinity;
- var $draw_f0 = env.draw;
+ var $draw_f3 = env.draw;
  var g0__SP = 0;
- function $clifford_f1($0, $1, $2, $3, $4) {
+ function $math__sinf32_f0($0) {
+  var $1 = Math_fround(0), $2 = Math_fround(0), $3 = Math_fround(0);
+  $1 = Math_fround(1.0);
+  if ($0 < Math_fround(0.0)) {
+   $1 = Math_fround(-1.0);
+   $0 = Math_fround(Math_abs($0));
+  }
+  $2 = $math__modf32_f2($0, Math_fround(6.2831854820251465));
+  g0__SP = 0;
+  $0 = $math__modf32_f2($2, Math_fround(3.1415927410125732));
+  g0__SP = 0;
+  $3 = Math_fround(Math_fround(3.1415927410125732) - $0);
+  return Math_fround(Math_fround(Math_fround(Math_fround($0 * Math_fround(16.0)) * $3) / Math_fround(Math_fround(49.3480224609375) - Math_fround(Math_fround($0 * Math_fround(4.0)) * $3))) * ($2 > Math_fround(3.1415927410125732) ? Math_fround(-$1) : $1));
+ }
+ 
+ function $math__cosf32_f1($0) {
+  $0 = $math__sinf32_f0(Math_fround($0 + Math_fround(1.5707963705062866)));
+  g0__SP = 0;
+  return $0;
+ }
+ 
+ function $math__modf32_f2($0, $1) {
+  return Math_fround($0 - Math_fround(Math_fround(Math_trunc(Math_fround($0 / $1))) * $1));
+ }
+ 
+ function $clifford_f4($0, $1, $2, $3, $4) {
   $0 = Math_fround($0);
   $1 = Math_fround($1);
   $2 = Math_fround($2);
@@ -51,13 +76,13 @@ function asmFunc(env) {
   wasm2js_memory_fill($5, 0, 4e6);
   $12 = ($4 | 0) / (5e4 | 0) | 0;
   while_0 : while (1) {
-   $13 = $sinf32_f3(Math_fround($0 * $7));
+   $13 = $math__sinf32_f0(Math_fround($0 * $7));
    g0__SP = $5;
-   $14 = $cosf32_f2(Math_fround($0 * $9));
+   $14 = $math__cosf32_f1(Math_fround($0 * $9));
    g0__SP = $5;
-   $15 = $sinf32_f3(Math_fround($1 * $9));
+   $15 = $math__sinf32_f0(Math_fround($1 * $9));
    g0__SP = $5;
-   $7 = $cosf32_f2(Math_fround($1 * $7));
+   $7 = $math__cosf32_f1(Math_fround($1 * $7));
    g0__SP = $5;
    $9 = Math_fround($13 + Math_fround($2 * $14));
    $8 = ~~Math_fround(Math_fround($9 + Math_fround(1.5)) * Math_fround(270.0));
@@ -80,68 +105,13 @@ function asmFunc(env) {
    }
    break while_0;
   };
-  $draw_f0($5 | 0, 1e3 | 0, 1e3 | 0);
+  $draw_f3($5 | 0, 1e3 | 0, 1e3 | 0);
   g0__SP = $5;
- }
- 
- function $cosf32_f2($0) {
-  var $1 = 0, $2 = 0, $3 = 0, $4 = Math_fround(0), $5 = Math_fround(0), $6 = Math_fround(0);
-  $3 = -1;
-  $1 = 2;
-  while_2 : while (1) {
-   $4 = Math_fround(1.0);
-   $5 = Math_fround(1.0);
-   $2 = 1;
-   while_1 : while (1) {
-    $4 = Math_fround($4 * $0);
-    $5 = Math_fround($5 * Math_fround($2 | 0));
-    $2 = $2 + 1 | 0;
-    if (($2 | 0) < ($1 + 1 | 0 | 0)) {
-     continue while_1
-    }
-    break while_1;
-   };
-   $6 = Math_fround($6 + Math_fround(Math_fround(Math_fround($3 | 0) * $4) / $5));
-   $3 = 0 - $3 | 0;
-   $1 = $1 + 2 | 0;
-   if (($1 | 0) < (9 | 0)) {
-    continue while_2
-   }
-   break while_2;
-  };
-  return Math_fround($6 + Math_fround(1.0));
- }
- 
- function $sinf32_f3($0) {
-  var $1 = 0, $2 = 0, $3 = 0, $4 = Math_fround(0), $5 = Math_fround(0), $6 = Math_fround(0);
-  $3 = -1;
-  $1 = 1;
-  while_4 : while (1) {
-   $4 = Math_fround(1.0);
-   $5 = Math_fround(1.0);
-   $2 = 1;
-   while_3 : while (1) {
-    $4 = Math_fround($4 * $0);
-    $5 = Math_fround($5 * Math_fround($2 | 0));
-    $2 = $2 + 1 | 0;
-    if (($2 | 0) < ($1 + 1 | 0 | 0)) {
-     continue while_3
-    }
-    break while_3;
-   };
-   $3 = 0 - $3 | 0;
-   $6 = Math_fround($6 + Math_fround(Math_fround(Math_fround($3 | 0) * $4) / $5));
-   $1 = $1 + 2 | 0;
-   if (($1 | 0) < (9 | 0)) {
-    continue while_4
-   }
-   break while_4;
-  };
-  return $6;
  }
  
  function _start() {
   g0__SP = 6553600;
+  return 1 | 0;
  }
  
  bufferView = HEAPU8;
@@ -150,7 +120,7 @@ function asmFunc(env) {
  }
  
  return {
-  "clifford": $clifford_f1, 
+  "clifford": $clifford_f4, 
   "_start": _start, 
   "stackPointer": g0__SP, 
   "memory": Object.create(Object.prototype, {

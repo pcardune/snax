@@ -1,3 +1,5 @@
+import math from "snax/math.snx"
+
 extern console {
   func draw(data:i32, width:i32, height:i32);
 }
@@ -17,8 +19,8 @@ pub func clifford(a:f32, b:f32, c:f32, d:f32, iterations:i32) {
 
   while (i < iterations) {
 
-    x1 = sinf32(a*y0) + c*cosf32(a*x0);
-    y1 = sinf32(b*x0) + d*cosf32(b*y0);
+    x1 = math::sinf32(a*y0) + c*math::cosf32(a*x0);
+    y1 = math::sinf32(b*x0) + d*math::cosf32(b*y0);
 
     reg px = $i32_trunc_f32_s((x1 + 1.5) * 270);
     reg py = $i32_trunc_f32_s((y1 + 1.5) * 270);
@@ -41,50 +43,5 @@ pub func clifford(a:f32, b:f32, c:f32, d:f32, iterations:i32) {
   draw(@buffer, width, height);
 }
 
-// adapted from http://www.cprogrammingnotes.com/question/cos-series.html
-func cosf32(x:f32):f32 {
-  reg n = 8;
-  reg sum:f32 = 0.0;
-  reg sign = -1;
-
-  reg i = 2;
-  while (i < n+1) {
-    reg p:f32 = 1.0;
-    reg fact = 1.0;
-    reg j = 1;
-    while (j < i+1) {
-      p = p * x;
-      fact = fact * j;
-      j = j+1;
-    }
-
-    sum = sum + sign * p / fact;
-    sign = -sign;
-    i = i+2;
-  }
-  return 1+sum;
-}
-
-// adapted from http://www.cprogrammingnotes.com/question/sine-series.html
-func sinf32(x:f32):f32 {
-  reg n = 8;
-  reg sum:f32 = 0.0;
-  reg sign = -1;
-
-  reg i = 1;
-  while (i < n+1) {
-    reg p:f32 = 1.0;
-    reg fact = 1.0;
-    reg j = 1;
-    while (j < i+1) {
-      p = p * x;
-      fact = fact * j;
-      j = j+1;
-    }
-
-    sign = -sign;
-    sum = sum + sign * p / fact;
-    i = i+2;
-  }
-  return sum;
-}
+// just do something...
+1;

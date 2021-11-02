@@ -28,12 +28,18 @@ function Param({ name, value, onChange }) {
   );
 }
 function CliffordForm({ wasmInstance }) {
-  const [params, setParams] = React.useState({
+  let initialParams = {
     a: -1.4,
     b: 1.6,
     c: 1.0,
     d: 0.7,
-  });
+  };
+  if (window.location.hash) {
+    try {
+      initialParams = JSON.parse(atob(window.location.hash.slice(1)));
+    } catch (e) {}
+  }
+  const [params, setParams] = React.useState(initialParams);
 
   const [elapsed, setElapsed] = React.useState(0);
 
@@ -54,7 +60,7 @@ function CliffordForm({ wasmInstance }) {
       );
       setElapsed(new Date().getTime() - start);
       setError('');
-      window.location.hash = JSON.stringify(params);
+      window.location.hash = btoa(JSON.stringify(params));
     } catch (e) {
       setError(String(e));
     }

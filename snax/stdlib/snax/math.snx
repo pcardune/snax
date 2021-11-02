@@ -1,23 +1,40 @@
-// adapted from http://www.cprogrammingnotes.com/question/sine-series.html
+// Approximates the sine function using Bhaskara I's approximation
 func sinf32(x:f32):f32 {
-  reg n = 20;
-  reg sum:f32 = 0.0;
-  reg sign = -1;
+  reg pi = 3.141592653589793;
+  reg sign = 1.0;
 
-  reg i = 1;
-  while (i < n+1) {
-    reg p:f32 = 1.0;
-    reg fact = 1.0;
-    reg j = 1;
-    while (j < i+1) {
-      p = p * x;
-      fact = fact * j;
-      j = j+1;
-    }
+  // manipulate x to be within the range 0-pi,
+  // keeping track of how the sign of the final
+  // result needs to change.
 
-    sign = -sign;
-    sum = sum + sign * p / fact;
-    i = i+2;
+  // 1. make x positive, which is ok because
+  // sin(-x) = -sin(x)
+  if (x < 0.0) {
+    x = $f32_abs(x);
+    sign = -1.0;
   }
-  return sum;
+  // 2. make x go between 0-2pi, which is ok because
+  // because the sin function repeats every 2pi
+  x = modf32(x, pi*2);
+
+  // 3. make x go between 0-pi, which is ok because
+  // sin(x) = -sin(x-pi)
+  if (x > pi) {
+    sign = -sign;
+  }
+  x = modf32(x, pi);
+
+  // 4. calculate an approximation of sin(x)
+  // over the range 0-pi using Bhaskara I's approximation
+  // See https://en.wikipedia.org/wiki/Bhaskara_I%27s_sine_approximation_formula
+  reg pi_square5 = 49.34802200544679;
+  reg partial = 16.0*x*(pi-x)/(pi_square5-4.0*x*(pi-x));
+
+  // 5. apply the sign to get the correct answer
+  return partial * sign;
+}
+
+// Calculates x % y with floats
+func modf32(x:f32, y:f32):f32 {
+  return x - $f32_trunc(x/y) * y;
 }

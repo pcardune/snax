@@ -1,4 +1,4 @@
-import { exec } from './test-util.js';
+import { compileToWasmModule, exec, SnaxExports } from './test-util.js';
 
 describe('malloc', () => {
   it('allocates from the beginning of memory', async () => {
@@ -15,11 +15,24 @@ describe('malloc', () => {
 });
 
 describe('sin_f32', () => {
-  it('calculated sin', async () => {
-    const code = `
-      import math from "snax/math.snx"
-      math::sinf32(2.0);
-    `;
-    expect(await exec(code, { includeRuntime: true })).toBeCloseTo(Math.sin(2));
+  const code = `
+    import math from "snax/math.snx"
+    pub func calc(x:f32) {
+      return math::sinf32(x);
+    }
+  `;
+  let calc: (x: number) => number;
+
+  beforeAll(async () => {
+    const { exports } = await compileToWasmModule<
+      SnaxExports & { calc: typeof calc }
+    >(code);
+    calc = exports.calc;
+  });
+
+  it('calculates sin', async () => {
+    for (let i = -5; i < 5; i += 0.1) {
+      expect(calc(i)).toBeCloseTo(Math.sin(i));
+    }
   });
 });

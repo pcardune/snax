@@ -196,9 +196,13 @@ export class BlockCompiler extends StmtCompiler<AST.Block> {
 
   compile() {
     const instr: number[] = [];
-    this.root.fields.statements
-      .filter((astNode) => !AST.isFuncDecl(astNode))
-      .forEach((astNode) => instr.push(this.compileChildStmt(astNode)));
+    for (const statement of this.root.fields.statements) {
+      instr.push(this.compileChildStmt(statement));
+      if (statement.name === 'ReturnStatement') {
+        // no reason to continue after top-level return
+        break;
+      }
+    }
     return this.context.module.block('', instr);
   }
 }

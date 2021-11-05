@@ -30,10 +30,15 @@ const hoverTypeInfo = hoverTooltip((view, pos, side) => {
     return null;
   }
 
-  const { refMap } = resolveSymbols(ast);
-  const typeCache = resolveTypes(ast, refMap);
+  let typeName: string;
+  try {
+    const { refMap } = resolveSymbols(ast);
+    const typeCache = resolveTypes(ast, refMap);
 
-  const type = typeCache.get(smallestNode);
+    typeName = typeCache.get(smallestNode).name;
+  } catch (e) {
+    typeName = String(e);
+  }
 
   return {
     pos: smallestNode.location?.start.offset ?? pos,
@@ -41,7 +46,7 @@ const hoverTypeInfo = hoverTooltip((view, pos, side) => {
     arrow: true,
     create(view) {
       let dom = document.createElement('div');
-      dom.textContent = `${smallestNode.name}: ${type.name}`;
+      dom.textContent = `${smallestNode.name}: ${typeName}`;
       return { dom };
     },
   };

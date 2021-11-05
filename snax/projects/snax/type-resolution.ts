@@ -288,12 +288,11 @@ export class TypeResolver {
         }
       }
       case 'UnaryExpr': {
+        const exprType = this.resolveType(node.fields.expr);
         switch (node.fields.op) {
           case UnaryOp.ADDR_OF:
-            const exprType = this.resolveType(node.fields.expr);
             return new PointerType(exprType);
           case UnaryOp.NEG: {
-            const exprType = this.resolveType(node.fields.expr);
             if (
               exprType instanceof NumericalType &&
               exprType.sign === Sign.Signed
@@ -303,6 +302,15 @@ export class TypeResolver {
             throw this.error(
               node,
               `Can't negate ${exprType.name}, which is not a signed float or int`
+            );
+          }
+          case UnaryOp.LOGICAL_NOT: {
+            if (exprType.equals(Intrinsics.bool)) {
+              return Intrinsics.bool;
+            }
+            throw this.error(
+              node,
+              `Can't perform logical not on ${exprType.name}`
             );
           }
           default:

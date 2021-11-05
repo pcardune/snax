@@ -367,6 +367,9 @@ unary "unary"
   = "-" ws expr:casting {
     return spec.makeUnaryExpr(AST.UnaryOp.NEG, expr);
   }
+  / "!" ws expr:casting {
+    return spec.makeUnaryExpr(AST.UnaryOp.LOGICAL_NOT, expr);
+  }
   / casting
 
 casting "cast"

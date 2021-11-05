@@ -1847,6 +1847,16 @@ class UnaryExprCompiler extends ExprCompiler<AST.UnaryExpr> {
         }
         break;
       }
+      case UnaryOp.LOGICAL_NOT: {
+        const rvalue = this.getChildRValue(expr);
+        if (!rvalue.type.equals(Intrinsics.bool)) {
+          throw this.error(`Can't logical-not a ${rvalue.type}`);
+        }
+        return rvalueDirect(
+          type,
+          module.i32.xor(rvalue.expectDirect().valueExpr, module.i32.const(1))
+        );
+      }
       default:
         throw this.error(
           `UnaryExprCompiler: unknown op ${this.root.fields.op}`

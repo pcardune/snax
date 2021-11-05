@@ -111,6 +111,8 @@ describe('empty module', () => {
     expect(await exec('true || false;')).toBe(1);
     expect(await exec('true && true;')).toBe(1);
     expect(await exec('false || false;')).toBe(0);
+    expect(await exec('!true;')).toBe(0);
+    expect(await exec('!false;')).toBe(1);
   });
 
   it('compiles relational operators', async () => {

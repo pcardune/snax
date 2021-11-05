@@ -186,6 +186,11 @@ describe('expression', () => {
         )
       );
     });
+    it('! is a unary operator', () => {
+      expect(parse('!a', 'expr')).toEqual(
+        AST.makeUnaryExpr(UnaryOp.LOGICAL_NOT, AST.makeSymbolRef('a'))
+      );
+    });
   });
   it('should handle relational operators', () => {
     const three = makeNum(3);

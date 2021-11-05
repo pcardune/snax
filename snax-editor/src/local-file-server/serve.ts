@@ -60,16 +60,20 @@ app.get(/.*/, async (req, res) => {
       files,
     });
   } else if (dirStat.isFile()) {
-    res.sendFile(myDir);
+    res.sendFile(myDir, {
+      headers: {
+        'Last-Modified': dirStat.mtime.toUTCString(),
+      },
+    });
   } else {
     res.status(404).send(`No file at ${myDir}`);
   }
 });
 
 app.post(/.*/, async (req, res) => {
-  const myDir = pathForRequest(req);
+  const filePath = pathForRequest(req);
   try {
-    await fs.writeFile(myDir, req.body);
+    await fs.writeFile(filePath, req.body);
   } catch (e) {
     res.status(500).send(String(e));
   }

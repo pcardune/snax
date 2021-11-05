@@ -17,11 +17,12 @@ export default function CodeMirror({
 }: EditorProps) {
   const editorContainer = useRef(null);
 
+  const viewRef = React.useRef<EditorView>();
+
   useEffect(() => {
-    const currentEditor = editorContainer.current as Exclude<
-      typeof editorContainer['current'],
-      null
-    >;
+    if (!editorContainer.current) {
+      return;
+    }
     const extensions: Extension[] = [basicSetup, example()];
     if (onUpdate) {
       extensions.push(EditorView.updateListener.of(onUpdate));
@@ -35,10 +36,23 @@ export default function CodeMirror({
       doc: value,
       extensions,
     });
-    const view = new EditorView({ state, parent: currentEditor });
-
+    const view = new EditorView({ state, parent: editorContainer.current });
+    viewRef.current = view;
     return () => view.destroy();
-  }, [editorContainer, value, props.extensions]);
+  }, [editorContainer, props.extensions]);
+
+  React.useEffect(() => {
+    if (!viewRef.current) {
+      return;
+    }
+    const view = viewRef.current;
+    // if the new value is different from the old one, update the view
+    if (view.state.sliceDoc(0) !== value) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+      });
+    }
+  }, [value]);
 
   return <div ref={editorContainer} />;
 }

@@ -26,56 +26,10 @@ import { Box } from '@mui/system';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser';
 import { compileAST } from '@pcardune/snax/dist/snax/wat-compiler';
 import { TypeResolutionError } from '@pcardune/snax/dist/snax/errors';
-import type { DirListing, FileInfo } from './local-file-server/serve.js';
+import type { FileInfo } from './local-file-server/serve.js';
 import CodeMirror from './CodeMirror';
-
-function useWritableFile(path: string) {
-  const [saving, setSaving] = useState(false);
-  const saveFile = useCallback(
-    async (content: string) => {
-      setSaving(true);
-      await fetch(`http://localhost:8085${path}`, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-        body: content,
-      });
-      setSaving(false);
-    },
-    [path]
-  );
-  return { saving, saveFile };
-}
-
-function useFile(path: string) {
-  const [loading, setLoading] = useState(true);
-  const [fileContent, setFileContent] = useState('');
-  useEffect(() => {
-    fetch(`http://localhost:8085${path}`).then((res) => {
-      res.text().then((data) => {
-        setFileContent(data);
-      });
-    });
-    setLoading(false);
-  }, [path]);
-  return { loading, fileContent: fileContent };
-}
-
-function useFileList(path: string) {
-  const [loading, setLoading] = useState(true);
-  const [fileList, setFileList] = useState<DirListing>({ files: [] });
-  useEffect(() => {
-    fetch(`http://localhost:8085${path}`).then((res) => {
-      res.json().then((data) => {
-        setFileList(data);
-      });
-    });
-    setLoading(false);
-  }, [path]);
-  return { loading, fileList };
-}
+import { useFileList, useWriteableFile, useDebounce } from './hooks';
+import { formatTime } from './util';
 
 type OnSelectFile = (path: string) => void;
 
@@ -118,11 +72,18 @@ function FileList(props: {
     props.onSelectFile && props.onSelectFile(directory + '/' + item.name);
   };
 
+  const files = fileList.files.filter((item) => {
+    return (
+      !item.name.startsWith('.') &&
+      (item.isDirectory || item.name.endsWith('.snx'))
+    );
+  });
+
   return (
     <div>
       {loading && <em>Loading...</em>}
       <List dense sx={{ pl: 1 }}>
-        {fileList.files.map((item) =>
+        {files.map((item) =>
           item.isDirectory ? (
             <DirItem
               key={item.name}
@@ -245,47 +206,50 @@ function CompilerStatus(props: {
   );
 }
 
-const useDebounce = () => {
-  const timeout = useRef<ReturnType<typeof setTimeout>>();
-  return (callback: () => void, delay: number) => {
-    timeout.current && clearTimeout(timeout.current);
-    timeout.current = setTimeout(callback, delay);
-  };
-};
+function Time(props: { time: number }) {
+  const [label, setLabel] = useState(formatTime(props.time));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLabel(formatTime(props.time));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [props.time]);
+  return <>{label}</>;
+}
 
 function FileViewer(props: { path: string }) {
-  const { loading, fileContent } = useFile(props.path);
   const [state, setState] = useState<EditorState | undefined>(undefined);
-  const [needsSave, setNeedsSave] = useState(false);
-  const writable = useWritableFile(props.path);
-
+  const writeable = useWriteableFile(props.path);
+  const needsSave =
+    writeable.file.fileContent.serverModified <
+    writeable.file.fileContent.localModified;
   const checker = useCodeChecker();
 
   const onClickSave = useCallback(
     async (state: EditorState) => {
       const newContent = state.doc.sliceString(0);
-      await writable.saveFile(newContent);
-      setNeedsSave(false);
+      await writeable.saveFile(newContent);
     },
-    [writable.saveFile]
+    [writeable.saveFile]
   );
 
   const debounce = useDebounce();
   const onUpdate = (update: ViewUpdate) => {
     setState(update.state);
     if (update.docChanged) {
-      setNeedsSave(true);
       debounce(() => {
-        checker.runChecks(update.state.sliceDoc(0));
+        const code = update.state.doc.sliceString(0);
+        writeable.cacheFile(code);
+        checker.runChecks(code);
       }, 250);
     }
   };
 
   useEffect(() => {
-    if (!loading) {
-      checker.runChecks(fileContent);
+    if (!writeable.file.loading) {
+      checker.runChecks(writeable.file.fileContent.content);
     }
-  }, [loading, fileContent]);
+  }, [writeable.file.loading, writeable.file.fileContent.content]);
 
   const extensions = useMemo(
     () => [
@@ -306,20 +270,25 @@ function FileViewer(props: { path: string }) {
       <Grid item xs={8}>
         <Paper>
           <Stack>
-            {loading && 'loading...'}
             <Toolbar variant="dense">
               <Box sx={{ flexGrow: 1 }}>
                 <Button
                   onClick={() => state && onClickSave(state)}
                   disabled={!needsSave}
                 >
-                  {writable.saving ? 'Saving...' : 'Save'}
+                  {writeable.saving ? 'Saving...' : 'Save'}
                 </Button>
               </Box>
+              <Box>
+                <Typography variant="caption">
+                  last saved{' '}
+                  <Time time={writeable.file.fileContent.serverModified} />
+                </Typography>
+              </Box>
             </Toolbar>
-            {fileContent && (
+            {writeable.file.fileContent && (
               <CodeMirror
-                value={fileContent}
+                value={writeable.file.fileContent.content}
                 onUpdate={onUpdate}
                 extensions={extensions}
               />

@@ -407,7 +407,7 @@ describe('control flow', () => {
       const { exports } = await compileToWasmModule(code, {
         includeRuntime: false,
       });
-      expect(exports._start()).toBe(167);
+      expect(exports._start()).toBe(166);
     });
   });
 });
@@ -1122,5 +1122,16 @@ describe('bugs that came up', () => {
       validate: false,
     });
     expect(exports._start()).toBeCloseTo(3.4, 4);
+  });
+
+  it("doesn't run while loops that are false", async () => {
+    const code = `
+      reg i = 32;
+      while (false) {
+        i = i + 1;
+      }
+      i;
+    `;
+    expect(await exec(code)).toBe(32);
   });
 });

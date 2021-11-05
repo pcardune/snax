@@ -736,9 +736,12 @@ export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
       .expectDirect().valueExpr;
     const value = this.compileChildStmt(thenBlock);
     const label = `while_${WhileStatementCompiler.index++}`;
-    return module.loop(
-      label,
-      module.block('', [value, module.br_if(label, cond)], binaryen.auto)
+    return module.if(
+      cond,
+      module.loop(
+        label,
+        module.block('', [value, module.br_if(label, cond)], binaryen.auto)
+      )
     );
   }
 }

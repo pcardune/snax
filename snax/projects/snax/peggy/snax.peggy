@@ -176,10 +176,10 @@ varDecl "varDecl"
 
 whileStatement "while statement"
   = "while" ws "(" ws condExpr:expr ws ")" ws
-    "{" ws thenBlock:block ws "}" ws {
+    "{" ws thenBlock:block? ws "}" ws {
       return spec.makeWhileStatement(
         condExpr,
-        thenBlock
+        thenBlock || spec.makeBlock([])
       );
     }
 

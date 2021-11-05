@@ -334,6 +334,11 @@ describe('type expressions', () => {
 });
 
 describe('while loops', () => {
+  it('should parse empty while loops', () => {
+    expect(parse(`while (true) { }`, 'statement')).toEqual(
+      AST.makeWhileStatement(AST.makeBooleanLiteral(true), AST.makeBlock([]))
+    );
+  });
   it('should parse while loops', () => {
     expect(parse(`while (true) { doSomething(); }`, 'statement')).toEqual(
       AST.makeWhileStatement(

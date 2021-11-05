@@ -377,7 +377,7 @@ function peg$parse(input: string, options?: IParseOptions) {
   const peg$c53 = function(condExpr: any, thenBlock: any): any {
         return spec.makeWhileStatement(
           condExpr,
-          thenBlock
+          thenBlock || spec.makeBlock([])
         );
       };
   const peg$c54 = peg$otherExpectation("if statement");
@@ -1970,6 +1970,9 @@ function peg$parse(input: string, options?: IParseOptions) {
                       s10 = peg$parsews();
                       if (s10 as any !== peg$FAILED) {
                         s11 = peg$parseblock();
+                        if (s11 as any === peg$FAILED) {
+                          s11 = null;
+                        }
                         if (s11 as any !== peg$FAILED) {
                           s12 = peg$parsews();
                           if (s12 as any !== peg$FAILED) {

@@ -168,6 +168,14 @@ describe('empty module', () => {
     // expect(exports._start()).toBeCloseTo(8.2);
   });
 });
+
+describe('compile calls', () => {
+  it('lets you access the heap start and heap end', async () => {
+    expect(await exec('$heap_start();')).toBe(0);
+    expect(await exec('$heap_end();')).toBe(65536);
+  });
+});
+
 describe('reg statements', () => {
   it('compiles reg statements into function local allocations', async () => {
     const code = `

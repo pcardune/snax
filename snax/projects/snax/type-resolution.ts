@@ -267,6 +267,8 @@ export class TypeResolver {
             return Intrinsics.void;
           case 'heap_start':
             return Intrinsics.i32;
+          case 'heap_end':
+            return Intrinsics.i32;
           default:
             throw this.error(
               node,

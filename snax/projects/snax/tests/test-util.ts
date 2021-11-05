@@ -128,9 +128,10 @@ export type SnaxExports = {
   _start: () => any;
 };
 
-export async function compileToWasmModule<
-  Exports extends SnaxExports = SnaxExports
->(input: string, options?: CompileToWatOptions) {
+export async function compileToWasmModule<Exports>(
+  input: string,
+  options?: CompileToWatOptions
+) {
   const { wat, ast, compiler, binary, sourceMap } = await compileToWAT(input, {
     includeRuntime: false,
     stackSize: 1,
@@ -138,7 +139,13 @@ export async function compileToWasmModule<
   });
   const module = await WebAssembly.instantiate(binary);
   const exports = module.instance.exports;
-  return { exports: exports as Exports, wat, ast, compiler, sourceMap };
+  return {
+    exports: exports as SnaxExports & Exports,
+    wat,
+    ast,
+    compiler,
+    sourceMap,
+  };
 }
 
 export async function exec(

@@ -1586,6 +1586,11 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         rvalueDirect(Intrinsics.f32, module.f32.nearest(argValue(0))),
 
       // actual interesting stuff
+      heap_end: () =>
+        rvalueDirect(
+          Intrinsics.i32,
+          module.i32.mul(module.memory.size(), module.i32.const(PAGE_SIZE))
+        ),
       heap_start: () =>
         rvalueDirect(Intrinsics.i32, module.i32.const(this.context.heapStart)),
     };

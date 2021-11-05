@@ -39,7 +39,9 @@ function DirItem(props: {
   directory: string;
   name: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const path = `${props.directory}/${props.name}`;
+
+  const [expanded, setExpanded] = useState(props.selectedPath.startsWith(path));
   const toggleExpanded = () => {
     setExpanded(!expanded);
   };
@@ -317,7 +319,13 @@ function FileViewer(props: { path: string }) {
 }
 
 export default function Editor() {
-  const [selectedFilePath, setSelectedFilePath] = useState('');
+  const [selectedFilePath, setSelectedFilePath] = useState(
+    localStorage.getItem('selectedFilePath') || ''
+  );
+  const onSelectFile = (path: string) => {
+    localStorage.setItem('selectedFilePath', path);
+    setSelectedFilePath(path);
+  };
   return (
     <Grid container spacing={2}>
       <Grid item xs={12}>
@@ -335,7 +343,7 @@ export default function Editor() {
             <Paper>
               <FileList
                 selectedPath={selectedFilePath}
-                onSelectFile={(path) => setSelectedFilePath(path)}
+                onSelectFile={onSelectFile}
               />
             </Paper>
           </Grid>

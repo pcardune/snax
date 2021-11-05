@@ -36,7 +36,8 @@ const config: Configuration = {
       },
       {
         test: /\.[jt]sx?$/,
-        exclude: /node_modules/,
+        // exclude node_modules except for snax
+        exclude: /node_modules\/(?!snax)/,
         use: [
           {
             loader: require.resolve('babel-loader'),

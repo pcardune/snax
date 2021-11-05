@@ -1,36 +1,71 @@
 import { resolve } from 'path';
-import { getWebpackDevServerConfig } from 'codemirror-blocks/lib/toolkit';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
+import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
+import type { Configuration } from 'webpack';
 
-const config = getWebpackDevServerConfig({
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+const devPlugins = [new ReactRefreshWebpackPlugin()];
+
+const config: Configuration = {
+  mode: isDevelopment ? 'development' : 'production',
   context: resolve('dev-site'),
   entry: './index.tsx',
-});
-
-config.resolve = {
-  ...config.resolve,
-  fallback: {
-    ...config.resolve?.fallback,
-    path: require.resolve('path-browserify'),
-    crypto: require.resolve('crypto-browserify'),
-    stream: require.resolve('stream-browserify'),
-    fs: false,
+  resolve: {
+    extensions: ['.ts', '.tsx', '.js', '.jsx'], // Order matters!
+    fallback: {
+      // needed for binaryen to load in the browser
+      path: require.resolve('path-browserify'),
+      crypto: require.resolve('crypto-browserify'),
+      stream: require.resolve('stream-browserify'),
+      fs: false,
+    },
   },
+  devServer: {
+    hot: true,
+  },
+  module: {
+    rules: [
+      {
+        test: /\.less$|.css$/,
+        use: [
+          { loader: 'style-loader' },
+          { loader: 'css-loader' },
+          { loader: 'less-loader' },
+        ],
+      },
+      {
+        test: /\.[jt]sx?$/,
+        exclude: /node_modules/,
+        use: [
+          {
+            loader: require.resolve('babel-loader'),
+            options: {
+              presets: ['@babel/preset-react', '@babel/preset-typescript'],
+              plugins: [
+                isDevelopment && require.resolve('react-refresh/babel'),
+              ].filter(Boolean),
+            },
+          },
+        ],
+      },
+    ],
+  },
+  plugins: [
+    ...(isDevelopment ? devPlugins : []),
+    new HtmlWebpackPlugin({
+      templateContent: `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+        </head>
+        <body>
+        </body>
+      </html>
+    `,
+    }),
+  ],
 };
 
-config.plugins = [
-  new HtmlWebpackPlugin({
-    templateContent: `<!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-      </head>
-      <body>
-      </body>
-    </html>
-  `,
-  }),
-];
-
-export default [config];
+export default config;

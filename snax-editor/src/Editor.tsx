@@ -23,13 +23,11 @@ import {
   Chip,
 } from '@mui/material';
 import { Box } from '@mui/system';
-import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser';
-import { compileAST } from '@pcardune/snax/dist/snax/wat-compiler';
-import { TypeResolutionError } from '@pcardune/snax/dist/snax/errors';
 import type { FileInfo } from './local-file-server/serve.js';
 import CodeMirror from './CodeMirror';
 import { useFileList, useWriteableFile, useDebounce } from './hooks';
 import { formatTime } from './util';
+import CodeRunner from './CodeRunner';
 
 type OnSelectFile = (path: string) => void;
 
@@ -109,105 +107,6 @@ function FileList(props: {
   );
 }
 
-function useCodeChecker() {
-  const [parses, setParses] = useState<boolean | undefined>();
-  const [typeChecks, setTypechecks] = useState<boolean | undefined>();
-  const [compiles, setCompiles] = useState<boolean | undefined>();
-  const [validates, setValidates] = useState<boolean | undefined>();
-  const [error, setError] = useState('');
-
-  async function runChecks(code: string) {
-    const result = SNAXParser.parseStr(code);
-    setParses(result.isOk());
-    if (result.isOk()) {
-      const ast = result.value;
-      if (ast.name === 'File') {
-        try {
-          const binaryenModule = await compileAST(ast, {
-            importResolver: () => {
-              throw new Error('import not working yet...');
-            },
-          });
-          setTypechecks(true);
-          setCompiles(true);
-          setError('');
-
-          const validates = binaryenModule.validate();
-          setValidates(!!validates);
-          if (validates) {
-            const wasmModule = await WebAssembly.compile(
-              binaryenModule.emitBinary().buffer
-            );
-            const modInstance = await WebAssembly.instantiate(wasmModule);
-            (window as any).wasm = modInstance.exports;
-          }
-          return;
-        } catch (e) {
-          setError(String(e));
-          if (e instanceof TypeResolutionError) {
-            setTypechecks(false);
-          } else {
-            setTypechecks(true);
-          }
-          setCompiles(false);
-        }
-      }
-    } else {
-      setError(String(result.error));
-      setTypechecks(false);
-      setCompiles(false);
-    }
-  }
-
-  const checks = [
-    { label: 'parses', state: parses },
-    { label: 'type checks', state: typeChecks },
-    { label: 'compiles', state: compiles },
-    { label: 'validates', state: validates },
-  ];
-  return { checks, error, runChecks };
-}
-
-function CompilerStatus(props: {
-  checks: { label: string; state: boolean | undefined }[];
-}) {
-  const chips = props.checks.map((part) => {
-    if (part.state === true) {
-      return (
-        <Chip
-          key={part.label}
-          label={part.label}
-          color="success"
-          icon={<Icon>check_circle</Icon>}
-        />
-      );
-    } else if (part.state === false) {
-      return (
-        <Chip
-          key={part.label}
-          label={part.label}
-          color="error"
-          icon={<Icon>error</Icon>}
-        />
-      );
-    } else {
-      return (
-        <Chip
-          key={part.label}
-          label={part.label}
-          color="info"
-          icon={<Icon>pending</Icon>}
-        />
-      );
-    }
-  });
-  return (
-    <Stack direction="row" spacing={1}>
-      {chips}
-    </Stack>
-  );
-}
-
 function Time(props: { time: number }) {
   const [label, setLabel] = useState(formatTime(props.time));
   useEffect(() => {
@@ -225,7 +124,6 @@ function FileViewer(props: { path: string }) {
   const needsSave =
     writeable.file.fileContent.serverModified <
     writeable.file.fileContent.localModified;
-  const checker = useCodeChecker();
 
   const onClickSave = useCallback(
     async (state: EditorState) => {
@@ -242,16 +140,9 @@ function FileViewer(props: { path: string }) {
       debounce(() => {
         const code = update.state.doc.sliceString(0);
         writeable.cacheFile(code);
-        checker.runChecks(code);
       }, 250);
     }
   };
-
-  useEffect(() => {
-    if (!writeable.file.loading) {
-      checker.runChecks(writeable.file.fileContent.content);
-    }
-  }, [writeable.file.loading, writeable.file.fileContent.content]);
 
   const extensions = useMemo(
     () => [
@@ -299,20 +190,7 @@ function FileViewer(props: { path: string }) {
         </Paper>
       </Grid>
       <Grid item xs={4}>
-        <Paper>
-          <Stack spacing={2}>
-            <Box sx={{ p: 2 }}>
-              <CompilerStatus checks={checker.checks} />
-            </Box>
-            {checker.error && (
-              <Box sx={{ p: 2 }}>
-                <pre style={{ whiteSpace: 'pre-wrap' }}>
-                  {String(checker.error)}
-                </pre>
-              </Box>
-            )}
-          </Stack>
-        </Paper>
+        <CodeRunner code={writeable.file.fileContent.content} />
       </Grid>
     </Grid>
   );

@@ -3,6 +3,7 @@ import React from 'react';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser';
 import { compileAST } from '@pcardune/snax/dist/snax/wat-compiler';
 import { TypeResolutionError } from '@pcardune/snax/dist/snax/errors';
+import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import { useDebounce } from './hooks';
 
 function useCodeChecker() {
@@ -58,12 +59,15 @@ function useCodeChecker() {
 
   const runCode = async () => {
     if (wasmModule) {
+      const wasi = new WASI();
       // TODO: do debugging in a better way
       const modInstance = await WebAssembly.instantiate(wasmModule, {
+        wasi_snapshot_preview1: wasi.wasiImport,
+        wasi_unstable: wasi.wasiImport,
         debug: { debug: (...a: any[]) => console.log('debug', ...a) },
       });
       (window as any).wasm = modInstance.exports;
-      const result = (modInstance.exports as any)._start();
+      const result = wasi.start(modInstance);
       console.log('Run Result:', result);
     }
   };

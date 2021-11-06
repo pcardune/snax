@@ -5,28 +5,10 @@ import {
   compileToWasmModule,
   compileToWAT,
   exec,
+  int32,
+  int8,
   SnaxExports,
 } from './test-util';
-
-/**
- * Get a 32 bit number out of a memory buffer from the given byte offset
- */
-function int32(memory: WebAssembly.Memory, offset: number) {
-  if (offset < 0) {
-    offset = memory.buffer.byteLength + offset;
-  }
-  return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
-}
-
-/**
- * Get an 8 bit number out of a memory buffer from the given byte offset
- */
-function int8(memory: WebAssembly.Memory, offset: number) {
-  if (offset < 0) {
-    offset = memory.buffer.byteLength + offset;
-  }
-  return new Int8Array(memory.buffer.slice(offset, offset + 1))[0];
-}
 
 function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {
   const slice = exports.memory.buffer.slice(

@@ -122,6 +122,26 @@ export function exprCompiler(node: spec.Expression) {
   return ExprCompiler.forNode(node, stubContext(node));
 }
 
+/**
+ * Get a 32 bit number out of a memory buffer from the given byte offset
+ */
+export function int32(memory: WebAssembly.Memory, offset: number) {
+  if (offset < 0) {
+    offset = memory.buffer.byteLength + offset;
+  }
+  return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
+}
+
+/**
+ * Get an 8 bit number out of a memory buffer from the given byte offset
+ */
+export function int8(memory: WebAssembly.Memory, offset: number) {
+  if (offset < 0) {
+    offset = memory.buffer.byteLength + offset;
+  }
+  return new Int8Array(memory.buffer.slice(offset, offset + 1))[0];
+}
+
 export type SnaxExports = {
   memory: WebAssembly.Memory;
   stackPointer: WebAssembly.Global;

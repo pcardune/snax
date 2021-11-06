@@ -151,7 +151,7 @@ describe('empty module', () => {
   });
 });
 
-describe('compile calls', () => {
+describe('compiler calls', () => {
   it('lets you access the heap start and heap end', async () => {
     expect(await exec('$heap_start();')).toBe(0);
     expect(await exec('$heap_end();')).toBe(65536);

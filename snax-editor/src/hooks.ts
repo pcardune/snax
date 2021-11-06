@@ -22,12 +22,6 @@ const getCachedFile = (path: string) => {
   }
 };
 const setCachedFile = (path: string, fileContent: FileContent) => {
-  console.log(
-    'setCachedFile',
-    path,
-    fileContent.serverModified,
-    fileContent.localModified
-  );
   localStorage.setItem(path, JSON.stringify(fileContent));
 };
 

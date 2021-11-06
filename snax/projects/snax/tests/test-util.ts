@@ -132,6 +132,14 @@ export function int32(memory: WebAssembly.Memory, offset: number) {
   return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
 }
 
+export function int32Slice(
+  memory: WebAssembly.Memory,
+  offset: number,
+  length: number
+) {
+  return [...new Int32Array(memory.buffer.slice(offset, offset + length))];
+}
+
 /**
  * Get an 8 bit number out of a memory buffer from the given byte offset
  */
@@ -157,7 +165,13 @@ export async function compileToWasmModule<Exports>(
     stackSize: 1,
     ...options,
   });
-  const module = await WebAssembly.instantiate(binary);
+  const module = await WebAssembly.instantiate(binary, {
+    debug: {
+      debug: (...args: unknown[]) => {
+        console.log('snax debug:', ...args);
+      },
+    },
+  });
   const exports = module.instance.exports;
   return {
     exports: exports as SnaxExports & Exports,

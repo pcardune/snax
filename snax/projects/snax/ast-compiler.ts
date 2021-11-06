@@ -460,6 +460,15 @@ export class ModuleDeclCompiler extends ASTCompiler<
           new GlobalDeclCompiler(decl, this.context).compile();
           break;
         }
+        case 'ExternDecl': {
+          // ADD IMPORTS
+          new ExternDeclCompiler(decl, {
+            typeCache: this.context.typeCache,
+            allocationMap: moduleAllocator.allocationMap,
+            module: this.context.module,
+          }).compile();
+          break;
+        }
         default:
           throw this.error(
             `Don't know how to compile ${decl.name} inside module decls yet...`

@@ -11,7 +11,7 @@ function useCodeChecker() {
   const [compiles, setCompiles] = React.useState<boolean | undefined>();
   const [validates, setValidates] = React.useState<boolean | undefined>();
   const [error, setError] = React.useState('');
-  const [instance, setInstance] = React.useState<WebAssembly.Instance>();
+  const [wasmModule, setModule] = React.useState<WebAssembly.Module>();
 
   async function runChecks(code: string) {
     const result = SNAXParser.parseStr(code);
@@ -32,12 +32,9 @@ function useCodeChecker() {
           const validates = binaryenModule.validate();
           setValidates(!!validates);
           if (validates) {
-            const wasmModule = await WebAssembly.compile(
-              binaryenModule.emitBinary().buffer
+            setModule(
+              await WebAssembly.compile(binaryenModule.emitBinary().buffer)
             );
-            const modInstance = await WebAssembly.instantiate(wasmModule);
-            setInstance(modInstance);
-            (window as any).wasm = modInstance.exports;
           } else {
             setError('Failed to validate');
           }
@@ -59,9 +56,14 @@ function useCodeChecker() {
     }
   }
 
-  const runCode = () => {
-    if (instance) {
-      const result = (instance.exports as any)._start();
+  const runCode = async () => {
+    if (wasmModule) {
+      // TODO: do debugging in a better way
+      const modInstance = await WebAssembly.instantiate(wasmModule, {
+        debug: { debug: (...a: any[]) => console.log('debug', ...a) },
+      });
+      (window as any).wasm = modInstance.exports;
+      const result = (modInstance.exports as any)._start();
       console.log('Run Result:', result);
     }
   };

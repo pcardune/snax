@@ -5,3 +5,48 @@ func malloc(numBytes:usize) {
   next = next + numBytes;
   return startAddress;
 }
+
+func init_allocator(maxHeapSize:usize) {
+  reg heap32 = $heap_start() as! &usize;
+  heap32[0] = maxHeapSize;
+  heap32[1] = 0_u32;
+}
+
+func allocate_memory(numBytes:usize) {
+  if (numBytes % 4 > 0) {
+    // align numBytes to 4 byte word size
+    numBytes = numBytes + 4 - (numBytes % 4);
+  }
+  
+  reg heap32 = $heap_start() as! &usize;
+  
+  reg maxIndex = ($heap_end() - $heap_start()) / 4; // 4 should be sizeof(usize)
+  reg index = 0_u32;
+  reg blockSize = heap32[index];
+  reg free = heap32[index+1] == 0;
+  while ((!free || blockSize < numBytes) && index < maxIndex) {
+    index = index + 2 + blockSize/4;
+    // if index > maxIndex { oom(); }
+    blockSize = heap32[index];
+    free = heap32[index+1] == 0;
+  }
+  // set the size of this block 
+  heap32[index] = numBytes;
+  // mark the block as non-free
+  heap32[index+1] = 1_u32;
+  // set the size of the next block
+  heap32[index+2+numBytes/4] = blockSize - numBytes - 8;
+
+  reg result = $heap_start() + (index+2)*4;
+  return result;
+}
+// TODO: do debugging in a better way
+extern debug {
+  func debug(num:i32, num2:i32):void;
+}
+
+func main() {
+  init_allocator(100);
+  allocate_memory(4);
+  return allocate_memory(4);
+}

@@ -115,7 +115,12 @@ describe('empty module', () => {
   });
 
   it('compiles remainder operator', async () => {
-    expect(await exec('5%3;')).toBe(2);
+    expect(await exec('5 % 3;')).toBe(2);
+    expect(await exec('-5 % 3;')).toBe(-2);
+    expect(await exec('-5 % -3;')).toBe(-2);
+    // TODO: is there a test for unsigned remainder? Why is
+    // there a different wasm instruction?
+    expect(await exec('5_u32 % 3;')).toBe(2);
   });
 
   it('compiles internal wasm operators', async () => {
@@ -155,6 +160,10 @@ describe('compiler calls', () => {
   it('lets you access the heap start and heap end', async () => {
     expect(await exec('$heap_start();')).toBe(0);
     expect(await exec('$heap_end();')).toBe(65536);
+  });
+
+  xit('lets you print things', async () => {
+    expect(await exec('$print("foo");', { includeRuntime: true }));
   });
 });
 

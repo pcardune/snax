@@ -5,8 +5,8 @@ describe('malloc', () => {
     const code = `
       import mem from "snax/memory.snx"
       let start = "static content";
-      let x = mem::malloc(7);
-      let y = mem::malloc(4);
+      let x = mem::malloc(7_u32);
+      let y = mem::malloc(4_u32);
       y;
     `;
     const startAddress = 'static content'.length + 7;
@@ -20,7 +20,7 @@ describe('malloc', () => {
         return mem::allocate_memory(numBytes);
       }
       pub func init() {
-        mem::init_allocator(100);
+        mem::init_allocator(100_u32);
       }
     `;
     const { exports, wat } = await compileToWasmModule<{

@@ -46,7 +46,7 @@ extern debug {
 }
 
 func main() {
-  init_allocator(100);
-  allocate_memory(4);
-  return allocate_memory(4);
+  init_allocator(100_u32);
+  allocate_memory(4_u32);
+  return allocate_memory(4_u32);
 }

@@ -18,13 +18,6 @@ export class WASI {
       iovLength: number,
       numWrittenPointer: number
     ) => {
-      console.log(
-        'called fd_write with',
-        fd,
-        iovPointer,
-        iovLength,
-        numWrittenPointer
-      );
       let [start, length] = [
         ...new Int32Array(
           this.memory.buffer.slice(

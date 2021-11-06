@@ -269,6 +269,8 @@ export class TypeResolver {
             return Intrinsics.i32;
           case 'heap_end':
             return Intrinsics.i32;
+          case 'print':
+            return Intrinsics.void;
           default:
             throw this.error(
               node,
@@ -277,15 +279,41 @@ export class TypeResolver {
         }
       }
       case 'CallExpr': {
-        const leftType = this.resolveType(node.fields.left);
-        if (leftType instanceof FuncType) {
-          return leftType.returnType;
-        } else if (leftType instanceof TupleType) {
-          return new PointerType(leftType);
+        const funcType = this.resolveType(node.fields.left);
+        if (funcType instanceof FuncType) {
+          const argListType = this.resolveType(node.fields.right);
+          if (argListType instanceof TupleType) {
+            if (argListType.elements.length !== funcType.argTypes.length) {
+              throw this.error(
+                node,
+                `Function takes ${funcType.argTypes.length} args, but ${argListType.elements.length} were given`
+              );
+            }
+            for (let i = 0; i < funcType.argTypes.length; i++) {
+              const paramType = funcType.argTypes[i];
+              const argType = argListType.elements[i].type;
+              if (!argType.equals(paramType)) {
+                throw this.error(
+                  node,
+                  `Expected ${paramType.name} for argument ${i + 1}, but got ${
+                    argType.name
+                  } instead`
+                );
+              }
+            }
+          } else {
+            throw this.error(
+              node,
+              `Expected tuple type for arg list, but got: ${argListType.name}`
+            );
+          }
+          return funcType.returnType;
+        } else if (funcType instanceof TupleType) {
+          return new PointerType(funcType);
         } else {
           throw this.error(
             node,
-            `Can't call ${leftType.name} that is not a function`
+            `Can't call ${funcType.name} that is not a function`
           );
         }
       }

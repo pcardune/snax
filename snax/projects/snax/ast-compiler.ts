@@ -1242,14 +1242,23 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       );
     },
     [BinOp.REM]: (left: AST.Expression, right: AST.Expression) => {
-      const type = this.matchTypes(left, right).toValueTypeOrThrow();
-      if (isIntType(type)) {
+      const type = this.matchTypes(left, right);
+      const valueType = type.toValueTypeOrThrow();
+      if (isIntType(valueType)) {
         // TODO: make this work with unsigned ints
-        return this.context.module[type].rem_s(
-          ...this.pushNumberOps(left, right)
-        );
+        if (type instanceof NumericalType) {
+          if (type.sign == Sign.Signed) {
+            return this.context.module[valueType].rem_s(
+              ...this.pushNumberOps(left, right)
+            );
+          } else {
+            return this.context.module[valueType].rem_u(
+              ...this.pushNumberOps(left, right)
+            );
+          }
+        }
       }
-      throw this.error(`Don't know how to compute remainder for floats yet`);
+      throw this.error(`Don't know how to compute remainder for ${type.name}`);
     },
     [BinOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) =>
       this.context.module[this.matchTypes(left, right).toValueTypeOrThrow()].eq(
@@ -1697,11 +1706,10 @@ class CastExprCompiler extends ExprCompiler<AST.CastExpr> {
     throw new Error(`Cast expressions don't have lvalues`);
   }
   getRValue() {
-    const { force } = this.root.fields;
-    const sourceType = this.context.typeCache.get(this.root.fields.expr);
-    const destType = this.context.typeCache.get(this.root.fields.typeExpr);
-    const value = this.getChildRValue(this.root.fields.expr).expectDirect()
-      .valueExpr;
+    const { force, expr, typeExpr } = this.root.fields;
+    const destType = this.context.typeCache.get(typeExpr);
+    const exprRValue = this.getChildRValue(expr).expectDirect();
+    const { type: sourceType, valueExpr: value } = exprRValue;
     const { module } = this.context;
     if (destType instanceof NumericalType) {
       if (sourceType instanceof NumericalType) {
@@ -1738,25 +1746,31 @@ class CastExprCompiler extends ExprCompiler<AST.CastExpr> {
             }
           } else if (sourceType.numBytes > destType.numBytes) {
             if (force) {
-              return rvalueDirect(
-                destType,
-                module[sourceValueType].and(
-                  value,
-                  module[sourceValueType].const(
-                    (1 << (destType.numBytes * 8)) - 1,
-                    (1 << (destType.numBytes * 8)) - 1
-                  )
+              let andValue = module[sourceValueType].and(
+                value,
+                module[sourceValueType].const(
+                  (1 << (destType.numBytes * 8)) - 1,
+                  (1 << (destType.numBytes * 8)) - 1
                 )
               );
+              if (
+                sourceValueType === NumberType.i64 &&
+                destValueType === NumberType.i32
+              ) {
+                andValue = module.i32.wrap(andValue);
+              }
+              return rvalueDirect(destType, andValue);
             } else {
-              throw this.error(`I don't implicitly wrap to smaller sizes`);
+              throw this.error(
+                `I don't implicitly wrap to smaller sizes. try "as!"`
+              );
             }
           } else if (
             sourceType.sign === Sign.Signed &&
             destType.sign == Sign.Unsigned
           ) {
             if (force) {
-              throw this.error(`NotImplemented: forced dropping of sign`);
+              return rvalueDirect(destType, value);
             } else {
               throw this.error(`I don't implicitly drop signs`);
             }
@@ -2093,7 +2107,7 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
     );
   }
   getLValue(): LValue {
-    throw new Error(`${this.root.name}s don't have lvalues`);
+    throw this.error(`${this.root.name}s don't have lvalues`);
   }
 }
 

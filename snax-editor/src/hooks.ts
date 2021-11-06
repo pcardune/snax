@@ -1,4 +1,5 @@
 import React from 'react';
+import { useFileServer } from './file-server-client';
 import type { DirListing } from './local-file-server/serve.js';
 
 export const useDebounce = () => {
@@ -30,7 +31,7 @@ export function useFile(path: string) {
   const [fileContent, setFileContent] = React.useState<FileContent>(
     getCachedFile(path) || { content: '', serverModified: 0, localModified: 0 }
   );
-
+  const client = useFileServer();
   const refresh = async () => {
     const cached = getCachedFile(path);
     if (cached) {
@@ -38,18 +39,12 @@ export function useFile(path: string) {
     }
 
     setLoading(true);
-    const res = await fetch(`http://localhost:8085${path}`);
-    const lastModifiedHeader = res.headers.get('Last-Modified');
-    const lastModified = lastModifiedHeader
-      ? new Date(lastModifiedHeader).getTime()
-      : 0;
-    if (!cached || lastModified > cached.localModified) {
+    const res = await client.readFile(path);
+    if (!cached || res.serverModified > cached.localModified) {
       const file: FileContent = {
-        content: await res.text(),
-        serverModified: lastModified,
-        localModified: lastModified,
+        ...res,
+        localModified: res.serverModified,
       };
-      console.log('Loaded server content');
       setFileContent(file);
       setCachedFile(path, file);
     }
@@ -76,16 +71,10 @@ export function useFile(path: string) {
 
 export function useSaveFile() {
   const [saving, setSaving] = React.useState(false);
+  const client = useFileServer();
   const saveFile = React.useCallback(async (path: string, content: string) => {
     setSaving(true);
-    await fetch(`http://localhost:8085${path}`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'text/plain',
-      },
-      body: content,
-    });
+    await client.writeFile(path, content);
     setSaving(false);
   }, []);
   return { saving, saveFile };

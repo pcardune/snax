@@ -20,6 +20,13 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 import Editor from '../src/Editor';
 import './style.css';
+import { FileServerClient, FileServerContext } from '../src/file-server-client';
 const appContainer = document.createElement('div');
 document.body.appendChild(appContainer);
-ReactDOM.render(<Editor />, appContainer);
+const client = new FileServerClient('http://localhost:8085');
+ReactDOM.render(
+  <FileServerContext.Provider value={client}>
+    <Editor />
+  </FileServerContext.Provider>,
+  appContainer
+);

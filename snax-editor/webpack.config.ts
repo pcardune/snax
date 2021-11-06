@@ -24,6 +24,7 @@ const config: Configuration = {
   devServer: {
     hot: true,
   },
+  devtool: isDevelopment ? 'eval-source-map' : false,
   module: {
     rules: [
       {

@@ -5,6 +5,29 @@ import { compileAST } from '@pcardune/snax/dist/snax/wat-compiler';
 import { TypeResolutionError } from '@pcardune/snax/dist/snax/errors';
 import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import { useDebounce } from './hooks';
+import { useFileServer } from './file-server-client';
+import { File } from '@pcardune/snax/dist/snax/spec-gen';
+
+function useSnaxCompiler() {
+  const client = useFileServer();
+
+  return (ast: File) =>
+    compileAST(ast, {
+      importResolver: async (sourcePath) => {
+        if (sourcePath.startsWith('snax/')) {
+          sourcePath = '/snax/stdlib/' + sourcePath;
+        }
+        const file = await client.readFile(sourcePath);
+        const ast = SNAXParser.parseStrOrThrow(file.content, 'start', {
+          grammarSource: file.url,
+        });
+        if (ast.name !== 'File') {
+          throw new Error(`invalid parse result, expected a file.`);
+        }
+        return ast;
+      },
+    });
+}
 
 function useCodeChecker() {
   const [parses, setParses] = React.useState<boolean | undefined>();
@@ -14,6 +37,8 @@ function useCodeChecker() {
   const [error, setError] = React.useState('');
   const [wasmModule, setModule] = React.useState<WebAssembly.Module>();
 
+  const compileAST = useSnaxCompiler();
+
   async function runChecks(code: string) {
     const result = SNAXParser.parseStr(code);
     setParses(result.isOk());
@@ -21,11 +46,7 @@ function useCodeChecker() {
       const ast = result.value;
       if (ast.name === 'File') {
         try {
-          const binaryenModule = await compileAST(ast, {
-            importResolver: () => {
-              throw new Error('import not working yet...');
-            },
-          });
+          const binaryenModule = await compileAST(ast);
           setTypechecks(true);
           setCompiles(true);
           setError('');
@@ -45,6 +66,7 @@ function useCodeChecker() {
           if (e instanceof TypeResolutionError) {
             setTypechecks(false);
           } else {
+            console.error(e);
             setTypechecks(true);
           }
           setCompiles(false);

@@ -1,0 +1,30 @@
+extern wasi_unstable {
+  func fd_write(
+    fileDescriptor:i32,
+    iovPointer:i32,
+    iovLength:i32,
+    numWrittenPointer:i32
+  ):i32;
+
+  func fd_read(
+    fileDescriptor:i32,
+    iovPointer:i32,
+    iovLength:i32,
+    numWrittenPointer:i32,
+  ):void;
+}
+
+func printStr(s:&String) {
+  let iovec = [s.buffer as usize, s.length];
+  let bytesWritten = 0;
+  fd_write(
+    1, // stdout
+    @iovec, // pointer to io vector
+    1, // length of io vector
+    @bytesWritten // where to store number of bytes written
+  );
+}
+
+func main() {
+  printStr("foobar");
+}

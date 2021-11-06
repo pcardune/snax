@@ -74,38 +74,50 @@ export function useFile(path: string) {
   return { loading, fileContent, cacheFile, refresh };
 }
 
+export function useSaveFile() {
+  const [saving, setSaving] = React.useState(false);
+  const saveFile = React.useCallback(async (path: string, content: string) => {
+    setSaving(true);
+    await fetch(`http://localhost:8085${path}`, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+      body: content,
+    });
+    setSaving(false);
+  }, []);
+  return { saving, saveFile };
+}
+
 export function useWriteableFile(path: string) {
   const file = useFile(path);
-  const [saving, setSaving] = React.useState(false);
+
+  const { saving, saveFile: saveFileByPath } = useSaveFile();
+
   const saveFile = React.useCallback(
     async (content: string) => {
-      setSaving(true);
-      await fetch(`http://localhost:8085${path}`, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-        body: content,
-      });
-      setSaving(false);
-      file.refresh();
+      await saveFileByPath(path, content);
     },
     [path]
   );
+
   return { saving, file, saveFile, cacheFile: file.cacheFile };
 }
 
 export function useFileList(path: string) {
   const [loading, setLoading] = React.useState(true);
   const [fileList, setFileList] = React.useState<DirListing>({ files: [] });
-  React.useEffect(() => {
-    fetch(`http://localhost:8085${path}`).then((res) => {
-      res.json().then((data) => {
-        setFileList(data);
-      });
-    });
+
+  const refresh = React.useCallback(async () => {
+    const res = await fetch(`http://localhost:8085${path}`);
+    const data = await res.json();
+    setFileList(data);
     setLoading(false);
   }, [path]);
-  return { loading, fileList };
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
+  return { loading, fileList, refresh };
 }

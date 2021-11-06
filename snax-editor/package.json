@@ -22,6 +22,7 @@
     "codemirror-blocks": "github:bootstrapworld/codemirror-blocks#05d7e594045146668791dd477e6ac974606ef19b"
   },
   "devDependencies": {
+    "babel-plugin-direct-import": "^1.0.0",
     "@babel/preset-react": "^7.16.0",
     "html-webpack-plugin": "^5.5.0",
     "@lezer/generator": "^0.15.2",

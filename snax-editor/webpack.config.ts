@@ -45,6 +45,7 @@ const config: Configuration = {
               presets: ['@babel/preset-react', '@babel/preset-typescript'],
               plugins: [
                 isDevelopment && require.resolve('react-refresh/babel'),
+                ['babel-plugin-direct-import', { modules: ['@mui/material'] }],
               ].filter(Boolean),
             },
           },

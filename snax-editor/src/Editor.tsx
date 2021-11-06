@@ -21,15 +21,61 @@ import {
   Stack,
   Button,
   Chip,
+  ListItem,
+  IconButton,
+  Tooltip,
+  TextField,
+  InputAdornment,
+  ListItemIcon,
 } from '@mui/material';
 import { Box } from '@mui/system';
-import type { FileInfo } from './local-file-server/serve.js';
+import type { DirListing, FileInfo } from './local-file-server/serve.js';
 import CodeMirror from './CodeMirror';
-import { useFileList, useWriteableFile, useDebounce } from './hooks';
+import {
+  useFileList,
+  useWriteableFile,
+  useDebounce,
+  useSaveFile,
+} from './hooks';
 import { formatTime } from './util';
 import CodeRunner from './CodeRunner';
 
 type OnSelectFile = (path: string) => void;
+
+function NewFileNameInput(props: {
+  value: string;
+  onChange: (newValue: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <TextField
+      size="small"
+      label="File Name"
+      variant="standard"
+      value={props.value}
+      onChange={(e) => props.onChange(e.target.value)}
+      onKeyDown={(event) => {
+        switch (event.key) {
+          case 'Escape':
+            return props.onCancel();
+          case 'Enter':
+            return props.onSave();
+        }
+      }}
+      InputProps={{
+        autoFocus: true,
+        endAdornment: (
+          <InputAdornment position="end">
+            <IconButton onClick={() => props.onCancel()}>
+              <Icon>cancel</Icon>
+            </IconButton>
+          </InputAdornment>
+        ),
+      }}
+    />
+  );
+}
 
 function DirItem(props: {
   onSelectFile?: OnSelectFile;
@@ -43,14 +89,57 @@ function DirItem(props: {
   const toggleExpanded = () => {
     setExpanded(!expanded);
   };
+  const [newFileName, setNewFileName] = useState<string | null>(null);
+  const saveFile = useSaveFile();
+  const fileList = useFileList(path);
+  const saveNewFile = async () => {
+    const path = `${props.directory}/${props.name}/${newFileName}`;
+    console.log('Saving', path);
+    await saveFile.saveFile(path, '// starting writing the file...');
+    fileList.refresh();
+    setNewFileName(null);
+    props.onSelectFile && props.onSelectFile(path);
+  };
+
+  const onClickCreateFile = () => {
+    setExpanded(true);
+    setNewFileName('');
+  };
+  const icon = expanded ? (
+    <Icon>arrow_drop_down</Icon>
+  ) : (
+    <Icon>arrow_right</Icon>
+  );
   return (
     <>
-      <ListItemButton onClick={toggleExpanded} key="button">
-        <ListItemText primary={props.name + '/'} />
-        {expanded ? <Icon>arrow_drop_down</Icon> : <Icon>arrow_right</Icon>}
-      </ListItemButton>
+      <ListItem
+        disablePadding
+        secondaryAction={
+          <Tooltip title="Create File">
+            <IconButton size="small" onClick={onClickCreateFile}>
+              <Icon>create</Icon>
+            </IconButton>
+          </Tooltip>
+        }
+      >
+        <ListItemButton onClick={toggleExpanded} key="button" dense>
+          <ListItemIcon sx={{ minWidth: 0 }}>{icon}</ListItemIcon>
+          <ListItemText primary={props.name + '/'} />
+        </ListItemButton>
+      </ListItem>
       <Collapse in={expanded} timeout="auto" unmountOnExit key="sublist">
+        {newFileName !== null && (
+          <ListItem sx={{ pl: 6 }}>
+            <NewFileNameInput
+              value={newFileName}
+              onChange={(newName) => setNewFileName(newName)}
+              onCancel={() => setNewFileName(null)}
+              onSave={saveNewFile}
+            />
+          </ListItem>
+        )}
         <FileList
+          dirListing={fileList.fileList}
           selectedPath={props.selectedPath}
           path={props.directory + '/' + props.name}
           onSelectFile={props.onSelectFile}
@@ -61,18 +150,17 @@ function DirItem(props: {
 }
 
 function FileList(props: {
+  dirListing: DirListing;
   selectedPath: string;
   path?: string;
   onSelectFile?: OnSelectFile;
 }) {
   const directory = props.path ?? '/';
-  const { loading, fileList } = useFileList(directory);
-
   const selectFile = (item: FileInfo) => {
     props.onSelectFile && props.onSelectFile(directory + '/' + item.name);
   };
 
-  const files = fileList.files.filter((item) => {
+  const files = props.dirListing.files.filter((item) => {
     return (
       !item.name.startsWith('.') &&
       (item.isDirectory || item.name.endsWith('.snx'))
@@ -81,7 +169,6 @@ function FileList(props: {
 
   return (
     <div>
-      {loading && <em>Loading...</em>}
       <List dense sx={{ pl: 1 }}>
         {files.map((item) =>
           item.isDirectory ? (
@@ -93,13 +180,14 @@ function FileList(props: {
               onSelectFile={props.onSelectFile}
             />
           ) : (
-            <ListItemButton
-              key={item.name}
-              onClick={() => selectFile(item)}
-              selected={props.selectedPath === directory + '/' + item.name}
-            >
-              <ListItemText primary={item.name} />
-            </ListItemButton>
+            <ListItem disablePadding key={item.name}>
+              <ListItemButton
+                onClick={() => selectFile(item)}
+                selected={props.selectedPath === directory + '/' + item.name}
+              >
+                <ListItemText sx={{ pl: 3 }} primary={item.name} />
+              </ListItemButton>
+            </ListItem>
           )
         )}
       </List>
@@ -204,6 +292,7 @@ export default function Editor() {
     localStorage.setItem('selectedFilePath', path);
     setSelectedFilePath(path);
   };
+  const fileList = useFileList('');
   return (
     <Grid container spacing={2}>
       <Grid item xs={12}>
@@ -220,6 +309,7 @@ export default function Editor() {
           <Grid item xs={2}>
             <Paper>
               <FileList
+                dirListing={fileList.fileList}
                 selectedPath={selectedFilePath}
                 onSelectFile={onSelectFile}
               />

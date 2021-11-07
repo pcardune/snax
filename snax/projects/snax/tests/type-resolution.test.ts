@@ -36,6 +36,26 @@ describe('CastExpr', () => {
   });
 });
 
+describe('NumberLiteral', () => {
+  it('uses type hints to determine the types of number literals', () => {
+    const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
+    const inferredNumber = AST.makeNumberLiteral(3, 'int', undefined);
+    const add = AST.makeBinaryExpr(BinOp.ADD, explicitNumber, inferredNumber);
+    const typeMap = resolveTypes(add, new OrderedMap());
+    expect(typeMap.get(inferredNumber)).toBe(Intrinsics.u8);
+  });
+  it('throws an error if a type hinted number will not fit', () => {
+    const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
+    const inferredNumber = AST.makeNumberLiteral(45452, 'int', undefined);
+    const add = AST.makeBinaryExpr(BinOp.ADD, explicitNumber, inferredNumber);
+    expect(() =>
+      resolveTypes(add, new OrderedMap())
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: 45452 doesn't fit into a u8"`
+    );
+  });
+});
+
 describe('Functions', () => {
   const makeFunc = (
     symbol: string,

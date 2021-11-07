@@ -3526,7 +3526,7 @@ function peg$parse(input: string, options?: IParseOptions) {
 
     peg$silentFails++;
     s0 = peg$currPos;
-    s1 = peg$parseidentifier();
+    s1 = peg$parseid();
     if (s1 as any !== peg$FAILED) {
       peg$savedPos = s0;
       s1 = peg$c96(s1);

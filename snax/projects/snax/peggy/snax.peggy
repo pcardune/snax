@@ -270,7 +270,7 @@ typeExpr "typeExpr"
   / typeRef
 
 typeRef "typeRef"
-  = name:identifier { return spec.makeTypeRef(name); }
+  = name:id { return spec.makeTypeRef(name); }
 
 expr "expr"
   = assignment

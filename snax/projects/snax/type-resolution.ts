@@ -21,7 +21,7 @@ import {
   isNumberLiteral,
   isReturnStatement,
 } from './spec-gen.js';
-import { depthFirstIter, preorderIter, pretty } from './spec-util.js';
+import { preorderIter, pretty } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
@@ -132,6 +132,12 @@ export class TypeResolver {
       case 'SymbolRef': {
         const record = refMap.get(node);
         if (!record) {
+          if (
+            node.name === 'SymbolRef' &&
+            isIntrinsicSymbol(node.fields.symbol)
+          ) {
+            return Intrinsics[node.fields.symbol];
+          }
           return Intrinsics.unknown;
         }
         const resolvedType = this.resolveType(record.declNode, hint);
@@ -146,17 +152,7 @@ export class TypeResolver {
         return resolvedType;
       }
       case 'TypeRef':
-        if (isIntrinsicSymbol(node.fields.symbol)) {
-          return Intrinsics[node.fields.symbol];
-        }
-        const record = refMap.get(node);
-        if (record) {
-          return this.resolveType(record.declNode, hint);
-        }
-        throw this.error(
-          node,
-          `TypeRef: Can't resolve type ${node.fields.symbol}`
-        );
+        return this.resolveType(node.fields.symbol, hint);
       case 'PointerTypeExpr':
         return new PointerType(
           this.resolveType(node.fields.pointerToExpr, hint)
@@ -168,8 +164,6 @@ export class TypeResolver {
         );
       case 'CastExpr':
         return this.resolveType(node.fields.typeExpr, hint);
-      case 'ExprStatement':
-        return Intrinsics.void;
       case 'GlobalDecl':
       case 'RegStatement':
       case 'LetStatement': {
@@ -202,6 +196,7 @@ export class TypeResolver {
         }
         return new UnionType([thenType, elseType]);
       }
+      case 'ExprStatement':
       case 'WhileStatement':
       case 'Block':
         return Intrinsics.void;
@@ -512,7 +507,7 @@ export class TypeResolver {
         const structDecl = refMap.get(node.fields.symbol)?.declNode;
         if (!structDecl) {
           throw new TypeError(
-            `struct ${node.fields.symbol.fields.symbol} not found.`
+            `struct ${pretty(node.fields.symbol)} not found.`
           );
         }
         return this.resolveType(structDecl, hint);
@@ -544,7 +539,7 @@ export class TypeResolver {
         }
       }
     }
-    throw this.error(node, `No type resolution exists for ${node as any}`);
+    throw this.error(node, `No type resolution exists for ${node.name}`);
   }
 
   private getTypeForBinaryOp(

@@ -240,22 +240,9 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   }
 
   private async setup() {
-    await resolveImports(this.root, this.options.importResolver);
-    desugar(this.root);
-
-    const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
-    let stackPointerGlobal = AST.makeGlobalDeclWith({
-      symbol: '#SP',
-      expr: stackPointerLiteral,
-    });
-    this.root.fields.decls.push(stackPointerGlobal);
-
     if (this.options.includeRuntime) {
       let runtimeAST = SNAXParser.parseStrOrThrow(`
-        struct String {
-          buffer: &u8;
-          length: usize;
-        }
+        import string from "snax/string.snx"
       `);
       if (AST.isFile(runtimeAST)) {
         for (const decl of runtimeAST.fields.decls) {
@@ -270,6 +257,15 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         throw this.error(`this should never happen`);
       }
     }
+    await resolveImports(this.root, this.options.importResolver);
+    desugar(this.root);
+
+    const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
+    let stackPointerGlobal = AST.makeGlobalDeclWith({
+      symbol: '#SP',
+      expr: stackPointerLiteral,
+    });
+    this.root.fields.decls.push(stackPointerGlobal);
 
     const { refMap, tables } = resolveSymbols(this.root);
     this.refMap = refMap;
@@ -467,6 +463,9 @@ export class ModuleDeclCompiler extends ASTCompiler<
             allocationMap: moduleAllocator.allocationMap,
             module: this.context.module,
           }).compile();
+          break;
+        }
+        case 'StructDecl': {
           break;
         }
         default:
@@ -2084,7 +2083,9 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
       const propType = structType.fields.get(prop.fields.symbol);
       if (!propType) {
         throw this.error(
-          `prop ${prop.fields.symbol} does not exist on struct ${this.root.fields.symbol.fields.symbol}`
+          `prop ${prop.fields.symbol} does not exist on struct ${pretty(
+            this.root.fields.symbol
+          )}`
         );
       }
       const ptr = lget(module, location);

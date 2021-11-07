@@ -4,6 +4,7 @@ import {
   makeBinaryExprWith,
   makeDataLiteral,
   makeExprStatement,
+  makeNamespacedRef,
   makeNumberLiteral,
   makeStructDecl,
   makeStructLiteralProp,
@@ -34,7 +35,7 @@ export function desugar(root: ASTNode) {
     switch (node.name) {
       case 'StringLiteral': {
         const structLiteral = makeStructLiteralWith({
-          symbol: makeSymbolRef('String'),
+          symbol: makeNamespacedRef(['string', 'String']),
           props: [
             makeStructLiteralProp(
               'buffer',

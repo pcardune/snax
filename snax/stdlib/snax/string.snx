@@ -1,0 +1,4 @@
+struct String {
+  buffer: &u8;
+  length: usize;
+}

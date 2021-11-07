@@ -1074,7 +1074,7 @@ describe('bugs that came up', () => {
       }
       
       func read(numBytes:i32) {
-        let s = String::{buffer: $heap_start(), length: numBytes};
+        let s = string::String::{buffer: $heap_start(), length: numBytes};
         return s;
       }
     `;

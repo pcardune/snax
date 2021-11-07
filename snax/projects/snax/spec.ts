@@ -54,7 +54,7 @@ const specInput: Record<
   },
   TypeRef: {
     fields: {
-      symbol: 'string',
+      symbol: 'NamedSymbol',
     },
   },
   PointerTypeExpr: {
@@ -171,7 +171,7 @@ const specInput: Record<
   },
   StructLiteral: {
     fields: {
-      symbol: 'SymbolRef',
+      symbol: 'NamedSymbol',
       props: { type: 'StructLiteralProp', list: true },
     },
   },
@@ -251,6 +251,9 @@ const specInput: Record<
   },
   TypeExpr: {
     union: ['PointerTypeExpr', 'ArrayTypeExpr', 'TypeRef'],
+  },
+  NamedSymbol: {
+    union: ['SymbolRef', 'NamespacedRef'],
   },
   LiteralExpr: {
     union: [

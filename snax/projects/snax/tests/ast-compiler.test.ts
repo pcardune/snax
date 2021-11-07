@@ -112,7 +112,7 @@ describe('ModuleCompiler', () => {
   it('compiles functions in the top-level block to wasm functions', async () => {
     const funcDecl = makeFunc(
       'foo',
-      [AST.makeParameter('a', AST.makeTypeRef('i32'))],
+      [AST.makeParameter('a', AST.makeTypeRef(AST.makeSymbolRef('i32')))],
       [AST.makeReturnStatement(AST.makeSymbolRef('a'))]
     );
     const file = AST.makeFileWith({
@@ -159,12 +159,24 @@ describe('ModuleCompiler', () => {
             AST.makeExternFuncDeclWith({
               symbol: 'fd_write',
               parameters: AST.makeParameterList([
-                AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
-                AST.makeParameter('iovPointer', AST.makeTypeRef('i32')),
-                AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
-                AST.makeParameter('numWrittenPointer', AST.makeTypeRef('i32')),
+                AST.makeParameter(
+                  'fileDescriptor',
+                  AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                ),
+                AST.makeParameter(
+                  'iovPointer',
+                  AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                ),
+                AST.makeParameter(
+                  'iovLength',
+                  AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                ),
+                AST.makeParameter(
+                  'numWrittenPointer',
+                  AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                ),
               ]),
-              returnType: AST.makeTypeRef('i32'),
+              returnType: AST.makeTypeRef(AST.makeSymbolRef('i32')),
             }),
           ],
         }),

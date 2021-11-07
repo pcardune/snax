@@ -272,12 +272,20 @@ describe('expression', () => {
   describe('type casting operator', () => {
     it('should parse type casting operator', () => {
       expect(parse('1 as f64', 'expr')).toEqual(
-        AST.makeCastExpr(makeNum(1), AST.makeTypeRef('f64'), false)
+        AST.makeCastExpr(
+          makeNum(1),
+          AST.makeTypeRef(AST.makeSymbolRef('f64')),
+          false
+        )
       );
     });
     it('should parse forced type casting operator', () => {
       expect(parse('14723873 as! u8', 'expr')).toEqual(
-        AST.makeCastExpr(makeNum(14723873), AST.makeTypeRef('u8'), true)
+        AST.makeCastExpr(
+          makeNum(14723873),
+          AST.makeTypeRef(AST.makeSymbolRef('u8')),
+          true
+        )
       );
     });
   });
@@ -294,13 +302,21 @@ describe('let statements', () => {
     it('should parse typed let statements', () => {
       const letNode = parse('let x:i32 = 3;', 'statement');
       expect(letNode).toEqual(
-        AST.makeLetStatement('x', AST.makeTypeRef('i32'), makeNum(3))
+        AST.makeLetStatement(
+          'x',
+          AST.makeTypeRef(AST.makeSymbolRef('i32')),
+          makeNum(3)
+        )
       );
     });
     it('should parse typed let statements without initialization', () => {
       const letNode = parse('let x:i32;', 'statement');
       expect(letNode).toEqual(
-        AST.makeLetStatement('x', AST.makeTypeRef('i32'), undefined)
+        AST.makeLetStatement(
+          'x',
+          AST.makeTypeRef(AST.makeSymbolRef('i32')),
+          undefined
+        )
       );
     });
   });
@@ -314,13 +330,21 @@ describe('reg statements', () => {
   it('should parse typed reg statements', () => {
     const regNode = parse('reg x:i32 = 3;', 'statement');
     expect(regNode).toEqual(
-      AST.makeRegStatement('x', AST.makeTypeRef('i32'), makeNum(3))
+      AST.makeRegStatement(
+        'x',
+        AST.makeTypeRef(AST.makeSymbolRef('i32')),
+        makeNum(3)
+      )
     );
   });
   it('should parse typed reg statements without initialization', () => {
     const regNode = parse('reg x:i32;', 'statement');
     expect(regNode).toEqual(
-      AST.makeRegStatement('x', AST.makeTypeRef('i32'), undefined)
+      AST.makeRegStatement(
+        'x',
+        AST.makeTypeRef(AST.makeSymbolRef('i32')),
+        undefined
+      )
     );
   });
 });
@@ -328,12 +352,12 @@ describe('reg statements', () => {
 describe('type expressions', () => {
   it('parses pointer types', () => {
     expect(parse('&i32', 'typeExpr')).toEqual(
-      AST.makePointerTypeExpr(AST.makeTypeRef('i32'))
+      AST.makePointerTypeExpr(AST.makeTypeRef(AST.makeSymbolRef('i32')))
     );
   });
   it('parses array types', () => {
     expect(parse('[i32:25]', 'typeExpr')).toEqual(
-      AST.makeArrayTypeExpr(AST.makeTypeRef('i32'), 25)
+      AST.makeArrayTypeExpr(AST.makeTypeRef(AST.makeSymbolRef('i32')), 25)
     );
   });
 });
@@ -466,8 +490,8 @@ describe('structs', () => {
   it('should parse tuple structs', () => {
     expect(parse('struct Vector(u8,i32);', 'structDecl')).toEqual(
       AST.makeTupleStructDecl('Vector', [
-        AST.makeTypeRef('u8'),
-        AST.makeTypeRef('i32'),
+        AST.makeTypeRef(AST.makeSymbolRef('u8')),
+        AST.makeTypeRef(AST.makeSymbolRef('i32')),
       ])
     );
   });
@@ -485,8 +509,8 @@ describe('structs', () => {
       AST.makeStructDeclWith({
         symbol: 'Vector',
         props: [
-          AST.makeStructProp('x', AST.makeTypeRef('i32')),
-          AST.makeStructProp('y', AST.makeTypeRef('i32')),
+          AST.makeStructProp('x', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
+          AST.makeStructProp('y', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
           AST.makeFuncDeclWith({
             isPublic: false,
             symbol: 'mag',
@@ -514,16 +538,16 @@ describe('functions', () => {
   it('should parse a function with parameters', () => {
     expect(parse('func foo(a:i32, b:f32) {}', 'funcDecl')).toEqual(
       makeFunc('foo', [
-        AST.makeParameter('a', AST.makeTypeRef('i32')),
-        AST.makeParameter('b', AST.makeTypeRef('f32')),
+        AST.makeParameter('a', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
+        AST.makeParameter('b', AST.makeTypeRef(AST.makeSymbolRef('f32'))),
       ])
     );
   });
   it('should allow trailing commas in function parameters', () => {
     expect(parse('func foo(a:i32, b:f32,) {}', 'funcDecl')).toEqual(
       makeFunc('foo', [
-        AST.makeParameter('a', AST.makeTypeRef('i32')),
-        AST.makeParameter('b', AST.makeTypeRef('f32')),
+        AST.makeParameter('a', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
+        AST.makeParameter('b', AST.makeTypeRef(AST.makeSymbolRef('f32'))),
       ])
     );
   });
@@ -531,7 +555,7 @@ describe('functions', () => {
     expect(parse('func foo(a:i32) { return a+1; }', 'funcDecl')).toEqual(
       makeFunc(
         'foo',
-        [AST.makeParameter('a', AST.makeTypeRef('i32'))],
+        [AST.makeParameter('a', AST.makeTypeRef(AST.makeSymbolRef('i32')))],
         [
           AST.makeReturnStatement(
             AST.makeBinaryExpr(BinOp.ADD, AST.makeSymbolRef('a'), makeNum(1))
@@ -630,15 +654,24 @@ describe('externals', () => {
               AST.makeExternFuncDeclWith({
                 symbol: 'fd_write',
                 parameters: AST.makeParameterList([
-                  AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
-                  AST.makeParameter('iovPointer', AST.makeTypeRef('i32')),
-                  AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
+                  AST.makeParameter(
+                    'fileDescriptor',
+                    AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                  ),
+                  AST.makeParameter(
+                    'iovPointer',
+                    AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                  ),
+                  AST.makeParameter(
+                    'iovLength',
+                    AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                  ),
                   AST.makeParameter(
                     'numWrittenPointer',
-                    AST.makeTypeRef('i32')
+                    AST.makeTypeRef(AST.makeSymbolRef('i32'))
                   ),
                 ]),
-                returnType: AST.makeTypeRef('i32'),
+                returnType: AST.makeTypeRef(AST.makeSymbolRef('i32')),
               }),
             ],
           }),
@@ -667,8 +700,14 @@ describe('modules', () => {
               makeFunc(
                 'add',
                 [
-                  AST.makeParameter('a', AST.makeTypeRef('i32')),
-                  AST.makeParameter('b', AST.makeTypeRef('i32')),
+                  AST.makeParameter(
+                    'a',
+                    AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                  ),
+                  AST.makeParameter(
+                    'b',
+                    AST.makeTypeRef(AST.makeSymbolRef('i32'))
+                  ),
                 ],
                 [
                   AST.makeReturnStatement(

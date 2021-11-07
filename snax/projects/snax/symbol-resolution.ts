@@ -88,22 +88,12 @@ function innerResolveSymbols(
       currentTable.declare(astNode.fields.symbol, astNode);
       break;
     }
-    case 'TypeRef': {
-      if (!isIntrinsicSymbol(astNode.fields.symbol)) {
-        const symbolRecord = currentTable.get(astNode.fields.symbol);
-        if (!symbolRecord) {
-          throw new SymbolResolutionError(
-            astNode,
-            `Reference to undeclared type ${astNode.fields.symbol}`
-          );
-        }
-        refMap.set(astNode, symbolRecord);
-      }
-      break;
-    }
     case 'SymbolRef': {
       const symbolRecord = currentTable.get(astNode.fields.symbol);
       if (!symbolRecord) {
+        if (isIntrinsicSymbol(astNode.fields.symbol)) {
+          break;
+        }
         throw new SymbolResolutionError(
           astNode,
           `Reference to undeclared symbol ${astNode.fields.symbol}`

@@ -49,7 +49,7 @@ describe('resolveSymbols', () => {
             AST.makeExternFuncDecl(
               'externalFunc',
               AST.makeParameterList([]),
-              AST.makeTypeRef('void')
+              AST.makeTypeRef(AST.makeSymbolRef('void'))
             ),
           ],
         }),

@@ -75,7 +75,9 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
           <ParameterList>
             <parameters/>
           </ParameterList>
-          <TypeRef symbol=\\"void\\"/>
+          <TypeRef>
+            <SymbolRef symbol=\\"void\\"/>
+          </TypeRef>
         </ExternFuncDecl>
       </funcs>
     </ExternDecl>

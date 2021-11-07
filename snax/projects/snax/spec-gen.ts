@@ -220,7 +220,7 @@ export function makeSymbolRefWith(fields: { symbol: string }): SymbolRef {
   };
 }
 
-type TypeRefFields = { symbol: string };
+type TypeRefFields = { symbol: NamedSymbol };
 
 export type TypeRef = {
   name: 'TypeRef';
@@ -232,7 +232,7 @@ export function isTypeRef(node: ASTNode): node is TypeRef {
   return node.name === 'TypeRef';
 }
 
-export function makeTypeRef(symbol: string): TypeRef {
+export function makeTypeRef(symbol: NamedSymbol): TypeRef {
   return {
     name: 'TypeRef',
     fields: {
@@ -241,7 +241,7 @@ export function makeTypeRef(symbol: string): TypeRef {
   };
 }
 
-export function makeTypeRefWith(fields: { symbol: string }): TypeRef {
+export function makeTypeRefWith(fields: { symbol: NamedSymbol }): TypeRef {
   return {
     name: 'TypeRef',
     fields,
@@ -891,7 +891,7 @@ export function makeStructPropWith(fields: {
   };
 }
 
-type StructLiteralFields = { symbol: SymbolRef; props: StructLiteralProp[] };
+type StructLiteralFields = { symbol: NamedSymbol; props: StructLiteralProp[] };
 
 export type StructLiteral = {
   name: 'StructLiteral';
@@ -904,7 +904,7 @@ export function isStructLiteral(node: ASTNode): node is StructLiteral {
 }
 
 export function makeStructLiteral(
-  symbol: SymbolRef,
+  symbol: NamedSymbol,
   props: StructLiteralProp[]
 ): StructLiteral {
   return {
@@ -917,7 +917,7 @@ export function makeStructLiteral(
 }
 
 export function makeStructLiteralWith(fields: {
-  symbol: SymbolRef;
+  symbol: NamedSymbol;
   props: StructLiteralProp[];
 }): StructLiteral {
   return {
@@ -1343,6 +1343,11 @@ export function isTypeExpr(node: ASTNode): node is TypeExpr {
   return isPointerTypeExpr(node) || isArrayTypeExpr(node) || isTypeRef(node);
 }
 
+export type NamedSymbol = SymbolRef | NamespacedRef;
+export function isNamedSymbol(node: ASTNode): node is NamedSymbol {
+  return isSymbolRef(node) || isNamespacedRef(node);
+}
+
 export type LiteralExpr =
   | NumberLiteral
   | DataLiteral
@@ -1470,6 +1475,7 @@ export type ASTNode =
   | ExternDecl
   | StructField
   | TypeExpr
+  | NamedSymbol
   | LiteralExpr
   | TopLevelDecl
   | Expression

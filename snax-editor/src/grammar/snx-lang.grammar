@@ -5,13 +5,19 @@ Block {
 }
 
 statement[@isGroup=Statement] {
+  ExternDecl |
   FuncDecl |
   StructDecl |
+  ImportStatement {kw<"import"> Identifier kw<"from"> String } |
   ReturnStatement { kw<"return"> expression ";" } |
   WhileStatement { kw<"while"> "(" expression ")" Block } |
-  RegStatement { kw<"reg"> Identifier "=" expression ";"} |
-  LetStatement { kw<"let"> Identifier "=" expression ";"} |
+  RegStatement { kw<"reg"> VarDecl ";"} |
+  LetStatement { kw<"let"> VarDecl ";"} |
   ExprStatement { expression ";" }
+}
+
+VarDecl {
+  Identifier (":" TypeExpr)? "=" expression
 }
 
 StructDecl {
@@ -22,16 +28,29 @@ StructDecl {
 
 StructPropDecl { Identifier ":" TypeExpr ";" }
 
+FuncDeclBegin {
+  kw<"func"> Identifier "(" ParameterList? ")" (":" TypeExpr)?
+}
+
 FuncDecl {
-  kw<"func"> Identifier "(" ParameterList ")" Block
+  FuncDeclBegin Block
+}
+
+ExternDecl {
+  kw<"extern"> Identifier "{" (FuncDeclBegin ";")* "}"
 }
 
 ParameterList {
+  Parameter ("," Parameter)* ","?
+}
+
+Parameter {
   Identifier ":" TypeExpr
 }
 
 TypeExpr {
-  Identifier
+  Identifier |
+  "&" Identifier
 }
 
 expression {
@@ -39,10 +58,17 @@ expression {
   String |
   Boolean |
   Number |
-  BinaryExpression
+  Char |
+  StructLiteral |
+  ArrayLiteral {"[" (expression ","?)* "]"} |
+  BinaryExpression |
+  UnaryExpression
 }
 
 @precedence {
+  deref @left,
+  call @left,
+  member @left,
   times @left,
   plus @left,
   rel @left,
@@ -52,29 +78,52 @@ expression {
   assign @right
 }
 
+UnaryExpression {
+  !deref "@" expression
+}
+
 BinaryExpression {
+  expression !times ArithOp<"%"|"*"|divide> expression |
   expression !plus ArithOp<"+"|"-"> expression |
   expression !assign "=" expression |
   expression !rel CompareOp<"<" | ">"> expression |
   expression !equal CompareOp<"==" | "!="> expression |
   expression !and LogicOp<"&&"> expression |
-  expression !or LogicOp<"||"> expression
+  expression !or LogicOp<"||"> expression |
+  expression !member MemberOp<"."> expression ("[" expression "]")? |
+  expression !call "(" (expression ","?)* ")" |
+  expression kw<"as"> "!"? TypeExpr
 }
 
+MemberOp<expr> { expr }
 CompareOp<expr> { expr }
 ArithOp<expr> { expr }
 LogicOp<expr> { expr }
 
+StructPropValue {
+  identifier ":" expression
+}
+
+StructLiteral {
+  Identifier "::" "{" (StructPropValue ",")* "}"
+}
+
 @tokens {
-  Identifier { $[a-zA-Z_] $[a-zA-Z_0-9]* }
+  Identifier { identifier ("::" identifier)? }
+  identifier { $[a-zA-Z_] $[a-zA-Z_0-9]* }
 
   String { '"' (!["\\] | "\\" _)* '"' }
+  Char { "'" (!["\\] | "\\" _) "'" }
 
   Number { std.digit+ }
 
   Boolean { "#t" | "#f" }
 
   LineComment { "//" ![\n]* }
+
+  divide[@name=ArithOp] { "/" }
+
+  @precedence { LineComment, divide }
 
   space { $[ \t\n\r]+ }
 

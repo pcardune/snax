@@ -12,19 +12,26 @@ let parserWithMetadata = parser.configure({
   props: [
     styleTags({
       '⚠': t.invalid,
-      Identifier: t.variableName,
+      Identifier: t.local(t.variableName),
       Number: t.number,
       Boolean: t.bool,
       String: t.string,
+      Char: t.literal,
       LineComment: t.lineComment,
       LogicOp: t.logicOperator,
       ArithOp: t.arithmeticOperator,
+      'extern import from': t.keyword,
+      'ImportStatement/Identifier': t.local(t.variableName),
       'StructPropDecl/Identifier': t.propertyName,
+      'StructLiteral/Identifier': t.typeName,
+      'StructPropValue/identifier': t.definition(t.propertyName),
       'ParameterList/Identifier': [t.variableName, t.emphasis],
       'TypeExpr/Identifier': t.typeName,
+      TypeExpr: t.typeOperator,
       'FuncDecl/Identifier': t.function(t.variableName),
       'while if else return': t.controlKeyword,
       'reg let func struct': t.definitionKeyword,
+      as: t.operatorKeyword,
       '( )': t.paren,
     }),
     indentNodeProp.add({
@@ -43,7 +50,7 @@ let parserWithMetadata = parser.configure({
 export const exampleLanguage = LRLanguage.define({
   parser: parserWithMetadata,
   languageData: {
-    commentTokens: { line: ';' },
+    commentTokens: { line: '//' },
   },
 });
 
@@ -67,12 +74,13 @@ const myHighlightStyle = HighlightStyle.define([
   { tag: t.definitionKeyword, color: '#00aa00' },
   { tag: t.controlKeyword, color: '#cc5500' },
   { tag: t.function(t.variableName), color: '#ff0000' },
+  { tag: t.invalid, color: 'red', 'text-decoration': 'underline' },
 ]);
 
 export function example() {
   return new LanguageSupport(exampleLanguage, [
     exampleCompletion,
-    myHighlightStyle,
+    myHighlightStyle.fallback,
     hoverTypeInfo,
   ]);
 }

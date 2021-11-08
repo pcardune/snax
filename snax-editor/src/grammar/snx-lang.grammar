@@ -11,13 +11,15 @@ statement[@isGroup=Statement] {
   ImportStatement {kw<"import"> Identifier kw<"from"> String } |
   ReturnStatement { kw<"return"> expression ";" } |
   WhileStatement { kw<"while"> "(" expression ")" Block } |
+  IfStatement { kw<"if"> "(" expression ")" Block } |
   RegStatement { kw<"reg"> VarDecl ";"} |
   LetStatement { kw<"let"> VarDecl ";"} |
+  GlobalDecl { kw<"global"> VarDecl ";"} |
   ExprStatement { expression ";" }
 }
 
 VarDecl {
-  Identifier (":" TypeExpr)? "=" expression
+  VarName {identifier} (":" TypeExpr)? "=" expression
 }
 
 StructDecl {
@@ -29,7 +31,7 @@ StructDecl {
 StructPropDecl { Identifier ":" TypeExpr ";" }
 
 FuncDeclBegin {
-  kw<"func"> Identifier "(" ParameterList? ")" (":" TypeExpr)?
+  kw<"pub">? kw<"func"> Identifier "(" ParameterList? ")" (":" TypeExpr)?
 }
 
 FuncDecl {
@@ -50,23 +52,25 @@ Parameter {
 
 TypeExpr {
   Identifier |
-  "&" Identifier
+  "&" Identifier |
+  "[" TypeExpr ":" digits "]"
 }
 
 expression {
   Identifier |
   String |
   Boolean |
-  Number |
+  NumberLiteral |
   Char |
   StructLiteral |
   ArrayLiteral {"[" (expression ","?)* "]"} |
   BinaryExpression |
-  UnaryExpression
+  UnaryExpression |
+  "(" expression ")"
 }
 
 @precedence {
-  deref @left,
+  prefix @left,
   call @left,
   member @left,
   times @left,
@@ -79,7 +83,11 @@ expression {
 }
 
 UnaryExpression {
-  !deref "@" expression
+  !prefix (
+    "@" expression |
+    LogicOp<"!"> expression |
+    ArithOp<"-"> expression
+  )
 }
 
 BinaryExpression {
@@ -92,7 +100,8 @@ BinaryExpression {
   expression !or LogicOp<"||"> expression |
   expression !member MemberOp<"."> expression ("[" expression "]")? |
   expression !call "(" (expression ","?)* ")" |
-  expression kw<"as"> "!"? TypeExpr
+  CompilerCall { "$" identifier "(" (expression ","?)* ")" } |
+  CastExpr { expression kw<"as"> "!"? TypeExpr }
 }
 
 MemberOp<expr> { expr }
@@ -115,7 +124,9 @@ StructLiteral {
   String { '"' (!["\\] | "\\" _)* '"' }
   Char { "'" (!["\\] | "\\" _) "'" }
 
-  Number { std.digit+ }
+  NumberLiteral { digits ("_" identifier)?}
+
+  digits { std.digit+ }
 
   Boolean { "#t" | "#f" }
 

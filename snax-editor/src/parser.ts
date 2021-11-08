@@ -13,7 +13,7 @@ let parserWithMetadata = parser.configure({
     styleTags({
       '⚠': t.invalid,
       Identifier: t.local(t.variableName),
-      Number: t.number,
+      NumberLiteral: t.number,
       Boolean: t.bool,
       String: t.string,
       Char: t.literal,
@@ -26,12 +26,14 @@ let parserWithMetadata = parser.configure({
       'StructLiteral/Identifier': t.typeName,
       'StructPropValue/identifier': t.definition(t.propertyName),
       'ParameterList/Identifier': [t.variableName, t.emphasis],
-      'TypeExpr/Identifier': t.typeName,
-      TypeExpr: t.typeOperator,
-      'FuncDecl/Identifier': t.function(t.variableName),
+      'TypeExpr TypeExpr/Identifier': t.typeName,
+      CompilerCall: t.special(t.variableName),
+      'FuncDeclBegin/Identifier': t.definition(t.variableName),
+      'VarDecl/VarName': t.definition(t.variableName),
       'while if else return': t.controlKeyword,
-      'reg let func struct': t.definitionKeyword,
-      as: t.operatorKeyword,
+      'global reg let func struct': t.definitionKeyword,
+      pub: t.annotation,
+      'CastExpr CastExpr/as': t.operatorKeyword,
       '( )': t.paren,
     }),
     indentNodeProp.add({
@@ -59,12 +61,15 @@ import hoverTypeInfo from './cm-extensions/hover-type-info';
 
 export const exampleCompletion = exampleLanguage.data.of({
   autocomplete: completeFromList([
-    { label: 'defun', type: 'keyword' },
-    { label: 'defvar', type: 'keyword' },
+    { label: 'func', type: 'keyword' },
+    { label: 'struct', type: 'keyword' },
+    { label: 'import', type: 'keyword' },
     { label: 'let', type: 'keyword' },
-    { label: 'cons', type: 'function' },
-    { label: 'car', type: 'function' },
-    { label: 'cdr', type: 'function' },
+    { label: 'reg', type: 'keyword' },
+    { label: 'global', type: 'keyword' },
+    { label: 'while', type: 'keyword' },
+    { label: 'return', type: 'keyword' },
+    { label: '$heap_start', type: 'function' },
   ]),
 });
 

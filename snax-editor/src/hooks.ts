@@ -1,5 +1,5 @@
 import React from 'react';
-import { useFileServer } from './file-server-client';
+import { ServerFile, useFileServer } from './file-server-client';
 import type { DirListing } from './local-file-server/serve.js';
 
 export const useDebounce = () => {
@@ -14,9 +14,7 @@ export const useDebounce = () => {
   );
 };
 
-type FileContent = {
-  content: string;
-  serverModified: number;
+type FileContent = ServerFile & {
   localModified: number;
 };
 
@@ -32,10 +30,15 @@ const setCachedFile = (path: string, fileContent: FileContent) => {
 
 export function useFile(path: string) {
   const [loading, setLoading] = React.useState(true);
-  const [fileContent, setFileContent] = React.useState<FileContent>(
-    getCachedFile(path) || { content: '', serverModified: 0, localModified: 0 }
-  );
   const client = useFileServer();
+  const [fileContent, setFileContent] = React.useState<FileContent>(
+    getCachedFile(path) || {
+      content: '',
+      lastSaveTime: 0,
+      localModified: 0,
+      url: client.urlForPath(path),
+    }
+  );
   const refresh = React.useCallback(async () => {
     const cached = getCachedFile(path);
     if (cached) {
@@ -44,10 +47,10 @@ export function useFile(path: string) {
 
     setLoading(true);
     const res = await client.readFile(path);
-    if (!cached || res.serverModified > cached.localModified) {
+    if (!cached || res.lastSaveTime > cached.localModified) {
       const file: FileContent = {
         ...res,
-        localModified: res.serverModified,
+        localModified: res.lastSaveTime,
       };
       setFileContent(file);
       setCachedFile(path, file);
@@ -60,15 +63,17 @@ export function useFile(path: string) {
       if (cached && cached.content === content) {
         return;
       }
-      const newFileContent = {
-        serverModified: cached ? cached.serverModified : 0,
+      const newFileContent: FileContent = {
+        ...cached,
+        url: cached ? cached.url : client.urlForPath(path),
+        lastSaveTime: cached ? cached.lastSaveTime : 0,
         content: content,
         localModified: new Date().getTime(),
       };
       setCachedFile(path, newFileContent);
       setFileContent(newFileContent);
     },
-    [path]
+    [path, client]
   );
   React.useEffect(() => {
     refresh();
@@ -94,12 +99,13 @@ export function useWriteableFile(path: string) {
   const file = useFile(path);
 
   const { saving, saveFile: saveFileByPath } = useSaveFile();
-
+  const { refresh } = file;
   const saveFile = React.useCallback(
     async (content: string) => {
       await saveFileByPath(path, content);
+      refresh();
     },
-    [path, saveFileByPath]
+    [path, saveFileByPath, refresh]
   );
 
   return { saving, file, saveFile, cacheFile: file.cacheFile };

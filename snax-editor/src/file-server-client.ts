@@ -12,6 +12,12 @@ export function useFileServer() {
   return client;
 }
 
+export type ServerFile = {
+  content: string;
+  url: string;
+  lastSaveTime: number;
+};
+
 export class FileServerClient {
   readonly serverUrl: string;
   constructor(serverUrl: string) {
@@ -26,7 +32,7 @@ export class FileServerClient {
     return `${this.serverUrl}${path}`;
   }
 
-  async readFile(path: string) {
+  async readFile(path: string): Promise<ServerFile> {
     const res = await this.fetch(path);
     const lastModifiedHeader = res.headers.get('Last-Modified');
     const lastModified = lastModifiedHeader
@@ -35,7 +41,7 @@ export class FileServerClient {
     return {
       content: await res.text(),
       url: this.urlForPath(path),
-      serverModified: lastModified,
+      lastSaveTime: lastModified,
     };
   }
 

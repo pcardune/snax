@@ -24,7 +24,7 @@ export default function FileViewer(props: { path: string }) {
   const cmViewRef = React.useRef<ViewRef>();
   const { saveFile, cacheFile, ...writeable } = useWriteableFile(props.path);
   const needsSave =
-    writeable.file.fileContent.serverModified <
+    writeable.file.fileContent.lastSaveTime <
     writeable.file.fileContent.localModified;
 
   const checker = useCodeChecker();
@@ -90,7 +90,7 @@ export default function FileViewer(props: { path: string }) {
               <Box>
                 <Typography variant="caption">
                   last saved{' '}
-                  <Time time={writeable.file.fileContent.serverModified} />
+                  <Time time={writeable.file.fileContent.lastSaveTime} />
                 </Typography>
               </Box>
             </Toolbar>

@@ -1,107 +1,6 @@
 import { Box, Button, Chip, Icon, Paper, Stack } from '@mui/material';
 import React from 'react';
-import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser';
-import { compileAST } from '@pcardune/snax/dist/snax/wat-compiler';
-import { TypeResolutionError } from '@pcardune/snax/dist/snax/errors';
-import { WASI } from '@pcardune/snax/dist/snax/wasi';
-import { useDebounce } from './hooks';
-import { useFileServer } from './file-server-client';
-import { File } from '@pcardune/snax/dist/snax/spec-gen';
-
-function useSnaxCompiler() {
-  const client = useFileServer();
-
-  return (ast: File) =>
-    compileAST(ast, {
-      importResolver: async (sourcePath) => {
-        if (sourcePath.startsWith('snax/')) {
-          sourcePath = '/snax/stdlib/' + sourcePath;
-        }
-        const file = await client.readFile(sourcePath);
-        const ast = SNAXParser.parseStrOrThrow(file.content, 'start', {
-          grammarSource: file.url,
-        });
-        if (ast.name !== 'File') {
-          throw new Error(`invalid parse result, expected a file.`);
-        }
-        return ast;
-      },
-    });
-}
-
-function useCodeChecker() {
-  const [parses, setParses] = React.useState<boolean | undefined>();
-  const [typeChecks, setTypechecks] = React.useState<boolean | undefined>();
-  const [compiles, setCompiles] = React.useState<boolean | undefined>();
-  const [validates, setValidates] = React.useState<boolean | undefined>();
-  const [error, setError] = React.useState('');
-  const [wasmModule, setModule] = React.useState<WebAssembly.Module>();
-
-  const compileAST = useSnaxCompiler();
-
-  async function runChecks(code: string) {
-    const result = SNAXParser.parseStr(code);
-    setParses(result.isOk());
-    if (result.isOk()) {
-      const ast = result.value;
-      if (ast.name === 'File') {
-        try {
-          const binaryenModule = await compileAST(ast);
-          setTypechecks(true);
-          setCompiles(true);
-          setError('');
-
-          const validates = binaryenModule.validate();
-          setValidates(!!validates);
-          if (validates) {
-            setModule(
-              await WebAssembly.compile(binaryenModule.emitBinary().buffer)
-            );
-          } else {
-            setError('Failed to validate');
-          }
-          return;
-        } catch (e) {
-          setError(String(e));
-          if (e instanceof TypeResolutionError) {
-            setTypechecks(false);
-          } else {
-            console.error(e);
-            setTypechecks(true);
-          }
-          setCompiles(false);
-        }
-      }
-    } else {
-      setError(String(result.error));
-      setTypechecks(false);
-      setCompiles(false);
-    }
-  }
-
-  const runCode = async () => {
-    if (wasmModule) {
-      const wasi = new WASI();
-      // TODO: do debugging in a better way
-      const modInstance = await WebAssembly.instantiate(wasmModule, {
-        wasi_snapshot_preview1: wasi.wasiImport,
-        wasi_unstable: wasi.wasiImport,
-        debug: { debug: (...a: any[]) => console.log('debug', ...a) },
-      });
-      (window as any).wasm = modInstance.exports;
-      const result = wasi.start(modInstance);
-      console.log('Run Result:', result);
-    }
-  };
-
-  const checks = [
-    { label: 'parses', state: parses },
-    { label: 'type checks', state: typeChecks },
-    { label: 'compiles', state: compiles },
-    { label: 'validates', state: validates },
-  ];
-  return { checks, error, runChecks, runCode };
-}
+import { CodeChecker } from './useCodeChecker';
 
 function CompilerStatus(props: {
   checks: { label: string; state: boolean | undefined }[];
@@ -143,15 +42,7 @@ function CompilerStatus(props: {
   );
 }
 
-export default function CodeRunner(props: { code: string }) {
-  const checker = useCodeChecker();
-  const debounce = useDebounce();
-  React.useEffect(() => {
-    debounce(() => {
-      checker.runChecks(props.code);
-    }, 250);
-  }, [props.code]);
-
+export default function CodeRunner({ checker }: { checker: CodeChecker }) {
   return (
     <Paper>
       <Stack spacing={2}>
@@ -161,7 +52,7 @@ export default function CodeRunner(props: { code: string }) {
         {checker.error && (
           <Box sx={{ p: 2 }}>
             <pre style={{ whiteSpace: 'pre-wrap' }}>
-              {String(checker.error)}
+              {checker.error.message}
             </pre>
           </Box>
         )}

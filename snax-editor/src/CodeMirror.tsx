@@ -1,58 +1,49 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { EditorState, Extension } from '@codemirror/state';
-import { EditorView, keymap, ViewUpdate } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { basicSetup } from '@codemirror/basic-setup';
 import { example } from './parser';
 
 interface EditorProps {
-  value?: string;
-  onUpdate?: (update: ViewUpdate) => void;
+  value: string;
   extensions?: Extension[];
 }
 
-export default function CodeMirror({
-  value = '',
-  onUpdate = undefined,
-  ...props
-}: EditorProps) {
-  const editorContainer = useRef(null);
+export type ViewRef = EditorView | undefined;
+
+export default React.forwardRef(function CodeMirror(
+  props: EditorProps,
+  ref: React.ForwardedRef<ViewRef>
+) {
+  const editorContainer = React.useRef(null);
 
   const viewRef = React.useRef<EditorView>();
+  React.useImperativeHandle(ref, () => {
+    return viewRef.current;
+  });
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!editorContainer.current) {
       return;
     }
-    const extensions: Extension[] = [basicSetup, example()];
-    if (onUpdate) {
-      extensions.push(EditorView.updateListener.of(onUpdate));
-    }
-
-    if (props.extensions) {
-      extensions.push(...props.extensions);
-    }
-
+    console.log('Creating EditorState and EditorView');
     const state = EditorState.create({
-      doc: value,
-      extensions,
+      extensions: [basicSetup, example(), ...(props.extensions || [])],
     });
     const view = new EditorView({ state, parent: editorContainer.current });
     viewRef.current = view;
     return () => view.destroy();
   }, [editorContainer, props.extensions]);
 
+  const { current: view } = viewRef;
   React.useEffect(() => {
-    if (!viewRef.current) {
-      return;
-    }
-    const view = viewRef.current;
     // if the new value is different from the old one, update the view
-    if (view.state.sliceDoc(0) !== value) {
+    if (view && view.state.sliceDoc(0) !== props.value) {
       view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: value },
+        changes: { from: 0, to: view.state.doc.length, insert: props.value },
       });
     }
-  }, [value]);
+  }, [props.value, view]);
 
   return <div ref={editorContainer} />;
-}
+});

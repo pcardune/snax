@@ -9,6 +9,8 @@ import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import { useFileServer } from './file-server-client';
 import { ASTNode, File } from '@pcardune/snax/dist/snax/spec-gen';
 import { parser } from './grammar/snx-lang.js';
+import binaryen from 'binaryen';
+import { WASM_FEATURE_FLAGS } from '@pcardune/snax/dist/snax/ast-compiler';
 
 function useSnaxCompiler() {
   const client = useFileServer();
@@ -16,6 +18,7 @@ function useSnaxCompiler() {
   return React.useCallback(
     (ast: File) =>
       compileAST(ast, {
+        includeRuntime: false,
         importResolver: async (sourcePath) => {
           if (sourcePath.startsWith('snax/')) {
             sourcePath = '/snax/stdlib/' + sourcePath;
@@ -73,13 +76,12 @@ export default function useCodeChecker(): CodeChecker {
   const runChecks = React.useCallback(
     async (code: string) => {
       const result = SNAXParser.parseStr(code);
-      debugParse(code);
       setParses(result.isOk());
       if (result.isOk()) {
         const ast = result.value;
         if (ast.name === 'File') {
           try {
-            const binaryenModule = await compileAST(ast);
+            let binaryenModule = await compileAST(ast);
             setTypechecks(true);
             setCompiles(true);
             setError(null);
@@ -87,9 +89,18 @@ export default function useCodeChecker(): CodeChecker {
             const validates = binaryenModule.validate();
             setValidates(!!validates);
             if (validates) {
+              // now optimize it...
+              const binary = binaryenModule.emitBinary();
+              binaryenModule.dispose();
+              binaryenModule = binaryen.readBinary(binary);
+              binaryen.setOptimizeLevel(2);
+              binaryenModule.setFeatures(WASM_FEATURE_FLAGS);
+              binaryenModule.optimize();
+
               setModule(
                 await WebAssembly.compile(binaryenModule.emitBinary().buffer)
               );
+              binaryenModule.dispose();
             } else {
               setError({ message: 'Failed to validate' });
             }
@@ -106,6 +117,7 @@ export default function useCodeChecker(): CodeChecker {
               setTypechecks(true);
             }
             setCompiles(false);
+            setValidates(false);
           }
         }
       } else {
@@ -126,8 +138,12 @@ export default function useCodeChecker(): CodeChecker {
         debug: { debug: (...a: any[]) => console.log('debug', ...a) },
       });
       (window as any).wasm = modInstance.exports;
-      const result = wasi.start(modInstance);
-      console.log('Run Result:', result);
+      try {
+        const result = wasi.start(modInstance);
+        console.log('Run Result:', result);
+      } catch (e) {
+        console.error('Failed:', e);
+      }
     }
   }, [wasmModule]);
 

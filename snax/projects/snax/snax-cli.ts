@@ -141,7 +141,7 @@ const parser = yargs(hideBin(process.argv))
     handler: async (args) => {
       let inPath = args.file;
       console.log('Compiling file', inPath);
-      const { module, compiler } = await compileSnaxFile(inPath);
+      let { module, compiler } = await compileSnaxFile(inPath);
       if (!module.validate()) {
         console.warn('validation error');
       }
@@ -149,6 +149,11 @@ const parser = yargs(hideBin(process.argv))
       const { binary, sourceMap } = module.emitBinary(
         path.parse(inPath).name + '.wasm.map'
       );
+      module.dispose();
+      module = binaryen.readBinary(binary);
+      binaryen.setOptimizeLevel(2);
+      module.setFeatures(WASM_FEATURE_FLAGS);
+      module.optimize();
 
       const writeFile = (path: string, data: string | Uint8Array) => {
         fs.writeFileSync(path, data);
@@ -164,9 +169,6 @@ const parser = yargs(hideBin(process.argv))
           })
         );
       }
-
-      binaryen.setOptimizeLevel(2);
-      module.optimize();
 
       writeFile(fileWithExtension(inPath, '.wat'), module.emitText());
       writeFile(fileWithExtension(inPath, '.wasm'), binary);

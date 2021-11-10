@@ -62,7 +62,7 @@ exports[`control flow while loops compiles while statements 1`] = `
     ;;@ :3:22
     (i32.const 10)
    )
-   (loop $while_0
+   (loop $while_3
     ;;@ :4:13
     (block
      (drop
@@ -76,7 +76,7 @@ exports[`control flow while loops compiles while statements 1`] = `
       )
      )
     )
-    (br_if $while_0
+    (br_if $while_3
      (i32.lt_s
       ;;@ :3:18
       (local.get $1)
@@ -105,9 +105,9 @@ exports[`control flow while loops compiles while statements 1`] = `
 
 exports[`empty module compiles an empty program 1`] = `
 "(module
- (global $g0:#SP (mut i32) (i32.const 0))
+ (global $global$1 (mut i32) (i32.const 0))
  (memory $0 1 1)
- (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"stackPointer\\" (global $global$1))
  (export \\"memory\\" (memory $0))
 )
 "

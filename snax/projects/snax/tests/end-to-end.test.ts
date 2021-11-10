@@ -57,7 +57,10 @@ describe('empty module', () => {
   });
 
   it('compiles an empty program', async () => {
-    const { wat } = await compileToWAT('', { includeRuntime: true });
+    const { wat } = await compileToWAT('', {
+      includeRuntime: true,
+      optimize: true,
+    });
     expect(wat).toMatchSnapshot();
   });
 

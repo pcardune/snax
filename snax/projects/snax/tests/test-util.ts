@@ -6,6 +6,7 @@ import {
   FileCompiler,
   ModuleCompilerOptions,
   Runtime,
+  WASM_FEATURE_FLAGS,
 } from '../ast-compiler.js';
 import { SNAXParser } from '../snax-parser.js';
 import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
@@ -21,6 +22,7 @@ import path from 'path';
 export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
   debug?: boolean;
+  optimize?: undefined | 1 | 2 | 3 | 4 | true;
 };
 export async function compileToWAT(
   input: string | spec.File,
@@ -75,6 +77,15 @@ export async function compileToWAT(
     }
   }
   global.console.warn = oldWarn;
+
+  if (options.optimize !== undefined) {
+    binaryen.setOptimizeLevel(
+      typeof options.optimize === 'number' ? options.optimize : 2
+    );
+    binaryenModule = binaryen.readBinary(binaryenModule.emitBinary());
+    binaryenModule.setFeatures(WASM_FEATURE_FLAGS);
+    binaryenModule.optimize();
+  }
 
   let wat = binaryenModule.emitText();
   const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');

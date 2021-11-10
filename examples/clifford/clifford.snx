@@ -38,7 +38,7 @@ pub func clifford(a:f32, b:f32, c:f32, d:f32, iterations:i32) {
 
     i = i+1;
   }
-  draw(@buffer, width, height);
+  draw(@buffer as i32, width, height);
 }
 
 // adapted from http://www.cprogrammingnotes.com/question/cos-series.html

@@ -40,10 +40,6 @@ func allocate_memory(numBytes:usize) {
   reg result = $heap_start() + (index+2)*4;
   return result;
 }
-// TODO: do debugging in a better way
-extern debug {
-  func debug(num:i32, num2:i32):void;
-}
 
 func main() {
   init_allocator(100_u32);

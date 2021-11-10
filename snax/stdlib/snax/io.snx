@@ -13,34 +13,9 @@ extern wasi_unstable {
     numWrittenPointer:i32,
   ):void;
 }
+import string from "snax/string.snx"
 
-import mem from "snax/memory.snx"
-func u32ToStr(n:u32) {
-  reg numBytes = 10_u32; // largest 32 bit number has 10 digits
-  let s = String::{buffer: mem::malloc(numBytes), length: numBytes};
-  reg i = 0;
-  while (n > 0_u32) {
-    reg c = '0' + (n % 10_u32) as! u8;
-    s.buffer[i] = c;
-    n = n / 10_u32;
-    i = i + 1;
-  }
-
-  // now reverse the string
-  reg j = 0;
-  while (j < i/2) {
-    reg char = s.buffer[j];
-    s.buffer[j] = s.buffer[i-j-1];
-    s.buffer[i-j-1] = char;
-    j = j+1;
-  }
-
-  s.length = i as! u32;
-  
-  return s;
-}
-                  
-func printStr(s:&String) {
+func printStr(s:&string::String) {
   let iovec = [s.buffer as usize, s.length];
   let bytesWritten = 0;
   fd_write(
@@ -54,6 +29,8 @@ func printStr(s:&String) {
 func main() {
   let s = "foobar";
   printStr(@s);
-  let s2 = u32ToStr(34567891_u32);
+  let s2 = string::u32ToStr(34567891_u32);
   printStr(@s2);
+  let s3 = string::concat(@s, @s2);
+  printStr(@s3);
 }

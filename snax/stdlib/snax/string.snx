@@ -1,4 +1,54 @@
+import mem from "snax/memory.snx"
+
 struct String {
   buffer: &u8;
   length: usize;
+}
+
+func reverse(s:&String) {
+  reg i = s.length;
+  reg j = 0;
+  while (j < i/2) {
+    reg char = s.buffer[j];
+    s.buffer[j] = s.buffer[i-j-1];
+    s.buffer[i-j-1] = char;
+    j = j+1;
+  }
+}
+
+func u32ToStr(n:u32) {
+  reg numBytes = 10_u32; // largest 32 bit number has 10 digits
+  let s = String::{buffer: mem::malloc(numBytes), length: numBytes};
+  reg i = 0;
+  while (n > 0_u32) {
+    reg c = '0' + (n % 10_u32) as! u8;
+    s.buffer[i] = c;
+    n = n / 10_u32;
+    i = i + 1;
+  }
+  s.length = i as! u32;
+  reverse(@s);
+  return s;
+}
+
+func concat(s1:&String, s2:&String) {
+  reg length = s1.length+s2.length;
+  let s3 = String::{buffer: mem::malloc(length), length:length};
+
+  reg i = 0;
+  while (i < s1.length) {
+    s3.buffer[i] = s1.buffer[i];
+    i = i+1;
+  }
+  reg j = 0;
+  while (j < s2.length) {
+    s3.buffer[i] = s2.buffer[j];
+    i = i+1;
+    j = j+1;
+  }
+  return s3;
+}
+
+func main() {
+  return 0;
 }

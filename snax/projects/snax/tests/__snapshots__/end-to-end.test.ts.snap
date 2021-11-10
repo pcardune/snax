@@ -62,7 +62,7 @@ exports[`control flow while loops compiles while statements 1`] = `
     ;;@ :3:22
     (i32.const 10)
    )
-   (loop $while_3
+   (loop $while_0
     ;;@ :4:13
     (block
      (drop
@@ -76,7 +76,7 @@ exports[`control flow while loops compiles while statements 1`] = `
       )
      )
     )
-    (br_if $while_3
+    (br_if $while_0
      (i32.lt_s
       ;;@ :3:18
       (local.get $1)

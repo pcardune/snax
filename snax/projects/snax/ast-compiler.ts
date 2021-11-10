@@ -663,6 +663,7 @@ export class FuncDeclCompiler extends ASTCompiler<
         );
       }
     }
+    WhileStatementCompiler.index = 0;
     return func;
   }
 }
@@ -734,7 +735,7 @@ export class IfStatementCompiler extends StmtCompiler<AST.IfStatement> {
 }
 
 export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
-  private static index = 0;
+  static index = 0;
 
   compile() {
     const { module } = this.context;

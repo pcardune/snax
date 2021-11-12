@@ -1263,7 +1263,11 @@ export function makeImportDeclWith(fields: {
   };
 }
 
-type ModuleDeclFields = { symbol: string; decls: TopLevelDecl[] };
+type ModuleDeclFields = {
+  symbol: string;
+  globalNamespace?: boolean;
+  decls: TopLevelDecl[];
+};
 
 export type ModuleDecl = {
   name: 'ModuleDecl';
@@ -1277,12 +1281,14 @@ export function isModuleDecl(node: ASTNode): node is ModuleDecl {
 
 export function makeModuleDecl(
   symbol: string,
+  globalNamespace: boolean | undefined,
   decls: TopLevelDecl[]
 ): ModuleDecl {
   return {
     name: 'ModuleDecl',
     fields: {
       symbol,
+      globalNamespace,
       decls,
     },
   };
@@ -1290,6 +1296,7 @@ export function makeModuleDecl(
 
 export function makeModuleDeclWith(fields: {
   symbol: string;
+  globalNamespace?: boolean;
   decls: TopLevelDecl[];
 }): ModuleDecl {
   return {

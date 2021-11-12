@@ -304,7 +304,7 @@ describe('block compilation', () => {
             y;
           `)
       ).rejects.toMatchInlineSnapshot(
-        `[Error: SymbolResolutionError at  4:15: Reference to undeclared symbol y]`
+        `[Error: SymbolResolutionError at :4:15: Reference to undeclared symbol y]`
       );
     });
   });
@@ -341,7 +341,7 @@ describe('assignment operator', () => {
         y;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: SymbolResolutionError at  3:9: Reference to undeclared symbol y]`
+      `[Error: SymbolResolutionError at :3:9: Reference to undeclared symbol y]`
     );
     await expect(
       exec(`

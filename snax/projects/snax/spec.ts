@@ -237,6 +237,7 @@ const specInput: Record<
   ModuleDecl: {
     fields: {
       symbol: 'string',
+      globalNamespace: { type: 'boolean', optional: true },
       decls: { type: 'TopLevelDecl', list: true },
     },
   },

@@ -10,7 +10,7 @@ exports[`resolveSymbols spits out the right debug info 1`] = `
   </SymbolTable>
   <decls>
     <ModuleDecl symbol=\\"math\\">
-      <SymbolTable id=\\"56\\" parent=\\"undefined\\">
+      <SymbolTable id=\\"56\\" parent=\\"54\\">
         <calcPi/>
       </SymbolTable>
       <decls>

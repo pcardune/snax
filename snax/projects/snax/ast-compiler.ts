@@ -237,26 +237,27 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   }
 
   private async setup() {
+    const stringImport = AST.makeImportDeclWith({
+      symbol: 'string',
+      path: 'snax/string.snx',
+    });
+    stringImport.location = {
+      source: '<compiler>',
+      start: { offset: 0, line: 0, column: 0 },
+      end: { offset: 0, line: 0, column: 0 },
+    };
     if (this.options.includeRuntime) {
-      let runtimeAST = SNAXParser.parseStrOrThrow(
-        `import string from "snax/string.snx"`,
-        'start',
-        { grammarSource: '<compiler>' }
-      );
-      if (AST.isFile(runtimeAST)) {
-        for (const decl of runtimeAST.fields.decls) {
-          if (AST.isFuncDecl(decl)) {
-            if (decl.fields.symbol === 'main') {
-              continue;
-            }
-          }
-          this.root.fields.decls.push(decl);
-        }
-      } else {
-        throw this.error(`this should never happen`);
-      }
+      this.root.fields.decls.unshift(stringImport);
     }
-    await resolveImports(this.root, this.options.importResolver);
+    const importToModule = await resolveImports(
+      this.root,
+      this.options.importResolver
+    );
+    const stringModule = importToModule.get(stringImport);
+    if (stringModule) {
+      stringModule.fields.globalNamespace = true;
+    }
+
     desugar(this.root);
 
     const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');

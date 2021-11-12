@@ -30,10 +30,16 @@ export class WASI {
         this.memory.buffer.slice((start / 4) * 4, (start / 4) * 4 + length)
       );
       const output = new TextDecoder('utf-8').decode(strBuffer);
-      console.log(output);
+      this.stdout.write(output);
     },
     fd_read: () => {
       throw new Error('not implemented yet');
+    },
+  };
+
+  stdout = {
+    write: (str: string) => {
+      console.log(str);
     },
   };
 

@@ -23,6 +23,7 @@ export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
   debug?: boolean;
   optimize?: undefined | 1 | 2 | 3 | 4 | true;
+  importObject?: WebAssembly.Imports;
 };
 export async function compileToWAT(
   input: string | spec.File,
@@ -182,9 +183,11 @@ export async function compileToWasmModule<Exports>(
         console.log('snax debug:', ...args);
       },
     },
+    ...options?.importObject,
   });
   const exports = module.instance.exports;
   return {
+    instance: module.instance,
     exports: exports as SnaxExports & Exports,
     wat,
     ast,
@@ -195,7 +198,7 @@ export async function compileToWasmModule<Exports>(
 
 export async function exec(
   input: string,
-  options?: Partial<ModuleCompilerOptions>
+  options?: Partial<CompileToWatOptions>
 ) {
   const { exports } = await compileToWasmModule(input, options);
   return exports._start();

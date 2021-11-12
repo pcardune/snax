@@ -1,3 +1,4 @@
+import { WASI } from '../wasi.js';
 import { compileToWasmModule, exec, int32, int32Slice } from './test-util.js';
 
 describe('malloc', () => {
@@ -66,5 +67,25 @@ describe('sin_f32', () => {
       math::sinf32(2.0);
     `;
     expect(await exec(code, { includeRuntime: true })).toBeCloseTo(Math.sin(2));
+  });
+});
+
+describe('io', () => {
+  it('lets you print a string', async () => {
+    const code = `
+      import io from "snax/io.snx"
+      io::printStr(@"foo");
+    `;
+    const wasi = new WASI();
+    wasi.stdout.write = jest.fn();
+    const { instance } = await compileToWasmModule(code, {
+      includeRuntime: true,
+      importObject: {
+        wasi_snapshot_preview1: wasi.wasiImport,
+        wasi_unstable: wasi.wasiImport,
+      },
+    });
+    wasi.start(instance);
+    expect(wasi.stdout.write).toHaveBeenCalledWith('foo');
   });
 });

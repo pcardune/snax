@@ -209,7 +209,6 @@ export class BlockCompiler extends StmtCompiler<AST.Block> {
 
 export type ModuleCompilerOptions = {
   includeRuntime?: boolean;
-  includeWASI?: boolean;
 
   /**
    * The number of pages of memory to use for the stack
@@ -233,7 +232,6 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     super(file, undefined);
     this.options = {
       includeRuntime: true,
-      includeWASI: false,
       stackSize: 100,
       ...options,
     };

@@ -969,6 +969,17 @@ describe('tuple structs', () => {
     expect(await exec(code)).toEqual(342);
   });
 
+  it('lets you pass struct literals as function parameters by ref', async () => {
+    const code = `
+      struct Vector(u8,i32);
+      func add(v:&Vector) {
+        return v.0 as i32 + v.1;
+      }
+      add(@Vector::(18_u8, 324));
+    `;
+    expect(await exec(code)).toEqual(342);
+  });
+
   it('lets you return structs as values, which will be copied.', async () => {
     const code = `
       struct Pair(i32,i32);

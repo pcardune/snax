@@ -2109,7 +2109,8 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
     );
   }
   getLValue(): LValue {
-    throw this.error(`${this.root.name}s don't have lvalues`);
+    const rvalue = this.getRValue();
+    return lvalueDynamic(rvalue.valuePtrExpr);
   }
 }
 

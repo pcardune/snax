@@ -18,19 +18,24 @@ function useSnaxCompiler() {
   return React.useCallback(
     (ast: File) =>
       compileAST(ast, {
-        includeRuntime: false,
+        includeRuntime: true,
         importResolver: async (sourcePath) => {
           if (sourcePath.startsWith('snax/')) {
             sourcePath = '/snax/stdlib/' + sourcePath;
           }
           const file = await client.readFile(sourcePath);
-          const ast = SNAXParser.parseStrOrThrow(file.content, 'start', {
+          const result = SNAXParser.parseStr(file.content, 'start', {
             grammarSource: file.url,
           });
-          if (ast.name !== 'File') {
-            throw new Error(`invalid parse result, expected a file.`);
+          if (result.isOk()) {
+            const ast = result.value;
+            if (ast.name !== 'File') {
+              throw new Error(`invalid parse result, expected a file.`);
+            }
+            return ast;
+          } else {
+            throw new Error(`Failed to parse ${sourcePath}: ${result.error}`);
           }
-          return ast;
         },
       }),
     [client]
@@ -56,11 +61,11 @@ function debugParse(code: string) {
 export type CodeChecker = {
   checks: { label: string; state: boolean | undefined }[];
   error: { node?: ASTNode; message: string } | null;
-  runChecks: (code: string) => Promise<void>;
+  runChecks: (code: string, grammarSource?: string) => Promise<void>;
   runCode: () => Promise<void>;
 };
 
-export default function useCodeChecker(): CodeChecker {
+export default function useCodeChecker(optimize = false): CodeChecker {
   const [parses, setParses] = React.useState<boolean | undefined>();
   const [typeChecks, setTypechecks] = React.useState<boolean | undefined>();
   const [compiles, setCompiles] = React.useState<boolean | undefined>();
@@ -74,8 +79,10 @@ export default function useCodeChecker(): CodeChecker {
   const compileAST = useSnaxCompiler();
 
   const runChecks = React.useCallback(
-    async (code: string) => {
-      const result = SNAXParser.parseStr(code);
+    async (code: string, grammarSource: string = '') => {
+      const result = SNAXParser.parseStr(code, 'start', {
+        grammarSource,
+      });
       setParses(result.isOk());
       if (result.isOk()) {
         const ast = result.value;
@@ -90,16 +97,17 @@ export default function useCodeChecker(): CodeChecker {
             setValidates(!!validates);
             if (validates) {
               // now optimize it...
-              const binary = binaryenModule.emitBinary();
-              binaryenModule.dispose();
-              binaryenModule = binaryen.readBinary(binary);
-              binaryen.setOptimizeLevel(2);
-              binaryenModule.setFeatures(WASM_FEATURE_FLAGS);
-              binaryenModule.optimize();
+              let binary = binaryenModule.emitBinary();
+              if (optimize) {
+                binaryenModule.dispose();
+                binaryenModule = binaryen.readBinary(binary);
+                binaryen.setOptimizeLevel(2);
+                binaryenModule.setFeatures(WASM_FEATURE_FLAGS);
+                binaryenModule.optimize();
+                binary = binaryenModule.emitBinary();
+              }
 
-              setModule(
-                await WebAssembly.compile(binaryenModule.emitBinary().buffer)
-              );
+              setModule(await WebAssembly.compile(binary.buffer));
               binaryenModule.dispose();
             } else {
               setError({ message: 'Failed to validate' });
@@ -126,7 +134,7 @@ export default function useCodeChecker(): CodeChecker {
         setCompiles(false);
       }
     },
-    [compileAST]
+    [compileAST, optimize]
   );
   const runCode = React.useCallback(async () => {
     if (wasmModule) {

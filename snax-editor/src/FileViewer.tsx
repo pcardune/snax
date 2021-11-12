@@ -41,7 +41,7 @@ export default function FileViewer(props: { path: string }) {
         if (update.docChanged) {
           debounce(() => {
             const code = update.state.doc.sliceString(0);
-            runChecks(code);
+            runChecks(code, props.path);
             cacheFile(code);
           }, 50);
         }
@@ -64,7 +64,7 @@ export default function FileViewer(props: { path: string }) {
     }
     if (checker.error) {
       const { node } = checker.error;
-      if (node && node.location) {
+      if (node && node.location && node.location.source.endsWith(props.path)) {
         underlineSection(
           cmViewRef.current,
           node.location.start.offset,

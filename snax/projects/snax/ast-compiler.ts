@@ -21,7 +21,6 @@ import {
   AllocationMap,
   Area,
   FuncAllocations,
-  FuncStorageLocation,
   GlobalStorageLocation,
   LocalAllocation,
   LocalStorageLocation,
@@ -239,9 +238,11 @@ export class FileCompiler extends ASTCompiler<AST.File> {
 
   private async setup() {
     if (this.options.includeRuntime) {
-      let runtimeAST = SNAXParser.parseStrOrThrow(`
-        import string from "snax/string.snx"
-      `);
+      let runtimeAST = SNAXParser.parseStrOrThrow(
+        `import string from "snax/string.snx"`,
+        'start',
+        { grammarSource: '<compiler>' }
+      );
       if (AST.isFile(runtimeAST)) {
         for (const decl of runtimeAST.fields.decls) {
           if (AST.isFuncDecl(decl)) {
@@ -1616,6 +1617,12 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         ),
       heap_start: () =>
         rvalueDirect(Intrinsics.i32, module.i32.const(this.context.heapStart)),
+      print: () => {
+        right.fields.args.map((arg) => {
+          console.log(this.context.typeCache.get(arg));
+        });
+        return rvalueDirect(Intrinsics.void, module.nop());
+      },
     };
     const getRValue = compilerFuncs[symbol];
     if (!getRValue) {
@@ -1639,7 +1646,15 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   }
 
   getLValue(): LValue {
-    throw new Error(`Don't know how to get lvalue for CallExpr`);
+    const rvalue = this.getRValue();
+    switch (rvalue.kind) {
+      case 'address':
+        return lvalueDynamic(rvalue.valuePtrExpr);
+      default:
+        throw new Error(
+          `Don't know how to get lvalue for CallExpr that returns a non-addressable value`
+        );
+    }
   }
 
   getRValue() {

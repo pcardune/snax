@@ -10,6 +10,7 @@ func init_allocator(maxHeapSize:usize) {
   reg heap32 = $heap_start() as! &usize;
   heap32[0] = maxHeapSize;
   heap32[1] = 0_u32;
+  return heap32;
 }
 
 func allocate_memory(numBytes:usize) {

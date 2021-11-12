@@ -1,17 +1,54 @@
 import { WASI } from '../wasi.js';
-import { compileToWasmModule, exec, int32, int32Slice } from './test-util.js';
+import {
+  compileToWasmModule,
+  CompileToWatOptions,
+  exec,
+  int32,
+  int32Slice,
+} from './test-util.js';
+
+let wasi: WASI;
+let options: CompileToWatOptions;
+
+const execWithWASI = async (code: string) => {
+  const { instance } = await compileToWasmModule(code, {
+    includeRuntime: true,
+    importObject: {
+      wasi_snapshot_preview1: wasi.wasiImport,
+      wasi_unstable: wasi.wasiImport,
+    },
+  });
+  return wasi.start(instance);
+};
+
+beforeEach(() => {
+  wasi = new WASI();
+  wasi.stdout.write = jest.fn();
+  options = {
+    includeRuntime: true,
+    importObject: {
+      wasi_snapshot_preview1: wasi.wasiImport,
+      wasi_unstable: wasi.wasiImport,
+    },
+  };
+});
 
 describe('malloc', () => {
   it('allocates from the beginning of memory', async () => {
     const code = `
       import mem from "snax/memory.snx"
-      let start = "static content";
-      let x = mem::malloc(7_u32);
-      let y = mem::malloc(4_u32);
-      y;
+      pub func test(numBytes:usize) {
+        return mem::malloc(numBytes);
+      }
     `;
-    const startAddress = 'static content'.length + 7;
-    expect(await exec(code, { includeRuntime: true })).toEqual(startAddress);
+    const { exports } = await compileToWasmModule<{
+      test: (numBytes: number) => number;
+    }>(code, options);
+    const first = exports.test(7);
+    const second = exports.test(4);
+    const third = exports.test(8);
+    expect(second).toBe(first + 7);
+    expect(third).toBe(second + 4);
   });
 
   it('finds the next available space', async () => {
@@ -21,21 +58,19 @@ describe('malloc', () => {
         return mem::allocate_memory(numBytes);
       }
       pub func init() {
-        mem::init_allocator(100_u32);
+        return mem::init_allocator(100_u32);
       }
     `;
     const { exports, wat } = await compileToWasmModule<{
-      init: () => void;
+      init: () => number;
       test: (num: number) => number;
-    }>(code, {
-      includeRuntime: true,
-    });
-    exports.init();
-    expect(int32(exports.memory, 0)).toEqual(100);
-    expect(exports.test(4)).toEqual(8);
-    expect(int32(exports.memory, 0)).toEqual(4);
-    expect(int32(exports.memory, 4)).toEqual(1);
-    expect(int32Slice(exports.memory, 0, 16)).toMatchInlineSnapshot(`
+    }>(code, options);
+    const heapStart = exports.init();
+    expect(int32(exports.memory, heapStart)).toEqual(100);
+    expect(exports.test(4)).toEqual(heapStart + 8);
+    expect(int32(exports.memory, heapStart)).toEqual(4);
+    expect(int32(exports.memory, heapStart + 4)).toEqual(1);
+    expect(int32Slice(exports.memory, heapStart, 16)).toMatchInlineSnapshot(`
       Array [
         4,
         1,
@@ -43,9 +78,9 @@ describe('malloc', () => {
         88,
       ]
     `);
-    expect(int32(exports.memory, 8 + 4)).toEqual(100 - 12);
-    expect(exports.test(8)).toEqual(20);
-    expect(int32Slice(exports.memory, 0, 32)).toMatchInlineSnapshot(`
+    expect(int32(exports.memory, heapStart + 8 + 4)).toEqual(100 - 12);
+    expect(exports.test(8)).toEqual(heapStart + 20);
+    expect(int32Slice(exports.memory, heapStart, 32)).toMatchInlineSnapshot(`
       Array [
         4,
         1,
@@ -66,7 +101,7 @@ describe('sin_f32', () => {
       import math from "snax/math.snx"
       math::sinf32(2.0);
     `;
-    expect(await exec(code, { includeRuntime: true })).toBeCloseTo(Math.sin(2));
+    expect(await exec(code, options)).toBeCloseTo(Math.sin(2));
   });
 });
 
@@ -76,16 +111,7 @@ describe('io', () => {
       import io from "snax/io.snx"
       io::printStr(@"foo");
     `;
-    const wasi = new WASI();
-    wasi.stdout.write = jest.fn();
-    const { instance } = await compileToWasmModule(code, {
-      includeRuntime: true,
-      importObject: {
-        wasi_snapshot_preview1: wasi.wasiImport,
-        wasi_unstable: wasi.wasiImport,
-      },
-    });
-    wasi.start(instance);
+    await execWithWASI(code);
     expect(wasi.stdout.write).toHaveBeenCalledWith('foo');
   });
 });

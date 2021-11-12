@@ -5,7 +5,7 @@ import type { TypeResolver } from './type-resolution.js';
 export const atString = (location: Location | undefined) => {
   let atString = '<unknown>';
   if (location) {
-    atString = `${location.source} ${location.start.line}:${location.start.column}`;
+    atString = `${location.source}:${location.start.line}:${location.start.column}`;
   }
   return atString;
 };

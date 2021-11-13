@@ -19,7 +19,7 @@ function useSnaxCompiler() {
     (ast: File) =>
       compileAST(ast, {
         includeRuntime: true,
-        importResolver: async (sourcePath) => {
+        importResolver: async (sourcePath, fromCanonicalUrl) => {
           if (sourcePath.startsWith('snax/')) {
             sourcePath = '/snax/stdlib/' + sourcePath;
           }
@@ -32,7 +32,7 @@ function useSnaxCompiler() {
             if (ast.name !== 'File') {
               throw new Error(`invalid parse result, expected a file.`);
             }
-            return ast;
+            return { ast, canonicalUrl: sourcePath };
           } else {
             throw new Error(`Failed to parse ${sourcePath}: ${result.error}`);
           }

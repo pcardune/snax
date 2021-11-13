@@ -33,7 +33,7 @@ import binaryen from 'binaryen';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
 import { pretty } from './spec-util.js';
-import { resolveImports } from './import-resolver.js';
+import { PathLoader, resolveImports } from './import-resolver.js';
 
 export const PAGE_SIZE = 65536;
 export const WASM_FEATURE_FLAGS =
@@ -218,7 +218,7 @@ export type ModuleCompilerOptions = {
    * A function resolves a path to the file contents for
    * that path.
    */
-  importResolver: (path: string) => Promise<AST.File>;
+  importResolver: PathLoader;
 };
 export class FileCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
@@ -251,7 +251,8 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     }
     const importToModule = await resolveImports(
       this.root,
-      this.options.importResolver
+      this.options.importResolver,
+      [this.root.location?.source ?? '']
     );
     const stringModule = importToModule.get(stringImport);
     if (stringModule) {

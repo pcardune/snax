@@ -1053,30 +1053,45 @@ describe('module declarations', () => {
 });
 
 describe('importing modules from other files', () => {
+  const files: { [path: string]: string } = {
+    './path/to/file.snx': `
+      pub func doSomething() {
+        return 34;
+      }
+    `,
+    'a.snx': `import b from "b.snx"`,
+    'b.snx': `import c from "c.snx"`,
+    'c.snx': `import a from "a.snx"`,
+    'd.snx': `import a from "a.snx"`,
+  };
+
+  const importResolver = async (path: string) => {
+    const content = files[path];
+    const ast = SNAXParser.parseStrOrThrow(content, 'start', {
+      grammarSource: path,
+    });
+    if (isFile(ast)) {
+      return { ast, canonicalUrl: path };
+    }
+    throw new Error(`Expected file ${path} to parse to a File ast`);
+  };
+
   it('lets you import other files', async () => {
-    const files: { [path: string]: string } = {
-      './path/to/file.snx': `
-        pub func doSomething() {
-          return 34;
-        }
-      `,
-    };
     const code = `
       import someModule from "./path/to/file.snx"
       someModule::doSomething();
     `;
-    await compileToWasmModule(code, {
-      importResolver: async (path: string) => {
-        const content = files[path];
-        const ast = SNAXParser.parseStrOrThrow(content, 'start', {
-          grammarSource: path,
-        });
-        if (isFile(ast)) {
-          return ast;
-        }
-        throw new Error(`Expected file ${path} to parse to a File ast`);
-      },
-    });
+    await compileToWasmModule(code, { importResolver });
+  });
+
+  it('does not allow circular dependencies', async () => {
+    const code = `import someModule from "d.snx"`;
+    expect(compileToWasmModule(code, { importResolver })).rejects
+      .toMatchInlineSnapshot(`
+      [Error: CompilerError at c.snx:1:1: Import cycle detected: a.snx -> b.snx -> c.snx -> a.snx
+        1: import someModule from "d.snx"
+        ---^]
+    `);
   });
 });
 

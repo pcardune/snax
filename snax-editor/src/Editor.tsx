@@ -136,7 +136,7 @@ function FileList(props: {
   path?: string;
   onSelectFile?: OnSelectFile;
 }) {
-  const directory = props.path ?? '/';
+  const directory = props.path ?? '';
   const selectFile = (item: FileInfo) => {
     props.onSelectFile && props.onSelectFile(directory + '/' + item.name);
   };
@@ -184,7 +184,7 @@ export default function Editor() {
     localStorage.setItem('selectedFilePath', path);
     setSelectedFilePath(path);
   };
-  const fileList = useFileList('');
+  const fileList = useFileList('/');
   return (
     <Grid container spacing={2}>
       <Grid item xs={12}>

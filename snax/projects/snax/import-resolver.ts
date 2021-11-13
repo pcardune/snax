@@ -1,3 +1,4 @@
+import { CompilerError } from './errors.js';
 import * as AST from './spec-gen.js';
 
 function getNextImportDecl(fromNode: AST.File | AST.ModuleDecl):
@@ -18,6 +19,11 @@ function getNextImportDecl(fromNode: AST.File | AST.ModuleDecl):
     }
   }
 }
+
+export type PathLoader = (
+  path: string,
+  fromCanonicalUrl: string
+) => Promise<{ ast: AST.File; canonicalUrl: string }>;
 
 /**
  * Given a file ast, recursively replaces all import statements
@@ -43,14 +49,37 @@ function getNextImportDecl(fromNode: AST.File | AST.ModuleDecl):
  */
 export async function resolveImports(
   file: AST.File,
-  pathLoader: (path: string) => Promise<AST.File>
+  pathLoader: PathLoader,
+  stack: string[]
 ) {
   const importToModule = new Map<AST.ImportDecl, AST.ModuleDecl>();
   let nextImport = getNextImportDecl(file);
   while (nextImport) {
     const { importDecl, parentNode } = nextImport;
     const { path } = importDecl.fields;
-    const importedFileAst = await pathLoader(path);
+    const { ast: importedFileAst, canonicalUrl } = await pathLoader(
+      path,
+      stack[stack.length - 1]
+    );
+    if (stack.includes(canonicalUrl)) {
+      const cycle = stack.slice(stack.indexOf(canonicalUrl));
+      cycle.push(canonicalUrl);
+      throw new CompilerError(
+        importDecl,
+        `Import cycle detected: ${cycle.join(' -> ')}`
+      );
+    }
+    stack.push(canonicalUrl);
+    const additionalImports = await resolveImports(
+      importedFileAst,
+      pathLoader,
+      stack
+    );
+    stack.pop();
+    for (const [key, val] of additionalImports.entries()) {
+      importToModule.set(key, val);
+    }
+
     const importedModuleDecl = AST.makeModuleDeclWith({
       symbol: importDecl.fields.symbol,
       decls: importedFileAst.fields.decls,

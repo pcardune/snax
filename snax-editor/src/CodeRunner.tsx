@@ -44,24 +44,20 @@ function CompilerStatus(props: {
 
 export default function CodeRunner({ checker }: { checker: CodeChecker }) {
   return (
-    <Paper>
-      <Stack spacing={2}>
+    <Stack spacing={2}>
+      <Box sx={{ p: 2 }}>
+        <CompilerStatus checks={checker.checks} />
+      </Box>
+      {checker.error && (
         <Box sx={{ p: 2 }}>
-          <CompilerStatus checks={checker.checks} />
+          <pre style={{ whiteSpace: 'pre-wrap' }}>{checker.error.message}</pre>
         </Box>
-        {checker.error && (
-          <Box sx={{ p: 2 }}>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>
-              {checker.error.message}
-            </pre>
-          </Box>
-        )}
-        <Box>
-          <Button disabled={!!checker.error} onClick={checker.runCode}>
-            Run
-          </Button>
-        </Box>
-      </Stack>
-    </Paper>
+      )}
+      <Box>
+        <Button disabled={!!checker.error} onClick={checker.runCode}>
+          Run
+        </Button>
+      </Box>
+    </Stack>
   );
 }

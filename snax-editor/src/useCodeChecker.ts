@@ -61,6 +61,7 @@ function debugParse(code: string) {
 export type CodeChecker = {
   checks: { label: string; state: boolean | undefined }[];
   error: { node?: ASTNode; message: string } | null;
+  ast: ASTNode | null;
   runChecks: (code: string, grammarSource?: string) => Promise<void>;
   runCode: () => Promise<void>;
 };
@@ -75,6 +76,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     message: string;
   } | null>(null);
   const [wasmModule, setModule] = React.useState<WebAssembly.Module>();
+  const [ast, setAST] = React.useState<ASTNode | null>(null);
 
   const compileAST = useSnaxCompiler();
 
@@ -86,6 +88,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
       setParses(result.isOk());
       if (result.isOk()) {
         const ast = result.value;
+        setAST(ast);
         if (ast.name === 'File') {
           try {
             let binaryenModule = await compileAST(ast);
@@ -129,6 +132,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
           }
         }
       } else {
+        setAST(null);
         setError({ message: String(result.error) });
         setTypechecks(false);
         setCompiles(false);
@@ -161,5 +165,5 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     { label: 'compiles', state: compiles },
     { label: 'validates', state: validates },
   ];
-  return { checks, error, runChecks, runCode };
+  return { checks, error, ast, runChecks, runCode };
 }

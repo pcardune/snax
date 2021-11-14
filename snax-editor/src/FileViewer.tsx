@@ -1,6 +1,17 @@
 import React from 'react';
 import { EditorView, keymap, ViewUpdate } from '@codemirror/view';
-import { Grid, Paper, Typography, Toolbar, Stack, Button } from '@mui/material';
+import {
+  Grid,
+  Paper,
+  Typography,
+  Toolbar,
+  Stack,
+  Button,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Icon,
+} from '@mui/material';
 import { Box } from '@mui/system';
 import CodeMirror, { ViewRef } from './CodeMirror';
 import { useWriteableFile, useDebounce } from './hooks';
@@ -8,6 +19,7 @@ import CodeRunner from './CodeRunner';
 import { formatTime } from './util';
 import useCodeChecker from './useCodeChecker';
 import { removeUnderlines, underlineSection } from './codemirror/error-marker';
+import ASTViewer from './ASTViewer';
 
 function Time(props: { time: number }) {
   const [label, setLabel] = React.useState(formatTime(props.time));
@@ -105,7 +117,30 @@ export default function FileViewer(props: { path: string }) {
         </Paper>
       </Grid>
       <Grid item xs={4}>
-        <CodeRunner checker={checker} />
+        <Accordion>
+          <AccordionSummary
+            expandIcon={<Icon>arrow_drop_down</Icon>}
+            aria-controls="panel1a-content"
+            id="panel1a-header"
+          >
+            <Typography>Code Runner</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <CodeRunner checker={checker} />
+          </AccordionDetails>
+        </Accordion>
+        <Accordion>
+          <AccordionSummary
+            expandIcon={<Icon>arrow_drop_down</Icon>}
+            aria-controls="panel1a-content"
+            id="panel1a-header"
+          >
+            <Typography>Syntax Tree</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {checker.ast && <ASTViewer ast={checker.ast} />}
+          </AccordionDetails>
+        </Accordion>
       </Grid>
     </Grid>
   );

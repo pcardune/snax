@@ -18,15 +18,20 @@
 
 import ReactDOM from 'react-dom';
 import React from 'react';
+import { ThemeProvider } from '@mui/material/styles';
 import Editor from '../src/Editor';
 import './style.css';
 import { FileServerClient, FileServerContext } from '../src/file-server-client';
+import theme from '../src/theme';
 const appContainer = document.createElement('div');
 document.body.appendChild(appContainer);
 const client = new FileServerClient('http://localhost:8085');
+
 ReactDOM.render(
-  <FileServerContext.Provider value={client}>
-    <Editor />
-  </FileServerContext.Provider>,
+  <ThemeProvider theme={theme}>
+    <FileServerContext.Provider value={client}>
+      <Editor />
+    </FileServerContext.Provider>
+  </ThemeProvider>,
   appContainer
 );

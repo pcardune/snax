@@ -18,8 +18,9 @@ import { useWriteableFile, useDebounce } from './hooks';
 import CodeRunner from './CodeRunner';
 import { formatTime } from './util';
 import useCodeChecker from './useCodeChecker';
-import { removeUnderlines, underlineSection } from './codemirror/error-marker';
+import { TextMarker } from './codemirror/error-marker';
 import ASTViewer from './ASTViewer';
+import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen';
 
 function Time(props: { time: number }) {
   const [label, setLabel] = React.useState(formatTime(props.time));
@@ -30,6 +31,38 @@ function Time(props: { time: number }) {
     return () => clearInterval(interval);
   }, [props.time]);
   return <>{label}</>;
+}
+
+const errorMarker = new TextMarker('cm-underline', {
+  textDecoration: 'underline 3px red',
+});
+
+const highlightMarker = new TextMarker('cm-node-highlight', {
+  backgroundColor: '#ddf',
+});
+
+function useNodeHighlighter(
+  marker: TextMarker,
+  cmViewRef: React.RefObject<ViewRef>,
+  source: string
+) {
+  return React.useCallback(
+    (node: ASTNode | undefined | null) => {
+      if (!cmViewRef.current) {
+        return;
+      }
+      if (node && node.location && node.location.source.endsWith(source)) {
+        marker.markSection(
+          cmViewRef.current,
+          node.location.start.offset,
+          node.location.end.offset
+        );
+      } else {
+        marker.unmarkAll(cmViewRef.current);
+      }
+    },
+    [cmViewRef, source, marker]
+  );
 }
 
 export default function FileViewer(props: { path: string }) {
@@ -70,23 +103,25 @@ export default function FileViewer(props: { path: string }) {
     ];
   }, [debounce, onClickSave, cacheFile, runChecks]);
 
+  const setErrorNode = useNodeHighlighter(errorMarker, cmViewRef, props.path);
+  const setHoverNode = useNodeHighlighter(
+    highlightMarker,
+    cmViewRef,
+    props.path
+  );
   React.useEffect(() => {
     if (!cmViewRef.current) {
       return;
     }
-    if (checker.error) {
-      const { node } = checker.error;
-      if (node && node.location && node.location.source.endsWith(props.path)) {
-        underlineSection(
-          cmViewRef.current,
-          node.location.start.offset,
-          node.location.end.offset
-        );
-      }
-    } else {
-      removeUnderlines(cmViewRef.current);
-    }
-  }, [checker.error]);
+    setErrorNode(checker.error?.node);
+  }, [checker.error, setErrorNode]);
+
+  const onHoverASTNode = React.useCallback(
+    (node: ASTNode | null) => {
+      setHoverNode(node);
+    },
+    [setHoverNode]
+  );
 
   return (
     <Grid container spacing={2}>
@@ -138,7 +173,9 @@ export default function FileViewer(props: { path: string }) {
             <Typography>Syntax Tree</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            {checker.ast && <ASTViewer ast={checker.ast} />}
+            {checker.ast && (
+              <ASTViewer ast={checker.ast} onHoverNode={onHoverASTNode} />
+            )}
           </AccordionDetails>
         </Accordion>
       </Grid>

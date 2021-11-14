@@ -10,7 +10,10 @@ import { useFileServer } from './file-server-client';
 import { ASTNode, File } from '@pcardune/snax/dist/snax/spec-gen';
 import { parser } from './grammar/snx-lang.js';
 import binaryen from 'binaryen';
-import { WASM_FEATURE_FLAGS } from '@pcardune/snax/dist/snax/ast-compiler';
+import {
+  FileCompiler,
+  WASM_FEATURE_FLAGS,
+} from '@pcardune/snax/dist/snax/ast-compiler';
 
 function useSnaxCompiler() {
   const client = useFileServer();
@@ -62,6 +65,7 @@ export type CodeChecker = {
   checks: { label: string; state: boolean | undefined }[];
   error: { node?: ASTNode; message: string } | null;
   ast: ASTNode | null;
+  compiler: FileCompiler | null;
   runChecks: (code: string, grammarSource?: string) => Promise<void>;
   runCode: () => Promise<void>;
 };
@@ -77,6 +81,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
   } | null>(null);
   const [wasmModule, setModule] = React.useState<WebAssembly.Module>();
   const [ast, setAST] = React.useState<ASTNode | null>(null);
+  const [compiler, setCompiler] = React.useState<FileCompiler | null>(null);
 
   const compileAST = useSnaxCompiler();
 
@@ -91,7 +96,8 @@ export default function useCodeChecker(optimize = false): CodeChecker {
         setAST(ast);
         if (ast.name === 'File') {
           try {
-            let binaryenModule = await compileAST(ast);
+            let { binaryenModule, compiler } = await compileAST(ast);
+            setCompiler(compiler);
             setTypechecks(true);
             setCompiles(true);
             setError(null);
@@ -117,6 +123,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
             }
             return;
           } catch (e) {
+            setCompiler(null);
             setError({
               node: e instanceof NodeError ? e.node : undefined,
               message: String(e),
@@ -165,5 +172,5 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     { label: 'compiles', state: compiles },
     { label: 'validates', state: validates },
   ];
-  return { checks, error, ast, runChecks, runCode };
+  return { checks, error, ast, compiler, runChecks, runCode };
 }

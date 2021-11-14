@@ -155,6 +155,108 @@ exports[`empty module compiles to binaryen module 1`] = `
 
 exports[`empty module compiles to binaryen module 2`] = `"{\\"version\\":3,\\"sources\\":[],\\"names\\":[],\\"mappings\\":\\"\\"}"`;
 
+exports[`importing modules from other files lets you import other files 1`] = `
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"doSomething\\" (func $<./path/to/file.snx::doSomething>f0))
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<./path/to/file.snx::doSomething>f0 (result i32)
+  (local $0 i32)
+  ;;@ ./path/to/file.snx:3:9
+  (return
+   ;;@ ./path/to/file.snx:3:16
+   (i32.const 34)
+  )
+ )
+ (func $<main>f1 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :3:7
+  (return
+   (block (result i32)
+    (local.set $1
+     (call $<./path/to/file.snx::doSomething>f0)
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f1)
+  )
+ )
+)
+"
+`;
+
+exports[`importing modules from other files only compiles a module once when imported multiple itmes 1`] = `
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"doSomething\\" (func $<./path/to/file.snx::doSomething>f0))
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<./path/to/file.snx::doSomething>f0 (result i32)
+  (local $0 i32)
+  ;;@ ./path/to/file.snx:3:9
+  (return
+   ;;@ ./path/to/file.snx:3:16
+   (i32.const 34)
+  )
+ )
+ (func $<main>f1 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  ;;@ :4:5
+  (drop
+   (block (result i32)
+    (local.set $1
+     (call $<./path/to/file.snx::doSomething>f0)
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+  ;;@ :5:5
+  (return
+   (block (result i32)
+    (local.set $1
+     (call $<./path/to/file.snx::doSomething>f0)
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<main>f1)
+  )
+ )
+)
+"
+`;
+
 exports[`let statements allocates space on the stack, and initializes values to 0 1`] = `
 "(module
  (type $none_=>_i32 (func (result i32)))

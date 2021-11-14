@@ -47,6 +47,12 @@ const specInput: Record<
       path: { type: 'string', list: true },
     },
   },
+  SymbolAlias: {
+    fields: {
+      fromSymbol: 'string',
+      toSymbol: 'string',
+    },
+  },
   SymbolRef: {
     fields: {
       symbol: 'string',
@@ -277,6 +283,7 @@ const specInput: Record<
       'FuncDecl',
       'ModuleDecl',
       'ImportDecl',
+      'SymbolAlias',
     ],
   },
   Expression: {

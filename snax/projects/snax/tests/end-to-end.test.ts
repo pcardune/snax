@@ -1081,7 +1081,19 @@ describe('importing modules from other files', () => {
       import someModule from "./path/to/file.snx"
       someModule::doSomething();
     `;
-    await compileToWasmModule(code, { importResolver });
+    const { wat } = await compileToWasmModule(code, { importResolver });
+    expect(wat).toMatchSnapshot();
+  });
+
+  it('only compiles a module once when imported multiple itmes', async () => {
+    const code = `
+    import first from "./path/to/file.snx"
+    import second from "./path/to/file.snx"
+    first::doSomething();
+    second::doSomething();
+  `;
+    const { wat } = await compileToWasmModule(code, { importResolver });
+    expect(wat).toMatchSnapshot();
   });
 
   it('does not allow circular dependencies', async () => {

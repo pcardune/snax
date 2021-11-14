@@ -34,7 +34,11 @@ export class SymbolTable {
   }
 
   get(symbol: string): SymbolRecord | undefined {
-    return this.table.get(symbol) ?? this.parent?.get(symbol);
+    const local = this.table.get(symbol);
+    if (local && local.declNode.name === 'SymbolAlias') {
+      return this.get(local.declNode.fields.toSymbol);
+    }
+    return local ?? this.parent?.get(symbol);
   }
 
   has(symbol: string): boolean {
@@ -175,6 +179,10 @@ function innerResolveSymbols(
           for (const funcDecl of decl.fields.funcs) {
             currentTable.declare(funcDecl.fields.symbol, funcDecl);
           }
+          break;
+        }
+        case 'SymbolAlias': {
+          currentTable.declare(decl.fields.fromSymbol, decl);
           break;
         }
         case 'ModuleDecl': {

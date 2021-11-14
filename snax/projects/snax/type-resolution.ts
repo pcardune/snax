@@ -128,6 +128,8 @@ export class TypeResolver {
         return Intrinsics.u8;
       case 'DataLiteral':
         return new ArrayType(Intrinsics.u8, node.fields.value.length);
+      case 'SymbolAlias':
+        return Intrinsics.void;
       case 'NamespacedRef':
       case 'SymbolRef': {
         const record = refMap.get(node);

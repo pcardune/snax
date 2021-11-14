@@ -192,6 +192,41 @@ export function makeNamespacedRefWith(fields: {
   };
 }
 
+type SymbolAliasFields = { fromSymbol: string; toSymbol: string };
+
+export type SymbolAlias = {
+  name: 'SymbolAlias';
+  fields: SymbolAliasFields;
+  location?: Location;
+};
+
+export function isSymbolAlias(node: ASTNode): node is SymbolAlias {
+  return node.name === 'SymbolAlias';
+}
+
+export function makeSymbolAlias(
+  fromSymbol: string,
+  toSymbol: string
+): SymbolAlias {
+  return {
+    name: 'SymbolAlias',
+    fields: {
+      fromSymbol,
+      toSymbol,
+    },
+  };
+}
+
+export function makeSymbolAliasWith(fields: {
+  fromSymbol: string;
+  toSymbol: string;
+}): SymbolAlias {
+  return {
+    name: 'SymbolAlias',
+    fields,
+  };
+}
+
 type SymbolRefFields = { symbol: string };
 
 export type SymbolRef = {
@@ -1384,7 +1419,8 @@ export type TopLevelDecl =
   | GlobalDecl
   | FuncDecl
   | ModuleDecl
-  | ImportDecl;
+  | ImportDecl
+  | SymbolAlias;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
   return (
     isExternDecl(node) ||
@@ -1393,7 +1429,8 @@ export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
     isGlobalDecl(node) ||
     isFuncDecl(node) ||
     isModuleDecl(node) ||
-    isImportDecl(node)
+    isImportDecl(node) ||
+    isSymbolAlias(node)
   );
 }
 
@@ -1447,6 +1484,7 @@ export type ASTNode =
   | DataLiteral
   | CharLiteral
   | NamespacedRef
+  | SymbolAlias
   | SymbolRef
   | TypeRef
   | PointerTypeExpr
@@ -1494,6 +1532,7 @@ export type ASTNodeName =
   | 'DataLiteral'
   | 'CharLiteral'
   | 'NamespacedRef'
+  | 'SymbolAlias'
   | 'SymbolRef'
   | 'TypeRef'
   | 'PointerTypeExpr'

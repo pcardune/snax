@@ -13,6 +13,7 @@ extern wasi_unstable {
     numWrittenPointer:i32,
   ):void;
 }
+import string from "snax/string.snx"
 
 func printStr(s:&string::String) {
   let iovec = [s.buffer as usize, s.length];

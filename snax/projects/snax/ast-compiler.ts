@@ -249,15 +249,11 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     if (this.options.includeRuntime) {
       this.root.fields.decls.unshift(stringImport);
     }
-    const importToModule = await resolveImports(
+    await resolveImports(
       this.root,
       this.options.importResolver,
-      [this.root.location?.source ?? '']
+      this.root.location?.source ?? ''
     );
-    const stringModule = importToModule.get(stringImport);
-    if (stringModule) {
-      stringModule.fields.globalNamespace = true;
-    }
 
     desugar(this.root);
 
@@ -402,6 +398,8 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         case 'FuncDecl': // handled above
         case 'StructDecl':
           break;
+        case 'SymbolAlias':
+          break; // this is a no-op, that's taken care of in symbol resolution
         default:
           throw new CompilerError(
             decl,
@@ -466,6 +464,7 @@ export class ModuleDeclCompiler extends ASTCompiler<
           }).compile();
           break;
         }
+        case 'SymbolAlias':
         case 'StructDecl': {
           break;
         }

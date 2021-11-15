@@ -21,6 +21,7 @@ import useCodeChecker from './useCodeChecker';
 import { TextMarker } from './codemirror/error-marker';
 import ASTViewer from './ASTViewer';
 import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen';
+import { MemoryInspector } from './MemoryInspector';
 
 function Time(props: { time: number }) {
   const [label, setLabel] = React.useState(formatTime(props.time));
@@ -155,8 +156,8 @@ export default function FileViewer(props: { path: string }) {
         <Accordion>
           <AccordionSummary
             expandIcon={<Icon>arrow_drop_down</Icon>}
-            aria-controls="panel1a-content"
-            id="panel1a-header"
+            aria-controls="code-runner"
+            id="code-runner"
           >
             <Typography>Code Runner</Typography>
           </AccordionSummary>
@@ -167,14 +168,31 @@ export default function FileViewer(props: { path: string }) {
         <Accordion>
           <AccordionSummary
             expandIcon={<Icon>arrow_drop_down</Icon>}
-            aria-controls="panel1a-content"
-            id="panel1a-header"
+            aria-controls="syntax-tree"
+            id="syntax-tree"
           >
             <Typography>Syntax Tree</Typography>
           </AccordionSummary>
           <AccordionDetails>
             {checker.ast && (
               <ASTViewer ast={checker.ast} onHoverNode={onHoverASTNode} />
+            )}
+          </AccordionDetails>
+        </Accordion>
+        <Accordion>
+          <AccordionSummary
+            expandIcon={<Icon>arrow_drop_down</Icon>}
+            aria-controls="memory-inspector"
+            id="memory-inspector"
+          >
+            <Typography>Memory Inspector</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {checker.compiler && checker.instance?.exports.memory && (
+              <MemoryInspector
+                instance={checker.instance}
+                compiler={checker.compiler}
+              />
             )}
           </AccordionDetails>
         </Accordion>

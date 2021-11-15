@@ -68,7 +68,42 @@ export type CodeChecker = {
   compiler: FileCompiler | null;
   runChecks: (code: string, grammarSource?: string) => Promise<void>;
   runCode: () => Promise<void>;
+  instance?: Instance;
 };
+
+export type Instance = WebAssembly.Instance & {
+  exports: WebAssembly.Exports & {
+    memory: WebAssembly.Memory;
+    stackPointer: WebAssembly.Global;
+  };
+};
+
+function useCodeRunner(wasmModule: WebAssembly.Module | undefined) {
+  const [instance, setInstance] = React.useState<Instance>();
+  const runCode = React.useCallback(async () => {
+    if (!wasmModule) {
+      return;
+    }
+    const wasi = new WASI();
+    // TODO: do debugging in a better way
+    const modInstance = await WebAssembly.instantiate(wasmModule, {
+      wasi_snapshot_preview1: wasi.wasiImport,
+      wasi_unstable: wasi.wasiImport,
+      debug: { debug: (...a: any[]) => console.log('debug', ...a) },
+    });
+    setInstance(modInstance as Instance);
+    (window as any).wasm = modInstance.exports;
+    try {
+      const result = wasi.start(modInstance);
+      console.log('Run Result:', result);
+    } catch (e) {
+      console.error('Failed:', e);
+    }
+  }, [wasmModule]);
+  instance?.exports;
+
+  return { runCode, instance };
+}
 
 export default function useCodeChecker(optimize = false): CodeChecker {
   const [parses, setParses] = React.useState<boolean | undefined>();
@@ -147,24 +182,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     },
     [compileAST, optimize]
   );
-  const runCode = React.useCallback(async () => {
-    if (wasmModule) {
-      const wasi = new WASI();
-      // TODO: do debugging in a better way
-      const modInstance = await WebAssembly.instantiate(wasmModule, {
-        wasi_snapshot_preview1: wasi.wasiImport,
-        wasi_unstable: wasi.wasiImport,
-        debug: { debug: (...a: any[]) => console.log('debug', ...a) },
-      });
-      (window as any).wasm = modInstance.exports;
-      try {
-        const result = wasi.start(modInstance);
-        console.log('Run Result:', result);
-      } catch (e) {
-        console.error('Failed:', e);
-      }
-    }
-  }, [wasmModule]);
+  const { runCode, instance } = useCodeRunner(wasmModule);
 
   const checks = [
     { label: 'parses', state: parses },
@@ -172,5 +190,5 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     { label: 'compiles', state: compiles },
     { label: 'validates', state: validates },
   ];
-  return { checks, error, ast, compiler, runChecks, runCode };
+  return { checks, error, ast, compiler, runChecks, runCode, instance };
 }

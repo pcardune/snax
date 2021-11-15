@@ -566,25 +566,25 @@ export class FuncDeclCompiler extends ASTCompiler<
     if (last) {
       stackSpace = last.offset + last.dataType.numBytes;
     }
+    const sp = this.context.runtime.stackPointer;
+    // set arp local to the stack pointer
+    const setArp = lset(
+      module,
+      this.context.funcAllocs.arp,
+      module.global.get(sp.id, binaryen[sp.valueType])
+    );
     if (stackSpace > 0) {
-      const sp = this.context.runtime.stackPointer;
       return [
         // allocate space for stack variables
-        module.global.set(
-          sp.id,
-          module.i32.sub(
-            module.global.get(sp.id, binaryen[sp.valueType]),
-            module.i32.const(stackSpace)
-          )
+        gset(
+          module,
+          sp,
+          module.i32.sub(gget(module, sp), module.i32.const(stackSpace))
         ),
-        // set arp local to the stack pointer
-        module.local.set(
-          this.context.funcAllocs.arp.offset,
-          module.global.get(sp.id, binaryen[sp.valueType])
-        ),
+        setArp,
       ];
     }
-    return [];
+    return [setArp];
   }
 
   compile(): binaryen.FunctionRef {

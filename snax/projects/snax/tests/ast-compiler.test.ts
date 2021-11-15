@@ -51,6 +51,9 @@ describe('ModuleCompiler', () => {
        (export \\"memory\\" (memory $0))
        (func $<main>f0
         (local $0 i32)
+        (local.set $0
+         (global.get $g0:#SP)
+        )
         (drop
          (i32.const 32)
         )
@@ -92,6 +95,9 @@ describe('ModuleCompiler', () => {
        (export \\"memory\\" (memory $0))
        (func $<main>f0
         (local $0 i32)
+        (local.set $0
+         (global.get $g0:#SP)
+        )
         (drop
          (i32.const 0)
         )
@@ -130,12 +136,18 @@ describe('ModuleCompiler', () => {
        (export \\"memory\\" (memory $0))
        (func $<foo>f0 (param $0 i32) (result i32)
         (local $1 i32)
+        (local.set $1
+         (global.get $g0:#SP)
+        )
         (return
          (local.get $0)
         )
        )
        (func $<main>f1
         (local $0 i32)
+        (local.set $0
+         (global.get $g0:#SP)
+        )
        )
        (func $_start
         (global.set $g0:#SP

@@ -7,10 +7,10 @@ import {
   Button,
 } from '@mui/material';
 import { Box } from '@mui/system';
-import { atString } from '@pcardune/snax/dist/snax/errors';
 import * as AST from '@pcardune/snax/dist/snax/spec-gen';
 import { isASTNode } from '@pcardune/snax/dist/snax/spec-util';
 import React from 'react';
+import { getLocationString } from './util';
 
 function ListField(props: { field: AST.ASTNode[] }) {
   const [expanded, setExpanded] = React.useState(false);
@@ -61,15 +61,6 @@ function ASTNodeFields(props: { node: AST.ASTNode }) {
     }
   );
   return <div>{childEls}</div>;
-}
-
-function getLocationString(location?: AST.Location) {
-  if (!location) {
-    return '';
-  }
-  const parts = location.source.split('/');
-  const source = parts[parts.length - 1];
-  return atString({ ...location, source });
 }
 
 function ASTNodeViewer(props: { node: AST.ASTNode }) {

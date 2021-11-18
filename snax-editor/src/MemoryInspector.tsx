@@ -1,8 +1,11 @@
 import { Box } from '@mui/system';
+import { ListItem, ListItemText } from '@mui/material';
 import { FileCompiler } from '@pcardune/snax/dist/snax/ast-compiler';
 import { Area, DataLocation } from '@pcardune/snax/dist/snax/memory-resolution';
+import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen';
 import React from 'react';
 import type { Instance } from './useCodeChecker';
+import { getLocationString } from './util';
 
 function ByteStr({ byte }: { byte?: number }) {
   if (byte === undefined) {
@@ -27,17 +30,31 @@ export function MemoryInspector({
   const arr = memory.buffer.slice(0, 140);
   const bytes = [...new Int8Array(arr)];
 
-  const byArea: { [Area.DATA]: DataLocation[] } = { [Area.DATA]: [] };
+  const byArea: {
+    [Area.DATA]: Array<{ location: DataLocation; astNode: ASTNode }>;
+  } = { [Area.DATA]: [] };
 
-  for (const location of compiler.moduleAllocator.allocationMap.values()) {
+  for (const [
+    index,
+    astNode,
+    location,
+  ] of compiler.moduleAllocator.allocationMap.entries()) {
     if (location.area === 'data') {
-      byArea[location.area].push(location);
+      byArea[location.area].push({ astNode, location });
     }
   }
-  const allocations = byArea[Area.DATA].map((location, index) => (
-    <div key={index}>
-      {location.memIndex} {JSON.stringify(location.data)}
-    </div>
+  const allocations = byArea[Area.DATA].map(({ location, astNode }, index) => (
+    <ListItem key={index} disablePadding sx={{ fontFamily: 'monospace' }}>
+      <ListItemText
+        disableTypography
+        primary={`${location.memIndex} ${JSON.stringify(location.data)}`}
+        secondary={
+          <Box sx={{ ml: 1, display: 'inline', color: 'text.secondary' }}>
+            {getLocationString(astNode.location)}
+          </Box>
+        }
+      />
+    </ListItem>
   ));
   return (
     <Box sx={{ fontFamily: 'monospace' }}>
@@ -45,12 +62,14 @@ export function MemoryInspector({
       <div>data offset: {compiler.moduleAllocator.dataOffset}</div>
       <div>allocations: {allocations}</div>
       <table>
-        {bytes.map((byte, i) => (
-          <tr key={i}>
-            <td style={{ textAlign: 'right' }}>{i}:</td>
-            <ByteStr byte={byte} />
-          </tr>
-        ))}
+        <tbody>
+          {bytes.map((byte, i) => (
+            <tr key={i}>
+              <td style={{ textAlign: 'right' }}>{i}:</td>
+              <ByteStr byte={byte} />
+            </tr>
+          ))}
+        </tbody>
       </table>
     </Box>
   );

@@ -1,3 +1,6 @@
+import { atString } from '@pcardune/snax/dist/snax/errors';
+import * as AST from '@pcardune/snax/dist/snax/spec-gen';
+
 const relTime = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
 export const formatTime = (time: number) => {
@@ -16,4 +19,13 @@ export const formatTime = (time: number) => {
     return relTime.format(minutes, 'minute');
   }
   return relTime.format(seconds, 'second');
+};
+
+export const getLocationString = (location?: AST.Location) => {
+  if (!location) {
+    return '';
+  }
+  const parts = location.source.split('/');
+  const source = parts[parts.length - 1];
+  return atString({ ...location, source });
 };

@@ -373,14 +373,21 @@ unary "unary"
   / casting
 
 casting "cast"
-  = expr:calling ws "as" force:"!"? ws typeExpr:typeExpr {
+  = expr:deref ws "as" force:"!"? ws typeExpr:typeExpr {
     return spec.makeCastExprWith({
       expr,
       typeExpr,
       force: Boolean(force),
     });
   }
+  / deref
+
+deref "deref"
+  = "@" expr:calling {
+    return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
+  }
   / calling
+
 
 calling "calling"
   = "$" id:identifier ws "(" ws argList:exprList? ws ")" {
@@ -392,7 +399,7 @@ calling "calling"
   / indexing
 
 indexing "indexing"
-  = element:deref rest:(ws "[" ws expr ws "]")* {
+  = element:memberAccess rest:(ws "[" ws expr ws "]")* {
     function build(val:any, rest:any[]):any {
       if (rest.length === 0) {
         return val;
@@ -404,12 +411,6 @@ indexing "indexing"
       )
     }
     return build(element, rest);
-  }
-  / deref
-
-deref "deref"
-  = "@" expr:memberAccess {
-    return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
   }
   / memberAccess
 

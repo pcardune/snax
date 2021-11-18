@@ -228,6 +228,14 @@ describe('expression', () => {
         AST.makeUnaryExpr(UnaryOp.ADDR_OF, AST.makeSymbolRef('foo'))
       );
     });
+    it('has lower precedence than call expressions', () => {
+      expect(parse('@foo()', 'expr')).toEqual(
+        AST.makeUnaryExpr(
+          UnaryOp.ADDR_OF,
+          AST.makeCallExpr(AST.makeSymbolRef('foo'), AST.makeArgList([]))
+        )
+      );
+    });
   });
 
   describe('array indexing expressions', () => {

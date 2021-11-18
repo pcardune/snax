@@ -126,7 +126,7 @@ export default function FileViewer(props: { path: string }) {
 
   return (
     <Grid container spacing={2}>
-      <Grid item xs={8}>
+      <Grid item xs={12} sm={12} lg={8}>
         <Paper>
           <Stack>
             <Toolbar variant="dense">
@@ -152,7 +152,7 @@ export default function FileViewer(props: { path: string }) {
           </Stack>
         </Paper>
       </Grid>
-      <Grid item xs={4}>
+      <Grid item xs={12} sm={12} lg={4}>
         <Accordion>
           <AccordionSummary
             expandIcon={<Icon>arrow_drop_down</Icon>}

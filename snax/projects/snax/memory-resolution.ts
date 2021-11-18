@@ -266,7 +266,7 @@ export class NeverAllocator implements ILocalAllocator {
     return this;
   }
 }
-
+export type { FuncLocalAllocator };
 class FuncLocalAllocator implements ILocalAllocator {
   private allocationMap: AllocationMap;
   private localsOffset = 0;
@@ -521,9 +521,16 @@ class MemoryResolver {
         this.moduleAllocator.allocateConstData(root, root.fields.value);
         break;
       case 'CallExpr': {
-        // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
-        const type = this.typeMap.get(root).toValueType();
-        allocateTemp(type ?? NumberType.i32);
+        const type = this.typeMap.get(root);
+        const valueType = type.toValueType();
+        if (valueType) {
+          allocateTemp(valueType);
+        } else {
+          allocateTemp(NumberType.i32);
+          if (assertLocal(localAllocator)) {
+            localAllocator.allocateStack(type, root);
+          }
+        }
         return;
       }
       case 'ArrayLiteral':

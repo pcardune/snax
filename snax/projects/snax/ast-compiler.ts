@@ -1664,10 +1664,6 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
     const { module } = this.context;
 
     const location = this.getFuncLocation();
-    const tempLocation = this.context.allocationMap.getLocalOrThrow(
-      this.root,
-      'function calls need a temp local'
-    );
 
     const { returnType } = location.funcType;
 
@@ -1692,7 +1688,10 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
     } else {
       const valueType = returnType.toValueType();
       const returnValueType = valueType ? binaryen[valueType] : binaryen.i32;
-
+      const tempLocation = this.context.allocationMap.getLocalOrThrow(
+        this.root,
+        'function calls need a temp local'
+      );
       const block = module.block(
         '',
         [
@@ -1710,7 +1709,18 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
       if (valueType) {
         return rvalueDirect(returnType, block);
       } else {
-        return rvalueAddress(returnType, block);
+        // copy the return value into the current function's stack space
+        const stackLocation = this.context.allocationMap.getStackOrThrow(
+          this.root
+        );
+        return rvalueAddress(
+          returnType,
+          this.copy(
+            lvalueStatic(stackLocation),
+            rvalueAddress(returnType, block),
+            tempLocation
+          )
+        );
       }
     }
   }

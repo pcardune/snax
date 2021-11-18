@@ -992,7 +992,7 @@ describe('tuple structs', () => {
     `;
     const { exports } = await compileToWasmModule(code);
     const result = exports._start();
-    expect(stackDump(exports, 4)).toEqual([1, 2]);
+    expect(stackDump(exports, 4)).toEqual([1, 2, 1, 2, 3, 4]);
     expect(result).toEqual(1);
   });
 });

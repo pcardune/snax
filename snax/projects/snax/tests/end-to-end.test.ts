@@ -754,7 +754,6 @@ describe('strings', () => {
       exports: { _start, memory },
     } = await compileToWasmModule(code, { includeRuntime: true });
     const strPointer = _start();
-    expect(strPointer).toBe(PAGE_SIZE - 8);
     const bufferPointer = int32(memory, strPointer);
     expect(bufferPointer).toEqual(0);
     const bufferLen = int32(memory, strPointer + 4);
@@ -891,6 +890,7 @@ describe('object structs', () => {
       expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
         "stack:
             0: <v>s0-8 ({x: i32, y: i32})
+            8: <temp>s8-16 ({x: i32, y: i32})
         locals:
             0: <arp>r0:i32 (i32)
             1: <temp>r1:i32 (i32)

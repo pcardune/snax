@@ -1,5 +1,4 @@
 import * as AST from './spec-gen.js';
-import { SNAXParser } from './snax-parser.js';
 import {
   ArrayType,
   BaseType,
@@ -362,13 +361,15 @@ export class FileCompiler extends ASTCompiler<AST.File> {
 
     // ADD DATA
     const segments: binaryen.MemorySegment[] = [];
-    for (const loc of moduleAllocator.allocationMap.values()) {
-      if (loc.area === 'data') {
-        segments.push({
-          offset: module.i32.const(loc.memIndex),
-          data: new TextEncoder().encode(loc.data),
-          passive: false,
-        });
+    for (const locs of moduleAllocator.allocationMap.values()) {
+      for (const loc of locs) {
+        if (loc.area === 'data') {
+          segments.push({
+            offset: module.i32.const(loc.memIndex),
+            data: new TextEncoder().encode(loc.data),
+            passive: false,
+          });
+        }
       }
     }
 
@@ -1149,7 +1150,7 @@ class SymbolRefCompiler extends ExprCompiler<
         )}`
       );
     }
-    const location = this.context.allocationMap.get(symbolRecord.declNode);
+    const location = this.context.allocationMap.getAny(symbolRecord.declNode);
     if (!location) {
       throw this.error(
         `ASTCompiler: Can't compile reference to unlocated symbol ${pretty(
@@ -1993,35 +1994,24 @@ function lset(
 }
 
 /**
- * Generates a sequence of instructions that allocates
- * space in the stack area of linear memory, incrementing
- * the stack pointer
- *
- * @param ir
- * @param numBytes
+ * Sets up the instructions for working with a stack temporary.
+ * Calculates the offset from the arp where the stack value should
+ * be stored, and saves the value to a temporary local
  * @returns the instructions, and the local where the temporary address is stored
  */
-function compileStackPush(
-  ir: ASTCompiler<AST.ASTNode, IRCompilerContext>,
-  numBytes: number
-) {
-  let location = ir.context.allocationMap.get(ir.root);
-  if (!location || location.area !== 'locals') {
-    throw new Error(
-      `${ir.root.name} didn't have a temporary local allocated for it`
-    );
-  }
-  const { module } = ir.context;
-  const instr = gset(
+function compileStackPush(ir: ASTCompiler<AST.ASTNode, IRCompilerContext>) {
+  const { module, allocationMap, funcAllocs } = ir.context;
+  const location = allocationMap.getLocalOrThrow(ir.root);
+  const stackLocation = allocationMap.getStackOrThrow(
+    ir.root,
+    'struct literals need stack space'
+  );
+  const instr = lset(
     module,
-    ir.context.runtime.stackPointer,
-    ltee(
-      module,
-      location,
-      module.i32.sub(
-        gget(module, ir.context.runtime.stackPointer),
-        module.i32.const(numBytes)
-      )
+    location,
+    module.i32.add(
+      module.i32.const(stackLocation.offset),
+      lget(module, funcAllocs.arp)
     )
   );
 
@@ -2038,7 +2028,7 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
       throw this.error('unexpected type for array literal');
     }
 
-    const { instr, location } = compileStackPush(this, arrayType.numBytes);
+    const { instr, location } = compileStackPush(this);
     const { module } = this.context;
 
     const fieldInstr = [];
@@ -2088,9 +2078,7 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
         `unexpected type for struct literal... should pointer to a record`
       );
     }
-
-    const { instr, location } = compileStackPush(this, structType.numBytes);
-
+    const { instr, location } = compileStackPush(this);
     const { module } = this.context;
 
     const fieldInstr = [];

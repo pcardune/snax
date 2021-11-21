@@ -236,10 +236,11 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   }
 
   private async setup() {
+    const rootUrl = this.root.location?.source || '<root>';
     await resolveImports({
       file: this.root,
       pathLoader: this.options.importResolver,
-      rootUrl: this.root.location?.source ?? '',
+      rootUrl,
       autoImport: this.options.includeRuntime ? ['snax/string.snx'] : [],
     });
 
@@ -278,6 +279,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     }
 
     return {
+      rootUrl,
       refMap,
       typeCache,
       moduleAllocator,
@@ -287,8 +289,14 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   }
 
   async compile(): Promise<binaryen.Module> {
-    const { refMap, typeCache, moduleAllocator, runtime, stackPointer } =
-      await this.setup();
+    const {
+      rootUrl,
+      refMap,
+      typeCache,
+      moduleAllocator,
+      runtime,
+      stackPointer,
+    } = await this.setup();
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
@@ -315,7 +323,15 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         }).compile();
       }
     }
-    const mainFunc = this.root.fields.decls.find(
+
+    // find the main function
+    const rootModule = this.root.fields.decls.find(
+      (decl) => AST.isModuleDecl(decl) && decl.fields.symbol === rootUrl
+    ) as AST.ModuleDecl;
+    if (!rootModule) {
+      throw new CompilerError(this.root, `Expected there to be a root module`);
+    }
+    const mainFunc = rootModule.fields.decls.find(
       (decl) => AST.isFuncDecl(decl) && decl.fields.symbol === 'main'
     ) as AST.FuncDecl;
     if (mainFunc) {

@@ -1,24 +1,4 @@
-import { CompilerError } from './errors.js';
 import * as AST from './spec-gen.js';
-
-function getNextImportDecl(fromNode: AST.File | AST.ModuleDecl):
-  | undefined
-  | {
-      importDecl: AST.ImportDecl;
-      parentNode: AST.File | AST.ModuleDecl;
-    } {
-  for (const decl of fromNode.fields.decls) {
-    if (AST.isImportDecl(decl)) {
-      return { importDecl: decl, parentNode: fromNode };
-    }
-    if (AST.isModuleDecl(decl)) {
-      const next = getNextImportDecl(decl);
-      if (next) {
-        return next;
-      }
-    }
-  }
-}
 
 type ImportWithParent = {
   decl: AST.ImportDecl;
@@ -69,6 +49,15 @@ export class ImportResolver {
   }
 
   async resolve() {
+    this.attachAutoImports(this.rootFile);
+    const rootModule = AST.makeModuleDeclWith({
+      symbol: this.rootUrl,
+      globalNamespace: true,
+      decls: this.rootFile.fields.decls,
+    });
+    rootModule.location = this.rootFile.location;
+    this.rootFile.fields.decls = [rootModule];
+
     const importToModule = await this.resolveInner(this.rootFile, [
       this.rootUrl,
     ]);
@@ -100,8 +89,6 @@ export class ImportResolver {
   }
 
   async resolveInner(file: AST.File, stack: string[]) {
-    this.attachAutoImports(file);
-
     const importToModule = new Map<string, AST.ModuleDecl>();
     const importDecls = getImportDecls(file);
     for (const nextImport of importDecls) {
@@ -117,6 +104,7 @@ export class ImportResolver {
       if (!stack.includes(canonicalUrl)) {
         // descend into imported file to resolve its imports
         stack.push(canonicalUrl);
+        this.attachAutoImports(importedFileAst);
         const additionalImports = await this.resolveInner(
           importedFileAst,
           stack

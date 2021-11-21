@@ -8,7 +8,7 @@ exports[`assignment operator compiles assignments to registers 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local $2 i32)
@@ -33,7 +33,7 @@ exports[`assignment operator compiles assignments to registers 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -48,7 +48,7 @@ exports[`control flow while loops compiles while statements 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local $2 i32)
@@ -102,7 +102,7 @@ exports[`control flow while loops compiles while statements 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -127,7 +127,7 @@ exports[`empty module compiles integers 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local.set $0
    (global.get $g0:#SP)
@@ -143,7 +143,7 @@ exports[`empty module compiles integers 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -194,7 +194,7 @@ exports[`importing modules from other files lets you import other files 1`] = `
    (i32.const 34)
   )
  )
- (func $<main>f1 (result i32)
+ (func $<<root>::main>f1 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local.set $0
@@ -218,7 +218,7 @@ exports[`importing modules from other files lets you import other files 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f1)
+   (call $<<root>::main>f1)
   )
  )
 )
@@ -245,7 +245,7 @@ exports[`importing modules from other files only compiles a module once when imp
    (i32.const 34)
   )
  )
- (func $<main>f1 (result i32)
+ (func $<<root>::main>f1 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local.set $0
@@ -281,7 +281,7 @@ exports[`importing modules from other files only compiles a module once when imp
    (i32.const 65536)
   )
   (return
-   (call $<main>f1)
+   (call $<<root>::main>f1)
   )
  )
 )
@@ -296,7 +296,7 @@ exports[`let statements allocates space on the stack, and initializes values to 
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (global.set $g0:#SP
    (i32.sub
@@ -343,7 +343,7 @@ exports[`let statements allocates space on the stack, and initializes values to 
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -357,11 +357,11 @@ exports[`module declarations allows calling functions inside a module declaratio
  (type $i32_=>_i32 (func (param i32) (result i32)))
  (global $g0:#SP (mut i32) (i32.const 0))
  (memory $0 1 1)
- (export \\"test1\\" (func $<test1>f3))
- (export \\"test2\\" (func $<test2>f4))
+ (export \\"test1\\" (func $<<root>::test1>f3))
+ (export \\"test2\\" (func $<<root>::test2>f4))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<math::add>f0 (param $0 i32) (param $1 i32) (result i32)
+ (func $<<root>::add>f0 (param $0 i32) (param $1 i32) (result i32)
   (local $2 i32)
   (local.set $2
    (global.get $g0:#SP)
@@ -377,7 +377,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<math::add100>f1 (param $0 i32) (result i32)
+ (func $<<root>::add100>f1 (param $0 i32) (result i32)
   (local $1 i32)
   (local $2 i32)
   (local.set $1
@@ -388,7 +388,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    ;;@ :7:18
    (block (result i32)
     (local.set $2
-     (call $<math::add>f0
+     (call $<<root>::add>f0
       ;;@ :7:22
       (local.get $0)
       ;;@ :7:25
@@ -402,7 +402,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<add>f2 (param $0 i32) (param $1 i32) (result i32)
+ (func $<<root>::add>f2 (param $0 i32) (param $1 i32) (result i32)
   (local $2 i32)
   (local.set $2
    (global.get $g0:#SP)
@@ -417,7 +417,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<test1>f3 (result i32)
+ (func $<<root>::test1>f3 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local.set $0
@@ -428,7 +428,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    ;;@ :14:16
    (block (result i32)
     (local.set $1
-     (call $<math::add>f0
+     (call $<<root>::add>f0
       ;;@ :14:26
       (i32.const 1)
       ;;@ :14:28
@@ -442,7 +442,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<test2>f4 (result i32)
+ (func $<<root>::test2>f4 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local.set $0
@@ -453,7 +453,7 @@ exports[`module declarations allows calling functions inside a module declaratio
    ;;@ :17:16
    (block (result i32)
     (local.set $1
-     (call $<math::add100>f1
+     (call $<<root>::add100>f1
       ;;@ :17:29
       (i32.const 1)
      )
@@ -477,7 +477,7 @@ exports[`reg statements compiles reg statements 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local.set $0
@@ -498,7 +498,7 @@ exports[`reg statements compiles reg statements 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -513,7 +513,7 @@ exports[`reg statements compiles reg statements into function local allocations 
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0
+ (func $<<root>::main>f0
   (local $0 i32)
   (local $1 i32)
   (local $2 i32)
@@ -533,7 +533,7 @@ exports[`reg statements compiles reg statements into function local allocations 
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )

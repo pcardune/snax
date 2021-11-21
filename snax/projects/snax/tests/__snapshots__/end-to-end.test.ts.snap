@@ -164,6 +164,16 @@ exports[`empty module compiles to binaryen module 1`] = `
 
 exports[`empty module compiles to binaryen module 2`] = `"{\\"version\\":3,\\"sources\\":[],\\"names\\":[],\\"mappings\\":\\"\\"}"`;
 
+exports[`importing modules from other files does allows circular dependencies, resolving each once 1`] = `
+"(module
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+)
+"
+`;
+
 exports[`importing modules from other files lets you import other files 1`] = `
 "(module
  (type $none_=>_i32 (func (result i32)))

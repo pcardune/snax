@@ -236,23 +236,12 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   }
 
   private async setup() {
-    const stringImport = AST.makeImportDeclWith({
-      symbol: 'string',
-      path: 'snax/string.snx',
+    await resolveImports({
+      file: this.root,
+      pathLoader: this.options.importResolver,
+      rootUrl: this.root.location?.source ?? '',
+      autoImport: this.options.includeRuntime ? ['snax/string.snx'] : [],
     });
-    stringImport.location = {
-      source: '<compiler>',
-      start: { offset: 0, line: 0, column: 0 },
-      end: { offset: 0, line: 0, column: 0 },
-    };
-    if (this.options.includeRuntime) {
-      this.root.fields.decls.unshift(stringImport);
-    }
-    await resolveImports(
-      this.root,
-      this.options.importResolver,
-      this.root.location?.source ?? ''
-    );
 
     desugar(this.root);
 

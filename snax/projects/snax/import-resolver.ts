@@ -42,16 +42,30 @@ export type PathLoader = (
   fromCanonicalUrl: string
 ) => Promise<{ ast: AST.File; canonicalUrl: string }>;
 
+export type ImportConfig = {
+  file: AST.File;
+  pathLoader: PathLoader;
+  rootUrl: string;
+  autoImport?: string[];
+};
 export class ImportResolver {
-  private readonly pathLoader: PathLoader;
-  private readonly rootFile: AST.File;
-  private readonly rootUrl: string;
+  private readonly config: Required<ImportConfig>;
+  get pathLoader() {
+    return this.config.pathLoader;
+  }
+  get rootFile() {
+    return this.config.file;
+  }
+  get rootUrl() {
+    return this.config.rootUrl;
+  }
   private readonly moduleMap: { [key: string]: AST.ModuleDecl } = {};
 
-  constructor(pathLoader: PathLoader, rootFile: AST.File, rootUrl: string) {
-    this.pathLoader = pathLoader;
-    this.rootFile = rootFile;
-    this.rootUrl = rootUrl;
+  constructor(config: ImportConfig) {
+    this.config = {
+      autoImport: [],
+      ...config,
+    };
   }
 
   async resolve() {
@@ -67,7 +81,27 @@ export class ImportResolver {
     return importToModule;
   }
 
+  private attachAutoImports(file: AST.File) {
+    const importDecls = this.config.autoImport.map((path) => {
+      const importDecl = AST.makeImportDeclWith({
+        symbol: path,
+        path: path,
+      });
+      importDecl.location = {
+        source: '<compiler>',
+        start: { offset: 0, line: 0, column: 0 },
+        end: { offset: 0, line: 0, column: 0 },
+      };
+      return importDecl;
+    });
+    for (const decl of importDecls) {
+      file.fields.decls.unshift(decl);
+    }
+  }
+
   async resolveInner(file: AST.File, stack: string[]) {
+    this.attachAutoImports(file);
+
     const importToModule = new Map<string, AST.ModuleDecl>();
     const importDecls = getImportDecls(file);
     for (const nextImport of importDecls) {
@@ -77,30 +111,34 @@ export class ImportResolver {
       const canonicalUrl = loadedFile.canonicalUrl;
       const importedFileAst = loadedFile.ast;
 
-      if (stack.includes(canonicalUrl)) {
-        const cycle = stack.slice(stack.indexOf(canonicalUrl));
-        cycle.push(canonicalUrl);
-        throw new CompilerError(
-          decl,
-          `Import cycle detected: ${cycle.join(' -> ')}`
+      // if we're not already in the process of
+      // importing this module... then recurse
+      // into it to find more modules to import
+      if (!stack.includes(canonicalUrl)) {
+        // descend into imported file to resolve its imports
+        stack.push(canonicalUrl);
+        const additionalImports = await this.resolveInner(
+          importedFileAst,
+          stack
+        );
+        stack.pop();
+        for (const [key, val] of additionalImports.entries()) {
+          importToModule.set(key, val);
+        }
+
+        // now wrap up the imported file into a moduleDecl
+        const importedModuleDecl = AST.makeModuleDeclWith({
+          symbol: canonicalUrl,
+          globalNamespace: true,
+          decls: importedFileAst.fields.decls,
+        });
+        importedModuleDecl.location = decl.location;
+        this.moduleMap[canonicalUrl] = importedModuleDecl;
+        importToModule.set(
+          importedModuleDecl.fields.symbol,
+          importedModuleDecl
         );
       }
-      // descend into imported file to resolve its imports
-      stack.push(canonicalUrl);
-      const additionalImports = await this.resolveInner(importedFileAst, stack);
-      stack.pop();
-      for (const [key, val] of additionalImports.entries()) {
-        importToModule.set(key, val);
-      }
-
-      // now wrap up the imported file into a moduleDecl
-      const importedModuleDecl = AST.makeModuleDeclWith({
-        symbol: canonicalUrl,
-        globalNamespace: true,
-        decls: importedFileAst.fields.decls,
-      });
-      importedModuleDecl.location = decl.location;
-      this.moduleMap[canonicalUrl] = importedModuleDecl;
 
       // now replace the import with an alias to the top-level module
       const alias = AST.makeSymbolAliasWith({
@@ -109,7 +147,6 @@ export class ImportResolver {
       });
       alias.location = decl.location;
       parentNode.fields.decls[parentNode.fields.decls.indexOf(decl)] = alias;
-      importToModule.set(importedModuleDecl.fields.symbol, importedModuleDecl);
     }
     return importToModule;
   }
@@ -137,10 +174,6 @@ export class ImportResolver {
  * @returns a mapping from import declaration ast nodes to the module declarations
  * they were replaced with.
  */
-export async function resolveImports(
-  file: AST.File,
-  pathLoader: PathLoader,
-  rootUrl: string
-) {
-  return new ImportResolver(pathLoader, file, rootUrl).resolve();
+export async function resolveImports(props: ImportConfig) {
+  return new ImportResolver(props).resolve();
 }

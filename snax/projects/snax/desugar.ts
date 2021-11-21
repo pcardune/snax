@@ -37,7 +37,7 @@ export function desugar(root: ASTNode) {
         const dataLiteral = makeDataLiteral(node.fields.value);
         dataLiteral.location = node.location;
         const structLiteral = makeStructLiteralWith({
-          symbol: makeNamespacedRef(['string', 'String']),
+          symbol: makeNamespacedRef(['snax/string.snx', 'String']),
           props: [
             makeStructLiteralProp(
               'buffer',

@@ -1112,14 +1112,10 @@ describe('importing modules from other files', () => {
     expect(wat).toMatchSnapshot();
   });
 
-  it('does not allow circular dependencies', async () => {
+  it('does allows circular dependencies, resolving each once', async () => {
     const code = `import someModule from "d.snx"`;
-    expect(compileToWasmModule(code, { importResolver })).rejects
-      .toMatchInlineSnapshot(`
-      [Error: CompilerError at c.snx:1:1: Import cycle detected: a.snx -> b.snx -> c.snx -> a.snx
-        1: import someModule from "d.snx"
-        ---^]
-    `);
+    const { wat } = await compileToWasmModule(code, { importResolver });
+    expect(wat).toMatchSnapshot();
   });
 });
 
@@ -1129,7 +1125,7 @@ describe('bugs that came up', () => {
       func run() {
         let input = read(100);
       }
-      
+      import string from "snax/string.snx"
       func read(numBytes:i32) {
         let s = string::String::{buffer: $heap_start(), length: numBytes};
         return s;

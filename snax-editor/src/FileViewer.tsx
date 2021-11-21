@@ -22,6 +22,7 @@ import { TextMarker } from './codemirror/error-marker';
 import ASTViewer from './ASTViewer';
 import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen';
 import { MemoryInspector } from './MemoryInspector';
+import { WASI } from '@pcardune/snax/dist/snax/wasi';
 
 function Time(props: { time: number }) {
   const [label, setLabel] = React.useState(formatTime(props.time));
@@ -74,11 +75,25 @@ export default function FileViewer(props: { path: string }) {
     writeable.file.fileContent.localModified;
 
   const checker = useCodeChecker();
-  const { runChecks } = checker;
+  const { runChecks, runCode } = checker;
 
   const onClickSave = React.useCallback(async () => {
     await saveFile(cmViewRef.current!.state.doc.sliceString(0));
   }, [saveFile]);
+
+  const [output, setOutput] = React.useState('');
+  const onClickRun = React.useCallback(async () => {
+    setOutput('');
+    const buffer: string[] = [];
+    const wasi = new WASI({
+      write: (str: string) => {
+        buffer.push(str);
+        console.log(str);
+      },
+    });
+    await runCode(wasi);
+    setOutput(buffer.join(''));
+  }, [runCode]);
 
   const debounce = useDebounce();
   const extensions = React.useMemo(() => {
@@ -100,9 +115,17 @@ export default function FileViewer(props: { path: string }) {
             return true;
           },
         },
+        {
+          key: 'Mod-Shift-Enter',
+          preventDefault: true,
+          run: () => {
+            onClickRun();
+            return true;
+          },
+        },
       ]),
     ];
-  }, [debounce, onClickSave, cacheFile, runChecks]);
+  }, [debounce, runChecks, props.path, cacheFile, onClickSave, onClickRun]);
 
   const setErrorNode = useNodeHighlighter(errorMarker, cmViewRef, props.path);
   const setHoverNode = useNodeHighlighter(
@@ -162,7 +185,11 @@ export default function FileViewer(props: { path: string }) {
             <Typography>Code Runner</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <CodeRunner checker={checker} />
+            <CodeRunner
+              checker={checker}
+              onClickRun={onClickRun}
+              output={output}
+            />
           </AccordionDetails>
         </Accordion>
         <Accordion>

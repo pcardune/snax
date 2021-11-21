@@ -1,4 +1,4 @@
-import { Box, Button, Chip, Icon, Paper, Stack } from '@mui/material';
+import { Box, Button, Chip, Icon, Stack } from '@mui/material';
 import React from 'react';
 import { CodeChecker } from './useCodeChecker';
 
@@ -41,8 +41,8 @@ function CompilerStatus(props: {
     </Stack>
   );
 }
-
-export default function CodeRunner({ checker }: { checker: CodeChecker }) {
+type Props = { checker: CodeChecker; onClickRun: () => void; output: string };
+const CodeRunner: React.FC<Props> = ({ checker, ...props }) => {
   return (
     <Stack spacing={2}>
       <Box sx={{ p: 2 }}>
@@ -54,10 +54,13 @@ export default function CodeRunner({ checker }: { checker: CodeChecker }) {
         </Box>
       )}
       <Box>
-        <Button disabled={!!checker.error} onClick={checker.runCode}>
+        <Button disabled={!!checker.error} onClick={props.onClickRun}>
           Run
         </Button>
+        <pre>{props.output}</pre>
       </Box>
     </Stack>
   );
-}
+};
+
+export default CodeRunner;

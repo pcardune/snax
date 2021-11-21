@@ -33,6 +33,7 @@ function pathForRequest(req: express.Request) {
 }
 
 app.get(/.*/, async (req, res) => {
+  console.log('GET', req.url);
   const myDir = pathForRequest(req);
 
   let dirStat;

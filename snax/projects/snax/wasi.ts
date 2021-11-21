@@ -1,5 +1,6 @@
 export class WASI {
   private _instance?: WebAssembly.Instance;
+  stdout: { write: (str: string) => void };
   private get instance() {
     if (!this._instance) {
       throw new Error(`start() wasn't called`);
@@ -37,11 +38,13 @@ export class WASI {
     },
   };
 
-  stdout = {
-    write: (str: string) => {
-      console.log(str);
-    },
-  };
+  constructor(stdout?: { write: (str: string) => void }) {
+    this.stdout = stdout ?? {
+      write: (str: string) => {
+        console.log(str);
+      },
+    };
+  }
 
   start(instance: WebAssembly.Instance) {
     const { exports } = instance;

@@ -61,13 +61,21 @@ function debugParse(code: string) {
   console.log(lines.join('\n'));
 }
 
+type RunChecksOutput = {
+  binary: Uint8Array;
+  sourceMap: { url: string; content: string | null };
+};
+
 export type CodeChecker = {
   checks: { label: string; state: boolean | undefined }[];
   error: { node?: ASTNode; message: string } | null;
   ast: ASTNode | null;
   compiler: FileCompiler | null;
-  runChecks: (code: string, grammarSource?: string) => Promise<void>;
-  runCode: () => Promise<void>;
+  runChecks: (
+    code: string,
+    grammarSource?: string
+  ) => Promise<RunChecksOutput | undefined>;
+  runCode: (wasi: WASI) => Promise<void>;
   instance?: Instance;
 };
 
@@ -78,30 +86,32 @@ export type Instance = WebAssembly.Instance & {
   };
 };
 
-function useCodeRunner(wasmModule: WebAssembly.Module | undefined) {
+function useCodeRunner(
+  wasmModule: React.RefObject<WebAssembly.Module | undefined>
+) {
   const [instance, setInstance] = React.useState<Instance>();
-  const runCode = React.useCallback(async () => {
-    if (!wasmModule) {
-      return;
-    }
-    const wasi = new WASI();
-    // TODO: do debugging in a better way
-    const modInstance = await WebAssembly.instantiate(wasmModule, {
-      wasi_snapshot_preview1: wasi.wasiImport,
-      wasi_unstable: wasi.wasiImport,
-      debug: { debug: (...a: any[]) => console.log('debug', ...a) },
-    });
-    setInstance(modInstance as Instance);
-    (window as any).wasm = modInstance.exports;
-    try {
-      const result = wasi.start(modInstance);
-      console.log('Run Result:', result);
-    } catch (e) {
-      console.error('Failed:', e);
-    }
-  }, [wasmModule]);
-  instance?.exports;
-
+  const runCode = React.useCallback(
+    async (wasi: WASI): Promise<void> => {
+      if (!wasmModule.current) {
+        return;
+      }
+      // TODO: do debugging in a better way
+      const modInstance = await WebAssembly.instantiate(wasmModule.current, {
+        wasi_snapshot_preview1: wasi.wasiImport,
+        wasi_unstable: wasi.wasiImport,
+        debug: { debug: (...a: any[]) => console.log('debug', ...a) },
+      });
+      setInstance(modInstance as Instance);
+      (window as any).wasm = modInstance.exports;
+      try {
+        const result = wasi.start(modInstance);
+        console.log('Run Result:', result);
+      } catch (e) {
+        console.error('Failed:', e);
+      }
+    },
+    [wasmModule]
+  );
   return { runCode, instance };
 }
 
@@ -114,14 +124,17 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     node?: ASTNode;
     message: string;
   } | null>(null);
-  const [wasmModule, setModule] = React.useState<WebAssembly.Module>();
+  const wasmModuleRef = React.useRef<WebAssembly.Module>();
   const [ast, setAST] = React.useState<ASTNode | null>(null);
   const [compiler, setCompiler] = React.useState<FileCompiler | null>(null);
 
   const compileAST = useSnaxCompiler();
 
   const runChecks = React.useCallback(
-    async (code: string, grammarSource: string = '') => {
+    async (
+      code: string,
+      grammarSource: string = ''
+    ): Promise<RunChecksOutput | undefined> => {
       const result = SNAXParser.parseStr(code, 'start', {
         grammarSource,
       });
@@ -141,18 +154,26 @@ export default function useCodeChecker(optimize = false): CodeChecker {
             setValidates(!!validates);
             if (validates) {
               // now optimize it...
-              let binary = binaryenModule.emitBinary();
+              const sourceMapUrl = grammarSource + '.map';
+              let { binary, sourceMap } =
+                binaryenModule.emitBinary(sourceMapUrl);
               if (optimize) {
                 binaryenModule.dispose();
                 binaryenModule = binaryen.readBinary(binary);
                 binaryen.setOptimizeLevel(2);
                 binaryenModule.setFeatures(WASM_FEATURE_FLAGS);
                 binaryenModule.optimize();
-                binary = binaryenModule.emitBinary();
+                const newOutput = binaryenModule.emitBinary(sourceMapUrl);
+                binary = newOutput.binary;
+                sourceMap = newOutput.sourceMap;
               }
 
-              setModule(await WebAssembly.compile(binary.buffer));
+              wasmModuleRef.current = await WebAssembly.compile(binary.buffer);
               binaryenModule.dispose();
+              return {
+                binary,
+                sourceMap: { url: sourceMapUrl, content: sourceMap },
+              };
             } else {
               setError({ message: 'Failed to validate' });
             }
@@ -182,7 +203,7 @@ export default function useCodeChecker(optimize = false): CodeChecker {
     },
     [compileAST, optimize]
   );
-  const { runCode, instance } = useCodeRunner(wasmModule);
+  const { runCode, instance } = useCodeRunner(wasmModuleRef);
 
   const checks = [
     { label: 'parses', state: parses },

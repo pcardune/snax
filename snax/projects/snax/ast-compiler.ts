@@ -1650,11 +1650,28 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   getLValue(): LValue {
     const rvalue = this.getRValue();
     switch (rvalue.kind) {
-      case 'address':
-        return lvalueDynamic(rvalue.valuePtrExpr);
+      case 'address': {
+        const { module } = this.context;
+        const stackLocation = this.context.allocationMap.getStackOrThrow(
+          this.root
+        );
+        return lvalueDynamic(
+          module.block(
+            '',
+            [
+              module.drop(rvalue.valuePtrExpr),
+              module.i32.add(
+                lget(module, this.context.funcAllocs.arp),
+                module.i32.const(stackLocation.offset)
+              ),
+            ],
+            binaryen.i32
+          )
+        );
+      }
       default:
         throw new Error(
-          `Don't know how to get lvalue for CallExpr that returns a non-addressable value`
+          `Don't know how to get lvalue for CallExpr that returns a ${rvalue.kind} rvalue`
         );
     }
   }

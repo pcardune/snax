@@ -6,6 +6,7 @@ import {
   compileToWAT,
   exec,
   int32,
+  int32Slice,
   int8,
   SnaxExports,
 } from './test-util';
@@ -574,6 +575,21 @@ describe('pointers', () => {
       });
       const result = exports._start();
       expect(result).toEqual(PAGE_SIZE - 4 + 3 * 4);
+    });
+
+    it('works with function return values', async () => {
+      const code = `
+        struct Point { x:i32; y:i32; }
+        func foo() {
+          return Point::{ x:3, y:5 };
+        }
+        @foo();
+      `;
+      const { exports } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      const addr = exports._start();
+      expect(int32Slice(exports.memory, addr, 8)).toEqual([3, 5]);
     });
 
     it('puts values that are accessed through pointers on the stack', async () => {

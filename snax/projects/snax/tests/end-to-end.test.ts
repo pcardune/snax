@@ -1075,9 +1075,24 @@ describe('importing modules from other files', () => {
         return 34;
       }
     `,
-    'a.snx': `import b from "b.snx"`,
-    'b.snx': `import c from "c.snx"`,
-    'c.snx': `import a from "a.snx"`,
+    'a.snx': `
+      import b from "b.snx"
+      func funcInA() {
+        return 'a';
+      }
+    `,
+    'b.snx': `
+      import c from "c.snx"
+      func funcInB() {
+        return 'b';
+      }
+    `,
+    'c.snx': `
+      import a from "a.snx"
+      func funcInC() {
+        return a::funcInA() + 1;
+      }
+    `,
     'd.snx': `import a from "a.snx"`,
   };
 

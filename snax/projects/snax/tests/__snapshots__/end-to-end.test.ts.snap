@@ -166,10 +166,58 @@ exports[`empty module compiles to binaryen module 2`] = `"{\\"version\\":3,\\"so
 
 exports[`importing modules from other files does allows circular dependencies, resolving each once 1`] = `
 "(module
+ (type $none_=>_i32 (func (result i32)))
  (global $g0:#SP (mut i32) (i32.const 0))
  (memory $0 1 1)
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
+ (func $<c.snx::funcInC>f0 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ c.snx:4:9
+  (return
+   ;;@ c.snx:4:16
+   (i32.add
+    ;;@ c.snx:4:16
+    (block (result i32)
+     (local.set $1
+      (call $<a.snx::funcInA>f2)
+     )
+     (global.set $g0:#SP
+      (local.get $0)
+     )
+     (local.get $1)
+    )
+    ;;@ c.snx:4:31
+    (i32.const 1)
+   )
+  )
+ )
+ (func $<b.snx::funcInB>f1 (result i32)
+  (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ b.snx:4:9
+  (return
+   ;;@ b.snx:4:16
+   (i32.const 98)
+  )
+ )
+ (func $<a.snx::funcInA>f2 (result i32)
+  (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ a.snx:4:9
+  (return
+   ;;@ a.snx:4:16
+   (i32.const 97)
+  )
+ )
 )
 "
 `;

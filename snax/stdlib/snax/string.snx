@@ -20,6 +20,10 @@ func u32ToStr(n:u32) {
   reg numBytes = 10_u32; // largest 32 bit number has 10 digits
   let s = String::{buffer: mem::malloc(numBytes), length: numBytes};
   reg i = 0;
+  if (n == 0) {
+    s.buffer[i] = '0';
+    i = i + 1;
+  }
   while (n > 0_u32) {
     reg c = '0' + (n % 10_u32) as! u8;
     s.buffer[i] = c;

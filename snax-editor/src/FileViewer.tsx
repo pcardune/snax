@@ -107,6 +107,9 @@ export default function FileViewer(props: { path: string }) {
           }, 50);
         }
       }),
+      EditorView.theme({
+        '&': { maxHeight: '600px' },
+      }),
       keymap.of([
         {
           key: 'Mod-s',

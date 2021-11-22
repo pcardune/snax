@@ -20,6 +20,7 @@ import {
   FormLabel,
   Radio,
   RadioGroup,
+  TextField,
 } from '@mui/material';
 import { FileCompiler } from '@pcardune/snax/dist/snax/ast-compiler';
 import {
@@ -325,11 +326,39 @@ const ByteExplorer: React.FC<{ buffer: ArrayBuffer }> = (props) => {
             setNumBytes(startIndex - newStartIndex + numBytes);
           }}
         >
-          Load More
+          More
+        </Button>
+        <Button
+          disabled={startIndex <= 0}
+          onClick={() => {
+            const newStartIndex = Math.max(0, startIndex + 8 * width);
+            setStartIndex(newStartIndex);
+            setNumBytes(Math.min(8, startIndex - newStartIndex + numBytes));
+          }}
+        >
+          Less
         </Button>
         <Button disabled={startIndex <= 0} onClick={goToStart}>
           Go to start
         </Button>
+        <TextField
+          label="Jump To"
+          size="small"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const value = (e.target as HTMLInputElement).value;
+              const newStartIndex = parseInt(value);
+              if (!isNaN(newStartIndex) && newStartIndex >= 0) {
+                setStartIndex(
+                  Math.max(
+                    0,
+                    Math.min(newStartIndex, props.buffer.byteLength - numBytes)
+                  )
+                );
+              }
+            }
+          }}
+        />
         <table>
           <tbody>
             {[...bytes].map((byte, i) => (
@@ -354,7 +383,15 @@ const ByteExplorer: React.FC<{ buffer: ArrayBuffer }> = (props) => {
             );
           }}
         >
-          Load More
+          More
+        </Button>
+        <Button
+          disabled={startIndex + numBytes >= props.buffer.byteLength}
+          onClick={() => {
+            setNumBytes(Math.max(8, numBytes - 8 * width));
+          }}
+        >
+          Less
         </Button>
         <Button
           disabled={startIndex + numBytes >= props.buffer.byteLength}

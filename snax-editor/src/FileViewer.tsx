@@ -108,7 +108,7 @@ export default function FileViewer(props: { path: string }) {
         }
       }),
       EditorView.theme({
-        '&': { maxHeight: '600px' },
+        '&': { maxHeight: '80vh' },
       }),
       keymap.of([
         {

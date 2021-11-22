@@ -1,7 +1,7 @@
 @top File { statement+ }
 
 Block {
-  "{" statement+ "}"
+  "{" statement* "}"
 }
 
 statement[@isGroup=Statement] {
@@ -11,7 +11,7 @@ statement[@isGroup=Statement] {
   ImportStatement {kw<"import"> Identifier kw<"from"> String } |
   ReturnStatement { kw<"return"> expression ";" } |
   WhileStatement { kw<"while"> "(" expression ")" Block } |
-  IfStatement { kw<"if"> "(" expression ")" Block } |
+  IfStatement { kw<"if"> "(" expression ")" Block (kw<"else"> Block)? } |
   RegStatement { kw<"reg"> VarDecl ";"} |
   LetStatement { kw<"let"> VarDecl ";"} |
   GlobalDecl { kw<"global"> VarDecl ";"} |

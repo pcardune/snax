@@ -21,4 +21,4 @@ export const
   BinaryExpression = 31,
   divide = 33,
   UnaryExpression = 43,
-  VarDecl = 52
+  VarDecl = 53

@@ -1212,7 +1212,9 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       }
     } else if (leftType === Intrinsics.bool && rightType === Intrinsics.bool) {
     } else {
-      throw this.error("pushNumberOps: don't know how to cast to number");
+      throw this.error(
+        `Don't know how to perform ${this.root.fields.op} between ${leftType.name} and ${rightType.name}`
+      );
     }
     return targetType;
   }

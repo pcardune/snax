@@ -67,6 +67,18 @@ function useNodeHighlighter(
   );
 }
 
+const Panel: React.FC<{ title: string }> = (props) => {
+  const [expanded, setExpanded] = React.useState(false);
+  return (
+    <Accordion expanded={expanded} onChange={() => setExpanded(!expanded)}>
+      <AccordionSummary expandIcon={<Icon>arrow_drop_down</Icon>}>
+        <Typography>{props.title}</Typography>
+      </AccordionSummary>
+      <AccordionDetails>{expanded && props.children}</AccordionDetails>
+    </Accordion>
+  );
+};
+
 export default function FileViewer(props: { path: string }) {
   const cmViewRef = React.useRef<ViewRef>();
   const { saveFile, cacheFile, ...writeable } = useWriteableFile(props.path);
@@ -88,7 +100,6 @@ export default function FileViewer(props: { path: string }) {
     const wasi = new WASI({
       write: (str: string) => {
         buffer.push(str);
-        console.log(str);
       },
     });
     await runCode(wasi);
@@ -179,53 +190,26 @@ export default function FileViewer(props: { path: string }) {
         </Paper>
       </Grid>
       <Grid item xs={12} sm={12} lg={4}>
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<Icon>arrow_drop_down</Icon>}
-            aria-controls="code-runner"
-            id="code-runner"
-          >
-            <Typography>Code Runner</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <CodeRunner
-              checker={checker}
-              onClickRun={onClickRun}
-              output={output}
+        <Panel title="Code Runner">
+          <CodeRunner
+            checker={checker}
+            onClickRun={onClickRun}
+            output={output}
+          />
+        </Panel>
+        <Panel title="Syntax Tree">
+          {checker.ast && (
+            <ASTViewer ast={checker.ast} onHoverNode={onHoverASTNode} />
+          )}
+        </Panel>
+        <Panel title="Memory Inspector">
+          {checker.compiler && checker.instance?.exports.memory && (
+            <MemoryInspector
+              instance={checker.instance}
+              compiler={checker.compiler}
             />
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<Icon>arrow_drop_down</Icon>}
-            aria-controls="syntax-tree"
-            id="syntax-tree"
-          >
-            <Typography>Syntax Tree</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {checker.ast && (
-              <ASTViewer ast={checker.ast} onHoverNode={onHoverASTNode} />
-            )}
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<Icon>arrow_drop_down</Icon>}
-            aria-controls="memory-inspector"
-            id="memory-inspector"
-          >
-            <Typography>Memory Inspector</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {checker.compiler && checker.instance?.exports.memory && (
-              <MemoryInspector
-                instance={checker.instance}
-                compiler={checker.compiler}
-              />
-            )}
-          </AccordionDetails>
-        </Accordion>
+          )}
+        </Panel>
       </Grid>
     </Grid>
   );

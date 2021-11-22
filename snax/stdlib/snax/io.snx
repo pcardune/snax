@@ -26,6 +26,10 @@ func printStr(s:&string::String) {
   );
 }
 
+func print_u32(i:u32) {
+  printStr(@string::u32ToStr(i));
+}
+
 func main() {
   let s = "foobar\n";
   printStr(@s);
@@ -35,4 +39,5 @@ func main() {
   let s3 = string::concat(@s, @s2);
   printStr(@s3);
   printStr(@"foo\n");
+  print_u32(0);
 }

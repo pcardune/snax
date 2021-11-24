@@ -34,7 +34,7 @@ function useSnaxCompiler() {
             if (ast.name !== 'File') {
               throw new Error(`invalid parse result, expected a file.`);
             }
-            return { ast, canonicalUrl: sourcePath };
+            return { ast, canonicalUrl: file.url };
           } else {
             throw new Error(`Failed to parse ${sourcePath}: ${result.error}`);
           }

@@ -23,6 +23,7 @@ import ASTViewer from './ASTViewer';
 import { ASTNode } from '@pcardune/snax/dist/snax/spec-gen';
 import { MemoryInspector } from './MemoryInspector';
 import { WASI } from '@pcardune/snax/dist/snax/wasi';
+import { useFileServer } from './file-server-client';
 
 function Time(props: { time: number }) {
   const [label, setLabel] = React.useState(formatTime(props.time));
@@ -106,6 +107,7 @@ export default function FileViewer(props: { path: string }) {
     const stdout = buffer.join('');
     setOutput(`Return Value: ${returnValue}\nStandard Out:\n${stdout}`);
   }, [runCode]);
+  const client = useFileServer();
 
   const debounce = useDebounce();
   const extensions = React.useMemo(() => {
@@ -114,7 +116,7 @@ export default function FileViewer(props: { path: string }) {
         if (update.docChanged) {
           debounce(() => {
             const code = update.state.doc.sliceString(0);
-            runChecks(code, props.path);
+            runChecks(code, client.urlForPath(props.path));
             cacheFile(code);
           }, 50);
         }
@@ -140,7 +142,15 @@ export default function FileViewer(props: { path: string }) {
         },
       ]),
     ];
-  }, [debounce, runChecks, props.path, cacheFile, onClickSave, onClickRun]);
+  }, [
+    debounce,
+    runChecks,
+    props.path,
+    cacheFile,
+    onClickSave,
+    onClickRun,
+    client,
+  ]);
 
   const setErrorNode = useNodeHighlighter(errorMarker, cmViewRef, props.path);
   const setHoverNode = useNodeHighlighter(

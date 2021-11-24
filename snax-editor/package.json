@@ -19,7 +19,9 @@
     "@emotion/react": "^11.5.0",
     "@emotion/styled": "^11.3.0",
     "@pcardune/snax": "*",
-    "codemirror-blocks": "github:bootstrapworld/codemirror-blocks#05d7e594045146668791dd477e6ac974606ef19b"
+    "codemirror-blocks": "github:bootstrapworld/codemirror-blocks#05d7e594045146668791dd477e6ac974606ef19b",
+    "@octokit/rest": "^18.12.0",
+    "react-router-dom": "^6.0.2"
   },
   "devDependencies": {
     "babel-plugin-direct-import": "^1.0.0",

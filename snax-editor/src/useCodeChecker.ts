@@ -23,10 +23,9 @@ function useSnaxCompiler() {
       compileAST(ast, {
         includeRuntime: true,
         importResolver: async (sourcePath, fromCanonicalUrl) => {
-          if (sourcePath.startsWith('snax/')) {
-            sourcePath = '/snax/stdlib/' + sourcePath;
-          }
-          const file = await client.readFile(sourcePath);
+          const file = sourcePath.startsWith('snax/')
+            ? await client.getStdlibFile(sourcePath)
+            : await client.readFile(sourcePath);
           const result = SNAXParser.parseStr(file.content, 'start', {
             grammarSource: file.url,
           });
@@ -66,7 +65,14 @@ type RunChecksOutput = {
   sourceMap: { url: string; content: string | null };
 };
 
-export type CodeChecker = {
+type RunCodeOutput = undefined | number;
+
+export type CodeRunner = {
+  runCode: (wasi: WASI) => Promise<RunCodeOutput>;
+  instance?: Instance;
+};
+
+export type CodeChecker = CodeRunner & {
   checks: { label: string; state: boolean | undefined }[];
   error: { node?: ASTNode; message: string } | null;
   ast: ASTNode | null;
@@ -75,8 +81,6 @@ export type CodeChecker = {
     code: string,
     grammarSource?: string
   ) => Promise<RunChecksOutput | undefined>;
-  runCode: (wasi: WASI) => Promise<void>;
-  instance?: Instance;
 };
 
 export type Instance = WebAssembly.Instance & {
@@ -88,10 +92,10 @@ export type Instance = WebAssembly.Instance & {
 
 function useCodeRunner(
   wasmModule: React.RefObject<WebAssembly.Module | undefined>
-) {
+): CodeRunner {
   const [instance, setInstance] = React.useState<Instance>();
   const runCode = React.useCallback(
-    async (wasi: WASI): Promise<void> => {
+    async (wasi: WASI): Promise<RunCodeOutput> => {
       if (!wasmModule.current) {
         return;
       }
@@ -106,6 +110,9 @@ function useCodeRunner(
       try {
         const result = wasi.start(modInstance);
         console.log('Run Result:', result);
+        if (typeof result === 'number') {
+          return result;
+        }
       } catch (e) {
         console.error('Failed:', e);
       }

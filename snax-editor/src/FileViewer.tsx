@@ -102,8 +102,9 @@ export default function FileViewer(props: { path: string }) {
         buffer.push(str);
       },
     });
-    await runCode(wasi);
-    setOutput(buffer.join(''));
+    const returnValue = await runCode(wasi);
+    const stdout = buffer.join('');
+    setOutput(`Return Value: ${returnValue}\nStandard Out:\n${stdout}`);
   }, [runCode]);
 
   const debounce = useDebounce();

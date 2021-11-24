@@ -114,13 +114,11 @@ export function useWriteableFile(path: string) {
 export function useFileList(path: string) {
   const [loading, setLoading] = React.useState(true);
   const [fileList, setFileList] = React.useState<DirListing>({ files: [] });
-
+  const client = useFileServer();
   const refresh = React.useCallback(async () => {
-    const res = await fetch(`http://localhost:8085${path}`);
-    const data = await res.json();
-    setFileList(data);
+    setFileList(await client.readDir(path));
     setLoading(false);
-  }, [path]);
+  }, [client, path]);
   React.useEffect(() => {
     refresh();
   }, [refresh]);

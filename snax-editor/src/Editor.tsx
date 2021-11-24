@@ -7,9 +7,6 @@ import {
   ListItemButton,
   ListItemText,
   Paper,
-  Typography,
-  AppBar,
-  Toolbar,
   ListItem,
   IconButton,
   Tooltip,
@@ -187,30 +184,17 @@ export default function Editor() {
   const fileList = useFileList('/');
   return (
     <Grid container spacing={2}>
-      <Grid item xs={12}>
-        <AppBar position="static">
-          <Toolbar variant="dense">
-            <Typography variant="h6" color="inherit" component="div">
-              Snax
-            </Typography>
-          </Toolbar>
-        </AppBar>
+      <Grid item xs={2}>
+        <Paper>
+          <FileList
+            dirListing={fileList.fileList}
+            selectedPath={selectedFilePath}
+            onSelectFile={onSelectFile}
+          />
+        </Paper>
       </Grid>
-      <Grid item xs={12}>
-        <Grid container spacing={2}>
-          <Grid item xs={2}>
-            <Paper>
-              <FileList
-                dirListing={fileList.fileList}
-                selectedPath={selectedFilePath}
-                onSelectFile={onSelectFile}
-              />
-            </Paper>
-          </Grid>
-          <Grid item xs={10}>
-            {selectedFilePath && <FileViewer path={selectedFilePath} />}
-          </Grid>
-        </Grid>
+      <Grid item xs={10}>
+        {selectedFilePath && <FileViewer path={selectedFilePath} />}
       </Grid>
     </Grid>
   );

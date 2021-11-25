@@ -284,6 +284,8 @@ export class TypeResolver {
             return Intrinsics.i32;
           case 'print':
             return Intrinsics.void;
+          case 'size_of':
+            return Intrinsics.usize;
           default:
             throw this.error(
               node,

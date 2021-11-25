@@ -166,6 +166,28 @@ describe('compiler calls', () => {
     expect(await exec('$heap_end();')).toBe(65536);
   });
 
+  it('lets you access the size of a type', async () => {
+    expect(await exec(`$size_of(i64);`)).toBe(8);
+    expect(
+      await exec(`
+        struct Square {
+          x: f32;
+          y: f32;
+          size: f32;
+          color: u8;
+        }
+        $size_of(Square);
+      `)
+    ).toBe(4 + 4 + 4 + 1);
+    expect(
+      await exec(`
+        struct Point { x1: i32; y1: i32;}
+        let a = Point::{x1: 43, y1: 54};
+        $size_of(a);
+      `)
+    ).toBe(4 + 4);
+  });
+
   xit('lets you print things', async () => {
     expect(await exec('$print("foo");', { includeRuntime: true }));
   });

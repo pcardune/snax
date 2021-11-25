@@ -1632,6 +1632,14 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         });
         return rvalueDirect(Intrinsics.void, module.nop());
       },
+      size_of: () => {
+        const arg = right.fields.args[0];
+        const argType = this.context.typeCache.get(arg);
+        return rvalueDirect(
+          Intrinsics.usize,
+          module.i32.const(argType.numBytes)
+        );
+      },
     };
     const getRValue = compilerFuncs[symbol];
     if (!getRValue) {

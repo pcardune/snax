@@ -1,7 +1,5 @@
 import { Box } from '@mui/system';
 import {
-  ListItem,
-  ListItemText,
   Button,
   Table,
   TableHead,
@@ -38,7 +36,7 @@ import {
   ExternFuncDecl,
   FuncDecl,
 } from '@pcardune/snax/dist/snax/spec-gen';
-import React, { useEffect } from 'react';
+import React from 'react';
 import type { Instance } from './useCodeChecker';
 import { getLocationString } from './util';
 
@@ -49,7 +47,7 @@ function ByteStr({ byte }: { byte?: number }) {
   return (
     <>
       <td style={{ textAlign: 'right' }}>{byte}</td>
-      <td>{String.fromCharCode(byte)}</td>
+      <td>{JSON.stringify(String.fromCharCode(byte))}</td>
     </>
   );
 }

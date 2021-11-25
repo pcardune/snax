@@ -26,7 +26,6 @@ export default React.forwardRef(function CodeMirror(
     if (!editorContainer.current) {
       return;
     }
-    console.log('Creating EditorState and EditorView');
     const state = EditorState.create({
       extensions: [basicSetup, example(), ...(props.extensions || [])],
     });

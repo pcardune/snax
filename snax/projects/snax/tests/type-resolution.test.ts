@@ -100,6 +100,15 @@ describe('Functions', () => {
       `"TypeResolutionError at <unknown>: FuncDecl: function myFunc must return i32 but has no return statements"`
     );
   });
+  it('Allows a function with an explicit void return type to have no return statements', () => {
+    const func = makeFunc(
+      'myFunc',
+      [],
+      AST.makeTypeRef(AST.makeSymbolRef('void')),
+      []
+    );
+    expect(() => resolveTypes(func, new OrderedMap())).not.toThrow();
+  });
   describe('without an explicit return type', () => {
     it('infer the return type from the return statements in the function', () => {
       const func = makeFunc('myFunc', [], undefined, [
@@ -240,7 +249,7 @@ describe('LetStatement', () => {
         AST.makeBinaryExpr(
           BinOp.ASSIGN,
           AST.makeSymbolRef('x'),
-          AST.makeNumberLiteral(1, 'float', undefined)
+          AST.makeNumberLiteral(1.34, 'float', undefined)
         )
       ),
     ]);

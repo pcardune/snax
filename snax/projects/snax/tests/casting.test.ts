@@ -207,7 +207,7 @@ describe('CastExprCompiler', () => {
       expect(() =>
         exprCompiler(cast).getRValue()
       ).toThrowErrorMatchingInlineSnapshot(
-        `"CompilerError at <unknown>: I only convert i32s to pointer types, and only when forced."`
+        `"CompilerError at <unknown>: I only convert i32s and u32s to pointer types, and only when forced. Was given i32"`
       );
     });
   });

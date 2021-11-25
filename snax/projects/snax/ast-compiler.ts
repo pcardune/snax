@@ -1850,11 +1850,15 @@ class CastExprCompiler extends ExprCompiler<AST.CastExpr> {
         throw this.error(`Don't know how to cast from ${sourceType.name} yet`);
       }
     } else if (destType instanceof PointerType) {
-      if (sourceType.equals(Intrinsics.i32) && force) {
+      if (
+        (sourceType.equals(Intrinsics.i32) ||
+          sourceType.equals(Intrinsics.u32)) &&
+        force
+      ) {
         return rvalueDirect(destType, value);
       } else {
         throw this.error(
-          `I only convert i32s to pointer types, and only when forced.`
+          `I only convert i32s and u32s to pointer types, and only when forced. Was given ${sourceType.name}`
         );
       }
     }

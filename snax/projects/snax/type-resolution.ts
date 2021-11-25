@@ -221,7 +221,7 @@ export class TypeResolver {
             return Intrinsics.bool;
           case BinOp.ASSIGN: {
             let leftType = this.resolveType(left, hint);
-            const rightType = this.resolveType(right, hint);
+            const rightType = this.resolveType(right, leftType);
             if (leftType === Intrinsics.unknown) {
               if (left.name === 'SymbolRef') {
                 const ref = refMap.get(left);
@@ -436,7 +436,11 @@ export class TypeResolver {
               }
             }
           }
-          if (!foundReturn && returnType) {
+          if (
+            !foundReturn &&
+            returnType &&
+            !returnType.equals(Intrinsics.void)
+          ) {
             throw this.error(
               node,
               `FuncDecl: function ${node.fields.symbol} must return ${returnType.name} but has no return statements`

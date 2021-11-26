@@ -214,6 +214,18 @@ const specInput: Record<
       body: 'Block',
     },
   },
+  EnumDecl: {
+    fields: {
+      symbol: 'string',
+      tags: { type: 'EnumTag', list: true },
+    },
+  },
+  EnumTag: {
+    fields: {
+      symbol: 'string',
+      typeExpr: { type: 'TypeExpr', optional: true },
+    },
+  },
   ReturnStatement: {
     fields: {
       expr: 'Expression',

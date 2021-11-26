@@ -138,6 +138,7 @@ moduleStatement "declaration"
   / funcDecl
   / externDecl
   / structDecl
+  / enumDecl
   / moduleDecl
 
 block "block"
@@ -228,6 +229,25 @@ structProp "struct prop"
     return spec.makeStructProp(name, type);
   }
   / funcDecl
+enumDecl "enum declaration"
+  = "enum" ws enumName:identifier ws "{" ws tags:enumTagList? ws "}" {
+    return spec.makeEnumDeclWith({
+      symbol: enumName,
+      tags: tags || [],
+    })
+  }
+
+enumTagList "enum tags"
+  = head:enumTag tail:(ws enumTag)* {
+    return [head, ...tail.map((p:any[]) => p[1])]
+  }
+enumTag "enum tag"
+  = tagName:identifier ws type:("(" ws typeExpr ws ")")? ","? {
+    return spec.makeEnumTagWith({
+      symbol: tagName,
+      typeExpr: type ? type[2] : undefined
+    });
+  }
 
 typeList = head:typeExpr tail:(ws "," ws typeExpr)* {
   return [head, ...tail.map((p:any[]) => p[3])];

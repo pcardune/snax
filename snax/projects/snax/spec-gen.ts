@@ -1150,6 +1150,73 @@ export function makeFuncDeclWith(fields: {
   };
 }
 
+type EnumDeclFields = { symbol: string; tags: EnumTag[] };
+
+export type EnumDecl = {
+  name: 'EnumDecl';
+  fields: EnumDeclFields;
+  location?: Location;
+};
+
+export function isEnumDecl(node: ASTNode): node is EnumDecl {
+  return node.name === 'EnumDecl';
+}
+
+export function makeEnumDecl(symbol: string, tags: EnumTag[]): EnumDecl {
+  return {
+    name: 'EnumDecl',
+    fields: {
+      symbol,
+      tags,
+    },
+  };
+}
+
+export function makeEnumDeclWith(fields: {
+  symbol: string;
+  tags: EnumTag[];
+}): EnumDecl {
+  return {
+    name: 'EnumDecl',
+    fields,
+  };
+}
+
+type EnumTagFields = { symbol: string; typeExpr?: TypeExpr };
+
+export type EnumTag = {
+  name: 'EnumTag';
+  fields: EnumTagFields;
+  location?: Location;
+};
+
+export function isEnumTag(node: ASTNode): node is EnumTag {
+  return node.name === 'EnumTag';
+}
+
+export function makeEnumTag(
+  symbol: string,
+  typeExpr: TypeExpr | undefined
+): EnumTag {
+  return {
+    name: 'EnumTag',
+    fields: {
+      symbol,
+      typeExpr,
+    },
+  };
+}
+
+export function makeEnumTagWith(fields: {
+  symbol: string;
+  typeExpr?: TypeExpr;
+}): EnumTag {
+  return {
+    name: 'EnumTag',
+    fields,
+  };
+}
+
 type ReturnStatementFields = { expr: Expression };
 
 export type ReturnStatement = {
@@ -1511,6 +1578,8 @@ export type ASTNode =
   | Parameter
   | ExternFuncDecl
   | FuncDecl
+  | EnumDecl
+  | EnumTag
   | ReturnStatement
   | ExprStatement
   | ArgList
@@ -1559,6 +1628,8 @@ export type ASTNodeName =
   | 'Parameter'
   | 'ExternFuncDecl'
   | 'FuncDecl'
+  | 'EnumDecl'
+  | 'EnumTag'
   | 'ReturnStatement'
   | 'ExprStatement'
   | 'ArgList'

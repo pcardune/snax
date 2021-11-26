@@ -539,6 +539,25 @@ describe('structs', () => {
   });
 });
 
+describe('enums', () => {
+  it('should parse enum declarations', () => {
+    expect(parse(`enum Option { None, Some(Point) }`, 'enumDecl')).toEqual(
+      AST.makeEnumDeclWith({
+        symbol: 'Option',
+        tags: [
+          AST.makeEnumTagWith({
+            symbol: 'None',
+          }),
+          AST.makeEnumTagWith({
+            symbol: 'Some',
+            typeExpr: AST.makeTypeRef(AST.makeSymbolRef('Point')),
+          }),
+        ],
+      })
+    );
+  });
+});
+
 describe('functions', () => {
   it('should parse an empty function', () => {
     expect(parse('func foo() {}', 'funcDecl')).toEqual(makeFunc('foo'));

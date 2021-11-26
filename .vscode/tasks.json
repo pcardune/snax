@@ -21,7 +21,7 @@
       "problemMatcher": [],
       "runOptions": {
         "instanceLimit": 1,
-        "runOn": "folderOpen"
+        // "runOn": "folderOpen"
       }
     }
   ]

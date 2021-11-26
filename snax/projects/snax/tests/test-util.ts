@@ -6,6 +6,7 @@ import {
   FileCompiler,
   ModuleCompilerOptions,
   Runtime,
+  WASM_FEATURE_FLAGS,
 } from '../ast-compiler.js';
 import { SNAXParser } from '../snax-parser.js';
 import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
@@ -21,6 +22,8 @@ import path from 'path';
 export type CompileToWatOptions = Partial<ModuleCompilerOptions> & {
   validate?: boolean;
   debug?: boolean;
+  optimize?: undefined | 1 | 2 | 3 | 4 | true;
+  importObject?: WebAssembly.Imports;
 };
 export async function compileToWAT(
   input: string | spec.File,
@@ -76,6 +79,15 @@ export async function compileToWAT(
   }
   global.console.warn = oldWarn;
 
+  if (options.optimize !== undefined) {
+    binaryen.setOptimizeLevel(
+      typeof options.optimize === 'number' ? options.optimize : 2
+    );
+    binaryenModule = binaryen.readBinary(binaryenModule.emitBinary());
+    binaryenModule.setFeatures(WASM_FEATURE_FLAGS);
+    binaryenModule.optimize();
+  }
+
   let wat = binaryenModule.emitText();
   const { sourceMap, binary } = binaryenModule.emitBinary('module.wasm.map');
   binaryenModule.dispose();
@@ -122,13 +134,41 @@ export function exprCompiler(node: spec.Expression) {
   return ExprCompiler.forNode(node, stubContext(node));
 }
 
+/**
+ * Get a 32 bit number out of a memory buffer from the given byte offset
+ */
+export function int32(memory: WebAssembly.Memory, offset: number) {
+  if (offset < 0) {
+    offset = memory.buffer.byteLength + offset;
+  }
+  return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
+}
+
+export function int32Slice(
+  memory: WebAssembly.Memory,
+  offset: number,
+  length: number
+) {
+  return [...new Int32Array(memory.buffer.slice(offset, offset + length))];
+}
+
+/**
+ * Get an 8 bit number out of a memory buffer from the given byte offset
+ */
+export function int8(memory: WebAssembly.Memory, offset: number) {
+  if (offset < 0) {
+    offset = memory.buffer.byteLength + offset;
+  }
+  return new Int8Array(memory.buffer.slice(offset, offset + 1))[0];
+}
+
 export type SnaxExports = {
   memory: WebAssembly.Memory;
   stackPointer: WebAssembly.Global;
   _start: () => any;
 };
 
-export async function compileToWasmModule<Exports extends {} = {}>(
+export async function compileToWasmModule<Exports>(
   input: string,
   options?: CompileToWatOptions
 ) {
@@ -137,9 +177,17 @@ export async function compileToWasmModule<Exports extends {} = {}>(
     stackSize: 1,
     ...options,
   });
-  const module = await WebAssembly.instantiate(binary);
+  const module = await WebAssembly.instantiate(binary, {
+    debug: {
+      debug: (...args: unknown[]) => {
+        console.log('snax debug:', ...args);
+      },
+    },
+    ...options?.importObject,
+  });
   const exports = module.instance.exports;
   return {
+    instance: module.instance,
     exports: exports as SnaxExports & Exports,
     wat,
     ast,
@@ -150,7 +198,7 @@ export async function compileToWasmModule<Exports extends {} = {}>(
 
 export async function exec(
   input: string,
-  options?: Partial<ModuleCompilerOptions>
+  options?: Partial<CompileToWatOptions>
 ) {
   const { exports } = await compileToWasmModule(input, options);
   return exports._start();

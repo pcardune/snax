@@ -23,18 +23,8 @@ fs.writeFileSync(
       'block',
       'funcDecl',
       'structDecl',
+      'enumDecl',
       'typeExpr',
     ],
   })
 );
-
-// fs.writeFileSync(
-//   path.join(__dirname, 'snax.js'),
-//   peggy.generate(grammar, {
-//     output: 'source',
-//     format: 'commonjs',
-//     plugins: [],
-//     cache: true,
-//     allowedStartRules: ['start', 'expr', 'statement'],
-//   })
-// );

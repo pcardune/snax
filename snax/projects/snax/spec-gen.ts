@@ -192,6 +192,41 @@ export function makeNamespacedRefWith(fields: {
   };
 }
 
+type SymbolAliasFields = { fromSymbol: string; toSymbol: string };
+
+export type SymbolAlias = {
+  name: 'SymbolAlias';
+  fields: SymbolAliasFields;
+  location?: Location;
+};
+
+export function isSymbolAlias(node: ASTNode): node is SymbolAlias {
+  return node.name === 'SymbolAlias';
+}
+
+export function makeSymbolAlias(
+  fromSymbol: string,
+  toSymbol: string
+): SymbolAlias {
+  return {
+    name: 'SymbolAlias',
+    fields: {
+      fromSymbol,
+      toSymbol,
+    },
+  };
+}
+
+export function makeSymbolAliasWith(fields: {
+  fromSymbol: string;
+  toSymbol: string;
+}): SymbolAlias {
+  return {
+    name: 'SymbolAlias',
+    fields,
+  };
+}
+
 type SymbolRefFields = { symbol: string };
 
 export type SymbolRef = {
@@ -220,7 +255,7 @@ export function makeSymbolRefWith(fields: { symbol: string }): SymbolRef {
   };
 }
 
-type TypeRefFields = { symbol: string };
+type TypeRefFields = { symbol: NamedSymbol };
 
 export type TypeRef = {
   name: 'TypeRef';
@@ -232,7 +267,7 @@ export function isTypeRef(node: ASTNode): node is TypeRef {
   return node.name === 'TypeRef';
 }
 
-export function makeTypeRef(symbol: string): TypeRef {
+export function makeTypeRef(symbol: NamedSymbol): TypeRef {
   return {
     name: 'TypeRef',
     fields: {
@@ -241,7 +276,7 @@ export function makeTypeRef(symbol: string): TypeRef {
   };
 }
 
-export function makeTypeRefWith(fields: { symbol: string }): TypeRef {
+export function makeTypeRefWith(fields: { symbol: NamedSymbol }): TypeRef {
   return {
     name: 'TypeRef',
     fields,
@@ -891,7 +926,7 @@ export function makeStructPropWith(fields: {
   };
 }
 
-type StructLiteralFields = { symbol: SymbolRef; props: StructLiteralProp[] };
+type StructLiteralFields = { symbol: NamedSymbol; props: StructLiteralProp[] };
 
 export type StructLiteral = {
   name: 'StructLiteral';
@@ -904,7 +939,7 @@ export function isStructLiteral(node: ASTNode): node is StructLiteral {
 }
 
 export function makeStructLiteral(
-  symbol: SymbolRef,
+  symbol: NamedSymbol,
   props: StructLiteralProp[]
 ): StructLiteral {
   return {
@@ -917,7 +952,7 @@ export function makeStructLiteral(
 }
 
 export function makeStructLiteralWith(fields: {
-  symbol: SymbolRef;
+  symbol: NamedSymbol;
   props: StructLiteralProp[];
 }): StructLiteral {
   return {
@@ -1115,6 +1150,73 @@ export function makeFuncDeclWith(fields: {
   };
 }
 
+type EnumDeclFields = { symbol: string; tags: EnumTag[] };
+
+export type EnumDecl = {
+  name: 'EnumDecl';
+  fields: EnumDeclFields;
+  location?: Location;
+};
+
+export function isEnumDecl(node: ASTNode): node is EnumDecl {
+  return node.name === 'EnumDecl';
+}
+
+export function makeEnumDecl(symbol: string, tags: EnumTag[]): EnumDecl {
+  return {
+    name: 'EnumDecl',
+    fields: {
+      symbol,
+      tags,
+    },
+  };
+}
+
+export function makeEnumDeclWith(fields: {
+  symbol: string;
+  tags: EnumTag[];
+}): EnumDecl {
+  return {
+    name: 'EnumDecl',
+    fields,
+  };
+}
+
+type EnumTagFields = { symbol: string; typeExpr?: TypeExpr };
+
+export type EnumTag = {
+  name: 'EnumTag';
+  fields: EnumTagFields;
+  location?: Location;
+};
+
+export function isEnumTag(node: ASTNode): node is EnumTag {
+  return node.name === 'EnumTag';
+}
+
+export function makeEnumTag(
+  symbol: string,
+  typeExpr: TypeExpr | undefined
+): EnumTag {
+  return {
+    name: 'EnumTag',
+    fields: {
+      symbol,
+      typeExpr,
+    },
+  };
+}
+
+export function makeEnumTagWith(fields: {
+  symbol: string;
+  typeExpr?: TypeExpr;
+}): EnumTag {
+  return {
+    name: 'EnumTag',
+    fields,
+  };
+}
+
 type ReturnStatementFields = { expr: Expression };
 
 export type ReturnStatement = {
@@ -1263,7 +1365,11 @@ export function makeImportDeclWith(fields: {
   };
 }
 
-type ModuleDeclFields = { symbol: string; decls: TopLevelDecl[] };
+type ModuleDeclFields = {
+  symbol: string;
+  globalNamespace?: boolean;
+  decls: TopLevelDecl[];
+};
 
 export type ModuleDecl = {
   name: 'ModuleDecl';
@@ -1277,12 +1383,14 @@ export function isModuleDecl(node: ASTNode): node is ModuleDecl {
 
 export function makeModuleDecl(
   symbol: string,
+  globalNamespace: boolean | undefined,
   decls: TopLevelDecl[]
 ): ModuleDecl {
   return {
     name: 'ModuleDecl',
     fields: {
       symbol,
+      globalNamespace,
       decls,
     },
   };
@@ -1290,6 +1398,7 @@ export function makeModuleDecl(
 
 export function makeModuleDeclWith(fields: {
   symbol: string;
+  globalNamespace?: boolean;
   decls: TopLevelDecl[];
 }): ModuleDecl {
   return {
@@ -1343,6 +1452,11 @@ export function isTypeExpr(node: ASTNode): node is TypeExpr {
   return isPointerTypeExpr(node) || isArrayTypeExpr(node) || isTypeRef(node);
 }
 
+export type NamedSymbol = SymbolRef | NamespacedRef;
+export function isNamedSymbol(node: ASTNode): node is NamedSymbol {
+  return isSymbolRef(node) || isNamespacedRef(node);
+}
+
 export type LiteralExpr =
   | NumberLiteral
   | DataLiteral
@@ -1372,7 +1486,8 @@ export type TopLevelDecl =
   | GlobalDecl
   | FuncDecl
   | ModuleDecl
-  | ImportDecl;
+  | ImportDecl
+  | SymbolAlias;
 export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
   return (
     isExternDecl(node) ||
@@ -1381,7 +1496,8 @@ export function isTopLevelDecl(node: ASTNode): node is TopLevelDecl {
     isGlobalDecl(node) ||
     isFuncDecl(node) ||
     isModuleDecl(node) ||
-    isImportDecl(node)
+    isImportDecl(node) ||
+    isSymbolAlias(node)
   );
 }
 
@@ -1435,6 +1551,7 @@ export type ASTNode =
   | DataLiteral
   | CharLiteral
   | NamespacedRef
+  | SymbolAlias
   | SymbolRef
   | TypeRef
   | PointerTypeExpr
@@ -1461,6 +1578,8 @@ export type ASTNode =
   | Parameter
   | ExternFuncDecl
   | FuncDecl
+  | EnumDecl
+  | EnumTag
   | ReturnStatement
   | ExprStatement
   | ArgList
@@ -1470,6 +1589,7 @@ export type ASTNode =
   | ExternDecl
   | StructField
   | TypeExpr
+  | NamedSymbol
   | LiteralExpr
   | TopLevelDecl
   | Expression
@@ -1481,6 +1601,7 @@ export type ASTNodeName =
   | 'DataLiteral'
   | 'CharLiteral'
   | 'NamespacedRef'
+  | 'SymbolAlias'
   | 'SymbolRef'
   | 'TypeRef'
   | 'PointerTypeExpr'
@@ -1507,6 +1628,8 @@ export type ASTNodeName =
   | 'Parameter'
   | 'ExternFuncDecl'
   | 'FuncDecl'
+  | 'EnumDecl'
+  | 'EnumTag'
   | 'ReturnStatement'
   | 'ExprStatement'
   | 'ArgList'

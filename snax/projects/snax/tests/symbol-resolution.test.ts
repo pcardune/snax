@@ -37,7 +37,10 @@ describe('resolveSymbols', () => {
     ]);
     globalDecl = AST.makeGlobalDecl('g', undefined, makeNum(10));
     funcDecl = makeFunc('main', [], outerBlock);
-    moduleDecl = AST.makeModuleDecl('math', [makeFunc('calcPi', [], [])]);
+    moduleDecl = AST.makeModuleDeclWith({
+      symbol: 'math',
+      decls: [makeFunc('calcPi', [], [])],
+    });
     file = AST.makeFileWith({
       decls: [
         moduleDecl,
@@ -49,7 +52,7 @@ describe('resolveSymbols', () => {
             AST.makeExternFuncDecl(
               'externalFunc',
               AST.makeParameterList([]),
-              AST.makeTypeRef('void')
+              AST.makeTypeRef(AST.makeSymbolRef('void'))
             ),
           ],
         }),
@@ -88,7 +91,6 @@ describe('resolveSymbols', () => {
   it('modules declarations have their own symbol table', () => {
     const moduleSymbols = tables.get(moduleDecl);
     expect(moduleSymbols).toBeDefined();
-    expect(moduleSymbols!.parent).toBeNull();
     expect(moduleSymbols?.get('calcPi')?.declNode).toBe(
       moduleDecl.fields.decls[0]
     );
@@ -100,22 +102,25 @@ describe('resolveSymbols', () => {
 
 describe('module symbol resolution', () => {
   const setup = () => {
-    const mathModule = AST.makeModuleDecl('math', [
-      makeFunc('calcPi', [], []),
-      makeFunc(
-        'calc2Pi',
-        [],
-        [AST.makeExprStatement(AST.makeSymbolRef('calcPi'))]
-      ),
-    ]);
+    const mathModule = AST.makeModuleDeclWith({
+      symbol: 'math',
+      decls: [
+        makeFunc('calcPi', [], []),
+        makeFunc(
+          'calc2Pi',
+          [],
+          [AST.makeExprStatement(AST.makeSymbolRef('calcPi'))]
+        ),
+      ],
+    });
     const file = AST.makeFile([mathModule]);
-    const { tables, refMap } = resolveSymbols(file);
-    return { mathModule, tables, refMap };
+    const { tables, refMap, globals } = resolveSymbols(file);
+    return { mathModule, tables, refMap, globals };
   };
 
   it('modules get their own symbol table without a parent', () => {
-    const { tables, mathModule } = setup();
-    expect(tables.get(mathModule)?.parent).toBeNull();
+    const { tables, mathModule, globals } = setup();
+    expect(tables.get(mathModule)?.parent).toBe(globals);
   });
 
   it('the module symbol table contains the funcs defined in the module', () => {

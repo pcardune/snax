@@ -4,6 +4,7 @@ import {
   makeBinaryExprWith,
   makeDataLiteral,
   makeExprStatement,
+  makeNamespacedRef,
   makeNumberLiteral,
   makeStructDecl,
   makeStructLiteralProp,
@@ -33,12 +34,14 @@ export function desugar(root: ASTNode) {
   for (const { node, parent } of nodesWithParentIter(root)) {
     switch (node.name) {
       case 'StringLiteral': {
+        const dataLiteral = makeDataLiteral(node.fields.value);
+        dataLiteral.location = node.location;
         const structLiteral = makeStructLiteralWith({
-          symbol: makeSymbolRef('String'),
+          symbol: makeNamespacedRef(['snax/string.snx', 'String']),
           props: [
             makeStructLiteralProp(
               'buffer',
-              makeUnaryExpr(UnaryOp.ADDR_OF, makeDataLiteral(node.fields.value))
+              makeUnaryExpr(UnaryOp.ADDR_OF, dataLiteral)
             ),
             makeStructLiteralProp(
               'length',
@@ -71,18 +74,16 @@ export function desugar(root: ASTNode) {
           if (parent?.name !== 'Block') {
             throw new Error(`Expected ${node.name} to appear within a Block`);
           }
-          const i = parent.fields.statements.indexOf(node);
-          parent.fields.statements.splice(
-            i + 1,
-            0,
-            makeExprStatement(
-              makeBinaryExprWith({
-                op: BinOp.ASSIGN,
-                left: makeSymbolRef(symbol),
-                right: expr,
-              })
-            )
+          const assignExpr = makeExprStatement(
+            makeBinaryExprWith({
+              op: BinOp.ASSIGN,
+              left: makeSymbolRef(symbol),
+              right: expr,
+            })
           );
+          assignExpr.location = node.location;
+          const i = parent.fields.statements.indexOf(node);
+          parent.fields.statements.splice(i + 1, 0, assignExpr);
         }
         break;
       }

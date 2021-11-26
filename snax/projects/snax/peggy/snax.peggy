@@ -138,6 +138,7 @@ moduleStatement "declaration"
   / funcDecl
   / externDecl
   / structDecl
+  / enumDecl
   / moduleDecl
 
 block "block"
@@ -176,10 +177,10 @@ varDecl "varDecl"
 
 whileStatement "while statement"
   = "while" ws "(" ws condExpr:expr ws ")" ws
-    "{" ws thenBlock:block ws "}" ws {
+    "{" ws thenBlock:block? ws "}" ws {
       return spec.makeWhileStatement(
         condExpr,
-        thenBlock
+        thenBlock || spec.makeBlock([])
       );
     }
 
@@ -228,6 +229,25 @@ structProp "struct prop"
     return spec.makeStructProp(name, type);
   }
   / funcDecl
+enumDecl "enum declaration"
+  = "enum" ws enumName:identifier ws "{" ws tags:enumTagList? ws "}" {
+    return spec.makeEnumDeclWith({
+      symbol: enumName,
+      tags: tags || [],
+    })
+  }
+
+enumTagList "enum tags"
+  = head:enumTag tail:(ws enumTag)* {
+    return [head, ...tail.map((p:any[]) => p[1])]
+  }
+enumTag "enum tag"
+  = tagName:identifier ws type:("(" ws typeExpr ws ")")? ","? {
+    return spec.makeEnumTagWith({
+      symbol: tagName,
+      typeExpr: type ? type[2] : undefined
+    });
+  }
 
 typeList = head:typeExpr tail:(ws "," ws typeExpr)* {
   return [head, ...tail.map((p:any[]) => p[3])];
@@ -270,7 +290,7 @@ typeExpr "typeExpr"
   / typeRef
 
 typeRef "typeRef"
-  = name:identifier { return spec.makeTypeRef(name); }
+  = name:id { return spec.makeTypeRef(name); }
 
 expr "expr"
   = assignment
@@ -367,17 +387,27 @@ unary "unary"
   = "-" ws expr:casting {
     return spec.makeUnaryExpr(AST.UnaryOp.NEG, expr);
   }
+  / "!" ws expr:casting {
+    return spec.makeUnaryExpr(AST.UnaryOp.LOGICAL_NOT, expr);
+  }
   / casting
 
 casting "cast"
-  = expr:calling ws "as" force:"!"? ws typeExpr:typeExpr {
+  = expr:deref ws "as" force:"!"? ws typeExpr:typeExpr {
     return spec.makeCastExprWith({
       expr,
       typeExpr,
       force: Boolean(force),
     });
   }
+  / deref
+
+deref "deref"
+  = "@" expr:calling {
+    return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
+  }
   / calling
+
 
 calling "calling"
   = "$" id:identifier ws "(" ws argList:exprList? ws ")" {
@@ -389,7 +419,7 @@ calling "calling"
   / indexing
 
 indexing "indexing"
-  = element:deref rest:(ws "[" ws expr ws "]")* {
+  = element:memberAccess rest:(ws "[" ws expr ws "]")* {
     function build(val:any, rest:any[]):any {
       if (rest.length === 0) {
         return val;
@@ -401,12 +431,6 @@ indexing "indexing"
       )
     }
     return build(element, rest);
-  }
-  / deref
-
-deref "deref"
-  = "@" expr:memberAccess {
-    return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
   }
   / memberAccess
 

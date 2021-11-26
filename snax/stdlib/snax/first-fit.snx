@@ -1,0 +1,143 @@
+import io from "snax/io.snx"
+import string from "snax/string.snx"
+import mem from "snax/memory.snx"
+
+global alloc_start_ptr: usize = 0;
+global alloc_end_ptr: usize = 0;
+
+struct Block {
+  size: usize;
+  free: bool;
+}
+
+func getFirstBlock() {
+  return alloc_start_ptr as! &Block;
+}
+
+func getNextBlock(block:&Block) {
+  return ((block as usize) + $size_of(Block) + block.size) as! &Block;
+}
+
+func getBlockForAddr(addr:usize) {
+  return (addr - $size_of(Block)) as! &Block;
+}
+
+func init_allocator(maxHeapSize:usize) {
+  io::printStr(@"init_allocator(");
+  io::print_u32(maxHeapSize);
+  io::printStr(@")\n");
+
+  alloc_start_ptr = mem::malloc(maxHeapSize);
+  alloc_end_ptr = alloc_start_ptr + maxHeapSize;
+  
+  io::printStr(@"Heap start: ");
+  io::print_u32(alloc_start_ptr);
+  io::printStr(@" Max Offset: ");
+  io::print_u32(alloc_end_ptr);
+  io::printStr(@"\n");
+
+  reg block = getFirstBlock();
+  block.size = maxHeapSize - $size_of(Block);
+  block.free = true;
+  return alloc_start_ptr;
+}
+
+func dump_block_info(blockIndex:u32, block:&Block):void {
+  io::printStr(@"  ");
+  io::print_u32(blockIndex);
+  io::printStr(@":\t");
+  io::print_u32(block as u32 - alloc_start_ptr);
+  io::printStr(@"\t");
+  io::print_u32(block as u32);
+  io::printStr(@"\t");
+  io::print_u32(block as u32 + $size_of(Block));
+  io::printStr(@"\t");
+  io::print_u32(block.size);
+  if (block.free) {
+    io::printStr(@"\tyes");
+  } else {
+    io::printStr(@"\tno");
+  }
+  io::printStr(@"\n");
+}
+
+func dump_allocations() {
+  io::printStr(@"  #\toffset\t@block\t@ptr\tsize\tfree?\n");
+  reg blockIndex = 0_u32;
+  reg block = getFirstBlock();
+
+  while (blockIndex < 4 && block as i32 < alloc_end_ptr) {
+    dump_block_info(blockIndex, block);
+    blockIndex = blockIndex+1;
+    block = getNextBlock(block);
+  }
+}
+
+func allocate_memory(numBytes:usize):i32 {
+  io::printStr(@"\nallocate_memory(");
+  io::print_u32(numBytes);
+  io::printStr(@")\n");
+  
+  if (numBytes % 4 > 0) {
+    // align numBytes to 4 byte word size
+    numBytes = numBytes + 4 - (numBytes % 4);
+  }
+
+  reg block = getFirstBlock();
+  while ((!block.free || block.size < numBytes) && block as i32 < alloc_end_ptr) {
+    block = getNextBlock(block);
+    // if index > maxIndex { oom(); }
+  }
+  io::printStr(@"Found free block at ");
+  io::print_u32(block as u32);
+  io::printStr(@" of size ");
+  io::print_u32(block.size);
+  io::printStr(@"\n");
+
+  reg oldBlockSize = block.size;
+  // set the size of this block 
+  block.size = numBytes;
+  // mark the block as non-free
+  block.free = false;
+  
+  if (numBytes < oldBlockSize) {
+    // set the size of the next block
+    reg nextBlock = getNextBlock(block);
+    nextBlock.size = oldBlockSize - numBytes - $size_of(Block);
+    nextBlock.free = true;
+  }
+
+  dump_allocations();
+  // return address where the memory starts
+  return block as i32 + $size_of(Block);
+}
+
+func free(addr:usize) {
+  io::printStr(@"\nfree(");
+  io::print_u32(addr);
+  io::printStr(@")\n");
+
+  reg block = getBlockForAddr(addr);
+  block.free = true;
+
+  dump_allocations();
+}
+
+func main() {
+  init_allocator(100);
+  dump_allocations();
+  reg a1 = allocate_memory(4) as! u32;
+  io::printStr(@"\na1 is at ");
+  io::print_u32(a1);
+  reg a2 = allocate_memory(22) as! u32;
+  io::printStr(@"\na2 is at ");
+  io::print_u32(a2);
+  reg a3 = allocate_memory(7) as! u32;
+  io::printStr(@"\na3 is at ");
+  io::print_u32(a3);
+
+  free(a1);
+  a1 = allocate_memory(4) as! u32;
+  free(a2);
+  a2 = allocate_memory(9) as! u32;
+}

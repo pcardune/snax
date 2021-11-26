@@ -1,5 +1,4 @@
 import * as AST from './spec-gen.js';
-import { SNAXParser } from './snax-parser.js';
 import {
   ArrayType,
   BaseType,
@@ -21,7 +20,6 @@ import {
   AllocationMap,
   Area,
   FuncAllocations,
-  FuncStorageLocation,
   GlobalStorageLocation,
   LocalAllocation,
   LocalStorageLocation,
@@ -34,7 +32,7 @@ import binaryen from 'binaryen';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
 import { pretty } from './spec-util.js';
-import { resolveImports } from './import-resolver.js';
+import { PathLoader, resolveImports } from './import-resolver.js';
 
 export const PAGE_SIZE = 65536;
 export const WASM_FEATURE_FLAGS =
@@ -196,16 +194,19 @@ export class BlockCompiler extends StmtCompiler<AST.Block> {
 
   compile() {
     const instr: number[] = [];
-    this.root.fields.statements
-      .filter((astNode) => !AST.isFuncDecl(astNode))
-      .forEach((astNode) => instr.push(this.compileChildStmt(astNode)));
+    for (const statement of this.root.fields.statements) {
+      instr.push(this.compileChildStmt(statement));
+      if (statement.name === 'ReturnStatement') {
+        // no reason to continue after top-level return
+        break;
+      }
+    }
     return this.context.module.block('', instr);
   }
 }
 
 export type ModuleCompilerOptions = {
   includeRuntime?: boolean;
-  includeWASI?: boolean;
 
   /**
    * The number of pages of memory to use for the stack
@@ -216,7 +217,7 @@ export type ModuleCompilerOptions = {
    * A function resolves a path to the file contents for
    * that path.
    */
-  importResolver: (path: string) => Promise<AST.File>;
+  importResolver: PathLoader;
 };
 export class FileCompiler extends ASTCompiler<AST.File> {
   options: Required<ModuleCompilerOptions>;
@@ -229,14 +230,20 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     super(file, undefined);
     this.options = {
       includeRuntime: true,
-      includeWASI: false,
       stackSize: 100,
       ...options,
     };
   }
 
   private async setup() {
-    await resolveImports(this.root, this.options.importResolver);
+    const rootUrl = this.root.location?.source || '<root>';
+    await resolveImports({
+      file: this.root,
+      pathLoader: this.options.importResolver,
+      rootUrl,
+      autoImport: this.options.includeRuntime ? ['snax/string.snx'] : [],
+    });
+
     desugar(this.root);
 
     const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
@@ -245,27 +252,6 @@ export class FileCompiler extends ASTCompiler<AST.File> {
       expr: stackPointerLiteral,
     });
     this.root.fields.decls.push(stackPointerGlobal);
-
-    if (this.options.includeRuntime) {
-      let runtimeAST = SNAXParser.parseStrOrThrow(`
-        struct String {
-          buffer: &u8;
-          length: usize;
-        }
-      `);
-      if (AST.isFile(runtimeAST)) {
-        for (const decl of runtimeAST.fields.decls) {
-          if (AST.isFuncDecl(decl)) {
-            if (decl.fields.symbol === 'main') {
-              continue;
-            }
-          }
-          this.root.fields.decls.push(decl);
-        }
-      } else {
-        throw this.error(`this should never happen`);
-      }
-    }
 
     const { refMap, tables } = resolveSymbols(this.root);
     this.refMap = refMap;
@@ -293,6 +279,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
     }
 
     return {
+      rootUrl,
       refMap,
       typeCache,
       moduleAllocator,
@@ -302,8 +289,14 @@ export class FileCompiler extends ASTCompiler<AST.File> {
   }
 
   async compile(): Promise<binaryen.Module> {
-    const { refMap, typeCache, moduleAllocator, runtime, stackPointer } =
-      await this.setup();
+    const {
+      rootUrl,
+      refMap,
+      typeCache,
+      moduleAllocator,
+      runtime,
+      stackPointer,
+    } = await this.setup();
 
     // ADD FUNCTIONS
     const module = new binaryen.Module();
@@ -330,7 +323,15 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         }).compile();
       }
     }
-    const mainFunc = this.root.fields.decls.find(
+
+    // find the main function
+    const rootModule = this.root.fields.decls.find(
+      (decl) => AST.isModuleDecl(decl) && decl.fields.symbol === rootUrl
+    ) as AST.ModuleDecl;
+    if (!rootModule) {
+      throw new CompilerError(this.root, `Expected there to be a root module`);
+    }
+    const mainFunc = rootModule.fields.decls.find(
       (decl) => AST.isFuncDecl(decl) && decl.fields.symbol === 'main'
     ) as AST.FuncDecl;
     if (mainFunc) {
@@ -365,13 +366,15 @@ export class FileCompiler extends ASTCompiler<AST.File> {
 
     // ADD DATA
     const segments: binaryen.MemorySegment[] = [];
-    for (const loc of moduleAllocator.allocationMap.values()) {
-      if (loc.area === 'data') {
-        segments.push({
-          offset: module.i32.const(loc.memIndex),
-          data: new TextEncoder().encode(loc.data),
-          passive: false,
-        });
+    for (const locs of moduleAllocator.allocationMap.values()) {
+      for (const loc of locs) {
+        if (loc.area === 'data') {
+          segments.push({
+            offset: module.i32.const(loc.memIndex),
+            data: new TextEncoder().encode(loc.data),
+            passive: false,
+          });
+        }
       }
     }
 
@@ -401,6 +404,8 @@ export class FileCompiler extends ASTCompiler<AST.File> {
         case 'FuncDecl': // handled above
         case 'StructDecl':
           break;
+        case 'SymbolAlias':
+          break; // this is a no-op, that's taken care of in symbol resolution
         default:
           throw new CompilerError(
             decl,
@@ -454,6 +459,19 @@ export class ModuleDeclCompiler extends ASTCompiler<
         }
         case 'GlobalDecl': {
           new GlobalDeclCompiler(decl, this.context).compile();
+          break;
+        }
+        case 'ExternDecl': {
+          // ADD IMPORTS
+          new ExternDeclCompiler(decl, {
+            typeCache: this.context.typeCache,
+            allocationMap: moduleAllocator.allocationMap,
+            module: this.context.module,
+          }).compile();
+          break;
+        }
+        case 'SymbolAlias':
+        case 'StructDecl': {
           break;
         }
         default:
@@ -554,25 +572,25 @@ export class FuncDeclCompiler extends ASTCompiler<
     if (last) {
       stackSpace = last.offset + last.dataType.numBytes;
     }
+    const sp = this.context.runtime.stackPointer;
+    // set arp local to the stack pointer
+    const setArp = lset(
+      module,
+      this.context.funcAllocs.arp,
+      module.global.get(sp.id, binaryen[sp.valueType])
+    );
     if (stackSpace > 0) {
-      const sp = this.context.runtime.stackPointer;
       return [
         // allocate space for stack variables
-        module.global.set(
-          sp.id,
-          module.i32.sub(
-            module.global.get(sp.id, binaryen[sp.valueType]),
-            module.i32.const(stackSpace)
-          )
+        gset(
+          module,
+          sp,
+          module.i32.sub(gget(module, sp), module.i32.const(stackSpace))
         ),
-        // set arp local to the stack pointer
-        module.local.set(
-          this.context.funcAllocs.arp.offset,
-          module.global.get(sp.id, binaryen[sp.valueType])
-        ),
+        setArp,
       ];
     }
-    return [];
+    return [setArp];
   }
 
   compile(): binaryen.FunctionRef {
@@ -651,6 +669,7 @@ export class FuncDeclCompiler extends ASTCompiler<
         );
       }
     }
+    WhileStatementCompiler.index = 0;
     return func;
   }
 }
@@ -722,7 +741,7 @@ export class IfStatementCompiler extends StmtCompiler<AST.IfStatement> {
 }
 
 export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
-  private static index = 0;
+  static index = 0;
 
   compile() {
     const { module } = this.context;
@@ -732,9 +751,12 @@ export class WhileStatementCompiler extends StmtCompiler<AST.WhileStatement> {
       .expectDirect().valueExpr;
     const value = this.compileChildStmt(thenBlock);
     const label = `while_${WhileStatementCompiler.index++}`;
-    return module.loop(
-      label,
-      module.block('', [value, module.br_if(label, cond)], binaryen.auto)
+    return module.if(
+      cond,
+      module.loop(
+        label,
+        module.block('', [value, module.br_if(label, cond)], binaryen.auto)
+      )
     );
   }
 }
@@ -1133,7 +1155,7 @@ class SymbolRefCompiler extends ExprCompiler<
         )}`
       );
     }
-    const location = this.context.allocationMap.get(symbolRecord.declNode);
+    const location = this.context.allocationMap.getAny(symbolRecord.declNode);
     if (!location) {
       throw this.error(
         `ASTCompiler: Can't compile reference to unlocated symbol ${pretty(
@@ -1190,7 +1212,9 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       }
     } else if (leftType === Intrinsics.bool && rightType === Intrinsics.bool) {
     } else {
-      throw this.error("pushNumberOps: don't know how to cast to number");
+      throw this.error(
+        `Don't know how to perform ${this.root.fields.op} between ${leftType.name} and ${rightType.name}`
+      );
     }
     return targetType;
   }
@@ -1226,14 +1250,23 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       );
     },
     [BinOp.REM]: (left: AST.Expression, right: AST.Expression) => {
-      const type = this.matchTypes(left, right).toValueTypeOrThrow();
-      if (isIntType(type)) {
+      const type = this.matchTypes(left, right);
+      const valueType = type.toValueTypeOrThrow();
+      if (isIntType(valueType)) {
         // TODO: make this work with unsigned ints
-        return this.context.module[type].rem_s(
-          ...this.pushNumberOps(left, right)
-        );
+        if (type instanceof NumericalType) {
+          if (type.sign == Sign.Signed) {
+            return this.context.module[valueType].rem_s(
+              ...this.pushNumberOps(left, right)
+            );
+          } else {
+            return this.context.module[valueType].rem_u(
+              ...this.pushNumberOps(left, right)
+            );
+          }
+        }
       }
-      throw this.error(`Don't know how to compute remainder for floats yet`);
+      throw this.error(`Don't know how to compute remainder for ${type.name}`);
     },
     [BinOp.EQUAL_TO]: (left: AST.Expression, right: AST.Expression) =>
       this.context.module[this.matchTypes(left, right).toValueTypeOrThrow()].eq(
@@ -1586,8 +1619,27 @@ class CompilerCallExpr extends ExprCompiler<AST.CompilerCallExpr> {
         rvalueDirect(Intrinsics.f32, module.f32.nearest(argValue(0))),
 
       // actual interesting stuff
+      heap_end: () =>
+        rvalueDirect(
+          Intrinsics.i32,
+          module.i32.mul(module.memory.size(), module.i32.const(PAGE_SIZE))
+        ),
       heap_start: () =>
         rvalueDirect(Intrinsics.i32, module.i32.const(this.context.heapStart)),
+      print: () => {
+        right.fields.args.map((arg) => {
+          console.log(this.context.typeCache.get(arg));
+        });
+        return rvalueDirect(Intrinsics.void, module.nop());
+      },
+      size_of: () => {
+        const arg = right.fields.args[0];
+        const argType = this.context.typeCache.get(arg);
+        return rvalueDirect(
+          Intrinsics.usize,
+          module.i32.const(argType.numBytes)
+        );
+      },
     };
     const getRValue = compilerFuncs[symbol];
     if (!getRValue) {
@@ -1611,7 +1663,32 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   }
 
   getLValue(): LValue {
-    throw new Error(`Don't know how to get lvalue for CallExpr`);
+    const rvalue = this.getRValue();
+    switch (rvalue.kind) {
+      case 'address': {
+        const { module } = this.context;
+        const stackLocation = this.context.allocationMap.getStackOrThrow(
+          this.root
+        );
+        return lvalueDynamic(
+          module.block(
+            '',
+            [
+              module.drop(rvalue.valuePtrExpr),
+              module.i32.add(
+                lget(module, this.context.funcAllocs.arp),
+                module.i32.const(stackLocation.offset)
+              ),
+            ],
+            binaryen.i32
+          )
+        );
+      }
+      default:
+        throw new Error(
+          `Don't know how to get lvalue for CallExpr that returns a ${rvalue.kind} rvalue`
+        );
+    }
   }
 
   getRValue() {
@@ -1619,10 +1696,6 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
     const { module } = this.context;
 
     const location = this.getFuncLocation();
-    const tempLocation = this.context.allocationMap.getLocalOrThrow(
-      this.root,
-      'function calls need a temp local'
-    );
 
     const { returnType } = location.funcType;
 
@@ -1647,7 +1720,10 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
     } else {
       const valueType = returnType.toValueType();
       const returnValueType = valueType ? binaryen[valueType] : binaryen.i32;
-
+      const tempLocation = this.context.allocationMap.getLocalOrThrow(
+        this.root,
+        'function calls need a temp local'
+      );
       const block = module.block(
         '',
         [
@@ -1665,7 +1741,18 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
       if (valueType) {
         return rvalueDirect(returnType, block);
       } else {
-        return rvalueAddress(returnType, block);
+        // copy the return value into the current function's stack space
+        const stackLocation = this.context.allocationMap.getStackOrThrow(
+          this.root
+        );
+        return rvalueAddress(
+          returnType,
+          this.copy(
+            lvalueStatic(stackLocation),
+            rvalueAddress(returnType, block),
+            tempLocation
+          )
+        );
       }
     }
   }
@@ -1676,11 +1763,10 @@ class CastExprCompiler extends ExprCompiler<AST.CastExpr> {
     throw new Error(`Cast expressions don't have lvalues`);
   }
   getRValue() {
-    const { force } = this.root.fields;
-    const sourceType = this.context.typeCache.get(this.root.fields.expr);
-    const destType = this.context.typeCache.get(this.root.fields.typeExpr);
-    const value = this.getChildRValue(this.root.fields.expr).expectDirect()
-      .valueExpr;
+    const { force, expr, typeExpr } = this.root.fields;
+    const destType = this.context.typeCache.get(typeExpr);
+    const exprRValue = this.getChildRValue(expr).expectDirect();
+    const { type: sourceType, valueExpr: value } = exprRValue;
     const { module } = this.context;
     if (destType instanceof NumericalType) {
       if (sourceType instanceof NumericalType) {
@@ -1717,25 +1803,31 @@ class CastExprCompiler extends ExprCompiler<AST.CastExpr> {
             }
           } else if (sourceType.numBytes > destType.numBytes) {
             if (force) {
-              return rvalueDirect(
-                destType,
-                module[sourceValueType].and(
-                  value,
-                  module[sourceValueType].const(
-                    (1 << (destType.numBytes * 8)) - 1,
-                    (1 << (destType.numBytes * 8)) - 1
-                  )
+              let andValue = module[sourceValueType].and(
+                value,
+                module[sourceValueType].const(
+                  (1 << (destType.numBytes * 8)) - 1,
+                  (1 << (destType.numBytes * 8)) - 1
                 )
               );
+              if (
+                sourceValueType === NumberType.i64 &&
+                destValueType === NumberType.i32
+              ) {
+                andValue = module.i32.wrap(andValue);
+              }
+              return rvalueDirect(destType, andValue);
             } else {
-              throw this.error(`I don't implicitly wrap to smaller sizes`);
+              throw this.error(
+                `I don't implicitly wrap to smaller sizes. try "as!"`
+              );
             }
           } else if (
             sourceType.sign === Sign.Signed &&
             destType.sign == Sign.Unsigned
           ) {
             if (force) {
-              throw this.error(`NotImplemented: forced dropping of sign`);
+              return rvalueDirect(destType, value);
             } else {
               throw this.error(`I don't implicitly drop signs`);
             }
@@ -1758,11 +1850,15 @@ class CastExprCompiler extends ExprCompiler<AST.CastExpr> {
         throw this.error(`Don't know how to cast from ${sourceType.name} yet`);
       }
     } else if (destType instanceof PointerType) {
-      if (sourceType.equals(Intrinsics.i32) && force) {
+      if (
+        (sourceType.equals(Intrinsics.i32) ||
+          sourceType.equals(Intrinsics.u32)) &&
+        force
+      ) {
         return rvalueDirect(destType, value);
       } else {
         throw this.error(
-          `I only convert i32s to pointer types, and only when forced.`
+          `I only convert i32s and u32s to pointer types, and only when forced. Was given ${sourceType.name}`
         );
       }
     }
@@ -1846,6 +1942,16 @@ class UnaryExprCompiler extends ExprCompiler<AST.UnaryExpr> {
           }
         }
         break;
+      }
+      case UnaryOp.LOGICAL_NOT: {
+        const rvalue = this.getChildRValue(expr);
+        if (!rvalue.type.equals(Intrinsics.bool)) {
+          throw this.error(`Can't logical-not a ${rvalue.type}`);
+        }
+        return rvalueDirect(
+          type,
+          module.i32.xor(rvalue.expectDirect().valueExpr, module.i32.const(1))
+        );
       }
       default:
         throw this.error(
@@ -1934,35 +2040,24 @@ function lset(
 }
 
 /**
- * Generates a sequence of instructions that allocates
- * space in the stack area of linear memory, incrementing
- * the stack pointer
- *
- * @param ir
- * @param numBytes
+ * Sets up the instructions for working with a stack temporary.
+ * Calculates the offset from the arp where the stack value should
+ * be stored, and saves the value to a temporary local
  * @returns the instructions, and the local where the temporary address is stored
  */
-function compileStackPush(
-  ir: ASTCompiler<AST.ASTNode, IRCompilerContext>,
-  numBytes: number
-) {
-  let location = ir.context.allocationMap.get(ir.root);
-  if (!location || location.area !== 'locals') {
-    throw new Error(
-      `${ir.root.name} didn't have a temporary local allocated for it`
-    );
-  }
-  const { module } = ir.context;
-  const instr = gset(
+function compileStackPush(ir: ASTCompiler<AST.ASTNode, IRCompilerContext>) {
+  const { module, allocationMap, funcAllocs } = ir.context;
+  const location = allocationMap.getLocalOrThrow(ir.root);
+  const stackLocation = allocationMap.getStackOrThrow(
+    ir.root,
+    'struct literals need stack space'
+  );
+  const instr = lset(
     module,
-    ir.context.runtime.stackPointer,
-    ltee(
-      module,
-      location,
-      module.i32.sub(
-        gget(module, ir.context.runtime.stackPointer),
-        module.i32.const(numBytes)
-      )
+    location,
+    module.i32.add(
+      module.i32.const(stackLocation.offset),
+      lget(module, funcAllocs.arp)
     )
   );
 
@@ -1979,7 +2074,7 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
       throw this.error('unexpected type for array literal');
     }
 
-    const { instr, location } = compileStackPush(this, arrayType.numBytes);
+    const { instr, location } = compileStackPush(this);
     const { module } = this.context;
 
     const fieldInstr = [];
@@ -2029,9 +2124,7 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
         `unexpected type for struct literal... should pointer to a record`
       );
     }
-
-    const { instr, location } = compileStackPush(this, structType.numBytes);
-
+    const { instr, location } = compileStackPush(this);
     const { module } = this.context;
 
     const fieldInstr = [];
@@ -2039,7 +2132,9 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
       const propType = structType.fields.get(prop.fields.symbol);
       if (!propType) {
         throw this.error(
-          `prop ${prop.fields.symbol} does not exist on struct ${this.root.fields.symbol.fields.symbol}`
+          `prop ${prop.fields.symbol} does not exist on struct ${pretty(
+            this.root.fields.symbol
+          )}`
         );
       }
       const ptr = lget(module, location);
@@ -2062,7 +2157,8 @@ class StructLiteralCompiler extends ExprCompiler<AST.StructLiteral> {
     );
   }
   getLValue(): LValue {
-    throw new Error(`${this.root.name}s don't have lvalues`);
+    const rvalue = this.getRValue();
+    return lvalueDynamic(rvalue.valuePtrExpr);
   }
 }
 

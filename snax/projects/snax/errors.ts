@@ -5,7 +5,7 @@ import type { TypeResolver } from './type-resolution.js';
 export const atString = (location: Location | undefined) => {
   let atString = '<unknown>';
   if (location) {
-    atString = `${location.source} ${location.start.line}:${location.start.column}`;
+    atString = `${location.source}:${location.start.line}:${location.start.column}`;
   }
   return atString;
 };
@@ -20,27 +20,34 @@ const atSource = (source: string, location: Location): string[] => {
   return output;
 };
 
-export class TypeResolutionError extends Error {
-  node: ASTNode;
+export class NodeError extends Error {
+  readonly node: ASTNode;
+  constructor(node: ASTNode, message: string) {
+    super(message);
+    this.node = node;
+  }
+}
+
+export class TypeResolutionError extends NodeError {
   resolver: TypeResolver;
 
   constructor(resolver: TypeResolver, node: ASTNode, message: string) {
-    super(`TypeResolutionError at ${atString(node.location)}: ${message}`);
-    this.node = node;
+    super(
+      node,
+      `TypeResolutionError at ${atString(node.location)}: ${message}`
+    );
     this.resolver = resolver;
   }
 }
 
-export class CompilerError extends Error {
-  node: ASTNode;
+export class CompilerError extends NodeError {
   private _message: string;
   private source?: string;
   moduleCompiler?: FileCompiler;
 
   constructor(node: ASTNode, message: string) {
-    super();
+    super(node, message);
     this._message = message;
-    this.node = node;
     this.message = this.getMessage();
   }
 
@@ -65,10 +72,11 @@ export class CompilerError extends Error {
   }
 }
 
-export class SymbolResolutionError extends Error {
-  node: ASTNode;
+export class SymbolResolutionError extends NodeError {
   constructor(node: ASTNode, message: string) {
-    super(`SymbolResolutionError at ${atString(node.location)}: ${message}`);
-    this.node = node;
+    super(
+      node,
+      `SymbolResolutionError at ${atString(node.location)}: ${message}`
+    );
   }
 }

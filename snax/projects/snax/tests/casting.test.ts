@@ -162,7 +162,11 @@ describe('CastExprCompiler', () => {
 
   it.each(cases)('converts from %p to %p', (source, dest, instruction) => {
     const num = AST.makeNumberLiteral(1, 'int', source);
-    let cast = AST.makeCastExpr(num, AST.makeTypeRef(dest), false);
+    let cast = AST.makeCastExpr(
+      num,
+      AST.makeTypeRef(AST.makeSymbolRef(dest)),
+      false
+    );
     const compiler = exprCompiler(cast);
     if (instruction instanceof Error) {
       expect(() => compiler.getRValue()).toThrowError(instruction.message);
@@ -181,7 +185,7 @@ describe('CastExprCompiler', () => {
     it('converts from i32 to &whatever', async () => {
       let cast = AST.makeCastExpr(
         num,
-        AST.makePointerTypeExpr(AST.makeTypeRef('f64')),
+        AST.makePointerTypeExpr(AST.makeTypeRef(AST.makeSymbolRef('f64'))),
         true
       );
       const compiler = exprCompiler(cast);
@@ -197,13 +201,13 @@ describe('CastExprCompiler', () => {
     it('will not convert without being forced', () => {
       let cast = AST.makeCastExpr(
         num,
-        AST.makePointerTypeExpr(AST.makeTypeRef('f64')),
+        AST.makePointerTypeExpr(AST.makeTypeRef(AST.makeSymbolRef('f64'))),
         false
       );
       expect(() =>
         exprCompiler(cast).getRValue()
       ).toThrowErrorMatchingInlineSnapshot(
-        `"CompilerError at <unknown>: I only convert i32s to pointer types, and only when forced."`
+        `"CompilerError at <unknown>: I only convert i32s and u32s to pointer types, and only when forced. Was given i32"`
       );
     });
   });

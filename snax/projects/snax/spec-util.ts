@@ -3,7 +3,7 @@ import type { ASTNode } from './spec-gen.js';
 import type { SymbolTable } from './symbol-resolution.js';
 import type { ResolvedTypeMap } from './type-resolution.js';
 
-function isASTNode(node: any): node is ASTNode {
+export function isASTNode(node: any): node is ASTNode {
   return typeof node === 'object' && node !== null && node.name && node.fields;
 }
 

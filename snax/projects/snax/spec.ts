@@ -47,6 +47,12 @@ const specInput: Record<
       path: { type: 'string', list: true },
     },
   },
+  SymbolAlias: {
+    fields: {
+      fromSymbol: 'string',
+      toSymbol: 'string',
+    },
+  },
   SymbolRef: {
     fields: {
       symbol: 'string',
@@ -54,7 +60,7 @@ const specInput: Record<
   },
   TypeRef: {
     fields: {
-      symbol: 'string',
+      symbol: 'NamedSymbol',
     },
   },
   PointerTypeExpr: {
@@ -171,7 +177,7 @@ const specInput: Record<
   },
   StructLiteral: {
     fields: {
-      symbol: 'SymbolRef',
+      symbol: 'NamedSymbol',
       props: { type: 'StructLiteralProp', list: true },
     },
   },
@@ -208,6 +214,18 @@ const specInput: Record<
       body: 'Block',
     },
   },
+  EnumDecl: {
+    fields: {
+      symbol: 'string',
+      tags: { type: 'EnumTag', list: true },
+    },
+  },
+  EnumTag: {
+    fields: {
+      symbol: 'string',
+      typeExpr: { type: 'TypeExpr', optional: true },
+    },
+  },
   ReturnStatement: {
     fields: {
       expr: 'Expression',
@@ -237,6 +255,7 @@ const specInput: Record<
   ModuleDecl: {
     fields: {
       symbol: 'string',
+      globalNamespace: { type: 'boolean', optional: true },
       decls: { type: 'TopLevelDecl', list: true },
     },
   },
@@ -251,6 +270,9 @@ const specInput: Record<
   },
   TypeExpr: {
     union: ['PointerTypeExpr', 'ArrayTypeExpr', 'TypeRef'],
+  },
+  NamedSymbol: {
+    union: ['SymbolRef', 'NamespacedRef'],
   },
   LiteralExpr: {
     union: [
@@ -273,6 +295,7 @@ const specInput: Record<
       'FuncDecl',
       'ModuleDecl',
       'ImportDecl',
+      'SymbolAlias',
     ],
   },
   Expression: {

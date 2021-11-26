@@ -65,50 +65,59 @@ export type StorageLocation =
   | DataLocation
   | StackStorageLocation;
 
-export class AllocationMap extends OrderedMap<ASTNode, StorageLocation> {
-  getOrThrow(node: ASTNode, message?: string): StorageLocation {
-    const loc = this.get(node);
+export class AllocationMap extends OrderedMap<ASTNode, StorageLocation[]> {
+  add(node: ASTNode, loc: StorageLocation) {
+    const existing = this.get(node);
+    if (existing) {
+      existing.push(loc);
+    } else {
+      super.set(node, [loc]);
+    }
+  }
+  getAny(node: ASTNode): StorageLocation | undefined {
+    return (this.get(node) ?? [])[0];
+  }
+  getOrThrow(node: ASTNode, area: Area, message?: string): StorageLocation {
+    const loc = (this.get(node) ?? []).find((l) => l.area === area);
     if (!loc) {
-      throw new Error(`No location found for ${node.name}: ${message}`);
+      throw new Error(`No ${area} location found for ${node.name}: ${message}`);
     }
     return loc;
   }
   getFuncOrThrow(func: FuncDecl | ExternFuncDecl): FuncStorageLocation {
-    const loc = this.get(func);
-    if (!loc || loc.area !== Area.FUNCS) {
-      throw new Error(
-        `No funcs location found for function ${func.fields.symbol}`
-      );
-    }
-    return loc;
+    return this.getOrThrow(
+      func,
+      Area.FUNCS,
+      `No func location found for function ${func.fields.symbol}`
+    ) as FuncStorageLocation;
   }
   getDataOrThrow(data: DataLiteral): DataLocation {
-    const loc = this.get(data);
-    if (!loc || loc.area !== Area.DATA) {
-      throw new Error(`No data location found for data literal`);
-    }
-    return loc;
+    return this.getOrThrow(
+      data,
+      Area.DATA,
+      `No data location found for data literal`
+    ) as DataLocation;
   }
   getLocalOrThrow(node: ASTNode, message?: string): LocalStorageLocation {
-    const loc = this.get(node);
-    if (!loc || loc.area !== Area.LOCALS) {
-      throw new Error(`No locals location found for ${node.name}: ${message}`);
-    }
-    return loc;
+    return this.getOrThrow(
+      node,
+      Area.LOCALS,
+      `No local location found for ${node.name}: ${message}`
+    ) as LocalStorageLocation;
   }
   getStackOrThrow(node: ASTNode, message?: string): StackStorageLocation {
-    const loc = this.get(node);
-    if (!loc || loc.area !== Area.STACK) {
-      throw new Error(`No stack location found for ${node.name}: ${message}`);
-    }
-    return loc;
+    return this.getOrThrow(
+      node,
+      Area.STACK,
+      `No stack location found for ${node.name}: ${message}`
+    ) as StackStorageLocation;
   }
   getGlobalOrThrow(node: ASTNode, message?: string): GlobalStorageLocation {
-    const loc = this.get(node);
-    if (!loc || loc.area !== Area.GLOBALS) {
-      throw new Error(`No globals location found for ${node.name}: ${message}`);
-    }
-    return loc;
+    return this.getOrThrow(
+      node,
+      Area.GLOBALS,
+      `No global location found for ${node.name}: ${message}`
+    ) as GlobalStorageLocation;
   }
 }
 
@@ -151,7 +160,7 @@ export class ModuleAllocator implements ConstAllocator {
     node: FuncDecl | ExternFuncDecl | GlobalDecl | DataLiteral,
     location: Loc
   ) {
-    this.allocationMap.set(node, location);
+    this.allocationMap.add(node, location);
     return location;
   }
 
@@ -257,7 +266,7 @@ export class NeverAllocator implements ILocalAllocator {
     return this;
   }
 }
-
+export type { FuncLocalAllocator };
 class FuncLocalAllocator implements ILocalAllocator {
   private allocationMap: AllocationMap;
   private localsOffset = 0;
@@ -277,7 +286,7 @@ class FuncLocalAllocator implements ILocalAllocator {
 
     for (const param of params.fields.parameters) {
       const id = `p${this.localsOffset}:${param.fields.symbol}`;
-      this.allocationMap.set(param, {
+      this.allocationMap.add(param, {
         area: LOCALS,
         offset: this.localsOffset++,
         id,
@@ -309,7 +318,7 @@ class FuncLocalAllocator implements ILocalAllocator {
         this.stackOffset + type.numBytes
       }`,
     };
-    this.allocationMap.set(decl, stackLoc);
+    this.allocationMap.add(decl, stackLoc);
     this.stack.push(stackLoc);
     this.stackOffset += type.numBytes;
     return stackLoc;
@@ -332,7 +341,7 @@ class FuncLocalAllocator implements ILocalAllocator {
     }
 
     if (decl) {
-      this.allocationMap.set(decl, {
+      this.allocationMap.add(decl, {
         area: LOCALS,
         offset: localAllocation.offset,
         id: localAllocation.local.id,
@@ -512,16 +521,24 @@ class MemoryResolver {
         this.moduleAllocator.allocateConstData(root, root.fields.value);
         break;
       case 'CallExpr': {
-        // TODO: CallExpr doesn't need a temp local when its not constructing a tuple
-        const type = this.typeMap.get(root).toValueType();
-        allocateTemp(type ?? NumberType.i32);
+        const type = this.typeMap.get(root);
+        const valueType = type.toValueType();
+        if (valueType) {
+          allocateTemp(valueType);
+        } else {
+          allocateTemp(NumberType.i32);
+          if (assertLocal(localAllocator)) {
+            localAllocator.allocateStack(type, root);
+          }
+        }
         return;
       }
       case 'ArrayLiteral':
-        allocateTemp(NumberType.i32);
-        return;
       case 'StructLiteral':
         allocateTemp(NumberType.i32);
+        if (assertLocal(localAllocator)) {
+          localAllocator.allocateStack(this.typeMap.get(root), root);
+        }
         return;
     }
 

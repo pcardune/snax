@@ -5,28 +5,11 @@ import {
   compileToWasmModule,
   compileToWAT,
   exec,
+  int32,
+  int32Slice,
+  int8,
   SnaxExports,
 } from './test-util';
-
-/**
- * Get a 32 bit number out of a memory buffer from the given byte offset
- */
-function int32(memory: WebAssembly.Memory, offset: number) {
-  if (offset < 0) {
-    offset = memory.buffer.byteLength + offset;
-  }
-  return new Int32Array(memory.buffer.slice(offset, offset + 4))[0];
-}
-
-/**
- * Get an 8 bit number out of a memory buffer from the given byte offset
- */
-function int8(memory: WebAssembly.Memory, offset: number) {
-  if (offset < 0) {
-    offset = memory.buffer.byteLength + offset;
-  }
-  return new Int8Array(memory.buffer.slice(offset, offset + 1))[0];
-}
 
 function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {
   const slice = exports.memory.buffer.slice(
@@ -75,7 +58,10 @@ describe('empty module', () => {
   });
 
   it('compiles an empty program', async () => {
-    const { wat } = await compileToWAT('', { includeRuntime: true });
+    const { wat } = await compileToWAT('', {
+      includeRuntime: true,
+      optimize: true,
+    });
     expect(wat).toMatchSnapshot();
   });
 
@@ -111,6 +97,8 @@ describe('empty module', () => {
     expect(await exec('true || false;')).toBe(1);
     expect(await exec('true && true;')).toBe(1);
     expect(await exec('false || false;')).toBe(0);
+    expect(await exec('!true;')).toBe(0);
+    expect(await exec('!false;')).toBe(1);
   });
 
   it('compiles relational operators', async () => {
@@ -131,7 +119,12 @@ describe('empty module', () => {
   });
 
   it('compiles remainder operator', async () => {
-    expect(await exec('5%3;')).toBe(2);
+    expect(await exec('5 % 3;')).toBe(2);
+    expect(await exec('-5 % 3;')).toBe(-2);
+    expect(await exec('-5 % -3;')).toBe(-2);
+    // TODO: is there a test for unsigned remainder? Why is
+    // there a different wasm instruction?
+    expect(await exec('5_u32 % 3;')).toBe(2);
   });
 
   it('compiles internal wasm operators', async () => {
@@ -166,6 +159,40 @@ describe('empty module', () => {
     // expect(exports._start()).toBeCloseTo(8.2);
   });
 });
+
+describe('compiler calls', () => {
+  it('lets you access the heap start and heap end', async () => {
+    expect(await exec('$heap_start();')).toBe(0);
+    expect(await exec('$heap_end();')).toBe(65536);
+  });
+
+  it('lets you access the size of a type', async () => {
+    expect(await exec(`$size_of(i64);`)).toBe(8);
+    expect(
+      await exec(`
+        struct Square {
+          x: f32;
+          y: f32;
+          size: f32;
+          color: u8;
+        }
+        $size_of(Square);
+      `)
+    ).toBe(4 + 4 + 4 + 1);
+    expect(
+      await exec(`
+        struct Point { x1: i32; y1: i32;}
+        let a = Point::{x1: 43, y1: 54};
+        $size_of(a);
+      `)
+    ).toBe(4 + 4);
+  });
+
+  xit('lets you print things', async () => {
+    expect(await exec('$print("foo");', { includeRuntime: true }));
+  });
+});
+
 describe('reg statements', () => {
   it('compiles reg statements into function local allocations', async () => {
     const code = `
@@ -300,7 +327,7 @@ describe('block compilation', () => {
             y;
           `)
       ).rejects.toMatchInlineSnapshot(
-        `[Error: SymbolResolutionError at  4:15: Reference to undeclared symbol y]`
+        `[Error: SymbolResolutionError at :4:15: Reference to undeclared symbol y]`
       );
     });
   });
@@ -337,7 +364,7 @@ describe('assignment operator', () => {
         y;
       `)
     ).rejects.toMatchInlineSnapshot(
-      `[Error: SymbolResolutionError at  3:9: Reference to undeclared symbol y]`
+      `[Error: SymbolResolutionError at :3:9: Reference to undeclared symbol y]`
     );
     await expect(
       exec(`
@@ -397,7 +424,7 @@ describe('control flow', () => {
       const { exports } = await compileToWasmModule(code, {
         includeRuntime: false,
       });
-      expect(exports._start()).toBe(167);
+      expect(exports._start()).toBe(166);
     });
   });
 });
@@ -570,6 +597,21 @@ describe('pointers', () => {
       });
       const result = exports._start();
       expect(result).toEqual(PAGE_SIZE - 4 + 3 * 4);
+    });
+
+    it('works with function return values', async () => {
+      const code = `
+        struct Point { x:i32; y:i32; }
+        func foo() {
+          return Point::{ x:3, y:5 };
+        }
+        @foo();
+      `;
+      const { exports } = await compileToWasmModule(code, {
+        includeRuntime: false,
+      });
+      const addr = exports._start();
+      expect(int32Slice(exports.memory, addr, 8)).toEqual([3, 5]);
     });
 
     it('puts values that are accessed through pointers on the stack', async () => {
@@ -750,7 +792,6 @@ describe('strings', () => {
       exports: { _start, memory },
     } = await compileToWasmModule(code, { includeRuntime: true });
     const strPointer = _start();
-    expect(strPointer).toBe(PAGE_SIZE - 8);
     const bufferPointer = int32(memory, strPointer);
     expect(bufferPointer).toEqual(0);
     const bufferLen = int32(memory, strPointer + 4);
@@ -887,6 +928,7 @@ describe('object structs', () => {
       expect(dumpFuncAllocations(compiler, 'main')).toMatchInlineSnapshot(`
         "stack:
             0: <v>s0-8 ({x: i32, y: i32})
+            8: <temp>s8-16 ({x: i32, y: i32})
         locals:
             0: <arp>r0:i32 (i32)
             1: <temp>r1:i32 (i32)
@@ -965,6 +1007,17 @@ describe('tuple structs', () => {
     expect(await exec(code)).toEqual(342);
   });
 
+  it('lets you pass struct literals as function parameters by ref', async () => {
+    const code = `
+      struct Vector(u8,i32);
+      func add(v:&Vector) {
+        return v.0 as i32 + v.1;
+      }
+      add(@Vector::(18_u8, 324));
+    `;
+    expect(await exec(code)).toEqual(342);
+  });
+
   it('lets you return structs as values, which will be copied.', async () => {
     const code = `
       struct Pair(i32,i32);
@@ -977,7 +1030,7 @@ describe('tuple structs', () => {
     `;
     const { exports } = await compileToWasmModule(code);
     const result = exports._start();
-    expect(stackDump(exports, 4)).toEqual([1, 2]);
+    expect(stackDump(exports, 4)).toEqual([1, 2, 1, 2, 3, 4]);
     expect(result).toEqual(1);
   });
 });
@@ -1038,30 +1091,68 @@ describe('module declarations', () => {
 });
 
 describe('importing modules from other files', () => {
+  const files: { [path: string]: string } = {
+    './path/to/file.snx': `
+      pub func doSomething() {
+        return 34;
+      }
+    `,
+    'a.snx': `
+      import b from "b.snx"
+      func funcInA() {
+        return 'a';
+      }
+    `,
+    'b.snx': `
+      import c from "c.snx"
+      func funcInB() {
+        return 'b';
+      }
+    `,
+    'c.snx': `
+      import a from "a.snx"
+      func funcInC() {
+        return a::funcInA() + 1;
+      }
+    `,
+    'd.snx': `import a from "a.snx"`,
+  };
+
+  const importResolver = async (path: string) => {
+    const content = files[path];
+    const ast = SNAXParser.parseStrOrThrow(content, 'start', {
+      grammarSource: path,
+    });
+    if (isFile(ast)) {
+      return { ast, canonicalUrl: path };
+    }
+    throw new Error(`Expected file ${path} to parse to a File ast`);
+  };
+
   it('lets you import other files', async () => {
-    const files: { [path: string]: string } = {
-      './path/to/file.snx': `
-        pub func doSomething() {
-          return 34;
-        }
-      `,
-    };
     const code = `
       import someModule from "./path/to/file.snx"
       someModule::doSomething();
     `;
-    await compileToWasmModule(code, {
-      importResolver: async (path: string) => {
-        const content = files[path];
-        const ast = SNAXParser.parseStrOrThrow(content, 'start', {
-          grammarSource: path,
-        });
-        if (isFile(ast)) {
-          return ast;
-        }
-        throw new Error(`Expected file ${path} to parse to a File ast`);
-      },
-    });
+    const { wat } = await compileToWasmModule(code, { importResolver });
+    expect(wat).toMatchSnapshot();
+  });
+
+  it('only compiles a module once when imported multiple itmes', async () => {
+    const code = `
+    import first from "./path/to/file.snx"
+    import second from "./path/to/file.snx"
+    first::doSomething();
+    second::doSomething();
+  `;
+    const { wat } = await compileToWasmModule(code, { importResolver });
+    expect(wat).toMatchSnapshot();
+  });
+
+  it('does allows circular dependencies, resolving each once', async () => {
+    const code = `import someModule from "d.snx"`;
+    const { wat } = await compileToWasmModule(code, { importResolver });
+    expect(wat).toMatchSnapshot();
   });
 });
 
@@ -1071,9 +1162,9 @@ describe('bugs that came up', () => {
       func run() {
         let input = read(100);
       }
-      
+      import string from "snax/string.snx"
       func read(numBytes:i32) {
-        let s = String::{buffer: $heap_start(), length: numBytes};
+        let s = string::String::{buffer: $heap_start(), length: numBytes};
         return s;
       }
     `;
@@ -1112,5 +1203,16 @@ describe('bugs that came up', () => {
       validate: false,
     });
     expect(exports._start()).toBeCloseTo(3.4, 4);
+  });
+
+  it("doesn't run while loops that are false", async () => {
+    const code = `
+      reg i = 32;
+      while (false) {
+        i = i + 1;
+      }
+      i;
+    `;
+    expect(await exec(code)).toBe(32);
   });
 });

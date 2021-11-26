@@ -8,10 +8,13 @@ exports[`assignment operator compiles assignments to registers 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local $2 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :2:7
   (nop)
   ;;@ :3:7
@@ -30,7 +33,7 @@ exports[`assignment operator compiles assignments to registers 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -45,36 +48,47 @@ exports[`control flow while loops compiles while statements 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
   (local $2 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :2:11
   (local.set $1
    ;;@ :2:19
    (i32.const 0)
   )
   ;;@ :3:11
-  (loop $while_0
-   ;;@ :4:13
-   (block
-    (drop
-     (local.tee $1
-      (i32.add
-       ;;@ :4:17
-       (local.get $1)
-       ;;@ :4:19
-       (i32.const 1)
+  (if
+   (i32.lt_s
+    ;;@ :3:18
+    (local.get $1)
+    ;;@ :3:22
+    (i32.const 10)
+   )
+   (loop $while_0
+    ;;@ :4:13
+    (block
+     (drop
+      (local.tee $1
+       (i32.add
+        ;;@ :4:17
+        (local.get $1)
+        ;;@ :4:19
+        (i32.const 1)
+       )
       )
      )
     )
-   )
-   (br_if $while_0
-    (i32.lt_s
-     ;;@ :3:18
-     (local.get $1)
-     ;;@ :3:22
-     (i32.const 10)
+    (br_if $while_0
+     (i32.lt_s
+      ;;@ :3:18
+      (local.get $1)
+      ;;@ :3:22
+      (i32.const 10)
+     )
     )
    )
   )
@@ -88,7 +102,7 @@ exports[`control flow while loops compiles while statements 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -97,9 +111,9 @@ exports[`control flow while loops compiles while statements 1`] = `
 
 exports[`empty module compiles an empty program 1`] = `
 "(module
- (global $g0:#SP (mut i32) (i32.const 0))
+ (global $global$1 (mut i32) (i32.const 0))
  (memory $0 1 1)
- (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"stackPointer\\" (global $global$1))
  (export \\"memory\\" (memory $0))
 )
 "
@@ -113,8 +127,11 @@ exports[`empty module compiles integers 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :1:1
   (return
    ;;@ :1:1
@@ -126,14 +143,14 @@ exports[`empty module compiles integers 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
 "
 `;
 
-exports[`empty module compiles integers 2`] = `"{\\"version\\":3,\\"sources\\":[\\"\\",\\"\\"],\\"names\\":[],\\"mappings\\":\\"6ECAC,ADAA\\"}"`;
+exports[`empty module compiles integers 2`] = `"{\\"version\\":3,\\"sources\\":[\\"\\",\\"\\"],\\"names\\":[],\\"mappings\\":\\"iFCAC,ADAA\\"}"`;
 
 exports[`empty module compiles to binaryen module 1`] = `
 "(module
@@ -147,6 +164,178 @@ exports[`empty module compiles to binaryen module 1`] = `
 
 exports[`empty module compiles to binaryen module 2`] = `"{\\"version\\":3,\\"sources\\":[],\\"names\\":[],\\"mappings\\":\\"\\"}"`;
 
+exports[`importing modules from other files does allows circular dependencies, resolving each once 1`] = `
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<c.snx::funcInC>f0 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ c.snx:4:9
+  (return
+   ;;@ c.snx:4:16
+   (i32.add
+    ;;@ c.snx:4:16
+    (block (result i32)
+     (local.set $1
+      (call $<a.snx::funcInA>f2)
+     )
+     (global.set $g0:#SP
+      (local.get $0)
+     )
+     (local.get $1)
+    )
+    ;;@ c.snx:4:31
+    (i32.const 1)
+   )
+  )
+ )
+ (func $<b.snx::funcInB>f1 (result i32)
+  (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ b.snx:4:9
+  (return
+   ;;@ b.snx:4:16
+   (i32.const 98)
+  )
+ )
+ (func $<a.snx::funcInA>f2 (result i32)
+  (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ a.snx:4:9
+  (return
+   ;;@ a.snx:4:16
+   (i32.const 97)
+  )
+ )
+)
+"
+`;
+
+exports[`importing modules from other files lets you import other files 1`] = `
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"doSomething\\" (func $<./path/to/file.snx::doSomething>f0))
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<./path/to/file.snx::doSomething>f0 (result i32)
+  (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ ./path/to/file.snx:3:9
+  (return
+   ;;@ ./path/to/file.snx:3:16
+   (i32.const 34)
+  )
+ )
+ (func $<<root>::main>f1 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ :3:7
+  (return
+   (block (result i32)
+    (local.set $1
+     (call $<./path/to/file.snx::doSomething>f0)
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<<root>::main>f1)
+  )
+ )
+)
+"
+`;
+
+exports[`importing modules from other files only compiles a module once when imported multiple itmes 1`] = `
+"(module
+ (type $none_=>_i32 (func (result i32)))
+ (global $g0:#SP (mut i32) (i32.const 0))
+ (memory $0 1 1)
+ (export \\"doSomething\\" (func $<./path/to/file.snx::doSomething>f0))
+ (export \\"_start\\" (func $_start))
+ (export \\"stackPointer\\" (global $g0:#SP))
+ (export \\"memory\\" (memory $0))
+ (func $<./path/to/file.snx::doSomething>f0 (result i32)
+  (local $0 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ ./path/to/file.snx:3:9
+  (return
+   ;;@ ./path/to/file.snx:3:16
+   (i32.const 34)
+  )
+ )
+ (func $<<root>::main>f1 (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
+  ;;@ :4:5
+  (drop
+   (block (result i32)
+    (local.set $1
+     (call $<./path/to/file.snx::doSomething>f0)
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+  ;;@ :5:5
+  (return
+   (block (result i32)
+    (local.set $1
+     (call $<./path/to/file.snx::doSomething>f0)
+    )
+    (global.set $g0:#SP
+     (local.get $0)
+    )
+    (local.get $1)
+   )
+  )
+ )
+ (func $_start (result i32)
+  (global.set $g0:#SP
+   (i32.const 65536)
+  )
+  (return
+   (call $<<root>::main>f1)
+  )
+ )
+)
+"
+`;
+
 exports[`let statements allocates space on the stack, and initializes values to 0 1`] = `
 "(module
  (type $none_=>_i32 (func (result i32)))
@@ -155,7 +344,7 @@ exports[`let statements allocates space on the stack, and initializes values to 
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (global.set $g0:#SP
    (i32.sub
@@ -202,7 +391,7 @@ exports[`let statements allocates space on the stack, and initializes values to 
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -216,12 +405,15 @@ exports[`module declarations allows calling functions inside a module declaratio
  (type $i32_=>_i32 (func (param i32) (result i32)))
  (global $g0:#SP (mut i32) (i32.const 0))
  (memory $0 1 1)
- (export \\"test1\\" (func $<test1>f3))
- (export \\"test2\\" (func $<test2>f4))
+ (export \\"test1\\" (func $<<root>::test1>f3))
+ (export \\"test2\\" (func $<<root>::test2>f4))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<math::add>f0 (param $0 i32) (param $1 i32) (result i32)
+ (func $<<root>::add>f0 (param $0 i32) (param $1 i32) (result i32)
   (local $2 i32)
+  (local.set $2
+   (global.get $g0:#SP)
+  )
   ;;@ :4:11
   (return
    ;;@ :4:18
@@ -233,15 +425,18 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<math::add100>f1 (param $0 i32) (result i32)
+ (func $<<root>::add100>f1 (param $0 i32) (result i32)
   (local $1 i32)
   (local $2 i32)
+  (local.set $1
+   (global.get $g0:#SP)
+  )
   ;;@ :7:11
   (return
    ;;@ :7:18
    (block (result i32)
     (local.set $2
-     (call $<math::add>f0
+     (call $<<root>::add>f0
       ;;@ :7:22
       (local.get $0)
       ;;@ :7:25
@@ -255,8 +450,11 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<add>f2 (param $0 i32) (param $1 i32) (result i32)
+ (func $<<root>::add>f2 (param $0 i32) (param $1 i32) (result i32)
   (local $2 i32)
+  (local.set $2
+   (global.get $g0:#SP)
+  )
   ;;@ :11:9
   (return
    ;;@ :11:16
@@ -267,15 +465,18 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<test1>f3 (result i32)
+ (func $<<root>::test1>f3 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :14:9
   (return
    ;;@ :14:16
    (block (result i32)
     (local.set $1
-     (call $<math::add>f0
+     (call $<<root>::add>f0
       ;;@ :14:26
       (i32.const 1)
       ;;@ :14:28
@@ -289,15 +490,18 @@ exports[`module declarations allows calling functions inside a module declaratio
    )
   )
  )
- (func $<test2>f4 (result i32)
+ (func $<<root>::test2>f4 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :17:9
   (return
    ;;@ :17:16
    (block (result i32)
     (local.set $1
-     (call $<math::add100>f1
+     (call $<<root>::add100>f1
       ;;@ :17:29
       (i32.const 1)
      )
@@ -321,9 +525,12 @@ exports[`reg statements compiles reg statements 1`] = `
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0 (result i32)
+ (func $<<root>::main>f0 (result i32)
   (local $0 i32)
   (local $1 i32)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :1:1
   (local.set $1
    ;;@ :1:9
@@ -339,7 +546,7 @@ exports[`reg statements compiles reg statements 1`] = `
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )
@@ -354,11 +561,14 @@ exports[`reg statements compiles reg statements into function local allocations 
  (export \\"_start\\" (func $_start))
  (export \\"stackPointer\\" (global $g0:#SP))
  (export \\"memory\\" (memory $0))
- (func $<main>f0
+ (func $<<root>::main>f0
   (local $0 i32)
   (local $1 i32)
   (local $2 i32)
   (local $3 f64)
+  (local.set $0
+   (global.get $g0:#SP)
+  )
   ;;@ :2:7
   (nop)
   ;;@ :3:7
@@ -371,7 +581,7 @@ exports[`reg statements compiles reg statements into function local allocations 
    (i32.const 65536)
   )
   (return
-   (call $<main>f0)
+   (call $<<root>::main>f0)
   )
  )
 )

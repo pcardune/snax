@@ -29,10 +29,30 @@ describe('ParameterList', () => {
 
 describe('CastExpr', () => {
   it('types a cast expr as the type being casted to', () => {
-    const typeRef = AST.makeTypeRef('f64');
+    const typeRef = AST.makeTypeRef(AST.makeSymbolRef('f64'));
     let cast = AST.makeCastExpr(makeNum(1), typeRef, false);
     const typeCache = resolveTypes(cast, new OrderedMap());
     expect(typeCache.get(cast)).toEqual(typeCache.get(typeRef));
+  });
+});
+
+describe('NumberLiteral', () => {
+  it('uses type hints to determine the types of number literals', () => {
+    const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
+    const inferredNumber = AST.makeNumberLiteral(3, 'int', undefined);
+    const add = AST.makeBinaryExpr(BinOp.ADD, explicitNumber, inferredNumber);
+    const typeMap = resolveTypes(add, new OrderedMap());
+    expect(typeMap.get(inferredNumber)).toBe(Intrinsics.u8);
+  });
+  it('throws an error if a type hinted number will not fit', () => {
+    const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
+    const inferredNumber = AST.makeNumberLiteral(45452, 'int', undefined);
+    const add = AST.makeBinaryExpr(BinOp.ADD, explicitNumber, inferredNumber);
+    expect(() =>
+      resolveTypes(add, new OrderedMap())
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: 45452 doesn't fit into a u8"`
+    );
   });
 });
 
@@ -58,19 +78,36 @@ describe('Functions', () => {
     expect(typeMap.get(func).name).toMatchInlineSnapshot(`"func():void"`);
   });
   it('types a function with an explicit return type as a func type with that return type', () => {
-    const func = makeFunc('myFunc', [], AST.makeTypeRef('i32'), [
-      AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
-    ]);
+    const func = makeFunc(
+      'myFunc',
+      [],
+      AST.makeTypeRef(AST.makeSymbolRef('i32')),
+      [AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined))]
+    );
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
   });
   it('Checks that a function with an explicit return type actually returns that type', () => {
-    const func = makeFunc('myFunc', [], AST.makeTypeRef('i32'), []);
+    const func = makeFunc(
+      'myFunc',
+      [],
+      AST.makeTypeRef(AST.makeSymbolRef('i32')),
+      []
+    );
     expect(() =>
       resolveTypes(func, new OrderedMap())
     ).toThrowErrorMatchingInlineSnapshot(
       `"TypeResolutionError at <unknown>: FuncDecl: function myFunc must return i32 but has no return statements"`
     );
+  });
+  it('Allows a function with an explicit void return type to have no return statements', () => {
+    const func = makeFunc(
+      'myFunc',
+      [],
+      AST.makeTypeRef(AST.makeSymbolRef('void')),
+      []
+    );
+    expect(() => resolveTypes(func, new OrderedMap())).not.toThrow();
   });
   describe('without an explicit return type', () => {
     it('infer the return type from the return statements in the function', () => {
@@ -142,7 +179,7 @@ describe('LetStatement', () => {
   it('uses the explicit type on the let statement', () => {
     const letStatement = AST.makeLetStatementWith({
       symbol: 'x',
-      typeExpr: AST.makeTypeRef('f32'),
+      typeExpr: AST.makeTypeRef(AST.makeSymbolRef('f32')),
       expr: undefined,
     });
     expect(getType(letStatement)).toBe(Intrinsics.f32);
@@ -160,14 +197,14 @@ describe('LetStatement', () => {
   it('Ensures that the intialization expression type matches the let statement type', () => {
     const letStatement = AST.makeLetStatementWith({
       symbol: 'x',
-      typeExpr: AST.makeTypeRef('i32'),
+      typeExpr: AST.makeTypeRef(AST.makeSymbolRef('i32')),
       expr: AST.makeNumberLiteral(3, 'int', 'i32'),
     });
     expect(getType(letStatement)).toBe(Intrinsics.i32);
 
     const badLetStatement = AST.makeLetStatementWith({
       symbol: 'x',
-      typeExpr: AST.makeTypeRef('i32'),
+      typeExpr: AST.makeTypeRef(AST.makeSymbolRef('i32')),
       expr: AST.makeNumberLiteral(3, 'int', 'f64'),
     });
     expect(() => getType(badLetStatement)).toThrowErrorMatchingInlineSnapshot(
@@ -212,7 +249,7 @@ describe('LetStatement', () => {
         AST.makeBinaryExpr(
           BinOp.ASSIGN,
           AST.makeSymbolRef('x'),
-          AST.makeNumberLiteral(1, 'float', undefined)
+          AST.makeNumberLiteral(1.34, 'float', undefined)
         )
       ),
     ]);
@@ -230,12 +267,24 @@ describe('ExternDecl', () => {
     const fdWriteFunc = AST.makeExternFuncDeclWith({
       symbol: 'fd_write',
       parameters: AST.makeParameterList([
-        AST.makeParameter('fileDescriptor', AST.makeTypeRef('i32')),
-        AST.makeParameter('iovPointer', AST.makeTypeRef('i32')),
-        AST.makeParameter('iovLength', AST.makeTypeRef('i32')),
-        AST.makeParameter('numWrittenPointer', AST.makeTypeRef('i32')),
+        AST.makeParameter(
+          'fileDescriptor',
+          AST.makeTypeRef(AST.makeSymbolRef('i32'))
+        ),
+        AST.makeParameter(
+          'iovPointer',
+          AST.makeTypeRef(AST.makeSymbolRef('i32'))
+        ),
+        AST.makeParameter(
+          'iovLength',
+          AST.makeTypeRef(AST.makeSymbolRef('i32'))
+        ),
+        AST.makeParameter(
+          'numWrittenPointer',
+          AST.makeTypeRef(AST.makeSymbolRef('i32'))
+        ),
       ]),
-      returnType: AST.makeTypeRef('void'),
+      returnType: AST.makeTypeRef(AST.makeSymbolRef('void')),
     });
     const externDecl = AST.makeExternDeclWith({
       libName: 'wasi_unstable',
@@ -305,8 +354,8 @@ describe('ArrayLiteral', () => {
 describe('TupleStructDecl', () => {
   it('types tuple struct declarations as a tuple type', () => {
     const tupleDecl = AST.makeTupleStructDecl('Vector', [
-      AST.makeTypeRef('u8'),
-      AST.makeTypeRef('i32'),
+      AST.makeTypeRef(AST.makeSymbolRef('u8')),
+      AST.makeTypeRef(AST.makeSymbolRef('i32')),
     ]);
 
     const { refMap } = resolveSymbols(tupleDecl);
@@ -322,8 +371,8 @@ describe('StructDecl', () => {
     const structDecl = AST.makeStructDeclWith({
       symbol: 'Vector',
       props: [
-        AST.makeStructProp('x', AST.makeTypeRef('i32')),
-        AST.makeStructProp('y', AST.makeTypeRef('i32')),
+        AST.makeStructProp('x', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
+        AST.makeStructProp('y', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
         AST.makeFuncDeclWith({
           symbol: 'mag',
           parameters: AST.makeParameterList([]),
@@ -351,15 +400,15 @@ describe('StructDecl', () => {
     const vecStructDecl = AST.makeStructDeclWith({
       symbol: 'Vector',
       props: [
-        AST.makeStructProp('x', AST.makeTypeRef('i32')),
-        AST.makeStructProp('y', AST.makeTypeRef('i32')),
+        AST.makeStructProp('x', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
+        AST.makeStructProp('y', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
       ],
     });
     const lineStructDecl = AST.makeStructDeclWith({
       symbol: 'Line',
       props: [
-        AST.makeStructProp('p1', AST.makeTypeRef('Vector')),
-        AST.makeStructProp('p2', AST.makeTypeRef('Vector')),
+        AST.makeStructProp('p1', AST.makeTypeRef(AST.makeSymbolRef('Vector'))),
+        AST.makeStructProp('p2', AST.makeTypeRef(AST.makeSymbolRef('Vector'))),
       ],
     });
     const file = AST.makeFileWith({
@@ -376,8 +425,8 @@ describe('StructDecl', () => {
     const vecStructDecl = AST.makeStructDeclWith({
       symbol: 'Vector',
       props: [
-        AST.makeStructProp('x', AST.makeTypeRef('i32')),
-        AST.makeStructProp('y', AST.makeTypeRef('Vector')),
+        AST.makeStructProp('x', AST.makeTypeRef(AST.makeSymbolRef('i32'))),
+        AST.makeStructProp('y', AST.makeTypeRef(AST.makeSymbolRef('Vector'))),
       ],
     });
     const file = AST.makeFileWith({

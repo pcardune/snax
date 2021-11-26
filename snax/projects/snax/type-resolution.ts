@@ -21,7 +21,7 @@ import {
   isNumberLiteral,
   isReturnStatement,
 } from './spec-gen.js';
-import { depthFirstIter, pretty } from './spec-util.js';
+import { preorderIter, pretty } from './spec-util.js';
 import type { SymbolRefMap } from './symbol-resolution.js';
 
 type Fields<N> = N extends { fields: infer F } ? F : never;
@@ -38,8 +38,8 @@ export class ResolvedTypeMap extends OrderedMap<ASTNode, BaseType> {
 
 export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   const resolver = new TypeResolver(refMap);
-  for (const node of depthFirstIter(root)) {
-    resolver.resolveType(node);
+  for (const node of preorderIter(root)) {
+    resolver.resolveType(node, undefined);
   }
   for (const [index, node, type] of resolver.typeMap.entries()) {
     if (type.equals(Intrinsics.unknown)) {
@@ -66,14 +66,14 @@ export class TypeResolver {
     return new TypeResolutionError(this, node, message);
   }
 
-  resolveType(node: ASTNode): BaseType {
+  resolveType(node: ASTNode, hint: BaseType | undefined): BaseType {
     if (this.inProgress.has(node)) {
       throw this.error(node, 'Detected cycle in type references');
     }
     let resolvedType: BaseType;
     if (!this.typeMap.has(node)) {
       this.inProgress.add(node);
-      resolvedType = this.calculateType(node);
+      resolvedType = this.calculateType(node, hint);
       this.inProgress.delete(node);
       this.typeMap.set(node, resolvedType);
     } else {
@@ -82,13 +82,13 @@ export class TypeResolver {
     return resolvedType;
   }
 
-  calculateType(node: ASTNode): BaseType {
+  calculateType(node: ASTNode, hint: BaseType | undefined): BaseType {
     const { refMap } = this;
     switch (node.name) {
       case 'BooleanLiteral':
         return Intrinsics.bool;
       case 'NumberLiteral': {
-        const { explicitType, numberType } = node.fields;
+        const { explicitType, numberType, value } = node.fields;
         if (explicitType) {
           const type = Intrinsics[explicitType as keyof typeof Intrinsics];
           if (!type) {
@@ -98,6 +98,23 @@ export class TypeResolver {
             );
           }
           return type;
+        }
+        if (hint instanceof NumericalType) {
+          if (hint.interpretation === 'float') {
+            return hint;
+          } else if (Math.floor(value) === value) {
+            // the literal might be a float literal, but it's equal to
+            // its integer version, so it can just be an integer
+            if (value < Math.pow(2, hint.numBytes * 8)) {
+              // the literal number will fit into the hinted type
+              return hint;
+            } else {
+              throw this.error(
+                node,
+                `${value} doesn't fit into a ${hint.name}`
+              );
+            }
+          }
         }
         switch (numberType) {
           case NumberLiteralType.Float:
@@ -111,13 +128,21 @@ export class TypeResolver {
         return Intrinsics.u8;
       case 'DataLiteral':
         return new ArrayType(Intrinsics.u8, node.fields.value.length);
+      case 'SymbolAlias':
+        return Intrinsics.void;
       case 'NamespacedRef':
       case 'SymbolRef': {
         const record = refMap.get(node);
         if (!record) {
+          if (
+            node.name === 'SymbolRef' &&
+            isIntrinsicSymbol(node.fields.symbol)
+          ) {
+            return Intrinsics[node.fields.symbol];
+          }
           return Intrinsics.unknown;
         }
-        const resolvedType = this.resolveType(record.declNode);
+        const resolvedType = this.resolveType(record.declNode, hint);
         if (!resolvedType) {
           throw this.error(
             node,
@@ -129,28 +154,18 @@ export class TypeResolver {
         return resolvedType;
       }
       case 'TypeRef':
-        if (isIntrinsicSymbol(node.fields.symbol)) {
-          return Intrinsics[node.fields.symbol];
-        }
-        const record = refMap.get(node);
-        if (record) {
-          return this.resolveType(record.declNode);
-        }
-        throw this.error(
-          node,
-          `TypeRef: Can't resolve type ${node.fields.symbol}`
-        );
+        return this.resolveType(node.fields.symbol, hint);
       case 'PointerTypeExpr':
-        return new PointerType(this.resolveType(node.fields.pointerToExpr));
+        return new PointerType(
+          this.resolveType(node.fields.pointerToExpr, hint)
+        );
       case 'ArrayTypeExpr':
         return new ArrayType(
-          this.resolveType(node.fields.valueTypeExpr),
+          this.resolveType(node.fields.valueTypeExpr, hint),
           node.fields.size
         );
       case 'CastExpr':
-        return this.resolveType(node.fields.typeExpr);
-      case 'ExprStatement':
-        return Intrinsics.void;
+        return this.resolveType(node.fields.typeExpr, hint);
       case 'GlobalDecl':
       case 'RegStatement':
       case 'LetStatement': {
@@ -158,14 +173,14 @@ export class TypeResolver {
           if (!node.fields.expr) {
             return Intrinsics.unknown;
           }
-          return this.resolveType(node.fields.expr);
+          return this.resolveType(node.fields.expr, hint);
         }
 
-        let explicitType = this.resolveType(node.fields.typeExpr);
+        let explicitType = this.resolveType(node.fields.typeExpr, hint);
         if (node.fields.expr) {
           // both an explicit type and an initializer expression
           // have been specified. Make sure they match.
-          let exprType = this.resolveType(node.fields.expr);
+          let exprType = this.resolveType(node.fields.expr, explicitType);
           if (!explicitType.equals(exprType)) {
             throw this.error(
               node,
@@ -176,22 +191,22 @@ export class TypeResolver {
         return explicitType;
       }
       case 'IfStatement': {
-        const thenType = this.resolveType(node.fields.thenBlock);
-        const elseType = this.resolveType(node.fields.elseBlock);
+        const thenType = this.resolveType(node.fields.thenBlock, hint);
+        const elseType = this.resolveType(node.fields.elseBlock, hint);
         if (thenType === elseType) {
           return thenType;
         }
         return new UnionType([thenType, elseType]);
       }
+      case 'ExprStatement':
       case 'WhileStatement':
-        return Intrinsics.void;
       case 'Block':
         return Intrinsics.void;
       case 'BinaryExpr': {
         const { op, left, right } = node.fields;
         switch (op) {
           case BinOp.ARRAY_INDEX: {
-            const leftType = this.resolveType(left);
+            const leftType = this.resolveType(left, hint);
             if (leftType instanceof ArrayType) {
               return leftType.elementType;
             } else if (leftType instanceof PointerType) {
@@ -205,8 +220,8 @@ export class TypeResolver {
           case BinOp.NOT_EQUAL_TO:
             return Intrinsics.bool;
           case BinOp.ASSIGN: {
-            let leftType = this.resolveType(left);
-            const rightType = this.resolveType(right);
+            let leftType = this.resolveType(left, hint);
+            const rightType = this.resolveType(right, leftType);
             if (leftType === Intrinsics.unknown) {
               if (left.name === 'SymbolRef') {
                 const ref = refMap.get(left);
@@ -234,13 +249,11 @@ export class TypeResolver {
               `Can't assign value of type ${rightType.name} to a ${leftType.name}`
             );
           }
-          default:
-            return this.getTypeForBinaryOp(
-              node,
-              op,
-              this.resolveType(left),
-              this.resolveType(right)
-            );
+          default: {
+            const leftType = this.resolveType(left, hint);
+            const rightType = this.resolveType(right, leftType);
+            return this.getTypeForBinaryOp(node, op, leftType, rightType);
+          }
         }
       }
       case 'CompilerCallExpr': {
@@ -266,7 +279,13 @@ export class TypeResolver {
           case 'memory_copy':
             return Intrinsics.void;
           case 'heap_start':
-            return Intrinsics.i32;
+            return Intrinsics.usize;
+          case 'heap_end':
+            return Intrinsics.usize;
+          case 'print':
+            return Intrinsics.void;
+          case 'size_of':
+            return Intrinsics.usize;
           default:
             throw this.error(
               node,
@@ -275,25 +294,53 @@ export class TypeResolver {
         }
       }
       case 'CallExpr': {
-        const leftType = this.resolveType(node.fields.left);
-        if (leftType instanceof FuncType) {
-          return leftType.returnType;
-        } else if (leftType instanceof TupleType) {
-          return new PointerType(leftType);
+        const funcType = this.resolveType(node.fields.left, hint);
+        if (funcType instanceof FuncType) {
+          const argListType = this.resolveType(
+            node.fields.right,
+            new TupleType(funcType.argTypes)
+          );
+          if (argListType instanceof TupleType) {
+            if (argListType.elements.length !== funcType.argTypes.length) {
+              throw this.error(
+                node,
+                `Function takes ${funcType.argTypes.length} args, but ${argListType.elements.length} were given`
+              );
+            }
+            for (let i = 0; i < funcType.argTypes.length; i++) {
+              const paramType = funcType.argTypes[i];
+              const argType = argListType.elements[i].type;
+              if (!argType.equals(paramType)) {
+                throw this.error(
+                  node,
+                  `Expected ${paramType.name} for argument ${i + 1}, but got ${
+                    argType.name
+                  } instead`
+                );
+              }
+            }
+          } else {
+            throw this.error(
+              node,
+              `Expected tuple type for arg list, but got: ${argListType.name}`
+            );
+          }
+          return funcType.returnType;
+        } else if (funcType instanceof TupleType) {
+          return new PointerType(funcType);
         } else {
           throw this.error(
             node,
-            `Can't call ${leftType.name} that is not a function`
+            `Can't call ${funcType.name} that is not a function`
           );
         }
       }
       case 'UnaryExpr': {
+        const exprType = this.resolveType(node.fields.expr, hint);
         switch (node.fields.op) {
           case UnaryOp.ADDR_OF:
-            const exprType = this.resolveType(node.fields.expr);
             return new PointerType(exprType);
           case UnaryOp.NEG: {
-            const exprType = this.resolveType(node.fields.expr);
             if (
               exprType instanceof NumericalType &&
               exprType.sign === Sign.Signed
@@ -303,6 +350,15 @@ export class TypeResolver {
             throw this.error(
               node,
               `Can't negate ${exprType.name}, which is not a signed float or int`
+            );
+          }
+          case UnaryOp.LOGICAL_NOT: {
+            if (exprType.equals(Intrinsics.bool)) {
+              return Intrinsics.bool;
+            }
+            throw this.error(
+              node,
+              `Can't perform logical not on ${exprType.name}`
             );
           }
           default:
@@ -327,7 +383,7 @@ export class TypeResolver {
               );
             }
             return new ArrayType(
-              this.resolveType(elements[0]),
+              this.resolveType(elements[0], hint),
               size.fields.value
             );
           } else {
@@ -340,7 +396,7 @@ export class TypeResolver {
 
         let type = Intrinsics.void;
         for (const [i, element] of elements.entries()) {
-          const elemType = this.resolveType(element);
+          const elemType = this.resolveType(element, hint);
           if (i == 0) {
             type = elemType;
           } else if (!elemType.equals(type)) {
@@ -355,17 +411,17 @@ export class TypeResolver {
       case 'ExternFuncDecl':
       case 'FuncDecl': {
         let paramTypes = node.fields.parameters.fields.parameters.map((p) =>
-          this.resolveType(p)
+          this.resolveType(p, hint)
         );
         let returnType: BaseType | null = node.fields.returnType
-          ? this.resolveType(node.fields.returnType)
+          ? this.resolveType(node.fields.returnType, hint)
           : null;
         if (isFuncDecl(node)) {
           let foundReturn = false;
-          for (const child of depthFirstIter(node.fields.body)) {
-            this.resolveType(child);
+          for (const child of preorderIter(node.fields.body)) {
+            this.resolveType(child, hint);
             if (isReturnStatement(child)) {
-              let alternativeReturnType = this.resolveType(child);
+              let alternativeReturnType = this.resolveType(child, hint);
               foundReturn = true;
               if (returnType === null) {
                 returnType = alternativeReturnType;
@@ -380,7 +436,11 @@ export class TypeResolver {
               }
             }
           }
-          if (!foundReturn && returnType) {
+          if (
+            !foundReturn &&
+            returnType &&
+            !returnType.equals(Intrinsics.void)
+          ) {
             throw this.error(
               node,
               `FuncDecl: function ${node.fields.symbol} must return ${returnType.name} but has no return statements`
@@ -389,39 +449,42 @@ export class TypeResolver {
         }
         return new FuncType(paramTypes, returnType ?? Intrinsics.void);
       }
-      case 'ArgList':
-        return new TupleType(node.fields.args.map((p) => this.resolveType(p)));
+      case 'ArgList': {
+        const argTypeHints =
+          hint instanceof TupleType ? hint.elements.map((el) => el.type) : [];
+        return new TupleType(
+          node.fields.args.map((arg, i) =>
+            this.resolveType(arg, argTypeHints[i])
+          )
+        );
+      }
       case 'ParameterList':
         return new TupleType(
-          node.fields.parameters.map((p) => this.resolveType(p))
+          node.fields.parameters.map((p) => this.resolveType(p, hint))
         );
       case 'Parameter':
-        return this.resolveType(node.fields.typeExpr);
+        return this.resolveType(node.fields.typeExpr, hint);
       case 'ReturnStatement':
         return node.fields.expr
-          ? this.resolveType(node.fields.expr)
+          ? this.resolveType(node.fields.expr, hint)
           : Intrinsics.void;
       case 'ModuleDecl':
-      case 'File':
-        return new RecordType(
-          new OrderedMap([
-            ...node.fields.decls
-              .filter(isFuncDecl)
-              .map(
-                (funcDecl) =>
-                  [funcDecl.fields.symbol, this.resolveType(funcDecl)] as [
-                    string,
-                    BaseType
-                  ]
-              ),
-          ])
-        );
+      case 'File': {
+        const props = new OrderedMap<string, BaseType>();
+        for (const decl of node.fields.decls) {
+          const declType = this.resolveType(decl, hint);
+          if (decl.name === 'FuncDecl') {
+            props.push(decl.fields.symbol, declType);
+          }
+        }
+        return new RecordType(props);
+      }
       case 'ExternDecl':
         return new RecordType(
           new OrderedMap([
             ...node.fields.funcs.map(
               (funcDecl) =>
-                [funcDecl.fields.symbol, this.resolveType(funcDecl)] as [
+                [funcDecl.fields.symbol, this.resolveType(funcDecl, hint)] as [
                   string,
                   BaseType
                 ]
@@ -430,35 +493,38 @@ export class TypeResolver {
         );
       case 'TupleStructDecl':
         return new TupleType(
-          node.fields.elements.map((el) => this.resolveType(el))
+          node.fields.elements.map((el) => this.resolveType(el, hint))
         );
       case 'StructDecl':
         return new RecordType(
           new OrderedMap(
             node.fields.props.map((prop) => {
               if (isFuncDecl(prop)) {
-                return [prop.fields.symbol, this.resolveType(prop)];
+                return [prop.fields.symbol, this.resolveType(prop, hint)];
               }
-              return [prop.fields.symbol, this.resolveType(prop.fields.type)];
+              return [
+                prop.fields.symbol,
+                this.resolveType(prop.fields.type, hint),
+              ];
             })
           )
         );
       case 'StructProp':
-        return this.resolveType(node.fields.type);
+        return this.resolveType(node.fields.type, hint);
       case 'StructLiteral': {
         const structDecl = refMap.get(node.fields.symbol)?.declNode;
         if (!structDecl) {
           throw new TypeError(
-            `struct ${node.fields.symbol.fields.symbol} not found.`
+            `struct ${pretty(node.fields.symbol)} not found.`
           );
         }
-        return this.resolveType(structDecl);
+        return this.resolveType(structDecl, hint);
       }
       case 'StructLiteralProp':
-        return this.resolveType(node.fields.expr);
+        return this.resolveType(node.fields.expr, hint);
       case 'MemberAccessExpr': {
         const { left, right } = node.fields;
-        let leftType = this.resolveType(left);
+        let leftType = this.resolveType(left, hint);
         if (leftType instanceof PointerType) {
           leftType = leftType.toType;
         }
@@ -481,7 +547,7 @@ export class TypeResolver {
         }
       }
     }
-    throw this.error(node, `No type resolution exists for ${node as any}`);
+    throw this.error(node, `No type resolution exists for ${node.name}`);
   }
 
   private getTypeForBinaryOp(

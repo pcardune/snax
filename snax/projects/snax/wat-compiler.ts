@@ -20,7 +20,7 @@ export async function compileStr(
       return err(new Error('parsed input did not yield a file...'));
     }
     try {
-      const module = await compileAST(ast, options);
+      const { binaryenModule: module } = await compileAST(ast, options);
       return ok(module);
     } catch (e) {
       return err(e);
@@ -30,9 +30,11 @@ export async function compileStr(
   }
 }
 
-export function compileAST(
+export async function compileAST(
   file: spec.File,
   options: ASTCompiler.ModuleCompilerOptions
-): Promise<binaryen.Module> {
-  return new ASTCompiler.FileCompiler(file, options).compile();
+) {
+  const compiler = new ASTCompiler.FileCompiler(file, options);
+  const binaryenModule = await compiler.compile();
+  return { compiler, binaryenModule };
 }

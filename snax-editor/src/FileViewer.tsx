@@ -54,14 +54,13 @@ function useNodeHighlighter(
       if (!cmViewRef.current) {
         return;
       }
+      marker.unmarkAll(cmViewRef.current);
       if (node && node.location && node.location.source.endsWith(source)) {
         marker.markSection(
           cmViewRef.current,
           node.location.start.offset,
           node.location.end.offset
         );
-      } else {
-        marker.unmarkAll(cmViewRef.current);
       }
     },
     [cmViewRef, source, marker]

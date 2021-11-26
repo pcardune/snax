@@ -2,41 +2,58 @@ import io from "snax/io.snx"
 import string from "snax/string.snx"
 import mem from "snax/memory.snx"
 
-global alloc_start: &usize = 0 as! &usize;
-global alloc_max_offset: usize = 0;
+global alloc_start_ptr: usize = 0;
+global alloc_end_ptr: usize = 0;
+
+struct Block {
+  size: usize;
+  free: bool;
+}
+
+func getFirstBlock() {
+  return alloc_start_ptr as! &Block;
+}
+
+func getNextBlock(block:&Block) {
+  return ((block as usize) + $size_of(Block) + block.size) as! &Block;
+}
+
+func getBlockForAddr(addr:usize) {
+  return (addr - $size_of(Block)) as! &Block;
+}
 
 func init_allocator(maxHeapSize:usize) {
   io::printStr(@"init_allocator(");
   io::print_u32(maxHeapSize);
   io::printStr(@")\n");
 
-  // reg heap32 = $heap_start() as! &usize;
-  reg heap32 = mem::malloc(maxHeapSize);
-  alloc_start = heap32 as! &usize;
-  alloc_max_offset = maxHeapSize/4;
+  alloc_start_ptr = mem::malloc(maxHeapSize);
+  alloc_end_ptr = alloc_start_ptr + maxHeapSize;
   
   io::printStr(@"Heap start: ");
-  io::print_u32(alloc_start as u32);
+  io::print_u32(alloc_start_ptr);
   io::printStr(@" Max Offset: ");
-  io::print_u32(alloc_max_offset);
+  io::print_u32(alloc_end_ptr);
   io::printStr(@"\n");
-  alloc_start[0] = maxHeapSize - 8;
-  alloc_start[1] = 0_u32;
-  return heap32;
+
+  reg block = getFirstBlock();
+  block.size = maxHeapSize - $size_of(Block);
+  block.free = true;
+  return alloc_start_ptr;
 }
 
-func dump_block_info(blockIndex:u32, offset:u32, blockSize:u32, free:bool) {
+func dump_block_info(blockIndex:u32, block:&Block):void {
   io::printStr(@"  ");
   io::print_u32(blockIndex);
   io::printStr(@":\t");
-  io::print_u32(offset);
+  io::print_u32(block as u32 - alloc_start_ptr);
   io::printStr(@"\t");
-  io::print_u32(offset*4+(alloc_start as u32));
+  io::print_u32(block as u32);
   io::printStr(@"\t");
-  io::print_u32(offset*4+8+(alloc_start as u32));
+  io::print_u32(block as u32 + $size_of(Block));
   io::printStr(@"\t");
-  io::print_u32(blockSize);
-  if (free) {
+  io::print_u32(block.size);
+  if (block.free) {
     io::printStr(@"\tyes");
   } else {
     io::printStr(@"\tno");
@@ -46,19 +63,13 @@ func dump_block_info(blockIndex:u32, offset:u32, blockSize:u32, free:bool) {
 
 func dump_allocations() {
   io::printStr(@"  #\toffset\t@block\t@ptr\tsize\tfree?\n");
-  reg region = alloc_start;
   reg blockIndex = 0_u32;
-  reg offset = 0_u32;
-  reg blockSize = region[offset];
-  reg free = region[offset+1] == 0;
+  reg block = getFirstBlock();
 
-  while (blockIndex < 4 && offset < alloc_max_offset) {
-    dump_block_info(blockIndex, offset, blockSize, free);
-
+  while (blockIndex < 4 && block as i32 < alloc_end_ptr) {
+    dump_block_info(blockIndex, block);
     blockIndex = blockIndex+1;
-    offset = offset + 2 + blockSize/4;
-    blockSize = region[offset];
-    free = region[offset+1] == 0;
+    block = getNextBlock(block);
   }
 }
 
@@ -71,38 +82,34 @@ func allocate_memory(numBytes:usize):i32 {
     // align numBytes to 4 byte word size
     numBytes = numBytes + 4 - (numBytes % 4);
   }
-  
-  reg heap32 = alloc_start;
-  
-  reg index = 0_u32;
-  reg blockSize = heap32[index];
-  reg free = heap32[index+1] == 0;
-  while ((!free || blockSize < numBytes) && index < alloc_max_offset) {
-    index = index + 2 + blockSize/4;
+
+  reg block = getFirstBlock();
+  while ((!block.free || block.size < numBytes) && block as i32 < alloc_end_ptr) {
+    block = getNextBlock(block);
     // if index > maxIndex { oom(); }
-    blockSize = heap32[index];
-    free = heap32[index+1] == 0;
   }
   io::printStr(@"Found free block at ");
-  io::print_u32(index);
+  io::print_u32(block as u32);
   io::printStr(@" of size ");
-  io::print_u32(blockSize);
+  io::print_u32(block.size);
   io::printStr(@"\n");
 
-  
+  reg oldBlockSize = block.size;
   // set the size of this block 
-  heap32[index] = numBytes;
+  block.size = numBytes;
   // mark the block as non-free
-  heap32[index+1] = 1_u32;
-  if (numBytes < blockSize) {
-    // add a new block marker to split the block
+  block.free = false;
+  
+  if (numBytes < oldBlockSize) {
     // set the size of the next block
-    heap32[index + 2 + numBytes/4] = blockSize - numBytes - 8;
+    reg nextBlock = getNextBlock(block);
+    nextBlock.size = oldBlockSize - numBytes - $size_of(Block);
+    nextBlock.free = true;
   }
 
   dump_allocations();
-  reg result = @heap32[index+2] as i32;
-  return result;
+  // return address where the memory starts
+  return block as i32 + $size_of(Block);
 }
 
 func free(addr:usize) {
@@ -110,8 +117,8 @@ func free(addr:usize) {
   io::print_u32(addr);
   io::printStr(@")\n");
 
-  reg offset = (addr - alloc_start as usize)/4 - 2;
-  alloc_start[offset+1] = 0_u32;
+  reg block = getBlockForAddr(addr);
+  block.free = true;
 
   dump_allocations();
 }
@@ -120,12 +127,12 @@ func main() {
   init_allocator(100);
   dump_allocations();
   reg a1 = allocate_memory(4) as! u32;
-  reg a2 = allocate_memory(22) as! u32;
-  reg a3 = allocate_memory(7) as! u32;
   io::printStr(@"\na1 is at ");
   io::print_u32(a1);
+  reg a2 = allocate_memory(22) as! u32;
   io::printStr(@"\na2 is at ");
   io::print_u32(a2);
+  reg a3 = allocate_memory(7) as! u32;
   io::printStr(@"\na3 is at ");
   io::print_u32(a3);
 

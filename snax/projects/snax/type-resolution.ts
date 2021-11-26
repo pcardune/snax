@@ -279,9 +279,9 @@ export class TypeResolver {
           case 'memory_copy':
             return Intrinsics.void;
           case 'heap_start':
-            return Intrinsics.i32;
+            return Intrinsics.usize;
           case 'heap_end':
-            return Intrinsics.i32;
+            return Intrinsics.usize;
           case 'print':
             return Intrinsics.void;
           case 'size_of':

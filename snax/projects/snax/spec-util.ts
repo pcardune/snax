@@ -129,7 +129,11 @@ function nodeDataToElem(
         elem(
           fieldName,
           {},
-          value.map((v) => nodeDataToElem(v, data))
+          value.map((v) =>
+            isASTNode(v)
+              ? nodeDataToElem(v, data)
+              : elem('Value', { value: v }, [])
+          )
         )
       );
     } else {

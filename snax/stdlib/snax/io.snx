@@ -14,6 +14,7 @@ extern wasi_unstable {
   ):void;
 }
 import string from "snax/string.snx"
+import mem from "snax/memory.snx"
 
 func printStr(s:&string::String) {
   let iovec = [s.buffer as usize, s.length];
@@ -28,6 +29,19 @@ func printStr(s:&string::String) {
 
 func print_u32(i:u32) {
   printStr(@string::u32ToStr(i));
+}
+
+func readStr(numBytes:u32) {
+  let s = string::String::{buffer: mem::malloc(numBytes), length: numBytes};
+  let iovec = [s.buffer as usize, s.length];
+  let bytesRead = 0;
+  fd_read(
+    0, // stdin
+    @iovec as i32,
+    1,
+    @bytesRead as i32
+  );
+  return s;
 }
 
 func main() {

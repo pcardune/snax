@@ -1,54 +1,12 @@
-import mem from "snax/memory.snx"
+import io from "snax/io.snx"
 
-extern wasi_unstable {
-  func fd_write(
-    fileDescriptor:i32,
-    iovPointer:i32,
-    iovLength:i32,
-    numWrittenPointer:i32
-  ):i32;
-
-  func fd_read(
-    fileDescriptor:i32,
-    iovPointer:i32,
-    iovLength:i32,
-    numWrittenPointer:i32,
-  ):void;
-}
-
-func run() {
-  print("hello world\n");
+func main() {
+  io::printStr(@"hello world\n");
   let meow = "meowwww\n";
   meow.buffer[1] = 'i';
-  print(@meow);
-  print("more snax please!\n");
-  print("type something: ");
-  let input = read(100);
-  print(@input);
+  io::printStr(@meow);
+  io::printStr(@"more snax please!\n");
+  io::printStr(@"type something: ");
+  let input = io::readStr(100);
+  io::printStr(@input);
 }
-
-func print(s:&String) {
-  let iovec = [s.buffer as usize, s.length];
-  let bytesWritten = 0;
-  fd_write(
-    1, // stdout
-    @iovec, // pointer to io vector
-    1, // length of io vector
-    @bytesWritten // where to store number of bytes written
-  );
-}
-
-func read(numBytes:i32) {
-  let s = String::{buffer: mem::malloc(numBytes), length: numBytes};
-  let iovec = [s.buffer as usize, s.length];
-  let bytesRead = 0;
-  fd_read(
-    0, // stdin
-    @iovec,
-    1,
-    @bytesRead
-  );
-  return s;
-}
-
-run();

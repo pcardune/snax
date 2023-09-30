@@ -4,7 +4,7 @@ const __dirname = new URL('.', import.meta.url).pathname;
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
-import { FieldSpec, nodes } from './spec.js';
+import { type FieldSpec, nodes } from './spec.js';
 
 function write() {
   let out: string[] = [];

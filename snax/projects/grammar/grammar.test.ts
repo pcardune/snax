@@ -6,7 +6,7 @@ import {
   Grammar,
   isBacktrackFree,
   leftFactor,
-  ParseNodeGrammar,
+  type ParseNodeGrammar,
   startsWith,
 } from './grammar.js';
 import { Parser } from './top-down-parser.js';

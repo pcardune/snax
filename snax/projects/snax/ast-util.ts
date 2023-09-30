@@ -1,13 +1,13 @@
 import {
-  ASTNode,
-  Block,
+  type ASTNode,
+  type Block,
   makeBlock,
   makeFuncDecl,
   makeFuncDeclWith,
   makeNumberLiteral,
   makeParameterList,
-  Parameter,
-  Statement,
+  type Parameter,
+  type Statement,
 } from './spec-gen.js';
 
 export function makeNum(

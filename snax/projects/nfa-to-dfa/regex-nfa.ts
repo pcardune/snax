@@ -7,7 +7,7 @@
 
 import { charCodes } from '../utils/iter.js';
 import { DFA, DFAFromNFA } from './dfa.js';
-import { ConstNFA, NFA } from './nfa.js';
+import { type ConstNFA, NFA } from './nfa.js';
 import { toCharCode } from './util.js';
 
 export interface ConstRegexNFA extends ConstNFA {

@@ -1,8 +1,8 @@
-import type { InitialOptionsTsJest } from 'ts-jest/dist/types';
-const config: InitialOptionsTsJest = {
+import type { Config } from 'jest';
+const config: Config = {
   displayName: 'snax',
   preset: 'ts-jest/presets/default-esm',
-  testMatch: ['<rootDir>/snax/projects/**/*.test.ts'],
+  testMatch: ['<rootDir>/projects/**/*.test.ts'],
   globals: {
     'ts-jest': {
       useESM: true,
@@ -10,6 +10,10 @@ const config: InitialOptionsTsJest = {
   },
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  snapshotFormat: {
+    escapeString: true,
+    printBasicPrototype: true,
   },
 };
 

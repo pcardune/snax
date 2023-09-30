@@ -1,7 +1,7 @@
 import { charCodes, iter } from '../utils/iter.js';
 import { lexer, PestParser } from './pest.js';
 import { useColors, colors } from '../utils/debug.js';
-import { ASTNode, PestFile } from './ast.js';
+import { type ASTNode, PestFile } from './ast.js';
 import fs from 'fs';
 import path from 'path';
 useColors();

@@ -3,7 +3,7 @@ import { makeFunc, makeNum } from '../ast-util.js';
 import { dumpASTData } from '../spec-util.js';
 import {
   resolveSymbols,
-  SymbolRecord,
+  type SymbolRecord,
   SymbolTable,
 } from '../symbol-resolution.js';
 import type { OrderedMap } from '../../utils/data-structures/OrderedMap.js';

@@ -52,7 +52,9 @@ export class HashMap<K, V> implements Map<K, V> {
   [Symbol.iterator](): IterableIterator<[K, V]> {
     return this.entries();
   }
-  [Symbol.toStringTag]: string;
+  get [Symbol.toStringTag](): string {
+    return 'HashMap';
+  }
 }
 
 export class HashSet<T> implements Set<T> {
@@ -104,7 +106,9 @@ export class HashSet<T> implements Set<T> {
   [Symbol.iterator](): IterableIterator<T> {
     return this.values();
   }
-  [Symbol.toStringTag]: string;
+  get [Symbol.toStringTag](): string {
+    return 'HashSet';
+  }
 }
 
 export class NumberSet implements ConstSet<number> {

@@ -2,10 +2,10 @@ import { range } from '../utils/iter.js';
 import {
   chars,
   notChars,
-  RegexNFA,
+  type RegexNFA,
   SingleCharNFA,
 } from '../nfa-to-dfa/regex-nfa.js';
-import { Lexeme, Lexer, Token } from './lexer.js';
+import { type Lexeme, Lexer, Token } from './lexer.js';
 import { err, ok, Result } from 'neverthrow';
 import { LexToken } from '../lexer-gen/LexToken.js';
 

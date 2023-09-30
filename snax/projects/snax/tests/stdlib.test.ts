@@ -1,7 +1,7 @@
 import { WASI } from '../wasi.js';
 import {
   compileToWasmModule,
-  CompileToWatOptions,
+  type CompileToWatOptions,
   exec,
   int32,
   int32Slice,

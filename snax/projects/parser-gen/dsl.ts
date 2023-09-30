@@ -1,5 +1,9 @@
 import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
-import { buildParser, Parser, SymbolsOf } from '../grammar/top-down-parser.js';
+import {
+  buildParser,
+  Parser,
+  type SymbolsOf,
+} from '../grammar/top-down-parser.js';
 import { lexer, parser, Token, Rules } from './dsl.__generated__';
 import { RegexParser } from '../regex-compiler/parser.js';
 import { charSeq } from '../nfa-to-dfa/regex-nfa.js';

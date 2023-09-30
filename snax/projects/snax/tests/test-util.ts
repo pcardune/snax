@@ -1,15 +1,19 @@
 import * as spec from '../spec-gen.js';
 import {
-  CompilesToIR,
+  type CompilesToIR,
   ExprCompiler,
   StmtCompiler,
   FileCompiler,
-  ModuleCompilerOptions,
-  Runtime,
+  type ModuleCompilerOptions,
+  type Runtime,
   WASM_FEATURE_FLAGS,
 } from '../ast-compiler.js';
 import { SNAXParser } from '../snax-parser.js';
-import { AllocationMap, Area, FuncAllocations } from '../memory-resolution.js';
+import {
+  AllocationMap,
+  Area,
+  type FuncAllocations,
+} from '../memory-resolution.js';
 import { resolveSymbols } from '../symbol-resolution.js';
 import { resolveTypes } from '../type-resolution.js';
 import { NumberType } from '../numbers';

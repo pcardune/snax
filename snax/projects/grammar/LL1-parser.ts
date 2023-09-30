@@ -2,10 +2,10 @@ import { err, ok, Result } from 'neverthrow';
 import { LexToken } from '../lexer-gen/LexToken.js';
 import {
   BacktrackFreeGrammar,
-  Eof,
+  type Eof,
   EOF,
   EPSILON,
-  Epsilon,
+  type Epsilon,
   Production,
   SemanticAction,
 } from './grammar.js';

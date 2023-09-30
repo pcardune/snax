@@ -8,7 +8,7 @@ import {
   int32,
   int32Slice,
   int8,
-  SnaxExports,
+  type SnaxExports,
 } from './test-util';
 
 function stackDump(exports: SnaxExports, bytes: 1 | 4 = 1) {

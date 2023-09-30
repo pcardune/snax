@@ -4,9 +4,9 @@ import {
   Grammar,
   Production,
   EPSILON,
-  GrammarSpec,
+  type GrammarSpec,
   buildGrammar,
-  ConstGrammar,
+  type ConstGrammar,
 } from './grammar.js';
 import * as debug from '../utils/debug.js';
 import { ok, err, Result } from 'neverthrow';

@@ -1,6 +1,6 @@
 import binaryen from 'binaryen';
 import * as AST from '../spec-gen.js';
-import { NumberType, Sign, IntegerType, FloatType } from '../numbers';
+import { NumberType, Sign, type IntegerType, type FloatType } from '../numbers';
 import { exprCompiler, irCompiler } from './test-util.js';
 
 abstract class BaseConversion<

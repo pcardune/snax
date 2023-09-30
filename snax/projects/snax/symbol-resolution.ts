@@ -2,19 +2,19 @@ import { OrderedMap } from '../utils/data-structures/OrderedMap.js';
 import { atString, SymbolResolutionError } from './errors.js';
 import { BaseType, isIntrinsicSymbol } from './snax-types.js';
 import {
-  ASTNode,
-  Block,
-  FuncDecl,
+  type ASTNode,
+  type Block,
+  type FuncDecl,
   isFile,
-  SymbolRef,
-  File,
-  TypeRef,
+  type SymbolRef,
+  type File,
+  type TypeRef,
   isMemberAccessExpr,
-  ExternFuncDecl,
+  type ExternFuncDecl,
   isFuncDecl,
-  ModuleDecl,
+  type ModuleDecl,
   isModuleDecl,
-  NamespacedRef,
+  type NamespacedRef,
 } from './spec-gen.js';
 import { children as childrenOf } from './spec-util.js';
 

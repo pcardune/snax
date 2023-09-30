@@ -16,7 +16,7 @@ import {
   UnionType,
 } from './snax-types.js';
 import {
-  ASTNode,
+  type ASTNode,
   isFuncDecl,
   isNumberLiteral,
   isReturnStatement,

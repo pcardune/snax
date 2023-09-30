@@ -13,26 +13,26 @@ import { BinOp, UnaryOp } from './snax-ast.js';
 import { ResolvedTypeMap, resolveTypes } from './type-resolution.js';
 import {
   resolveSymbols,
-  SymbolRefMap,
-  SymbolTableMap,
+  type SymbolRefMap,
+  type SymbolTableMap,
 } from './symbol-resolution.js';
 import {
   AllocationMap,
   Area,
-  FuncAllocations,
-  GlobalStorageLocation,
-  LocalAllocation,
-  LocalStorageLocation,
+  type FuncAllocations,
+  type GlobalStorageLocation,
+  type LocalAllocation,
+  type LocalStorageLocation,
   ModuleAllocator,
   resolveMemory,
-  StorageLocation,
+  type StorageLocation,
 } from './memory-resolution.js';
 import { desugar } from './desugar.js';
 import binaryen from 'binaryen';
 import { getPropNameOrThrow } from './ast-util.js';
 import { CompilerError } from './errors.js';
 import { pretty } from './spec-util.js';
-import { PathLoader, resolveImports } from './import-resolver.js';
+import { type PathLoader, resolveImports } from './import-resolver.js';
 
 export const PAGE_SIZE = 65536;
 export const WASM_FEATURE_FLAGS =

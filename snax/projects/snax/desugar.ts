@@ -1,6 +1,6 @@
 import { BinOp, UnaryOp } from './snax-ast.js';
 import {
-  ASTNode,
+  type ASTNode,
   makeBinaryExprWith,
   makeDataLiteral,
   makeExprStatement,

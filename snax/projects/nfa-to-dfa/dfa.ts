@@ -1,5 +1,5 @@
 import { MultiSet, NumberSet } from '../utils/sets.js';
-import { ConstNFA, closure, move, NFA } from './nfa.js';
+import { type ConstNFA, closure, move, NFA } from './nfa.js';
 
 /**
  * Convert an NFA to a DFA by resolving ambiguity in the paths

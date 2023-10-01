@@ -14,12 +14,12 @@ For example, we might define a language, _L1_, as:
 > L1 is the set of words including \{_"fee"_, _"fi"_, _"fo"_, _"fum"_\}
 
 The alphabet for this language
-would be the set of characters {e, f, i, m, o, u}.
+would be the set of characters \{e, f, i, m, o, u\}.
 
 We could define another language, _L2_, using this same alphabet:
 
 > L2 is all words that start with _"f"_, followed by one or more of the
-> letters in _{e, i, m, o, u}_.
+> letters in _\{e, i, m, o, u\}_.
 
 This new language would contain all the words from L1,
 along with the words _"feiomu"_, _"feeeeee"_,
@@ -38,7 +38,7 @@ For the computer to check if a word is in a given language,
 it must be given that language in a way that it can understand.
 Instead of telling the computer that our language is "the set of all
 words that start with f, followed by one or more of the
-letters: {e, i, m, o, u}," we give the computer the regular expression
+letters: \{e, i, m, o, u\}," we give the computer the regular expression
 **`f(e|i|m|o|u)(e|i|m|o|u)*`**, which is a more precise way of saying
 the same thing.
 

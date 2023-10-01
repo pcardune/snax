@@ -49,11 +49,12 @@ function Links(props: { section: Section; label: string }) {
   return (
     <>
       <li key="root" className="chapter-item expanded affix">
-        <Link href={section.path}>
-          <a className={router.pathname === section.path ? 'active' : ''}>
-            {label && <strong>{label} </strong>}
-            {section.title}
-          </a>
+        <Link
+          href={section.path}
+          className={router.pathname === section.path ? 'active' : ''}
+        >
+          {label && <strong>{label} </strong>}
+          {section.title}
         </Link>
       </li>
       {section.children && section.children.length > 0 && (

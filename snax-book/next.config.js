@@ -12,6 +12,7 @@ module.exports = withMDX({
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   reactStrictMode: true,
   experimental: { esmExternals: true },
+  basePath: '/snax',
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // Important: return the modified config
     config.plugins.push(new NodePolyfillPlugin());

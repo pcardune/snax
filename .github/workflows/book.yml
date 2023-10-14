@@ -34,6 +34,9 @@ jobs:
           node-version: '18.x'
           cache: 'npm'
       - run: npm ci
+      - name: Build Snax
+        working-directory: ./snax
+        run: npm run build
       - name: Build Static Site
         working-directory: ./snax-book
         run: npm run build

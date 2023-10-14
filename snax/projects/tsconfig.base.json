@@ -15,5 +15,6 @@
     "strict": true,
     "strictNullChecks": true,
     "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
   }
 }

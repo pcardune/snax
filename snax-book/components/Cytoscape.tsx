@@ -7,7 +7,7 @@ type Props = React.ComponentPropsWithoutRef<'div'> & {
 export default function Cytoscape(props: Props) {
   const { cyConfig, ...divProps } = props;
   let containerEl = useCallback(
-    (node) => {
+    (node: HTMLDivElement) => {
       if (node !== null) {
         cytoscape({ container: node, ...cyConfig });
       }

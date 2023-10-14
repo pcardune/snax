@@ -27,41 +27,45 @@ function CompilerOutput(props: { module: binaryen.Module }) {
     setRunOutput('');
 
     let output = '';
-    const module = await WebAssembly.instantiate(props.module.emitBinary(), {
-      wasi_unstable: {
-        fd_write(
-          fd: number,
-          iovPointer: number,
-          iovLength: number,
-          numWrittenPointer: number
-        ) {
-          const memory = module.instance.exports.memory as WebAssembly.Memory;
-          console.log(
-            'called fd_write with',
-            fd,
-            iovPointer,
-            iovLength,
-            numWrittenPointer
-          );
-          let [start, length] = [
-            ...new Int32Array(
-              memory.buffer.slice(
-                (iovPointer / 4) * 4,
-                (iovPointer / 4) * 4 + 8
-              )
-            ),
-          ];
-          const strBuffer = new Int8Array(
-            memory.buffer.slice((start / 4) * 4, (start / 4) * 4 + length)
-          );
-          output += new TextDecoder('utf-8').decode(strBuffer);
-          setRunOutput(output);
-          console.log(output);
+    const wasmModule = await WebAssembly.instantiate(
+      props.module.emitBinary(),
+      {
+        wasi_unstable: {
+          fd_write(
+            fd: number,
+            iovPointer: number,
+            iovLength: number,
+            numWrittenPointer: number
+          ) {
+            const memory = wasmModule.instance.exports
+              .memory as WebAssembly.Memory;
+            console.log(
+              'called fd_write with',
+              fd,
+              iovPointer,
+              iovLength,
+              numWrittenPointer
+            );
+            let [start, length] = [
+              ...new Int32Array(
+                memory.buffer.slice(
+                  (iovPointer / 4) * 4,
+                  (iovPointer / 4) * 4 + 8
+                )
+              ),
+            ];
+            const strBuffer = new Int8Array(
+              memory.buffer.slice((start / 4) * 4, (start / 4) * 4 + length)
+            );
+            output += new TextDecoder('utf-8').decode(strBuffer);
+            setRunOutput(output);
+            console.log(output);
+          },
+          fd_read() {},
         },
-        fd_read() {},
-      },
-    });
-    const exports: any = module.instance.exports;
+      }
+    );
+    const exports: any = wasmModule.instance.exports;
     try {
       if (shouldDebug) {
         // eslint-disable-next-line no-debugger

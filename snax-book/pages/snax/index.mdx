@@ -2,4 +2,60 @@ import { SnaxEditor } from '../../components/SnaxEditor.js';
 
 # Snax
 
+Snax is a simple, low-level programming language that compiles to web assembly.
+
 <SnaxEditor />
+
+## Getting Started
+
+To get started, you'll need to install the snax compiler:
+
+```bash
+npm install -g snax-lang
+```
+
+Then, create a file called `hello.snx` with the following contents:
+
+```snx
+import io from "snax/io.snx";
+
+io::print(@"Hello, world!");
+```
+
+Finally, compile and run your program:
+
+```bash
+snax hello.snx
+```
+
+## Documentation
+
+- [Language Reference](/snax-book/snax/language-reference)
+- [Standard Library](/snax-book/snax/standard-library)
+- [Snax Book](/snax-book)
+
+## TODO: Language Reference Outline
+
+- [ ] Introduction
+  - [ ] Hello, world!
+  - [ ] Comments
+  - [ ] Variables
+  - [ ] Functions
+  - [ ] Control Flow
+  - [ ] Structs
+  - [ ] Arrays
+  - [ ] Pointers
+  - [ ] Memory Management
+  - [ ] Modules
+  - [ ] Standard Library
+    - [ ] IO
+    - [ ] Math
+    - [ ] Strings
+    - [ ] Memory Allocator
+- [ ] Advanced Topics
+  - [ ] Running in a web browser
+  - [ ] Interfacing with JavaScript
+- [ ] FAQ
+  - [ ] Why another programming language?
+  - [ ] Why is it called Snax?
+  - [ ] Who is the mascot?

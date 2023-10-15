@@ -1,10 +1,14 @@
 import { Result } from 'neverthrow';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ASTNode, File } from '@pcardune/snax/dist/snax/spec-gen.js';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser.js';
-import { compileAST } from '@pcardune/snax/dist/snax/wat-compiler.js';
+import {
+  compileAST,
+  compileStr,
+} from '@pcardune/snax/dist/snax/wat-compiler.js';
 import type binaryen from 'binaryen';
 import { WASI } from '@pcardune/snax/dist/snax/wasi';
+import styled from 'styled-components';
 
 function ParseOutput({ ast }: { ast: ASTNode }) {
   return (
@@ -58,8 +62,11 @@ function useCodeRunner(
 function useCompiler() {
   const wasmModuleRef = React.useRef<WebAssembly.Module>();
   const [wat, setWAT] = useState<string | null>(null);
-  const compile = useCallback(async (file: File) => {
-    const result = await compileAST(file, {
+  const [error, setError] = useState<null | Error>(null);
+  const compile = useCallback(async (input: string) => {
+    wasmModuleRef.current = undefined;
+    setError(null);
+    const result = await compileStr(input, {
       includeRuntime: true,
       importResolver: async (sourcePath, fromCanonicalUrl) => {
         if (!sourcePath.startsWith('snax/')) {
@@ -89,7 +96,11 @@ function useCompiler() {
         return { ast: result.value, canonicalUrl: resp.url };
       },
     });
-    const { binaryenModule } = result;
+    if (result.isErr()) {
+      setError(result.error);
+      return;
+    }
+    const binaryenModule = result.value;
     const validates = binaryenModule.validate();
     if (validates) {
       // now optimize it...
@@ -111,32 +122,18 @@ function useCompiler() {
     // setWAT(await compileStr(text));
   }, []);
   const runner = useCodeRunner(wasmModuleRef);
-  return { compile, runner, wat };
+  return { compile, runner, wat, error };
 }
 
 export function SnaxEditor({ children }: { children: string }) {
-  const [text, setText] = useState(children);
-  const [wat, setWAT] = useState<Result<binaryen.Module, any> | null>(null);
-  const [parse, setParse] = useState<Result<ASTNode, any> | null>(null);
+  const [text, setText] = useState(() => children.trim());
   const [stdout, setStdout] = useState('');
   const compiler = useCompiler();
-  useEffect(() => {
-    const saved = localStorage.getItem('snax-code');
-    if (saved) {
-      setText(saved);
-    }
-  }, []);
 
-  const onClickCompile = async () => {
-    const parseResult = onClickParse();
-    if (parseResult.isErr()) {
-      return;
-    }
-    if (parseResult.value.name !== 'File') {
-      // TODO: show some kind of parse error.
-      return;
-    }
-    await compiler.compile(parseResult.value);
+  const onClickRun = async () => {
+    process.env.DEBUG = 'true';
+    setStdout('Running...');
+    await compiler.compile(text);
     const buffer: string[] = [];
     const wasi = new WASI({
       write: (str: string) => {
@@ -144,36 +141,29 @@ export function SnaxEditor({ children }: { children: string }) {
       },
     });
     await compiler.runner.runCode(wasi);
-    setStdout((prev) => prev + buffer.join('') + '\n');
-  };
-
-  const onClickParse = () => {
-    process.env.DEBUG = 'true';
-    const result = SNAXParser.parseStr(text);
-    setParse(SNAXParser.parseStr(text));
-    return result;
+    setStdout(buffer.join(''));
   };
 
   const onChangeText = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    localStorage.setItem('snax-code', e.target.value);
     setText(e.target.value);
-    setWAT(null);
-    setParse(null);
   };
 
+  let output = stdout;
+  if (compiler.error) {
+    output = compiler.error.toString();
+  }
+
   return (
-    <div>
-      <div>
-        <textarea
-          style={{ width: '100%', height: 200 }}
-          onChange={onChangeText}
-          value={text}
-        />
-      </div>
-      <button onClick={onClickParse}>Parse</button>
-      <button onClick={onClickCompile}>Run</button>
-      {stdout && <pre>{stdout}</pre>}
-      {parse && (
+    <Container>
+      <CodeInput
+        onChange={onChangeText}
+        value={text}
+        rows={text.split('\n').length}
+      />
+      {/* <button onClick={onClickParse}>Parse</button> */}
+      <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
+      {output && <Output>{output}</Output>}
+      {/* {parse && (
         <div>
           Parse Result:
           {parse.isOk() ? (
@@ -182,8 +172,33 @@ export function SnaxEditor({ children }: { children: string }) {
             <div>{parse.error.toString()}</div>
           )}
         </div>
-      )}
-      {compiler.wat && <pre>{compiler.wat}</pre>}
-    </div>
+      )} */}
+      {/* {compiler.wat && <pre>{compiler.wat}</pre>} */}
+    </Container>
   );
 }
+
+const RunButton = styled.button`
+  align-self: flex-end;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  padding: 4px 8px;
+`;
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+const Output = styled.pre`
+  margin: 0px;
+  background-color: #eee;
+  padding: 8px;
+  font-size: 14px;
+`;
+
+const CodeInput = styled.textarea`
+  padding: 4px;
+  border: 1px solid #ddd;
+  background-color: #eee;
+`;

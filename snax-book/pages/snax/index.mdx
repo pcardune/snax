@@ -1,14 +1,32 @@
 import { SnaxEditor } from '../../components/SnaxEditor.js';
 
-# Snax
+# Language Overview
 
 Snax is a simple, low-level programming language that compiles to web assembly.
+
+## Hello World
+
+Because you have to get hello world out of the way really quickly, here it is:
 
 <SnaxEditor>
 {`
 import io from "snax/io.snx"
 
 io::printStr(@"Hello, world!");
+`}
+</SnaxEditor>
+
+## Data Types
+
+### Numbers
+
+Numbers come in two flavors, floating point and integers. Floating points come in 32 and 64 bit variants, while integers come in 8, 16, 32, and 64 bit variants. In addition, integers can be either signed or unsigned.
+
+<SnaxEditor>
+{`
+import io from "snax/io.snx"
+let a = 1.0;
+io::print_u32(12);
 `}
 </SnaxEditor>
 

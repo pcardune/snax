@@ -2,6 +2,7 @@ import type { ASTNode } from './spec-gen.js';
 import { err, ok, Result } from 'neverthrow';
 
 import { parse, SyntaxError } from './peggy/snax.js';
+export { SyntaxError };
 
 type ParseOptions = {
   includeLocations?: boolean;

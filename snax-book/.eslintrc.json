@@ -4,7 +4,8 @@
     "plugin:@next/next/recommended"
   ],
   "rules": {
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "import/no-named-as-default": "off"
   },
   "settings": {
     "react": {

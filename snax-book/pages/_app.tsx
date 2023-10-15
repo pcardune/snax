@@ -166,7 +166,7 @@ function MyApp({ Component, pageProps }: AppProps) {
               </button>
             </div>
 
-            <h1 className="menu-title">Finite Automata</h1>
+            <h1 className="menu-title">Snax</h1>
 
             <div className="right-buttons">
               <a

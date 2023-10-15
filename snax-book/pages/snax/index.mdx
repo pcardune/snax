@@ -4,7 +4,13 @@ import { SnaxEditor } from '../../components/SnaxEditor.js';
 
 Snax is a simple, low-level programming language that compiles to web assembly.
 
-<SnaxEditor />
+<SnaxEditor>
+{`
+import io from "snax/io.snx"
+
+io::printStr(@"Hello, world!");
+`}
+</SnaxEditor>
 
 ## Getting Started
 

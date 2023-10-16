@@ -1,24 +1,8 @@
-import { Result } from 'neverthrow';
 import React, { useCallback, useState } from 'react';
-import { ASTNode, File } from '@pcardune/snax/dist/snax/spec-gen.js';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser.js';
-import {
-  compileAST,
-  compileStr,
-} from '@pcardune/snax/dist/snax/wat-compiler.js';
-import type binaryen from 'binaryen';
+import { compileStr } from '@pcardune/snax/dist/snax/wat-compiler.js';
 import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import styled from 'styled-components';
-
-function ParseOutput({ ast }: { ast: ASTNode }) {
-  return (
-    <div>
-      <pre>
-        <code>{JSON.stringify(ast, null, 2)}</code>
-      </pre>
-    </div>
-  );
-}
 
 type Instance = WebAssembly.Instance & {
   exports: WebAssembly.Exports & {
@@ -97,6 +81,7 @@ function useCompiler() {
       },
     });
     if (result.isErr()) {
+      console.error(result.error);
       setError(result.error);
       return;
     }
@@ -126,9 +111,12 @@ function useCompiler() {
 }
 
 export function SnaxEditor({ children }: { children: string }) {
-  const [text, setText] = useState(() => children.trim());
+  const [editedText, setText] = useState(() => children.trim());
+  const [wasEdited, setWasEdited] = useState(false);
   const [stdout, setStdout] = useState('');
   const compiler = useCompiler();
+
+  const text = wasEdited ? editedText : children.trim();
 
   const onClickRun = async () => {
     process.env.DEBUG = 'true';
@@ -140,11 +128,16 @@ export function SnaxEditor({ children }: { children: string }) {
         buffer.push(str);
       },
     });
-    await compiler.runner.runCode(wasi);
-    setStdout(buffer.join(''));
+    const result = await compiler.runner.runCode(wasi);
+    if (buffer.length === 0) {
+      setStdout(`Return Value: ${result}`);
+    } else {
+      setStdout(buffer.join(''));
+    }
   };
 
   const onChangeText = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setWasEdited(true);
     setText(e.target.value);
   };
 
@@ -155,40 +148,36 @@ export function SnaxEditor({ children }: { children: string }) {
 
   return (
     <Container>
+      <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
       <CodeInput
         onChange={onChangeText}
         value={text}
         rows={text.split('\n').length}
       />
-      {/* <button onClick={onClickParse}>Parse</button> */}
-      <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
       {output && <Output>{output}</Output>}
-      {/* {parse && (
-        <div>
-          Parse Result:
-          {parse.isOk() ? (
-            <ParseOutput ast={parse.value} />
-          ) : (
-            <div>{parse.error.toString()}</div>
-          )}
-        </div>
-      )} */}
-      {/* {compiler.wat && <pre>{compiler.wat}</pre>} */}
     </Container>
   );
 }
 
 const RunButton = styled.button`
-  align-self: flex-end;
   border: 1px solid #ddd;
   cursor: pointer;
   padding: 4px 8px;
+  background-color: #bcd0f5;
 `;
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  ${RunButton} {
+    position: absolute;
+    align-self: flex-end;
+    visibility: hidden;
+  }
+  &:hover ${RunButton} {
+    visibility: visible;
+  }
 `;
 const Output = styled.pre`
   margin: 0px;

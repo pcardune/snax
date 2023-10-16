@@ -37,6 +37,24 @@ describe('CastExpr', () => {
 });
 
 describe('NumberLiteral', () => {
+  it('throws an error if a type hinted number will not fit', () => {
+    const typedNumber = AST.makeNumberLiteral(45452, 'int', 'u8');
+    expect(() =>
+      resolveTypes(typedNumber, new OrderedMap())
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: 45452 doesn't fit into a u8"`
+    );
+  });
+
+  it('throws an error if a type hinted number will not fit into a signed int', () => {
+    const typedNumber = AST.makeNumberLiteral(250, 'int', 'i8');
+    expect(() =>
+      resolveTypes(typedNumber, new OrderedMap())
+    ).toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at <unknown>: 250 doesn't fit into a i8"`
+    );
+  });
+
   it('uses type hints to determine the types of number literals', () => {
     const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
     const inferredNumber = AST.makeNumberLiteral(3, 'int', undefined);

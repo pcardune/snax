@@ -20,14 +20,83 @@ io::printStr(@"Hello, world!");
 
 ### Numbers
 
-Numbers come in two flavors, floating point and integers. Floating points come in 32 and 64 bit variants, while integers come in 8, 16, 32, and 64 bit variants. In addition, integers can be either signed or unsigned.
+Numbers come in the usual two flavors:
+
+Integers:
+
+<SnaxEditor children="245;"/>
+
+Floats:
+
+<SnaxEditor children="2.45;"/>
+
+By default, integers are signed 32 bit integers, and floats are 32 bit floats. However, you can specify the number of bits to use by appending a suffix. For
+integers, you can also choose between signed and unsigned variants. Here are some
+examples:
 
 <SnaxEditor>
 {`
-import io from "snax/io.snx"
-let a = 1.0;
-io::print_u32(12);
+// signed and unsigned integer variants
+12_i8;
+12_u8;
+1234_i16;
+1234_u16;
+1234_i32;
+1234_u32;
+1234_i64;
+1234_u64;
+
+// signed float variants
+1234.5678_f32;
+1234.5678_f64;
 `}
+</SnaxEditor>
+
+If the suffix is not specified, it will be inferred from the context.
+In the below example, the number `56` will be treated as an unsigned 8 bit
+integer since it is being added to one.
+
+<SnaxEditor children="60_u8 + 56;"/>
+
+As a result, if you try to add a number that is too large to fit into the
+number being added to, you'll get a type error:
+
+<SnaxEditor children="60_u8 + 566;"/>
+
+But the other way around will work just fine as the left hand side of the expression defaults to a 32 bit signed integer:
+
+<SnaxEditor children="566 + 60_u8;"/>
+
+Overflows will wrap around, so be careful. In this example, adding 1 to an unsigned 8-bit integer works fine:
+<SnaxEditor>
+{`
+let x:u8 = 128_u8 + 1;
+x;
+`}
+</SnaxEditor>
+But if the integer is signed, then it overflows, wrapping around to -127:
+<SnaxEditor>
+{`
+let x:i8 = 128_i8 + 1;
+x;
+`}
+</SnaxEditor>
+
+**Warning:** Overflows are not checked at runtime, and may lead to undefined behavior! Consider these two examples which produce different results:
+
+This example will overflow, and wrap around:
+<SnaxEditor>
+{`
+let x:u8 = 255_u8 + 120;
+x;
+`}
+</SnaxEditor>
+
+Whereas this example will magically turn into a 32 bit integer because
+the values are only stored in webassembly's native stack where all integers
+are 32 bits:
+<SnaxEditor>
+{`255_u8 + 120;`}
 </SnaxEditor>
 
 ## Getting Started

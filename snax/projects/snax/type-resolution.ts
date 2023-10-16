@@ -53,6 +53,17 @@ export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   return resolver.typeMap;
 }
 
+function numberFitsInBits(num: number, type: BaseType): boolean {
+  if (!(type instanceof NumericalType)) return false;
+  if (type.interpretation === 'float') return true;
+  const numBits = type.numBytes * 8;
+  if (type.sign === Sign.Signed) {
+    return num >= -Math.pow(2, numBits - 1) && num < Math.pow(2, numBits - 1);
+  } else {
+    return num >= 0 && num < Math.pow(2, numBits);
+  }
+}
+
 export class TypeResolver {
   refMap: SymbolRefMap;
   typeMap = new ResolvedTypeMap();
@@ -97,6 +108,10 @@ export class TypeResolver {
               `${explicitType} is not a known numeric type`
             );
           }
+          if (!numberFitsInBits(value, type)) {
+            // the literal number will not fit into the hinted type
+            throw this.error(node, `${value} doesn't fit into a ${type.name}`);
+          }
           return type;
         }
         if (hint instanceof NumericalType) {
@@ -105,7 +120,7 @@ export class TypeResolver {
           } else if (Math.floor(value) === value) {
             // the literal might be a float literal, but it's equal to
             // its integer version, so it can just be an integer
-            if (value < Math.pow(2, hint.numBytes * 8)) {
+            if (numberFitsInBits(value, hint)) {
               // the literal number will fit into the hinted type
               return hint;
             } else {

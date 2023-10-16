@@ -13,7 +13,8 @@
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
     "test": "jest",
-    "spec-gen": "node --loader ts-node/esm projects/snax/spec-build.ts"
+    "spec-gen": "node --loader ts-node/esm projects/snax/spec-build.ts",
+    "peggy": "node --loader ts-node/esm projects/snax/peggy/build.ts"
   },
   "author": "",
   "license": "ISC",

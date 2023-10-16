@@ -524,11 +524,11 @@ digits "digits"
   = digits:[0-9]+ { return parseInt(digits.join('')); }
 
 float "float"
-  = leftDigits:[0-9]+ "." rightDigits:[0-9]+ {
+  = leftDigits:[0-9]+ "." rightDigits:[0-9]+ type:("_" ("f") ("32"/"64"))? {
     return spec.makeNumberLiteral(
       parseFloat(leftDigits.join('') + '.' + rightDigits.join('')),
       AST.NumberLiteralType.Float,
-      undefined
+      type? type.slice(1).join('') : undefined
     )
   }
 

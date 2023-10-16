@@ -280,6 +280,7 @@ describe('let statements', () => {
       let a:u8 = 1;
       let b:i8 = 1;
       let x:f64 = 4.32;
+      let y:f64 = 4.56_f64;
       x;
     `;
     const { exports } = await compileToWasmModule(code, {

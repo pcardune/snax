@@ -106,7 +106,9 @@ export function LL1ParserUI(props: {
             <Tr key={i}>
               <Td style={{ textAlign: 'center' }}>{i}</Td>
               <Td>
-                {state.focus instanceof StackAction ? 'f()' : state.focus}
+                {state.focus instanceof StackAction
+                  ? 'f()'
+                  : String(state.focus)}
               </Td>
               <Td>{state.word.substr}</Td>
               <Td>

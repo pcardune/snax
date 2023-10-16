@@ -49,7 +49,7 @@ export function LL1TableUI(props: { grammarSpec: GrammarSpec; start: string }) {
         {nonTerminals.map((nt) => (
           <Tr key={String(nt)}>
             <Td>
-              <NonTerminal>{nt}</NonTerminal>
+              <NonTerminal>{String(nt)}</NonTerminal>
             </Td>
             {terminals.map((t) => (
               <Td style={{ textAlign: 'center' }} key={String(t)}>

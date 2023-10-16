@@ -780,7 +780,7 @@ function memDefaults(props: MemProps): {
       inBytes !== 1 &&
       inBytes !== 2 &&
       inBytes !== 4 &&
-      !(inBytes === 8 && valueType === 'i64')
+      !(inBytes === 8 && (valueType === 'i64' || valueType === 'f64'))
     ) {
       throw new Error(
         `Can't store/load ${inBytes} bytes to memory from/to ${valueType} using store/load instruction.`

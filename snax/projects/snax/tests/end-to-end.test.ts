@@ -274,6 +274,19 @@ describe('let statements', () => {
     `);
     expect(exports._start()).toEqual(0);
   });
+
+  it('lets you assign initial values with various types', async () => {
+    const code = `
+      let a:u8 = 1;
+      let b:i8 = 1;
+      let x:f64 = 4.32;
+      x;
+    `;
+    const { exports } = await compileToWasmModule(code, {
+      includeRuntime: false,
+    });
+    expect(exports._start()).toBeCloseTo(4.32);
+  });
 });
 
 describe('block compilation', () => {

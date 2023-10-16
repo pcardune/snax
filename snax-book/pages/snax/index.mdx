@@ -1,104 +1,186 @@
-import { SnaxEditor } from '../../components/SnaxEditor.js';
-
 # Language Overview
 
-Snax is a simple, low-level programming language that compiles to web assembly.
+The following is a quick overview of the snax programming language.
 
 ## Hello World
 
 Because you have to get hello world out of the way really quickly, here it is:
 
-<SnaxEditor>
-{`
+```snax
 import io from "snax/io.snx"
 
 io::printStr(@"Hello, world!");
-`}
-</SnaxEditor>
+```
 
-## Data Types
+## Functions
 
-### Numbers
+Use the `func` keyword to define a function. Parameters must be typed,
+but the return type is optional, and will be inferred from the return statement
+if it's missing.
 
-Numbers come in the usual two flavors:
+```snax
+func add(x:i32, y:i32) {
+  return x+y;
+}
+add(1, 2);
+```
 
-Integers:
+## Global Variables
 
-<SnaxEditor children="245;"/>
+Global variables are declared with the `global` keyword and
+can be accessed from inside functions.
 
-Floats:
+```snax
+global counter = 0;
+func count() {
+  counter = counter + 1;
+}
+count();
+count();
+counter;
+```
 
-<SnaxEditor children="2.45;"/>
+## Local Variables
 
-By default, integers are signed 32 bit integers, and floats are 32 bit floats. However, you can specify the number of bits to use by appending a suffix. For
-integers, you can also choose between signed and unsigned variants. Here are some
-examples:
+Local variables are declared with the `let` keyword and
+can only be accessed from inside the block they are declared in.
 
-<SnaxEditor>
-{`
-// signed and unsigned integer variants
-12_i8;
-12_u8;
-1234_i16;
-1234_u16;
-1234_i32;
-1234_u32;
-1234_i64;
-1234_u64;
+Note that the `{...}` syntax creates a new lexical scope:
 
-// signed float variants
-1234.5678_f32;
-1234.5678_f64;
-`}
-</SnaxEditor>
-
-If the suffix is not specified, it will be inferred from the context.
-In the below example, the number `56` will be treated as an unsigned 8 bit
-integer since it is being added to one.
-
-<SnaxEditor children="60_u8 + 56;"/>
-
-As a result, if you try to add a number that is too large to fit into the
-number being added to, you'll get a type error:
-
-<SnaxEditor children="60_u8 + 566;"/>
-
-But the other way around will work just fine as the left hand side of the expression defaults to a 32 bit signed integer:
-
-<SnaxEditor children="566 + 60_u8;"/>
-
-Overflows will wrap around, so be careful. In this example, adding 1 to an unsigned 8-bit integer works fine:
-<SnaxEditor>
-{`
-let x:u8 = 128_u8 + 1;
+```snax
+let x = 1;
+{
+  let x = 2;
+}
 x;
-`}
-</SnaxEditor>
-But if the integer is signed, then it overflows, wrapping around to -127:
-<SnaxEditor>
-{`
-let x:i8 = 128_i8 + 1;
+```
+
+## Register Variables
+
+Register variables are declared with the `reg` keyword and
+can only store numeric types. They are allocated on the
+web assembly execution stack, and can be faster than local variables.
+They do not have memory addresses and can not be passed by reference.
+
+```snax
+reg x = 3;
 x;
-`}
-</SnaxEditor>
+```
 
-**Warning:** Overflows are not checked at runtime, and may lead to undefined behavior! Consider these two examples which produce different results:
+## Control Flow
 
-This example will overflow, and wrap around:
-<SnaxEditor>
-{`
-let x:u8 = 255_u8 + 120;
+Snax supports `while` loops:
+
+```snax
+let i = 0;
+let s = 1;
+while (i < 10) {
+  let j = 0;
+  while (j < i) {
+    j = j+1;
+    s = s + j;
+  }
+  i = i+1;
+}
+s;
+```
+
+And also `if` statements:
+
+```snax
+let x=3;
+if (x==4) {
+  x=7;
+} else {
+  x=9;
+}
 x;
-`}
-</SnaxEditor>
+```
 
-Whereas this example will magically turn into a 32 bit integer because
-the values are only stored in webassembly's native stack where all integers
-are 32 bits:
-<SnaxEditor>
-{`255_u8 + 120;`}
-</SnaxEditor>
+## Arrays
 
+You can create an array with `[...]` brackets.
+
+```snax
+let arr = [1,2,3];
+arr[2];
+```
+
+## Structs
+
+You can define new compound types with the `struct` keyword.
+
+```snax
+struct Vector {
+  x: i32;
+  y: i32;
+}
+
+let v = Vector::{ x: 3, y: 5 };
+v.x;
+```
+
+Tuple structs are structs with unnamed fields:
+
+```snax
+struct Vector(u8, i32);
+let v:Vector;
+v.0 = 23_u8;
+v.1 = 1234;
+v.0;
+```
+
+## Pointers and References
+
+Pointers can be used for passings things around by reference.
+You use the `@` operator to the the @ddress of a variable (see what I did there?), and you use the `&` operator to specify that a type is a reference.
+When you see `@x` in the code, it means "the address of x", and when you see `&i32` it means "a reference to an i32 value".
+
+Dereferencing a pointer is done with array indexing. So if you have an
+`let x:&i32` variable, you can get/set the value at that location with `x[0]`.
+
+```snax
+func increment(x: &i32) {
+  x[0] = x[0] + 1;
+}
+
+let a:i32 = 5;
+
+increment(@a);
+increment(@a);
+increment(@a);
+
+a;
+```
+
+## Modules and Standard Library
+
+Modules can be imported with the `import` keyword. All standard library
+modules are prefixed with `snax/`. You can use functions from the
+module by prefixing them with the module name and `::`.
+
+```snax
+import math from "snax/math.snx"
+
+math::sinf32(2.0);
+```
+
+You can also define your own modules, using the `module` keyword. Each
+module has it's own namespace. Each file is implicitly a module, as well.
+
+```snax
+import stdmath from "snax/math.snx"
+
+module mymath {
+  func add(a:f32, b:f32) {
+    return a+b;
+  }
+}
+
+mymath::add(1.0, stdmath::cosf32(2.0));
+```
+
+{/*
 ## Getting Started
 
 To get started, you'll need to install the snax compiler:
@@ -152,3 +234,5 @@ snax hello.snx
   - [ ] Why another programming language?
   - [ ] Why is it called Snax?
   - [ ] Who is the mascot?
+
+*/}

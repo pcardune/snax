@@ -1,0 +1,26 @@
+# Strings in Snax
+
+Strings in snax are represented as a struct containing a pointer to the string data, which is stored in a u8 array, and the length of the string.
+
+```snax
+import io from "snax/io.snx"
+
+let s = "Hello World";
+io::printStr(@s);
+io::printStr(@" has length ");
+io::print_u32(s.length);
+```
+
+You can construct a string more explicitly with the struct itself:
+
+```snax
+import io from "snax/io.snx"
+import string from "snax/string.snx"
+
+let buffer = ['a', 'b', 'c'];
+let s = string::String::{
+    buffer: @buffer,
+    length: 3
+};
+io::printStr(@s);
+```

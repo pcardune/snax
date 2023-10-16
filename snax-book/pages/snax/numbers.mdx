@@ -1,0 +1,88 @@
+
+# Numbers in Snax
+
+Numbers come in the usual two flavors:
+
+Integers:
+
+```snax
+245;
+```
+
+Floats:
+
+```snax
+2.45;
+```
+
+By default, integers are signed 32 bit integers, and floats are 32 bit floats. However, you can specify the number of bits to use by appending a suffix. For
+integers, you can also choose between signed and unsigned variants. Here are some
+examples:
+
+```snax
+// signed and unsigned integer variants
+12_i8;
+12_u8;
+1234_i16;
+1234_u16;
+1234_i32;
+1234_u32;
+1234_i64;
+1234_u64;
+
+// signed float variants
+1234.5678_f32;
+1234.5678_f64;
+```
+
+If the suffix is not specified, it will be inferred from the context.
+In the below example, the number `56` will be treated as an unsigned 8 bit
+integer since it is being added to one.
+
+```snax
+60_u8 + 56;
+```
+
+As a result, if you try to add a number that is too large to fit into the
+number being added to, you'll get a type error:
+
+```snax
+60_u8 + 566;
+```
+
+But the other way around will work just fine as the left hand side of the expression defaults to a 32 bit signed integer:
+
+```snax
+566 + 60_u8;
+```
+
+Overflows will wrap around, so be careful. In this example, adding 1 to an unsigned 8-bit integer works fine:
+
+```snax
+let x:u8 = 127_u8 + 1;
+x;
+```
+
+But if the integer is signed, then it overflows, wrapping around to -128:
+
+```snax
+let x:i8 = 127_i8 + 1;
+x;
+```
+
+**Warning:** Overflows are not checked at runtime, and may lead to undefined behavior! Consider these two examples which produce different results:
+
+This example will overflow, and wrap around:
+
+```snax
+let x:u8 = 255_u8 + 120;
+x;
+```
+
+Whereas this example will magically turn into a 32 bit integer because
+the values are only stored in webassembly's native stack where all integers
+are 32 bits:
+
+```snax
+255_u8 + 120;
+```

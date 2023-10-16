@@ -21,9 +21,8 @@ body {
 }
 
 code {
-  font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo,
-    'DejaVu Sans Mono', monospace, monospace !important;
   font-size: 1em; /* please adjust the ace font size accordingly in editor.js */
+  background-color: #eee;
 }
 
 /* Don't change font size in headers. */
@@ -54,11 +53,11 @@ h6 code {
 
 h2,
 h3 {
-  margin-top: 2.5em;
+  margin-top: 1.5em;
 }
 h4,
 h5 {
-  margin-top: 2em;
+  margin-top: 1em;
 }
 
 .header + .header h3,

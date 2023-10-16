@@ -1,0 +1,60 @@
+# Welcome to Snax: A Journey into Low-Level Programming
+
+<div style={{display: 'flex', alignItems: 'center', flexDirection:'column'}}>
+<img alt="A Cat Who Loves Snax" src="/snax/snax-cat.png" width={300}/>
+</div>
+
+## Introduction:
+Snax is a small, statically typed, low-level programming language that compiles to [WebAssembly](https://webassembly.org/). The main purpose of Snax is to explore low-level programming concepts without having to leave the warm glow of your web browser. Snax is a hobby project, and is still in its infancy. However, it's evolving rapidly, and is already capable of performing [complex computations in the browser](/snax/examples/clifford/index.html).
+
+But first, a hello world program:
+
+```snax
+import io from "snax/io.snx"
+
+io::printStr(@"Hello, world!");
+```
+Click "Run" to compile and run the code right in your browser!
+
+## Motivation:
+
+I really like programming, but I have no formal CS education beyond AP computer 
+science. As a result, certain low-level concepts have always been a bit of a
+mystery to me. Things like operating systems, assembly language, and memory
+management felt like black magic compared to writing web and mobile apps in
+high-level languages like python, php, and javascript.
+
+Then I learned rust. Wow! So Cool! But alas it still takes care of so much stuff
+for you. I wanted to learn how these things worked under the hood. So I decided to
+write my own programming language. x86 assembly is... a lot, and llvm is... a lot. So I figured I'd stick with what I know and write a compiler in TypeScript with web assembly as the target.
+
+## Why Web Assembly?
+
+* **Multiplatform**: Web assembly runs in the browser, on the server, and on the desktop and I don't have to worry about AMD vs Intel chips or anything like that.
+* **Low-Level**: Web assembly is still pretty darn low level, providing you with ints, floats, raw linear memory and a stack based machine language, but not so low level that I have to care about the number of registers supported by your CPU.
+* **Simplicity**: It's a pretty small instruction set (compared to x86) and represents a perfect bridge between high-level languages and machine code.
+
+## Features:
+Snax covers most of the basics you'd expect from a low-level, C-like language:
+* functions
+* control flow: loops and conditional branching
+* basic data types: its, floats, strings, booleans
+* compound data types: structs and arrays
+* static type checking
+* heap memory allocation
+
+Unlike some of those old school languages, snax also has some modern features:
+* first class support for exposing functions to javascript
+* a module system
+* type inference
+
+## Applications:
+Snax shines when tasked with simple compute-intensive operations that need to run in a web browser. A prime example is [this web-based program that renders intricate clifford attractors](/snax/examples/clifford/index.html). Rendering clifford
+attractors requires compute that can't be parallelized and requires a lot of iterations. It's the perfect use case for snax!
+
+## Learning Snax:
+Good luck reading these docs! They are under active development. There are
+certainly numerous compiler bugs and unfinished language features. But [here's the github repository](https://github.com/pcardune/snax) so knock yourself out.
+This is a labor of love and a hobby project. I'm not trying to build the next
+big thing, I'm just trying to learn and have fun. If you want to learn with me,
+I'd love to have you along for the ride!

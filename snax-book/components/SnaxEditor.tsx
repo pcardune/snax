@@ -120,7 +120,7 @@ export function SnaxEditor({ children }: { children: string }) {
 
   const onClickRun = async () => {
     process.env.DEBUG = 'true';
-    setStdout('Running...');
+    setStdout('Compiling...');
     await compiler.compile(text);
     const buffer: string[] = [];
     const wasi = new WASI({
@@ -153,6 +153,7 @@ export function SnaxEditor({ children }: { children: string }) {
         onChange={onChangeText}
         value={text}
         rows={text.split('\n').length}
+        spellCheck={false}
       />
       {output && <Output>{output}</Output>}
     </Container>
@@ -173,7 +174,7 @@ const Container = styled.div`
   ${RunButton} {
     position: absolute;
     align-self: flex-end;
-    visibility: hidden;
+    // visibility: hidden;
   }
   &:hover ${RunButton} {
     visibility: visible;

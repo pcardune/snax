@@ -1,0 +1,150 @@
+@top File { statement+ }
+
+Block {
+  "{" statement* "}"
+}
+
+statement[@isGroup=Statement] {
+  ExternDecl |
+  FuncDecl |
+  StructDecl |
+  ImportStatement {kw<"import"> Identifier kw<"from"> String } |
+  ReturnStatement { kw<"return"> expression ";" } |
+  WhileStatement { kw<"while"> "(" expression ")" Block } |
+  IfStatement { kw<"if"> "(" expression ")" Block (kw<"else"> Block)? } |
+  RegStatement { kw<"reg"> VarDecl ";"} |
+  LetStatement { kw<"let"> VarDecl ";"} |
+  GlobalDecl { kw<"global"> VarDecl ";"} |
+  ExprStatement { expression ";" }
+}
+
+VarDecl {
+  VarName {identifier} (":" TypeExpr)? "=" expression
+}
+
+StructDecl {
+  kw<"struct"> Identifier "{"
+  StructPropDecl*
+  "}"
+}
+
+StructPropDecl { Identifier ":" TypeExpr ";" }
+
+FuncDeclBegin {
+  kw<"pub">? kw<"func"> Identifier "(" ParameterList? ")" (":" TypeExpr)?
+}
+
+FuncDecl {
+  FuncDeclBegin Block
+}
+
+ExternDecl {
+  kw<"extern"> Identifier "{" (FuncDeclBegin ";")* "}"
+}
+
+ParameterList {
+  Parameter ("," Parameter)* ","?
+}
+
+Parameter {
+  Identifier ":" TypeExpr
+}
+
+TypeExpr {
+  Identifier |
+  "&" Identifier |
+  "[" TypeExpr ":" digits "]"
+}
+
+expression {
+  Identifier |
+  String |
+  Boolean |
+  NumberLiteral |
+  Char |
+  StructLiteral |
+  ArrayLiteral {"[" (expression ","?)* "]"} |
+  BinaryExpression |
+  UnaryExpression |
+  "(" expression ")"
+}
+
+@precedence {
+  prefix @left,
+  call @left,
+  member @left,
+  times @left,
+  plus @left,
+  rel @left,
+  equal @left,
+  and @left,
+  or @left,
+  assign @right
+}
+
+UnaryExpression {
+  !prefix (
+    "@" expression |
+    LogicOp<"!"> expression |
+    ArithOp<"-"> expression
+  )
+}
+
+BinaryExpression {
+  expression !times ArithOp<"%"|"*"|divide> expression |
+  expression !plus ArithOp<"+"|"-"> expression |
+  expression !assign "=" expression |
+  expression !rel CompareOp<"<" | ">"> expression |
+  expression !equal CompareOp<"==" | "!="> expression |
+  expression !and LogicOp<"&&"> expression |
+  expression !or LogicOp<"||"> expression |
+  expression !member MemberOp<"."> expression ("[" expression "]")? |
+  expression !call "(" (expression ","?)* ")" |
+  CompilerCall { "$" identifier "(" (expression ","?)* ")" } |
+  CastExpr { expression kw<"as"> "!"? TypeExpr }
+}
+
+MemberOp<expr> { expr }
+CompareOp<expr> { expr }
+ArithOp<expr> { expr }
+LogicOp<expr> { expr }
+
+StructPropValue {
+  identifier ":" expression
+}
+
+StructLiteral {
+  Identifier "::" "{" (StructPropValue ",")* "}"
+}
+
+@tokens {
+  Identifier { identifier ("::" identifier)? }
+  identifier { $[a-zA-Z_] $[a-zA-Z_0-9]* }
+
+  String { '"' (!["\\] | "\\" _)* '"' }
+  Char { "'" (!["\\] | "\\" _) "'" }
+
+  NumberLiteral { digits ("_" identifier)?}
+
+  digits { std.digit+ }
+
+  Boolean { "#t" | "#f" }
+
+  LineComment { "//" ![\n]* }
+
+  divide[@name=ArithOp] { "/" }
+
+  @precedence { LineComment, divide }
+
+  space { $[ \t\n\r]+ }
+
+  "(" ")"
+}
+
+// Keywords
+
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+@skip { space | LineComment }
+
+@detectDelim

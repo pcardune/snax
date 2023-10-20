@@ -1,8 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser.js';
 import { compileStr } from '@pcardune/snax/dist/snax/wat-compiler.js';
 import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import styled from 'styled-components';
+import Editor, { ViewRef } from './editor/Editor.jsx';
+import { EditorView, ViewUpdate } from '@codemirror/view';
 
 type Instance = WebAssembly.Instance & {
   exports: WebAssembly.Exports & {
@@ -145,16 +147,35 @@ export function SnaxEditor({ children }: { children: string }) {
   if (compiler.error) {
     output = compiler.error.toString();
   }
-
+  const extensions = useMemo(
+    () => [
+      EditorView.updateListener.of((update: ViewUpdate) => {
+        if (update.docChanged) {
+          setWasEdited(true);
+          setText(update.state.doc.sliceString(0));
+        }
+      }),
+      EditorView.theme({
+        '&': {
+          backgroundColor: '#fafafa',
+          border: '1px solid #ddd',
+          fontSize: '14px',
+        },
+        '&.cm-focused': {
+          outline: 'none',
+        },
+        '.cm-scroller': {
+          lineHeight: 'normal',
+        },
+      }),
+    ],
+    []
+  );
+  const cmViewRef = React.useRef<ViewRef>();
   return (
     <Container>
+      <Editor value={text} extensions={extensions} ref={cmViewRef} />
       <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
-      <CodeInput
-        onChange={onChangeText}
-        value={text}
-        rows={text.split('\n').length}
-        spellCheck={false}
-      />
       {output && <Output>{output}</Output>}
     </Container>
   );
@@ -174,7 +195,6 @@ const Container = styled.div`
   ${RunButton} {
     position: absolute;
     align-self: flex-end;
-    // visibility: hidden;
   }
   &:hover ${RunButton} {
     visibility: visible;
@@ -185,10 +205,4 @@ const Output = styled.pre`
   background-color: #eee;
   padding: 8px;
   font-size: 14px;
-`;
-
-const CodeInput = styled.textarea`
-  padding: 4px;
-  border: 1px solid #ddd;
-  background-color: #eee;
 `;

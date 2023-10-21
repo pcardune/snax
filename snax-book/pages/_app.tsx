@@ -53,6 +53,16 @@ const links: Section[] = [
     ],
   },
   {
+    title: 'Standard Library',
+    path: '/stdlib',
+    children: [
+      { title: 'math', path: '/stdlib/math' },
+      { title: 'string', path: '/stdlib/string' },
+      { title: 'memory', path: '/stdlib/memory' },
+      { title: 'io', path: '/stdlib/io' },
+    ],
+  },
+  {
     title: 'The Snax Compiler',
     path: '/compiler',
     children: [{ title: 'Parsing', path: '/compiler/parsing' }],

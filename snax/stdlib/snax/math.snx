@@ -42,3 +42,55 @@ func cosf32(x:f32):f32 {
 func modf32(x:f32, y:f32):f32 {
   return x - $f32_trunc(x/y) * y;
 }
+func modf64(x:f64, y:f64):f64 {
+  return x - $f64_trunc(x/y) * y;
+}
+
+
+// Approximates the sine function using Bhaskara I's approximation
+func sinf64(x:f64):f64 {
+  reg pi:f64 = 3.141592653589793;
+  reg sign:f64 = 1.0;
+
+  // manipulate x to be within the range 0-pi,
+  // keeping track of how the sign of the final
+  // result needs to change.
+
+  // 1. make x positive, which is ok because
+  // sin(-x) = -sin(x)
+  if (x < 0.0_f64) {
+    x = $f64_abs(x);
+    sign = -1.0;
+  }
+  // 2. make x go between 0-2pi, which is ok because
+  // because the sin function repeats every 2pi
+  x = modf64(x, pi*2);
+
+  // 3. make x go between 0-pi, which is ok because
+  // sin(x) = -sin(x-pi)
+  if (x > pi) {
+    sign = -sign;
+  }
+  x = modf64(x, pi);
+
+  // 4. calculate an approximation of sin(x)
+  // over the range 0-pi using Bhaskara I's approximation
+  // See https://en.wikipedia.org/wiki/Bhaskara_I%27s_sine_approximation_formula
+  reg pi_square5:f64 = 49.34802200544679;
+  reg partial:f64 = 16.0*x*(pi-x)/(pi_square5-4.0*x*(pi-x));
+
+  // 5. apply the sign to get the correct answer
+  return partial * sign;
+}
+
+func cosf64(x:f64):f64 {
+  return sinf64(x+1.5707963267948966);
+}
+
+func sqrtf32(x:f32) {
+  return $f32_sqrt(x);
+}
+
+func sqrtf64(x:f64) {
+  return $f64_sqrt(x);
+}

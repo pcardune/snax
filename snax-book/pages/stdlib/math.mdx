@@ -1,0 +1,32 @@
+# The snax/math.snx module
+
+Since snax doesn't currently support generics, all math functions
+come in a number of variants for the different numerical types.
+For example, to calculate the `sin(x)`, you must choose between
+the 32 and 64 bit float variants: `sinf32(x)` and `sinf64(x)`,
+depending on the type of `x`.
+
+## Floating Point Functions
+
+```snax
+import math from "snax/math.snx"
+math::sqrtf32(4.0);
+```
+
+## Trigonometric Functions
+
+Snax currently supports `sin` and `cos` functions for 32 and 64 bit floats.
+
+```snax
+import math from "snax/math.snx"
+math::cosf32(2.0);
+math::cosf64(2.0);
+```
+
+```snax
+import math from "snax/math.snx"
+math::sinf32(2.0);
+math::sinf64(2.0_f64);
+```
+
+These functions are implemented using [Bhaskara I's approximation](https://en.wikipedia.org/wiki/Bhaskara_I%27s_sine_approximation_formula) and will differ slightly from the output of trigonometric functions from other languages.

@@ -86,3 +86,54 @@ are 32 bits:
 ```snax
 255_u8 + 120;
 ```
+
+## Casting Between Types
+
+Snax supports casting between types using the `as` operator:
+
+```snax
+func incr(x:i32):i32 {
+    return x+1;
+}
+
+let a: u8 = 120;
+let b = incr(a as i32);
+b;
+```
+
+If the type you are casting to does not cover the space of values
+of the type you are casting from, for example if you try casting an i64 to an i32, you'll get a type error:
+
+```snax
+func incr(x:i32):i32 {
+    return x+1;
+}
+
+let a: i64 = 120;
+let b = incr(a as i32);
+b;
+```
+
+In the above scenario, we happen to know that the value 120 will fit in an i32, even though it's typed as an i64.
+So to bypass the check, we can use the `as!` operator to tell the
+compiler we know what we're doing:
+
+```snax
+func incr(x:i32):i32 {
+    return x+1;
+}
+
+let a: i64 = 120;
+let b = incr(a as! i32);
+b;
+```
+
+If we screw up, we'll get unexpected results:
+
+```snax
+func incr(x:u8):u8 { return x+1; }
+
+let a: i64 = 560;
+let b = incr(a as! u8);
+b;
+```

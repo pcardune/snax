@@ -16,9 +16,9 @@ func reverse(s:&String) {
   }
 }
 
-func u32ToStr(n:u32) {
+func stru32(n:u32) {
   reg numBytes = 10_u32; // largest 32 bit number has 10 digits
-  let s = String::{buffer: mem::malloc(numBytes), length: numBytes};
+  let s:String = String::{buffer: mem::malloc(numBytes), length: numBytes};
   reg i = 0;
   if (n == 0) {
     s.buffer[i] = '0';
@@ -33,6 +33,32 @@ func u32ToStr(n:u32) {
   s.length = i as! u32;
   reverse(@s);
   return s;
+}
+
+func stri32(n:i32) {
+  if (n > 0) {
+    return stru32(n as! u32);
+  }
+  let unsigned = stru32((-n) as! u32);
+  return concat(@charToStr('-'), @unsigned);
+}
+
+func charToStr(char:u8) {
+  let s = String::{buffer: mem::malloc(1), length: 1};
+  s.buffer[0] = char;
+  return s;
+}
+
+func strf32(n:f32) {
+  // convert n to an i32, dropping the part after the decimal place
+  reg i = $i32_trunc_f32_s(n);
+  let integerPart = stri32(i);
+  reg decimal = (n - i)*100000000;
+  if (decimal < 0) {
+    decimal = -decimal;
+  }
+  let decimalPart = stri32($i32_trunc_f32_s(decimal));
+  return concat(@concat(@integerPart, @charToStr('.')), @decimalPart);
 }
 
 func concat(s1:&String, s2:&String) {

@@ -1,2 +1,16 @@
 # The snax/string.snx module
 
+## Converting numbers to strings
+
+You can stringify numbers of various types using the `str*` functions in the `snax/string.mdx` stdlib module:
+
+```snax
+import string from "snax/string.snx"
+import io from "snax/io.snx"
+
+io::printStr(@string::stru32(1234));
+io::printStr(@"\n");
+io::printStr(@string::stri32(-1234));
+io::printStr(@"\n");
+io::printStr(@string::strf32(-12.45));
+```

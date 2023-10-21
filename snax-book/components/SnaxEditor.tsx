@@ -207,4 +207,5 @@ const Output = styled.pre`
   background-color: #eee;
   padding: 8px;
   font-size: 14px;
+  text-wrap: wrap;
 `;

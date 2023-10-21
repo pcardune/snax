@@ -7,7 +7,9 @@ Block {
 statement[@isGroup=Statement] {
   ExternDecl |
   FuncDecl |
+  ModuleDecl |
   StructDecl |
+  Block |
   ImportStatement {kw<"import"> Identifier kw<"from"> String } |
   ReturnStatement { kw<"return"> expression ";" } |
   WhileStatement { kw<"while"> "(" expression ")" Block } |
@@ -23,9 +25,15 @@ VarDecl {
 }
 
 StructDecl {
-  kw<"struct"> Identifier "{"
-  StructPropDecl*
-  "}"
+  kw<"struct"> Identifier (NamedStructBody | TupleStructBody)
+}
+
+NamedStructBody {
+  "{" StructPropDecl* "}"
+}
+
+TupleStructBody {
+  "(" TypeExpr ("," TypeExpr)* ")" ";"
 }
 
 StructPropDecl { Identifier ":" TypeExpr ";" }
@@ -36,6 +44,10 @@ FuncDeclBegin {
 
 FuncDecl {
   FuncDeclBegin Block
+}
+
+ModuleDecl {
+  kw<"module"> Identifier "{" (FuncDecl)* "}"
 }
 
 ExternDecl {

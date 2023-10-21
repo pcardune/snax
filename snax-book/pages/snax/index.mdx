@@ -180,6 +180,34 @@ module mymath {
 mymath::add(1.0, stdmath::cosf32(2.0));
 ```
 
+## Compiler Functions
+
+The snax compiler exposes certain additional functionality which is tied to
+the compiler implementation. It's generally not a good idea to use these
+functions directly, but you will see them referenced in the standard library.
+These functions are accessed using the `$` prefix. For example, you can get
+access to the heap pointer with `$heap_start()`.
+
+```snax
+let a = "Static strings take up space in memory.";
+let b = "As a result, the heap will begin at a later point.";
+$heap_start();
+```
+
+As another example, the `$size_of()` function returns the number of
+bytes used for a particular value.
+
+```snax
+struct Vector {
+  x: f64;
+  y: f64;
+}
+let v = Vector::{x: 1.34, y:3.45};
+// each f64 in the struct takes up 8 bytes,
+// so the size of the struct is 16 bytes
+$size_of(v);
+```
+
 {/*
 ## Getting Started
 

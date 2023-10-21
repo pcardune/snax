@@ -61,9 +61,11 @@ function useCompiler() {
           );
         }
         const resp = await fetch(
-          'https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/' +
+          // 'https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/' +
+          '/snax/stdlib/'+
             sourcePath
         );
+
         if (!resp.ok) {
           throw new Error('Failed to load module: ' + sourcePath);
         }

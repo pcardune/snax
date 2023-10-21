@@ -50,6 +50,7 @@ const links: Section[] = [
     children: [
       { title: 'Numbers', path: '/snax/numbers' },
       { title: 'Strings', path: '/snax/strings' },
+      { title: "Compiler Functions", path: '/snax/compiler-functions'},
     ],
   },
   {

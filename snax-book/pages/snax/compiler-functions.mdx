@@ -1,0 +1,40 @@
+# Compiler Functions
+
+Compiler functions give you access to features that aren't
+part of the snax language and depend on the compiler implementation.
+
+Since the snax compiler compiles to web assembly, many of these
+functions are just built in functions from web assembly. As such
+they require special care to use.
+
+## Type Information
+
+### $size_of
+
+The `$size_of` compiler function will give you the number of bytes
+used by a value. This is computed at compile time.
+
+```snax
+// an array of i32. Each i32 is 4 bytes,
+// so the total size of this array is 12 bytes
+$size_of([1,2,3]);
+```
+
+## Bulk Memory Operations
+
+### $memory_copy
+
+You can copy data from one place in memory to another place in memory
+using the `$memory_copy` compiler function.
+
+```snax
+import io from "snax/io.snx"
+import string from "snax/string.snx"
+
+let a = [1, 2, 3];
+let b = [4, 5, 6];
+$memory_copy(@a, @b, $size_of(b));
+io::printStr(@string::stri32(a[0]));
+io::printStr(@string::stri32(a[1]));
+io::printStr(@string::stri32(a[2]));
+```

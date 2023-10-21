@@ -65,17 +65,9 @@ func concat(s1:&String, s2:&String) {
   reg length = s1.length+s2.length;
   let s3 = String::{buffer: mem::malloc(length), length:length};
 
-  reg i = 0;
-  while (i < s1.length) {
-    s3.buffer[i] = s1.buffer[i];
-    i = i+1;
-  }
-  reg j = 0;
-  while (j < s2.length) {
-    s3.buffer[i] = s2.buffer[j];
-    i = i+1;
-    j = j+1;
-  }
+  $memory_copy(s3.buffer, s1.buffer, s1.length);
+  $memory_copy((s3.buffer as usize)+s1.length, s2.buffer, s2.length);
+
   return s3;
 }
 

@@ -74,11 +74,11 @@ function useCompiler() {
           grammarSource: resp.url,
         });
         if (!result.isOk()) {
-          alert('Failed to parse module: ' + sourcePath + ' ' + result.error);
+          setError(new Error('Failed to parse module: ' + sourcePath + ' ' + result.error));
           throw new Error('Failed to parse module: ' + sourcePath);
         }
         if (result.value.name !== 'File') {
-          alert('Failed to parse module: ' + sourcePath);
+          setError(new Error('Failed to parse module: ' + sourcePath));
           throw new Error('Failed to parse module: ' + sourcePath);
         }
         return { ast: result.value, canonicalUrl: resp.url };

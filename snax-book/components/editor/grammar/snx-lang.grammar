@@ -64,7 +64,7 @@ Parameter {
 
 TypeExpr {
   Identifier |
-  "&" Identifier |
+  "&" TypeExpr |
   "[" TypeExpr ":" digits "]"
 }
 

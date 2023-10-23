@@ -1,9 +1,9 @@
 import * as AST from '../spec-gen.js';
 import { BinOp, NumberLiteralType, UnaryOp } from '../snax-ast.js';
-import { SNAXParser } from '../snax-parser.js';
+import { SNAXParser, type StartRule } from '../snax-parser.js';
 import { makeFunc, makeNum } from '../ast-util.js';
 
-function parse(code: string, start?: string) {
+function parse(code: string, start?: StartRule) {
   const ast = SNAXParser.parseStrOrThrow(code, start, {
     includeLocations: false,
   });

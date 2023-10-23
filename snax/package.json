@@ -14,7 +14,7 @@
     "build:watch": "tsc --build --watch",
     "test": "jest",
     "spec-gen": "node --loader ts-node/esm projects/snax/spec-build.ts",
-    "peggy": "node --loader ts-node/esm projects/snax/peggy/build.ts"
+    "peggy": "bun projects/snax/peggy/build.ts"
   },
   "author": "",
   "license": "ISC",
@@ -23,11 +23,11 @@
     "@types/yargs": "^17.0.2",
     "jest": "^29.0.0",
     "jest-ts-webcompat-resolver": "^1.0.0",
-    "peggy": "^1.2.0",
-    "prettier": "^2.3.2",
+    "peggy": "^3.0.2",
+    "prettier": "^3.0.3",
     "ts-jest": "^29.0.0",
     "ts-node": "^10.1.0",
-    "ts-pegjs": "^1.1.1",
+    "ts-pegjs": "^4.2.1",
     "typescript": "^5.2.2"
   },
   "dependencies": {

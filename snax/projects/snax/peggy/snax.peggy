@@ -1,7 +1,5 @@
 {{
   // eslint-ignore-file
-  import * as AST from '../snax-ast.js';
-  import * as specGen from '../spec-gen.js';
   function makeInteger(o:string[]) {
     return parseInt(o.join(""), 10);
   }
@@ -35,7 +33,6 @@
 }}
 
 {
-
   let spec:typeof specGen = {} as unknown as typeof specGen;
 
   if (options.includeLocations) {

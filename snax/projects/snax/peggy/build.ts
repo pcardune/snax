@@ -26,5 +26,9 @@ fs.writeFileSync(
       'enumDecl',
       'typeExpr',
     ],
+    dependencies: {
+      '* as AST': '../snax-ast.js',
+      '* as specGen': '../spec-gen.js',
+    },
   })
 );

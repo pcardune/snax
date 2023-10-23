@@ -1,9 +1,14 @@
 import type { ASTNode } from './spec-gen.js';
 import { err, ok, Result } from 'neverthrow';
 
-import { parse, SyntaxError } from './peggy/snax.js';
+import {
+  parse,
+  PeggySyntaxError as SyntaxError,
+  type ParseOptions as PO,
+} from './peggy/snax.js';
 export { SyntaxError };
 
+export type StartRule = PO['startRule'];
 type ParseOptions = {
   includeLocations?: boolean;
   grammarSource?: string;
@@ -12,7 +17,7 @@ type ParseOptions = {
 export class SNAXParser {
   static parseStr(
     input: string,
-    start: string = 'start',
+    start: StartRule = 'start',
     options?: ParseOptions
   ): Result<ASTNode, any> {
     try {
@@ -24,7 +29,7 @@ export class SNAXParser {
 
   static parseStrOrThrow(
     input: string,
-    start: string = 'start',
+    start: StartRule = 'start',
     options: ParseOptions = {}
   ): ASTNode {
     try {

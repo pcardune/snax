@@ -66,7 +66,7 @@ func dump_allocations() {
   reg blockIndex = 0_u32;
   reg block = getFirstBlock();
 
-  while (blockIndex < 4 && block as i32 < alloc_end_ptr) {
+  while (blockIndex < 10 && block as i32 < alloc_end_ptr) {
     dump_block_info(blockIndex, block);
     blockIndex = blockIndex+1;
     block = getNextBlock(block);
@@ -78,22 +78,52 @@ func allocate_memory(numBytes:usize):i32 {
   io::print_u32(numBytes);
   io::printStr(@")\n");
   
+  // we always allocate blocks in 4 byte chunks.
+  // so if you ask for 5 bytes of memory, the number
+  // of bytes we'll reserve is 8 = 5 + 4 - (5 % 4).
   if (numBytes % 4 > 0) {
     // align numBytes to 4 byte word size
     numBytes = numBytes + 4 - (numBytes % 4);
   }
 
+  // now we find the first free block that has the amount of space
+  // we are looking for.
   reg block = getFirstBlock();
-  while ((!block.free || block.size < numBytes) && block as i32 < alloc_end_ptr) {
+
+  while (!block.free) {
     block = getNextBlock(block);
-    // if index > maxIndex { oom(); }
+    // if the next block is beyond the end of the allocation space,
+    // return a -1, meaning we were unable to allocation as we have
+    // run out of memory.
+    if ((block as i32) >= alloc_end_ptr) {
+      return -1; // OOM
+    }
+
+    // If this free block is not big enough, we need to try
+    // and expand it.
+    reg nextBlock = getNextBlock(block);
+    while (block.size < numBytes && nextBlock.free) {
+      // this free block isn't big enough, but the next one is free so lets combine it
+      block.size = block.size + $size_of(Block) + nextBlock.size;
+      nextBlock = getNextBlock(nextBlock);
+    }
+    // after expanding into subsequent free blocks, if we still aren't big enough
+    // we need to go back to the beginning
+    if (block.size < numBytes) {
+      // after merging the following blocks, we still do not have enough space.
+      // so lets keep going.
+      block = getNextBlock(nextBlock);
+    }
   }
+
   io::printStr(@"Found free block at ");
   io::print_u32(block as u32);
   io::printStr(@" of size ");
   io::print_u32(block.size);
   io::printStr(@"\n");
 
+  // now we update the size of the free block
+  // to be the number of bytes we are asking for.
   reg oldBlockSize = block.size;
   // set the size of this block 
   block.size = numBytes;
@@ -101,7 +131,8 @@ func allocate_memory(numBytes:usize):i32 {
   block.free = false;
   
   if (numBytes < oldBlockSize) {
-    // set the size of the next block
+    // if we resized the free block to be smaller, than it was,
+    // we need to set the size of the next block accordingly.
     reg nextBlock = getNextBlock(block);
     nextBlock.size = oldBlockSize - numBytes - $size_of(Block);
     nextBlock.free = true;
@@ -140,4 +171,8 @@ func main() {
   a1 = allocate_memory(4) as! u32;
   free(a2);
   a2 = allocate_memory(9) as! u32;
+
+  // now test merging of free blocks
+  free(a3);
+  a3 = allocate_memory(9) as! u32;
 }

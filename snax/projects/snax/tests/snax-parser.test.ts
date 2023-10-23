@@ -773,3 +773,14 @@ describe('modules', () => {
     );
   });
 });
+
+describe('error handling', () => {
+  it('should show you were your parse error was', () => {
+    expect(() => parse(`1f;`)).toThrowErrorMatchingInlineSnapshot(
+      `"Expected \\"!=\\", \\"%\\", \\"&&\\", \\"(\\", \\"*\\", \\"+\\", \\"-\\", \\".\\", \\"/\\", \\";\\", \\"<\\", \\"<=\\", \\"=\\", \\"==\\", \\">\\", \\">=\\", \\"[\\", \\"_\\", \\"as\\", \\"||\\", [0-9], or whitespace but \\"f\\" found."`
+    );
+    expect(() => parse(`a+b->c;`)).toThrowErrorMatchingInlineSnapshot(
+      `"Expected \\"!\\", \\"$\\", \\"'\\", \\"(\\", \\"-\\", \\"@\\", \\"[\\", \\"\\\\\\"\\", \\"false\\", \\"true\\", [0-9], identifier, or whitespace but \\">\\" found."`
+    );
+  });
+});

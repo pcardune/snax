@@ -60,7 +60,7 @@ start
   / expr
   / ws { return spec.makeBlock([]); }
 
-file "file"
+file
   = ws statements:fileStatementList? ws {
     let decls = [];
     let mainFuncBody = [];
@@ -106,26 +106,26 @@ file "file"
     });
   }
 
-fileStatementList "file statements"
+fileStatementList
   = head:fileStatement tail:(ws fileStatement)* {
     return [head, ...tail.map((t:any)=>t[1])];
   }
 
-fileStatement "file statement"
+fileStatement
   = moduleStatement
   / statement
 
-moduleDecl "module declaration"
+moduleDecl
   = "module" ws symbol:identifier ws "{" ws decls:moduleDeclList ws "}" {
     return spec.makeModuleDeclWith({symbol, decls});
   }
 
-moduleDeclList "module declarations"
+moduleDeclList
   = head:moduleStatement tail:(ws moduleStatement)* {
     return [head, ...tail.map((t:any)=>t[1])];
   }
 
-moduleStatement "declaration"
+moduleStatement
   = "global" ws varDecl:varDecl ws ";" ws {
     return spec.makeGlobalDecl(varDecl.name, varDecl.type, varDecl.expr)
   }
@@ -138,7 +138,7 @@ moduleStatement "declaration"
   / enumDecl
   / moduleDecl
 
-block "block"
+block
   = ws head:statement tail:(ws statement)* ws {
     return spec.makeBlock([
       head,
@@ -146,7 +146,7 @@ block "block"
     ]);
   }
 
-statement "statement"
+statement
   = "let" ws varDecl:varDecl ws ";" ws {
     return spec.makeLetStatement(varDecl.name, varDecl.type, varDecl.expr);
   }
@@ -163,7 +163,7 @@ statement "statement"
     return spec.makeExprStatement(expr);
   }
 
-varDecl "varDecl"
+varDecl
   = name:identifier ws type:(":" ws typeExpr)? initializer:(ws "=" ws expr:expr)? {
     return {
       name,
@@ -172,7 +172,7 @@ varDecl "varDecl"
     };
   }
 
-whileStatement "while statement"
+whileStatement
   = "while" ws "(" ws condExpr:expr ws ")" ws
     "{" ws thenBlock:block? ws "}" ws {
       return spec.makeWhileStatement(
@@ -181,7 +181,7 @@ whileStatement "while statement"
       );
     }
 
-ifStatement "if statement"
+ifStatement
   = "if" ws "(" ws condExpr:expr ws ")" ws
     "{" ws thenBlock:block ws "}" ws
     elseBlock:("else" ws "{" ws block ws "}" ws)? {
@@ -207,7 +207,7 @@ externDecl = "extern" ws name:identifier ws "{" ws decls:externDeclList ws "}" {
 externDeclList = head:funcDeclBegin ws ";" tail:(ws funcDeclBegin ws ";")* {
   return [head, ...tail.map((p:any[])=> p[1])];
 }
-structDecl "struct declaration"
+structDecl
   = "struct" ws structName:identifier ws "(" ws types:typeList ws ")" ws ";" {
     return spec.makeTupleStructDecl(structName, types);
   }
@@ -217,16 +217,16 @@ structDecl "struct declaration"
       props: props || [],
     })
   }
-structPropList "struct props"
+structPropList
   = head:structProp tail:(ws structProp)* {
     return [head, ...tail.map((p:any[]) => p[1])]
   }
-structProp "struct prop"
+structProp
   = name:identifier ws ":" ws type:typeExpr ws ";" {
     return spec.makeStructProp(name, type);
   }
   / funcDecl
-enumDecl "enum declaration"
+enumDecl
   = "enum" ws enumName:identifier ws "{" ws tags:enumTagList? ws "}" {
     return spec.makeEnumDeclWith({
       symbol: enumName,
@@ -234,11 +234,11 @@ enumDecl "enum declaration"
     })
   }
 
-enumTagList "enum tags"
+enumTagList
   = head:enumTag tail:(ws enumTag)* {
     return [head, ...tail.map((p:any[]) => p[1])]
   }
-enumTag "enum tag"
+enumTag
   = tagName:identifier ws type:("(" ws typeExpr ws ")")? ","? {
     return spec.makeEnumTagWith({
       symbol: tagName,
@@ -270,29 +270,29 @@ funcDeclBegin =
     returnType: returns ? returns[2] : undefined,
   };
 }
-parameterList "parameterList"
+parameterList
   = head:parameter tail:(ws "," ws parameter)* ws ","? {
     return spec.makeParameterList([head, ...tail.map((p:any[]) => p[3])])
   }
-parameter "parameter"
+parameter
   = name:identifier ws ":" ws type:typeExpr {
     return spec.makeParameter(name, type);
   }
 
-typeExpr "typeExpr"
+typeExpr
   = "&" expr:typeExpr { return spec.makePointerTypeExpr(expr); }
   / "[" ws valueTypeExpr:typeExpr ws ":" ws size:digits ws"]" {
     return spec.makeArrayTypeExpr(valueTypeExpr, size);
   }
   / typeRef
 
-typeRef "typeRef"
+typeRef
   = name:id { return spec.makeTypeRef(name); }
 
-expr "expr"
+expr
   = assignment
 
-assignment "assignment"
+assignment
   = val:bool_or ws rest:(ws "=" ws bool_or)* {
     return rightAssoc(
       val,
@@ -301,7 +301,7 @@ assignment "assignment"
     );
   }
 
-bool_or "bool or"
+bool_or
   = rest:(bool_and ws "||" ws)* val:bool_and {
     return leftAssoc(
       rest,
@@ -310,7 +310,7 @@ bool_or "bool or"
     );
   }
 
-bool_and "bool and"
+bool_and
   = rest:(equality ws "&&" ws)* val:equality {
     return leftAssoc(
       rest,
@@ -319,7 +319,7 @@ bool_and "bool and"
     );
   }
 
-equality "equality"
+equality
   = rest:(ordering ws ("==" / "!=") ws)* val:ordering {
     return leftAssoc(
       rest,
@@ -332,7 +332,7 @@ equality "equality"
     );
   }
 
-ordering "ordering"
+ordering
   = rest:(additive ws ("<=" / ">=" / "<" / ">") ws)* val:additive {
     return leftAssoc(
       rest,
@@ -349,7 +349,7 @@ ordering "ordering"
     );
   }
 
-additive "additive"
+additive
   = rest:(term ws ("+" / "-") ws)* val:term {
     return leftAssoc(
       rest,
@@ -362,7 +362,7 @@ additive "additive"
     );
   }
 
-term "term"
+term
   = rest:(unary ws ("*" / "/" / "%") ws)* val:unary {
     const opMap:{[s:string]: AST.BinOp} = {
       "*": AST.BinOp.MUL,
@@ -384,7 +384,7 @@ term "term"
     );
   }
 
-unary "unary"
+unary
   = "-" ws expr:casting {
     return spec.makeUnaryExpr(AST.UnaryOp.NEG, expr);
   }
@@ -393,7 +393,7 @@ unary "unary"
   }
   / casting
 
-casting "cast"
+casting
   = expr:deref ws "as" force:"!"? ws typeExpr:typeExpr {
     return spec.makeCastExprWith({
       expr,
@@ -403,14 +403,14 @@ casting "cast"
   }
   / deref
 
-deref "deref"
+deref
   = "@" expr:calling {
     return spec.makeUnaryExpr(AST.UnaryOp.ADDR_OF, expr);
   }
   / calling
 
 
-calling "calling"
+calling
   = "$" id:identifier ws "(" ws argList:exprList? ws ")" {
     return spec.makeCompilerCallExpr(id, spec.makeArgList(argList || []));
   }
@@ -419,7 +419,7 @@ calling "calling"
   }
   / indexing
 
-indexing "indexing"
+indexing
   = element:memberAccess rest:(ws "[" ws expr ws "]")* {
     function build(val:any, rest:any[]):any {
       if (rest.length === 0) {
@@ -435,7 +435,7 @@ indexing "indexing"
   }
   / memberAccess
 
-memberAccess "memberAccess"
+memberAccess
   = rest:(factor ws (".") ws)* val:factor {
     return leftAssoc(
       rest,
@@ -444,7 +444,7 @@ memberAccess "memberAccess"
     );
   }
 
-factor "factor"
+factor
   = "(" ws inner:expr ws ")" { return inner; }
   / structLiteral
   / arrayLiteral
@@ -454,7 +454,7 @@ factor "factor"
   / bool
   / id
 
-structLiteral "struct literal"
+structLiteral
   = structName:id ws "::" ws "{" ws values:structPropValueList? ws "}" {
     return spec.makeStructLiteral(structName, values || []);
   }
@@ -474,19 +474,19 @@ structPropValue
     return spec.makeStructLiteralProp(propName, expr);
   }
 
-stringLiteral "string"
+stringLiteral
   = value:quotedString {
     return spec.makeStringLiteral(value);
   }
 
-quotedString "quotedString"
+quotedString
   = '"' content:(('\\' .) / [^"])* '"' {
     const inner = content.map((c:any) => typeof c === "string" ? c : c.join('')).join('');
     return JSON.parse('"'+inner+'"');
   }
 
 
-charLiteral "char"
+charLiteral
   = "'" content:('\\'? .) "'" {
     let s = (content[0] || '') + content[1];
     if (s === "\\'") {
@@ -497,7 +497,7 @@ charLiteral "char"
     return spec.makeCharLiteral(JSON.parse('"'+s+'"').charCodeAt(0));
   }
 
-arrayLiteral "array"
+arrayLiteral
   = "[" ws value:expr ws ":" ws size:integer ws "]" {
     return spec.makeArrayLiteralWith({elements:[value], size});
   }
@@ -505,14 +505,14 @@ arrayLiteral "array"
     return spec.makeArrayLiteralWith({elements:items || []});
   }
 
-exprList "exprList"
+exprList
   = head:expr tail:(ws "," ws expr)* { return [head, ...tail.map((t:any[])=>t[3])]; }
 
-number "number"
+number
   = float
   / integer
 
-integer "integer"
+integer
   = digits:digits type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
     return spec.makeNumberLiteral(
       digits,
@@ -521,10 +521,10 @@ integer "integer"
     );
   }
 
-digits "digits"
+digits
   = digits:[0-9]+ { return parseInt(digits.join('')); }
 
-float "float"
+float
   = leftDigits:[0-9]+ "." rightDigits:[0-9]+ type:("_" ("f") ("32"/"64"))? {
     return spec.makeNumberLiteral(
       parseFloat(leftDigits.join('') + '.' + rightDigits.join('')),
@@ -536,7 +536,7 @@ float "float"
 bool = "true" { return spec.makeBooleanLiteral(true); }
      / "false" { return spec.makeBooleanLiteral(false); }
 
-id "symbol"
+id
   = name:identifier rest:("::" identifier)+ {
     return spec.makeNamespacedRef([name, ...rest.map((r:any) => r[1])]);
   }
@@ -547,7 +547,7 @@ id "symbol"
 identifier "identifier"
   = prefix:[a-z_]i suffix:[a-z0-9_]i* { return prefix+suffix.join(''); }
 
-ws = ([ \n\t\r] / comment)*
+ws "whitespace" = ([ \n\t\r] / comment)*
 
 comment = "//" [^\n]*
 

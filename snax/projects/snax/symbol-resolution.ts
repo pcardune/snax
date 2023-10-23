@@ -169,43 +169,49 @@ function innerResolveSymbols(
 
   // descend into the child nodes to continue resolving symbols.
   if (isFile(astNode) || isModuleDecl(astNode)) {
-    for (const moduleDecl of astNode.fields.decls) {
-      if (isModuleDecl(moduleDecl)) {
-        const moduleSymbols = tables.get(moduleDecl);
-        if (!moduleSymbols) {
-          throw new Error(
-            `Expected module ${moduleDecl.fields.symbol} to have a symbol table already`
-          );
-        }
-        innerResolveSymbols(
-          moduleDecl,
-          globalsTable,
-          moduleSymbols,
-          tables,
-          refMap
+    const moduleDecls = astNode.fields.decls.filter(isModuleDecl);
+    for (const moduleDecl of moduleDecls) {
+      const moduleSymbols = tables.get(moduleDecl);
+      if (!moduleSymbols) {
+        throw new Error(
+          `Expected module ${moduleDecl.fields.symbol} to have a symbol table already`
         );
       }
+      innerResolveSymbols(
+        moduleDecl,
+        globalsTable,
+        moduleSymbols,
+        tables,
+        refMap
+      );
     }
-
-    for (const funcDecl of astNode.fields.decls) {
-      if (isFuncDecl(funcDecl)) {
-        const funcSymbols = new SymbolTable(currentTable);
-        tables.set(funcDecl, funcSymbols);
+    const funcDecls = astNode.fields.decls.filter(isFuncDecl);
+    for (const funcDecl of funcDecls) {
+      const funcSymbols = new SymbolTable(currentTable);
+      tables.set(funcDecl, funcSymbols);
+      innerResolveSymbols(
+        funcDecl.fields.parameters,
+        globalsTable,
+        funcSymbols,
+        tables,
+        refMap
+      );
+      if (funcDecl.fields.returnType) {
         innerResolveSymbols(
-          funcDecl.fields.parameters,
-          globalsTable,
-          funcSymbols,
-          tables,
-          refMap
-        );
-        innerResolveSymbols(
-          funcDecl.fields.body,
+          funcDecl.fields.returnType,
           globalsTable,
           funcSymbols,
           tables,
           refMap
         );
       }
+      innerResolveSymbols(
+        funcDecl.fields.body,
+        globalsTable,
+        funcSymbols,
+        tables,
+        refMap
+      );
     }
 
     for (const decl of astNode.fields.decls) {

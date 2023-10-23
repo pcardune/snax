@@ -18,5 +18,6 @@
         "cmd": "npm run build-grammar --workspace snax-editor"
       }
     ]
-  }
+  },
+  "editor.formatOnSave": true
 }

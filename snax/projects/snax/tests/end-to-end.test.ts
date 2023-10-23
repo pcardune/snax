@@ -942,6 +942,18 @@ describe('object structs', () => {
     expect(stackDump(exports, 4)).toEqual([5, 7, 5, 7]);
   });
 
+  it('Allows referencing a struct type', async () => {
+    const code = `
+      struct Vector {x: i32; y: i32;}
+      func make_vec(x: i32, y: i32):Vector {
+        return Vector::{x:x, y:y};
+      }
+      let v = make_vec(3, 4);
+      v.x;
+    `;
+    expect(await exec(code)).toEqual(3);
+  });
+
   describe('struct literals', () => {
     it('lets you assign to a struct using a struct literal', async () => {
       const code = `

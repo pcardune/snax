@@ -230,7 +230,9 @@ export class TypeResolver {
             throw this.error(node, `Can't index into a ${leftType.name}`);
           }
           case BinOp.LESS_THAN:
+          case BinOp.LESS_THAN_OR_EQ:
           case BinOp.GREATER_THAN:
+          case BinOp.GREATER_THAN_OR_EQ:
           case BinOp.EQUAL_TO:
           case BinOp.NOT_EQUAL_TO:
             return Intrinsics.bool;

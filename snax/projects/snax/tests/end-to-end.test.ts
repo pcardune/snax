@@ -392,6 +392,17 @@ describe('assignment operator', () => {
   });
 });
 
+describe('Comparison Operators', () => {
+  it('compiles comparison operators', async () => {
+    expect(await exec(`3 < 4;`)).toBe(1);
+    expect(await exec(`4 < 4;`)).toBe(0);
+    expect(await exec(`4 <= 4;`)).toBe(1);
+    expect(await exec(`4 > 3;`)).toBe(1);
+    expect(await exec(`4 > 4;`)).toBe(0);
+    expect(await exec(`4 >= 4;`)).toBe(1);
+  });
+});
+
 describe('control flow', () => {
   it('compiles if statements', async () => {
     const code = `

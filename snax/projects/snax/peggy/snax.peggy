@@ -336,12 +336,16 @@ equality "equality"
   }
 
 ordering "ordering"
-  = rest:(additive ws ("<" / ">") ws)* val:additive {
+  = rest:(additive ws ("<=" / ">=" / "<" / ">") ws)* val:additive {
     return leftAssoc(
       rest,
       val,
       ({left, right, operator}) => spec.makeBinaryExpr(
-        operator === "<" ? AST.BinOp.LESS_THAN : AST.BinOp.GREATER_THAN,
+        operator[0] === "<" ? (
+          operator.length > 1 ? AST.BinOp.LESS_THAN_OR_EQ : AST.BinOp.LESS_THAN
+         ) : (
+          operator.length > 1 ? AST.BinOp.GREATER_THAN_OR_EQ : AST.BinOp.GREATER_THAN
+        ),
         left,
         right
       )

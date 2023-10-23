@@ -1284,6 +1284,14 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       // TODO: handle unsigned integer types
       return this.context.module[type].lt_s(...this.pushNumberOps(left, right));
     },
+    [BinOp.LESS_THAN_OR_EQ]: (left: AST.Expression, right: AST.Expression) => {
+      const type = this.matchTypes(left, right).toValueTypeOrThrow();
+      if (isFloatType(type)) {
+        return this.context.module[type].le(...this.pushNumberOps(left, right));
+      }
+      // TODO: handle unsigned integer types
+      return this.context.module[type].le_s(...this.pushNumberOps(left, right));
+    },
     [BinOp.GREATER_THAN]: (left: AST.Expression, right: AST.Expression) => {
       const type = this.matchTypes(left, right).toValueTypeOrThrow();
       if (isFloatType(type)) {
@@ -1291,6 +1299,14 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       }
       // TODO: handle unsigned integer types
       return this.context.module[type].gt_s(...this.pushNumberOps(left, right));
+    },
+    [BinOp.GREATER_THAN_OR_EQ]: (left: AST.Expression, right: AST.Expression) => {
+      const type = this.matchTypes(left, right).toValueTypeOrThrow();
+      if (isFloatType(type)) {
+        return this.context.module[type].ge(...this.pushNumberOps(left, right));
+      }
+      // TODO: handle unsigned integer types
+      return this.context.module[type].ge_s(...this.pushNumberOps(left, right));
     },
     [BinOp.LOGICAL_AND]: (left: AST.Expression, right: AST.Expression) =>
       this.context.module.i32.and(

@@ -198,8 +198,14 @@ describe('expression', () => {
     expect(parse('3 < 4', 'expr')).toEqual(
       AST.makeBinaryExpr(BinOp.LESS_THAN, three, four)
     );
+    expect(parse('3 <= 4', 'expr')).toEqual(
+      AST.makeBinaryExpr(BinOp.LESS_THAN_OR_EQ, three, four)
+    );
     expect(parse('3 > 4', 'expr')).toEqual(
       AST.makeBinaryExpr(BinOp.GREATER_THAN, three, four)
+    );
+    expect(parse('3 >= 4', 'expr')).toEqual(
+      AST.makeBinaryExpr(BinOp.GREATER_THAN_OR_EQ, three, four)
     );
     expect(parse('3 == 4', 'expr')).toEqual(
       AST.makeBinaryExpr(BinOp.EQUAL_TO, three, four)

@@ -14,6 +14,8 @@ export enum BinOp {
   GREATER_THAN = '>',
   EQUAL_TO = '==',
   NOT_EQUAL_TO = '!=',
+  LESS_THAN_OR_EQ = '<=',
+  GREATER_THAN_OR_EQ = '>=',
 
   ASSIGN = '=',
 

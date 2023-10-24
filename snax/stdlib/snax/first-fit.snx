@@ -14,7 +14,7 @@ func getFirstBlock() {
   return alloc_start_ptr as! &Block;
 }
 
-func getNextBlock(block:&Block) {
+func getNextBlock(block:&Block): &Block {
   return ((block as usize) + $size_of(Block) + block.size) as! &Block;
 }
 
@@ -73,6 +73,16 @@ func dump_allocations() {
   }
 }
 
+func getNextFreeBlock(block: &Block): &Block {
+  while (!block.free) {
+    block = getNextBlock(block);
+    if (block as usize >= alloc_end_ptr) {
+      return 0 as! &Block; // null pointer
+    }
+  }
+  return block;
+}
+
 func allocate_memory(numBytes:usize):i32 {
   io::printStr(@"\nallocate_memory(");
   io::print_u32(numBytes);
@@ -88,59 +98,57 @@ func allocate_memory(numBytes:usize):i32 {
 
   // now we find the first free block that has the amount of space
   // we are looking for.
-  reg block = getFirstBlock();
-
-  while (!block.free) {
-    block = getNextBlock(block);
-    // if the next block is beyond the end of the allocation space,
-    // return a -1, meaning we were unable to allocation as we have
-    // run out of memory.
-    if ((block as i32) >= alloc_end_ptr) {
+  reg block: &Block = getFirstBlock();
+  while (true) {
+    block = getNextFreeBlock(block);
+    if (block as usize == 0) {
       return -1; // OOM
     }
-
-    // If this free block is not big enough, we need to try
-    // and expand it.
-    reg nextBlock = getNextBlock(block);
-    while (block.size < numBytes && nextBlock.free) {
-      // this free block isn't big enough, but the next one is free so lets combine it
-      block.size = block.size + $size_of(Block) + nextBlock.size;
-      nextBlock = getNextBlock(nextBlock);
+    
+    reg reachedMaxSize = false;
+    while (block.size < numBytes && !reachedMaxSize) {
+      reg nextBlock: &Block = getNextBlock(block);
+      if (nextBlock as usize >= alloc_end_ptr) {
+        return -1; // OOM
+      }
+      if (nextBlock.free) {
+        block.size = block.size + $size_of(Block) + nextBlock.size;
+      } else {
+        reachedMaxSize = true;
+      }
     }
-    // after expanding into subsequent free blocks, if we still aren't big enough
-    // we need to go back to the beginning
-    if (block.size < numBytes) {
-      // after merging the following blocks, we still do not have enough space.
-      // so lets keep going.
-      block = getNextBlock(nextBlock);
+    if (!reachedMaxSize) {
+      io::printStr(@"Found free block at ");
+      io::print_u32(block as u32);
+      io::printStr(@" of size ");
+      io::print_u32(block.size);
+      io::printStr(@"\n");
+
+      // now we update the size of the free block
+      // to be the number of bytes we are asking for.
+      reg oldBlockSize = block.size;
+      // set the size of this block 
+      block.size = numBytes;
+      // mark the block as non-free
+      block.free = false;
+      
+      if (numBytes < oldBlockSize) {
+        // if we resized the free block to be smaller, than it was,
+        // we need to set the size of the next block accordingly.
+        reg nextBlock = getNextBlock(block);
+        nextBlock.size = oldBlockSize - numBytes - $size_of(Block);
+        nextBlock.free = true;
+      }
+      dump_allocations();
+      // return address where the memory starts
+      return block as i32 + $size_of(Block);
+    }
+    block = getNextBlock(block);
+    if (block as usize >= alloc_end_ptr) {
+      return -1; // OOM
     }
   }
-
-  io::printStr(@"Found free block at ");
-  io::print_u32(block as u32);
-  io::printStr(@" of size ");
-  io::print_u32(block.size);
-  io::printStr(@"\n");
-
-  // now we update the size of the free block
-  // to be the number of bytes we are asking for.
-  reg oldBlockSize = block.size;
-  // set the size of this block 
-  block.size = numBytes;
-  // mark the block as non-free
-  block.free = false;
-  
-  if (numBytes < oldBlockSize) {
-    // if we resized the free block to be smaller, than it was,
-    // we need to set the size of the next block accordingly.
-    reg nextBlock = getNextBlock(block);
-    nextBlock.size = oldBlockSize - numBytes - $size_of(Block);
-    nextBlock.free = true;
-  }
-
-  dump_allocations();
-  // return address where the memory starts
-  return block as i32 + $size_of(Block);
+  return -1;
 }
 
 func free(addr:usize) {

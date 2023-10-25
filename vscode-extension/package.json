@@ -1,5 +1,5 @@
 {
-  "name": "@pcardune/snax-lsp",
+  "name": "pcardune-snax-lsp",
   "description": "Snax language server and vscode extension",
   "author": "Paul Carduner",
   "license": "MIT",
@@ -11,7 +11,7 @@
   "engines": {
     "vscode": "^1.75.0"
   },
-  "main": "./client/out/extension",
+  "main": "./out/main.js",
   "contributes": {
     "languages": [
       {
@@ -64,17 +64,16 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -b",
-    "watch": "tsc -b -w",
-    "lint": "eslint ./client/src ./server/src --ext .ts,.tsx",
-    "postinstall": "cd client && npm install && cd ../server && npm install && cd .."
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "compile": "npm run esbuild-base -- --sourcemap",
+    "watch": "npm run esbuild-base -- --sourcemap --watch",
+    "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+    "esbuild-base": "npx esbuild ./client/src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node && npx esbuild ./server/src/server.ts --bundle --outfile=server/out/server.js --external:vscode --format=cjs --platform=node && npx esbuild ./server/server.cjs --bundle --outfile=server/out/server-entry.js --external:vscode --format=cjs --platform=node",
+    "package": "npx vsce package"
   },
   "devDependencies": {
-    "@types/node": "^16.18.34",
-    "@typescript-eslint/eslint-plugin": "^6.7.0",
-    "@typescript-eslint/parser": "^6.7.0",
-    "eslint": "^8.35.0",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "@vscode/vsce": "^2.21.1",
+    "esbuild": "^0.19.5"
   }
 }

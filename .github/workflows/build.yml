@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'snax/**'
+      - 'vscode-extension/**'
+  workflow_dispatch:
+
+# allows us to cancel previous builds if a new one is started
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - name: Build Snax
+        run: npm run build
+        working-directory: ./snax
+      - name: Build VSCode Extension
+        run: npm run package
+        working-directory: ./vscode-extension
+      - name: Upload VSCode Extension
+        uses: actions/upload-artifact@v3
+        with:
+            name: vscode-extension
+            path: |
+                vscode-extension/pcardune-snax-lsp-*.vsix
+        

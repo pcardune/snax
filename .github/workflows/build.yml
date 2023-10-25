@@ -11,7 +11,7 @@ on:
 
 # allows us to cancel previous builds if a new one is started
 concurrency:
-  group: 'pages'
+  group: 'build'
   cancel-in-progress: true
 
 jobs:

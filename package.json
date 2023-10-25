@@ -2,7 +2,9 @@
   "name": "snax-packages",
   "workspaces": [
     "snax",
-    "snax-book"
+    "snax-book",
+    "vscode-extension/client",
+    "vscode-extension/server"
   ],
   "//": "TODO: add snax-editor back to workspaces",
   "devDependencies": {

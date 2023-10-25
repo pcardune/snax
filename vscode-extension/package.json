@@ -1,0 +1,80 @@
+{
+  "name": "@pcardune/snax-lsp",
+  "description": "Snax language server and vscode extension",
+  "author": "Paul Carduner",
+  "license": "MIT",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pcardune/snax"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "main": "./client/out/extension",
+  "contributes": {
+    "languages": [
+      {
+        "id": "snax",
+        "extensions": [
+          ".snx"
+        ],
+        "aliases": [
+          "Snax",
+          "snx"
+        ],
+        "filenames": [],
+        "firstLine": "^#!/.*\\bsnax\\b",
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/python-light.png",
+          "dark": "./icons/python-dark.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "snax",
+        "scopeName": "source.snax",
+        "path": "./syntaxes/snax.tmGrammar.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Example configuration",
+      "properties": {
+        "snaxLanguageServer.maxNumberOfProblems": {
+          "scope": "resource",
+          "type": "number",
+          "default": 100,
+          "description": "Controls the maximum number of problems produced by the server."
+        },
+        "snaxLanguageServer.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "lint": "eslint ./client/src ./server/src --ext .ts,.tsx",
+    "postinstall": "cd client && npm install && cd ../server && npm install && cd .."
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.34",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.35.0",
+    "typescript": "^5.2.2"
+  }
+}

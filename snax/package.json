@@ -16,8 +16,8 @@
     "spec-gen": "node --loader ts-node/esm projects/snax/spec-build.ts",
     "peggy": "bun projects/snax/peggy/build.ts"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Paul Carduner",
+  "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.0.0",
     "@types/yargs": "^17.0.2",

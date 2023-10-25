@@ -1,0 +1,106 @@
+{
+  "scopeName": "source.snax",
+  "patterns": [
+    { "include": "#statement" },
+    { "include": "#expression" },
+    { "include": "#comments" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "begin": "//",
+          "end": "$",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.comment" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.comment" }
+          },
+          "name": "comment.line"
+        }
+      ]
+    },
+    "statement": {
+      "patterns": [
+        { "include": "#declaration" },
+        { "include": "#control" },
+        { "include": "#assignment" }
+      ]
+    },
+    "declaration": {
+      "match": "(func|struct|global|let|reg)\\s",
+      "name": "storage.type"
+    },
+    "control": {
+      "match": "(if|while|else|return|as|import|from|extern)\\s",
+      "name": "keyword.control"
+    },
+    "expression": {
+      "patterns": [
+        { "include": "#string-literal" },
+        { "include": "#compiler-call-expression" },
+        { "include": "#call-expression" },
+        { "include": "#operator" },
+        { "include": "#control-keyword" },
+        { "include": "#language-constant" },
+        { "include": "#symbol" },
+        { "include": "#number" },
+        { "include": "#paren-expression" }
+      ]
+    },
+    "language-constant": {
+      "match": "true|false",
+      "name": "constant.language"
+    },
+    "compiler-call-expression": {
+      "match": "(\\$[a-zA-Z_][a-zA-Z_0-9]*)\\(",
+      "captures": {
+        "0": { "name": "variable.language" }
+      }
+    },
+    "operator": {
+      "match": "(\\|\\||&&|\\@|!)",
+      "name": "keyword.operator"
+    },
+    "control-keyword": {
+      "match": "\\sas!?\\s",
+      "name": "keyword.control"
+    },
+    "string-literal": {
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{ "include": "#escaped-char" }],
+      "name": "string.quoted.double"
+    },
+    "escaped-char": {
+      "match": "\\."
+    },
+    "call-expression": {
+      "match": "([a-zA-Z_][a-zA-Z_0-9]*)\\(",
+      "captures": {
+        "0": { "name": "entity.name.function" }
+      }
+    },
+    "symbol": {
+      "match": "[a-zA-Z_][a-zA-Z_0-9]*",
+      "name": "variable.other"
+    },
+    "number": {
+      "match": "-?\\d+(.\\d+)?",
+      "name": "constant.numeric"
+    },
+    "paren-expression": {
+      "begin": "\\(",
+      "end": "\\)",
+      "beginCaptures": {
+        "0": { "name": "punctuation.paren.open" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.paren.close" }
+      },
+      "name": "expression.group",
+      "patterns": [{ "include": "#expression" }]
+    }
+  }
+}

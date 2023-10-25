@@ -27,6 +27,7 @@ type Section = {
 
 const links: Section[] = [
   { title: 'Introduction', path: '/', noNumber: true },
+  { title: 'Install', path: '/install', noNumber: true },
   // {
   //   title: 'Regular Expressions',
   //   path: '/regex',
@@ -50,7 +51,7 @@ const links: Section[] = [
     children: [
       { title: 'Numbers', path: '/snax/numbers' },
       { title: 'Strings', path: '/snax/strings' },
-      { title: "Compiler Functions", path: '/snax/compiler-functions'},
+      { title: 'Compiler Functions', path: '/snax/compiler-functions' },
     ],
   },
   {

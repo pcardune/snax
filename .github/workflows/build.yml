@@ -1,6 +1,18 @@
 name: Build
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'snax/**'
+      - 'vscode-extension/**'
+  workflow_dispatch:
+
+# allows us to cancel previous builds if a new one is started
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
 
 jobs:
   build:

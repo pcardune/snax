@@ -22,11 +22,28 @@ import type {
   SNAXParser,
   SyntaxError,
 } from '@pcardune/snax/dist/snax/snax-parser.js';
+import type { FileCompiler } from '@pcardune/snax/dist/snax/ast-compiler.js';
+import type { NodeError } from '@pcardune/snax/dist/snax/errors.js';
+
+const responseCache = new Map<string, string>();
+async function fetchStdlib(url: string): Promise<string | null> {
+  if (!responseCache.has(url)) {
+    const resp = await fetch(url);
+    if (resp.ok) {
+      responseCache.set(url, await resp.text());
+    } else {
+      return null;
+    }
+  }
+  return responseCache.get(url)!;
+}
 
 export function runServer(
   SNAX: Promise<{
     SNAXParser: typeof SNAXParser;
     SyntaxError: typeof SyntaxError;
+    FileCompiler: typeof FileCompiler;
+    NodeError: typeof NodeError;
   }>
 ) {
   // Create a connection for the server, using Node's IPC as a transport.
@@ -96,12 +113,17 @@ export function runServer(
   // The example settings
   interface ExampleSettings {
     maxNumberOfProblems: number;
+    stdlibLocation: string;
   }
 
   // The global settings, used when the `workspace/configuration` request is not supported by the client.
   // Please note that this is not the case when using this server with the client provided in this example
   // but could happen with other clients.
-  const defaultSettings: ExampleSettings = { maxNumberOfProblems: 1000 };
+  const defaultSettings: ExampleSettings = {
+    maxNumberOfProblems: 1000,
+    stdlibLocation:
+      'https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/',
+  };
   let globalSettings: ExampleSettings = defaultSettings;
 
   // Cache the settings of all open documents
@@ -155,28 +177,24 @@ export function runServer(
 
     // The validator creates diagnostics for all uppercase words length 2 and more
     const text = textDocument.getText();
-    const pattern = /\b[A-Z]{2,}\b/g;
-    let m: RegExpExecArray | null;
-
-    let problems = 0;
     const diagnostics: Diagnostic[] = [];
 
     const snaxModule = await SNAX;
 
-    const result = snaxModule.SNAXParser.parseStr(text);
+    const result = snaxModule.SNAXParser.parseStr(text, 'start', {});
     if (!result.isOk()) {
       if (result.error instanceof snaxModule.SyntaxError) {
         const diagnostic: Diagnostic = {
           severity: DiagnosticSeverity.Error,
           range: {
-			start: {
-				line: result.error.location.start.line-1,
-				character: result.error.location.start.column-1,
-			},
-			end: {
-				line: result.error.location.end.line-1,
-				character: result.error.location.end.column-1,
-			},
+            start: {
+              line: result.error.location.start.line - 1,
+              character: result.error.location.start.column - 1,
+            },
+            end: {
+              line: result.error.location.end.line - 1,
+              character: result.error.location.end.column - 1,
+            },
           },
           message: `Parse Error: ` + result.error.message,
           source: 'snax parser',
@@ -191,43 +209,83 @@ export function runServer(
           message: String(result.error),
         });
       }
-    } else {
-		// TODO: Run symbol resolution and type checking here
-	}
-
-    while (
-      (m = pattern.exec(text)) &&
-      problems < settings.maxNumberOfProblems
-    ) {
-      problems++;
-      const diagnostic: Diagnostic = {
-        severity: DiagnosticSeverity.Warning,
-        range: {
-          start: textDocument.positionAt(m.index),
-          end: textDocument.positionAt(m.index + m[0].length),
+    } else if (result.value.name === 'File') {
+      const compiler = new snaxModule.FileCompiler(result.value, {
+        includeRuntime: true,
+        importResolver: async (sourcePath, fromCanonicalUrl) => {
+          if (!sourcePath.startsWith('snax/')) {
+            throw new Error(
+              "Importing non standard library modules isn't supported yet."
+            );
+          }
+          if (!settings.stdlibLocation.startsWith('https://')) {
+            throw new Error(
+              'Only stdlib located at https:// url is supported right now.'
+            );
+          }
+          const url = settings.stdlibLocation + sourcePath;
+          const content = await fetchStdlib(url);
+          if (!content) {
+            diagnostics.push({
+              range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 10000 },
+              },
+              message: `Module ${sourcePath} not found at ${settings.stdlibLocation}`,
+            });
+            throw new Error('Failed to load module: ' + sourcePath);
+          }
+          const result = snaxModule.SNAXParser.parseStr(content, 'start', {
+            grammarSource: url,
+          });
+          if (!result.isOk()) {
+            diagnostics.push({
+              range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 10000 },
+              },
+              message:
+                'Failed to parse module: ' + sourcePath + ' ' + result.error,
+            });
+            throw new Error('Failed to parse module: ' + sourcePath);
+          }
+          if (result.value.name !== 'File') {
+            diagnostics.push({
+              range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 10000 },
+              },
+              message: 'Failed to parse module: ' + sourcePath,
+            });
+            throw new Error('Failed to parse module: ' + sourcePath);
+          }
+          return { ast: result.value, canonicalUrl: url };
         },
-        message: `${m[0]} is all uppercase.`,
-        source: 'ex',
-      };
-      if (hasDiagnosticRelatedInformationCapability) {
-        diagnostic.relatedInformation = [
-          {
-            location: {
-              uri: textDocument.uri,
-              range: Object.assign({}, diagnostic.range),
-            },
-            message: 'Spelling matters',
-          },
-          {
-            location: {
-              uri: textDocument.uri,
-              range: Object.assign({}, diagnostic.range),
-            },
-            message: 'Particularly for names',
-          },
-        ];
+      });
+
+      try {
+        await compiler.compile();
+      } catch (e) {
+        diagnostics.push({
+          range:
+            e instanceof snaxModule.NodeError && e.node.location
+              ? {
+                  start: {
+                    line: e.node.location.start.line - 1,
+                    character: e.node.location.start.column - 1,
+                  },
+                  end: {
+                    line: e.node.location.end.line - 1,
+                    character: e.node.location.end.column - 1,
+                  },
+                }
+              : {
+                  start: { line: 0, character: 0 },
+                  end: { line: 0, character: 10000 },
+                },
+          message: String(e),
+        });
       }
-      diagnostics.push(diagnostic);
     }
 
     // Send the computed diagnostics to VSCode.

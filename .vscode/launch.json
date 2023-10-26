@@ -65,6 +65,14 @@
       "program": "${workspaceFolder}/node_modules/.bin/jest",
       "cwd": "${workspaceFolder}",
       "args": ["--runInBand", "--watchAll=false"]
-    }
+    },
+    {
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "Launch Extension Host",
+			"runtimeExecutable": "${execPath}",
+			"args": ["--extensionDevelopmentPath=${workspaceRoot}/vscode-extension"],
+			"outFiles": ["${workspaceRoot}/vscode-extension/client/out/**/*.js"]
+		}
   ]
 }

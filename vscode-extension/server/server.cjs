@@ -6,6 +6,17 @@
 // pass in the import to avoid typescript converting the
 // import to require. Can't use require, because snax is
 // an esmodule.
-require('./out/server.js').runServer(import(
-  '@pcardune/snax/dist/snax/snax-parser.js'
-));
+
+async function getModules() {
+  const modules = await import('@pcardune/snax/dist/snax/snax-parser.js');
+  const compiler = await import('@pcardune/snax/dist/snax/ast-compiler.js');
+  const errors = await import('@pcardune/snax/dist/snax/errors.js');
+  return {
+    SNAXParser: modules.SNAXParser,
+    SyntaxError: modules.SyntaxError,
+    FileCompiler: compiler.FileCompiler,
+    NodeError: errors.NodeError,
+  };
+}
+
+require('./out/server.js').runServer(getModules());

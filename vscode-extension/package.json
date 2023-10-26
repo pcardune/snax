@@ -59,6 +59,12 @@
           ],
           "default": "off",
           "description": "Traces the communication between VS Code and the language server."
+        },
+        "snaxLanguageServer.stdlibLocation": {
+          "scope": "resource",
+          "type": "string",
+          "default": "https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/",
+          "description": "Location of the snax standard library"
         }
       }
     }
@@ -66,9 +72,9 @@
   "scripts": {
     "vscode:prepublish": "npm run esbuild-base -- --minify",
     "compile": "npm run esbuild-base -- --sourcemap",
-    "watch": "npm run esbuild-base -- --sourcemap --watch",
+    "watch": "npm run esbuild-base -- --watch",
     "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
-    "esbuild-base": "npx esbuild ./client/src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node && npx esbuild ./server/src/server.ts --bundle --outfile=server/out/server.js --external:vscode --format=cjs --platform=node && npx esbuild ./server/server.cjs --bundle --outfile=server/out/server-entry.js --external:vscode --format=cjs --platform=node",
+    "esbuild-base": "node build.mjs",
     "package": "npx vsce package"
   },
   "devDependencies": {

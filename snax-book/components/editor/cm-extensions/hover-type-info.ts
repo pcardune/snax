@@ -21,7 +21,7 @@ const hoverTypeInfo = hoverTooltip((view, pos, side) => {
   if (!result.isOk()) {
     return null;
   }
-  const ast = result.value;
+  const ast = result.value.rootNode;
   if (ast.name !== 'File') {
     return null;
   }

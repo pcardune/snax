@@ -15,7 +15,7 @@ export async function compileStr(
 ): Promise<Result<binaryen.Module, any>> {
   const maybeAST = SNAXParser.parseStr(input);
   if (maybeAST.isOk()) {
-    const ast = maybeAST.value;
+    const ast = maybeAST.value.rootNode;
     if (!isFile(ast)) {
       return err(new Error('parsed input did not yield a file...'));
     }

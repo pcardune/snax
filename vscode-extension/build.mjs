@@ -20,11 +20,6 @@ const configs = [
     outfile: 'server/out/server.js',
     ...standardOptions,
   },
-  {
-    entryPoints: ['server/server.cjs'],
-    outfile: 'server/out/server-entry.js',
-    ...standardOptions,
-  },
 ];
 
 if (process.argv.includes('--watch')) {

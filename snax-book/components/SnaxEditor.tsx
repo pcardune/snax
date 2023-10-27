@@ -62,8 +62,7 @@ function useCompiler() {
         }
         const resp = await fetch(
           // 'https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/' +
-          '/snax/stdlib/'+
-            sourcePath
+          '/snax/stdlib/' + sourcePath
         );
 
         if (!resp.ok) {
@@ -74,14 +73,18 @@ function useCompiler() {
           grammarSource: resp.url,
         });
         if (!result.isOk()) {
-          setError(new Error('Failed to parse module: ' + sourcePath + ' ' + result.error));
+          setError(
+            new Error(
+              'Failed to parse module: ' + sourcePath + ' ' + result.error
+            )
+          );
           throw new Error('Failed to parse module: ' + sourcePath);
         }
-        if (result.value.name !== 'File') {
+        if (result.value.rootNode.name !== 'File') {
           setError(new Error('Failed to parse module: ' + sourcePath));
           throw new Error('Failed to parse module: ' + sourcePath);
         }
-        return { ast: result.value, canonicalUrl: resp.url };
+        return { ast: result.value.rootNode, canonicalUrl: resp.url };
       },
     });
     if (result.isErr()) {

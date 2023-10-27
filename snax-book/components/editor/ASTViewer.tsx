@@ -113,7 +113,7 @@ export function ParsingExample({ children }: { children: string }) {
         value={text}
       />
       {result.isOk() ? (
-        <ASTViewer ast={result.value} />
+        <ASTViewer ast={result.value.rootNode} />
       ) : (
         <ErrorContainer>
           {result.error instanceof SyntaxError

@@ -1,4 +1,4 @@
-import type { ASTNode } from './spec-gen.js';
+import type { ASTNode, Location } from './spec-gen.js';
 import { err, ok, Result } from 'neverthrow';
 
 import {
@@ -6,6 +6,7 @@ import {
   PeggySyntaxError as SyntaxError,
   type ParseOptions as PO,
 } from './peggy/snax.js';
+import { depthFirstIter } from './spec-util.js';
 export { SyntaxError };
 
 export type StartRule = PO['startRule'];
@@ -14,14 +15,35 @@ type ParseOptions = {
   grammarSource?: string;
 };
 
+class AST {
+  rootNode: ASTNode;
+  constructor(rootNode: ASTNode) {
+    this.rootNode = rootNode;
+  }
+
+  getNodeAtOffset(offset: number) {
+    for (const node of depthFirstIter(this.rootNode)) {
+      if (!node.location) {
+        continue;
+      }
+      if (
+        node.location.start.offset <= offset &&
+        node.location.end.offset >= offset
+      ) {
+        return node;
+      }
+    }
+  }
+}
+
 export class SNAXParser {
   static parseStr(
     input: string,
     start: StartRule = 'start',
     options?: ParseOptions
-  ): Result<ASTNode, any> {
+  ): Result<AST, any> {
     try {
-      return ok(SNAXParser.parseStrOrThrow(input, start, options));
+      return ok(new AST(SNAXParser.parseStrOrThrow(input, start, options)));
     } catch (e) {
       return err(e);
     }

@@ -38,7 +38,7 @@ describe('CastExpr', () => {
 
 describe('NumberLiteral', () => {
   it('throws an error if a type hinted number will not fit', () => {
-    const typedNumber = AST.makeNumberLiteral(45452, 'int', 'u8');
+    const typedNumber = AST.makeNumberLiteral('45452', 'int', 'u8');
     expect(() =>
       resolveTypes(typedNumber, new OrderedMap())
     ).toThrowErrorMatchingInlineSnapshot(
@@ -47,7 +47,7 @@ describe('NumberLiteral', () => {
   });
 
   it('throws an error if a type hinted number will not fit into a signed int', () => {
-    const typedNumber = AST.makeNumberLiteral(250, 'int', 'i8');
+    const typedNumber = AST.makeNumberLiteral('250', 'int', 'i8');
     expect(() =>
       resolveTypes(typedNumber, new OrderedMap())
     ).toThrowErrorMatchingInlineSnapshot(
@@ -56,15 +56,15 @@ describe('NumberLiteral', () => {
   });
 
   it('uses type hints to determine the types of number literals', () => {
-    const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
-    const inferredNumber = AST.makeNumberLiteral(3, 'int', undefined);
+    const explicitNumber = AST.makeNumberLiteral('8', 'int', 'u8');
+    const inferredNumber = AST.makeNumberLiteral('3', 'int', undefined);
     const add = AST.makeBinaryExpr(BinOp.ADD, explicitNumber, inferredNumber);
     const typeMap = resolveTypes(add, new OrderedMap());
     expect(typeMap.get(inferredNumber)).toBe(Intrinsics.u8);
   });
   it('throws an error if a type hinted number will not fit', () => {
-    const explicitNumber = AST.makeNumberLiteral(8, 'int', 'u8');
-    const inferredNumber = AST.makeNumberLiteral(45452, 'int', undefined);
+    const explicitNumber = AST.makeNumberLiteral('8', 'int', 'u8');
+    const inferredNumber = AST.makeNumberLiteral('45452', 'int', undefined);
     const add = AST.makeBinaryExpr(BinOp.ADD, explicitNumber, inferredNumber);
     expect(() =>
       resolveTypes(add, new OrderedMap())
@@ -100,7 +100,7 @@ describe('Functions', () => {
       'myFunc',
       [],
       AST.makeTypeRef(AST.makeSymbolRef('i32')),
-      [AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined))]
+      [AST.makeReturnStatement(AST.makeNumberLiteral('1', 'int', undefined))]
     );
     const typeMap = resolveTypes(func, new OrderedMap());
     expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
@@ -130,15 +130,15 @@ describe('Functions', () => {
   describe('without an explicit return type', () => {
     it('infer the return type from the return statements in the function', () => {
       const func = makeFunc('myFunc', [], undefined, [
-        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
+        AST.makeReturnStatement(AST.makeNumberLiteral('1', 'int', undefined)),
       ]);
       const typeMap = resolveTypes(func, new OrderedMap());
       expect(typeMap.get(func)).toEqual(new FuncType([], Intrinsics.i32));
     });
     it('Fail if there are multiple return statements with conflicting types', () => {
       const func = makeFunc('myFunc', [], undefined, [
-        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'int', undefined)),
-        AST.makeReturnStatement(AST.makeNumberLiteral(1, 'float', undefined)),
+        AST.makeReturnStatement(AST.makeNumberLiteral('1', 'int', undefined)),
+        AST.makeReturnStatement(AST.makeNumberLiteral('1', 'float', undefined)),
       ]);
       expect(() =>
         resolveTypes(func, new OrderedMap())
@@ -151,8 +151,8 @@ describe('Functions', () => {
 
 describe('ArgList', () => {
   it('types an arglist as a tuple type', () => {
-    const arg1 = makeNumberLiteral(1, 'int', undefined);
-    const arg2 = makeNumberLiteral(2.3, 'float', undefined);
+    const arg1 = makeNumberLiteral('1', 'int', undefined);
+    const arg2 = makeNumberLiteral('2.3', 'float', undefined);
     const argList = makeArgList([arg1, arg2]);
     const typeMap = resolveTypes(argList, new OrderedMap());
     expect(typeMap.get(argList)).toEqual(
@@ -207,7 +207,7 @@ describe('LetStatement', () => {
     const letStatement = AST.makeLetStatementWith({
       symbol: 'x',
       typeExpr: undefined,
-      expr: AST.makeNumberLiteral(3.14, 'float', 'f64'),
+      expr: AST.makeNumberLiteral('3.14', 'float', 'f64'),
     });
     expect(getType(letStatement)).toBe(Intrinsics.f64);
   });
@@ -216,14 +216,14 @@ describe('LetStatement', () => {
     const letStatement = AST.makeLetStatementWith({
       symbol: 'x',
       typeExpr: AST.makeTypeRef(AST.makeSymbolRef('i32')),
-      expr: AST.makeNumberLiteral(3, 'int', 'i32'),
+      expr: AST.makeNumberLiteral('3', 'int', 'i32'),
     });
     expect(getType(letStatement)).toBe(Intrinsics.i32);
 
     const badLetStatement = AST.makeLetStatementWith({
       symbol: 'x',
       typeExpr: AST.makeTypeRef(AST.makeSymbolRef('i32')),
-      expr: AST.makeNumberLiteral(3, 'int', 'f64'),
+      expr: AST.makeNumberLiteral('3', 'int', 'f64'),
     });
     expect(() => getType(badLetStatement)).toThrowErrorMatchingInlineSnapshot(
       `"TypeResolutionError at <unknown>: LetStatement has explicit type i32 but is being initialized to incompatible type f64."`
@@ -239,7 +239,7 @@ describe('LetStatement', () => {
     const assign = AST.makeBinaryExpr(
       BinOp.ASSIGN,
       AST.makeSymbolRef('x'),
-      AST.makeNumberLiteral(1, 'int', undefined)
+      AST.makeNumberLiteral('1', 'int', undefined)
     );
     const assignStatement = AST.makeExprStatement(assign);
     const block = AST.makeBlock([letStatement, assignStatement]);
@@ -260,23 +260,21 @@ describe('LetStatement', () => {
         AST.makeBinaryExpr(
           BinOp.ASSIGN,
           AST.makeSymbolRef('x'),
-          AST.makeNumberLiteral(1, 'int', undefined)
+          AST.makeNumberLiteral('1', 'int', undefined)
         )
       ),
       AST.makeExprStatement(
         AST.makeBinaryExpr(
           BinOp.ASSIGN,
           AST.makeSymbolRef('x'),
-          AST.makeNumberLiteral(1.34, 'float', undefined)
+          AST.makeNumberLiteral('1.34', 'float', undefined)
         )
       ),
     ]);
     const { refMap } = resolveSymbols(block);
     expect(() =>
-      resolveTypes(block, refMap)
-    ).toThrowErrorMatchingInlineSnapshot(
-      `"TypeResolutionError at <unknown>: Can't assign value of type f32 to a i32"`
-    );
+resolveTypes(block, refMap)
+).toThrowErrorMatchingInlineSnapshot(`"TypeResolutionError at <unknown>: 1.34 doesn't fit into a i32"`);
   });
 });
 

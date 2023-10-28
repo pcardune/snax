@@ -52,7 +52,11 @@ export function debugStr(node: ASTNode) {
     if (isASTNode(value) || value instanceof Array) {
       continue;
     }
-    s += `${fieldName}=${JSON.stringify(value)} `;
+    try {
+      s += `${fieldName}=${JSON.stringify(value)} `;
+    } catch (e) {
+      //ignore TODO: FIXME
+    }
   }
   s += '/>';
   return s;
@@ -69,11 +73,14 @@ function elem(tag: string, props: Record<string, any>, children: Elem[]): Elem {
 
 function elemToString(elem: Elem, indent = '') {
   let s = `${indent}<${elem.tag}`;
-
   let props = Object.entries(elem.props)
-    .map(
-      ([propName, propValue]) => `${propName}=${JSON.stringify('' + propValue)}`
-    )
+    .map(([propName, propValue]) => {
+      try {
+        return `${propName}=${JSON.stringify('' + propValue)}`;
+      } catch (e) {
+        return `${propName}=unknown`;
+      }
+    })
     .join(' ');
   if (props.length > 0) {
     s += ' ' + props;

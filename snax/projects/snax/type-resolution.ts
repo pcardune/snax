@@ -53,14 +53,16 @@ export function resolveTypes(root: ASTNode, refMap: SymbolRefMap) {
   return resolver.typeMap;
 }
 
-function numberFitsInBits(num: number, type: BaseType): boolean {
+function numberFitsInBits(num: string, type: BaseType): boolean {
   if (!(type instanceof NumericalType)) return false;
   if (type.interpretation === 'float') return true;
   const numBits = type.numBytes * 8;
+  const n = BigInt(num);
   if (type.sign === Sign.Signed) {
-    return num >= -Math.pow(2, numBits - 1) && num < Math.pow(2, numBits - 1);
+    const max = BigInt(2) ** BigInt(numBits - 1);
+    return n >= -max && n < max;
   } else {
-    return num >= 0 && num < Math.pow(2, numBits);
+    return n >= 0 && n < BigInt(2) ** BigInt(numBits);
   }
 }
 
@@ -117,25 +119,39 @@ export class TypeResolver {
         if (hint instanceof NumericalType) {
           if (hint.interpretation === 'float') {
             return hint;
-          } else if (Math.floor(value) === value) {
+          } else {
             // the literal might be a float literal, but it's equal to
             // its integer version, so it can just be an integer
-            if (numberFitsInBits(value, hint)) {
+            if (numberType == 'int' && numberFitsInBits(value, hint)) {
               // the literal number will fit into the hinted type
               return hint;
-            } else {
-              throw this.error(
-                node,
-                `${value} doesn't fit into a ${hint.name}`
-              );
+            } else if (numberType == 'float') {
+              const floatVal = parseFloat(value);
+              const intVal = Math.floor(floatVal);
+              if (
+                intVal === floatVal &&
+                numberFitsInBits(String(intVal), hint)
+              ) {
+                return hint;
+              }
             }
+            throw this.error(node, `${value} doesn't fit into a ${hint.name}`);
           }
         }
         switch (numberType) {
           case NumberLiteralType.Float:
             return Intrinsics.f32;
           case NumberLiteralType.Integer:
-            return Intrinsics.i32;
+            if (numberFitsInBits(value, Intrinsics.i32)) {
+              return Intrinsics.i32;
+            } else if (numberFitsInBits(value, Intrinsics.i64)) {
+              return Intrinsics.i64;
+            } else {
+              throw this.error(
+                node,
+                `${value} doesn't fit into a 64 bit integer.`
+              );
+            }
         }
         throw new Error('panic.');
       }
@@ -391,7 +407,7 @@ export class TypeResolver {
           if (
             isNumberLiteral(size) &&
             size.fields.numberType === 'int' &&
-            size.fields.value >= 0
+            parseInt(size.fields.value) >= 0
           ) {
             if (elements.length !== 1) {
               throw this.error(
@@ -401,7 +417,7 @@ export class TypeResolver {
             }
             return new ArrayType(
               this.resolveType(elements[0], hint),
-              size.fields.value
+              parseInt(size.fields.value)
             );
           } else {
             throw this.error(
@@ -503,7 +519,7 @@ export class TypeResolver {
               (funcDecl) =>
                 [funcDecl.fields.symbol, this.resolveType(funcDecl, hint)] as [
                   string,
-                  BaseType
+                  BaseType,
                 ]
             ),
           ])

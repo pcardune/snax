@@ -14,7 +14,7 @@ export function makeNum(
   value: number,
   interpretation: 'int' | 'float' = 'int'
 ) {
-  return makeNumberLiteral(value, interpretation, undefined);
+  return makeNumberLiteral(String(value), interpretation, undefined);
 }
 
 export function makeFunc(

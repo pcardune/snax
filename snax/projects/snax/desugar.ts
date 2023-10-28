@@ -45,7 +45,11 @@ export function desugar(root: ASTNode) {
             ),
             makeStructLiteralProp(
               'length',
-              makeNumberLiteral(node.fields.value.length, 'int', 'usize')
+              makeNumberLiteral(
+                String(node.fields.value.length),
+                'int',
+                'usize'
+              )
             ),
           ],
         });

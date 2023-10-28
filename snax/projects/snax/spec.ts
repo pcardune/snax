@@ -22,7 +22,7 @@ const specInput: Record<
   },
   NumberLiteral: {
     fields: {
-      value: 'number',
+      value: 'string',
       numberType: '"int"|"float"',
       explicitType: { type: 'string', optional: true },
     },

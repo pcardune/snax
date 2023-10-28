@@ -513,9 +513,9 @@ number
   / integer
 
 integer
-  = digits:digits type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
+  = digits:[0-9]+ type:("_" ("i"/"u") ("8"/"16"/"32"/"64"))? {
     return spec.makeNumberLiteral(
-      digits,
+      digits.join(''),
       AST.NumberLiteralType.Integer,
       type? type.slice(1).join('') : undefined
     );
@@ -527,7 +527,7 @@ digits
 float
   = leftDigits:[0-9]+ "." rightDigits:[0-9]+ type:("_" ("f") ("32"/"64"))? {
     return spec.makeNumberLiteral(
-      parseFloat(leftDigits.join('') + '.' + rightDigits.join('')),
+      leftDigits.join('') + '.' + rightDigits.join(''),
       AST.NumberLiteralType.Float,
       type? type.slice(1).join('') : undefined
     )

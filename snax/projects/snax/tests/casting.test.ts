@@ -5,7 +5,7 @@ import { exprCompiler, irCompiler } from './test-util.js';
 
 abstract class BaseConversion<
   Source extends NumberType,
-  Dest extends NumberType
+  Dest extends NumberType,
 > {
   sourceType: Source;
   destType: Dest;
@@ -161,7 +161,7 @@ describe('CastExprCompiler', () => {
   ];
 
   it.each(cases)('converts from %p to %p', (source, dest, instruction) => {
-    const num = AST.makeNumberLiteral(1, 'int', source);
+    const num = AST.makeNumberLiteral('1', 'int', source);
     let cast = AST.makeCastExpr(
       num,
       AST.makeTypeRef(AST.makeSymbolRef(dest)),
@@ -181,7 +181,7 @@ describe('CastExprCompiler', () => {
   });
 
   describe('casting to pointer types', () => {
-    const num = AST.makeNumberLiteral(154, 'int', 'i32');
+    const num = AST.makeNumberLiteral('154', 'int', 'i32');
     it('converts from i32 to &whatever', async () => {
       let cast = AST.makeCastExpr(
         num,

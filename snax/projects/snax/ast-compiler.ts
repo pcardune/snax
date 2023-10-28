@@ -39,7 +39,7 @@ export const WASM_FEATURE_FLAGS =
   binaryen.Features.BulkMemory | binaryen.Features.MutableGlobals;
 abstract class ASTCompiler<
   Root extends AST.ASTNode = AST.ASTNode,
-  Context = unknown
+  Context = unknown,
 > {
   root: Root;
   context: Context;
@@ -74,7 +74,7 @@ export type IRCompilerContext = FuncDeclContext & {
   setDebugLocation: (expr: number, node: AST.ASTNode) => void;
 };
 export abstract class StmtCompiler<
-  Root extends AST.ASTNode
+  Root extends AST.ASTNode,
 > extends ASTCompiler<Root, IRCompilerContext> {
   static forNode(
     node: CompilesToIR,
@@ -246,7 +246,7 @@ export class FileCompiler extends ASTCompiler<AST.File> {
 
     desugar(this.root);
 
-    const stackPointerLiteral = AST.makeNumberLiteral(0, 'int', 'usize');
+    const stackPointerLiteral = AST.makeNumberLiteral('0', 'int', 'usize');
     let stackPointerGlobal = AST.makeGlobalDeclWith({
       symbol: '#SP',
       expr: stackPointerLiteral,
@@ -905,7 +905,7 @@ function memStore(
 }
 
 export abstract class ExprCompiler<
-  Root extends AST.Expression = AST.Expression
+  Root extends AST.Expression = AST.Expression,
 > extends ASTCompiler<Root, IRCompilerContext> {
   abstract getLValue(): LValue;
   abstract getRValue(): RValue;
@@ -1195,7 +1195,7 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
 
     return [convert(left).valueExpr, convert(right).valueExpr] as [
       binaryen.ExpressionRef,
-      binaryen.ExpressionRef
+      binaryen.ExpressionRef,
     ];
   }
 
@@ -1300,7 +1300,10 @@ export class BinaryExprCompiler extends ExprCompiler<AST.BinaryExpr> {
       // TODO: handle unsigned integer types
       return this.context.module[type].gt_s(...this.pushNumberOps(left, right));
     },
-    [BinOp.GREATER_THAN_OR_EQ]: (left: AST.Expression, right: AST.Expression) => {
+    [BinOp.GREATER_THAN_OR_EQ]: (
+      left: AST.Expression,
+      right: AST.Expression
+    ) => {
       const type = this.matchTypes(left, right).toValueTypeOrThrow();
       if (isFloatType(type)) {
         return this.context.module[type].ge(...this.pushNumberOps(left, right));
@@ -1997,13 +2000,41 @@ class NumberLiteralCompiler extends ExprCompiler<
   getRValue() {
     const type = this.context.typeCache.get(this.root);
     const valueType = type.toValueTypeOrThrow();
-    return rvalueDirect(
-      type,
-      this.context.module[valueType].const(
-        this.root.fields.value,
-        this.root.fields.value
-      )
-    );
+    if (this.root.name === 'CharLiteral') {
+      return rvalueDirect(
+        type,
+        this.context.module[valueType].const(this.root.fields.value, 0)
+      );
+    }
+    switch (valueType) {
+      case NumberType.i32:
+        return rvalueDirect(
+          type,
+          this.context.module.i32.const(Number(this.root.fields.value))
+        );
+      case NumberType.f64:
+        return rvalueDirect(
+          type,
+          this.context.module.f64.const(Number(this.root.fields.value))
+        );
+      case NumberType.f32:
+        return rvalueDirect(
+          type,
+          this.context.module.f32.const(Number(this.root.fields.value))
+        );
+      case NumberType.i64: {
+        const number = BigInt(this.root.fields.value);
+        const high32BitNumber = (number >> BigInt(32)) & BigInt(0xffffffff);
+        const low32BitNumber = number & BigInt(0xffffffff);
+        return rvalueDirect(
+          type,
+          this.context.module[valueType].const(
+            Number(low32BitNumber),
+            Number(high32BitNumber)
+          )
+        );
+      }
+    }
   }
   getLValue(): LValue {
     throw new Error(`NumberLiterals don't have lvalues`);
@@ -2104,7 +2135,8 @@ class ArrayLiteralCompiler extends ExprCompiler<AST.ArrayLiteral> {
     }
     if (size) {
       if (AST.isNumberLiteral(size) && size.fields.numberType === 'int') {
-        for (let i = 1; i < size.fields.value; i++) {
+        const lastIndex = Number(size.fields.value);
+        for (let i = 1; i < lastIndex; i++) {
           const ptr = lget(module, location);
           const lvalue = lvalueDynamic(ptr, i * arrayType.elementType.numBytes);
           // TODO: only calculate the rvalue once

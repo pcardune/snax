@@ -160,6 +160,40 @@ describe('empty module', () => {
   });
 });
 
+describe('numbers', () => {
+  it('compiles 64 bit numbers correctly', async () => {
+    expect(String(await exec('3_i64+4_i64;'))).toBe('7');
+  });
+  it('does not truncate 64 bit integers', async () => {
+    expect(String(await exec('1152921504706846977;'))).toBe(
+      '1152921504706846977'
+    );
+  });
+  it('Returns BigInts for 64 bit integers', async () => {
+    const value = await exec('1152921504706846977;');
+    expect(value).toEqual(BigInt('1152921504706846977'));
+  });
+  it('chooses f32 floats by default', async () => {
+    expect(1.234567898765432 - (await exec('1.234567898765432;'))).toBe(
+      1.813493888391804e-8
+    );
+  });
+  it('does not lose precision on 64 bit floats', async () => {
+    const jsNum = 1.234567898765432;
+    expect(1.234567898765432 - (await exec('1.234567898765432_f64;'))).toBe(0);
+  });
+  it('Throws a type error for number literals that do not fit', async () => {
+    expect(
+      exec('295147905179352825856;')
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `"TypeResolutionError at :1:1: 295147905179352825856 doesn't fit into a 64 bit integer."`
+    );
+  });
+  test.todo(
+    'Throws a type error for float literals that will lose precision in an f64'
+  );
+});
+
 describe('compiler calls', () => {
   it('lets you access the heap start and heap end', async () => {
     expect(await exec('$heap_start();')).toBe(0);

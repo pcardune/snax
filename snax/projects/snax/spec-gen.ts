@@ -35,7 +35,7 @@ export function makeBooleanLiteralWith(fields: {
 }
 
 type NumberLiteralFields = {
-  value: number;
+  value: string;
   numberType: 'int' | 'float';
   explicitType?: string;
 };
@@ -51,7 +51,7 @@ export function isNumberLiteral(node: ASTNode): node is NumberLiteral {
 }
 
 export function makeNumberLiteral(
-  value: number,
+  value: string,
   numberType: 'int' | 'float',
   explicitType: string | undefined
 ): NumberLiteral {
@@ -66,7 +66,7 @@ export function makeNumberLiteral(
 }
 
 export function makeNumberLiteralWith(fields: {
-  value: number;
+  value: string;
   numberType: 'int' | 'float';
   explicitType?: string;
 }): NumberLiteral {

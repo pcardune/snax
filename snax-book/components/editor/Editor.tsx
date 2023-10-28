@@ -1,18 +1,35 @@
 import React from 'react';
-import { EditorState, Extension } from '@codemirror/state';
+import { Compartment, EditorState, Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 import { example } from './parser';
+import { wast } from '@codemirror/lang-wast';
+
+const editorTheme = EditorView.theme({
+  '&': {
+    backgroundColor: '#fafafa',
+    border: '1px solid #ddd',
+    fontSize: '14px',
+  },
+  '&.cm-focused': {
+    outline: 'none',
+  },
+  '.cm-scroller': {
+    lineHeight: 'normal',
+  },
+});
 
 interface EditorProps {
   value: string;
+  lang?: 'snax' | 'wat';
   extensions?: Extension[];
+  theme?: Extension;
 }
 
 export type ViewRef = EditorView | undefined;
 
 export default React.forwardRef(function CodeMirror(
-  props: EditorProps,
+  { theme = editorTheme, ...props }: EditorProps,
   ref: React.ForwardedRef<ViewRef>
 ) {
   const editorContainer = React.useRef(null);
@@ -26,14 +43,20 @@ export default React.forwardRef(function CodeMirror(
     if (!editorContainer.current) {
       return;
     }
+    const language = new Compartment();
     const state = EditorState.create({
       doc: props.value,
-      extensions: [basicSetup, example(), ...(props.extensions || [])],
+      extensions: [
+        basicSetup,
+        props.lang === 'wat' ? language.of(wast()) : example(),
+        theme,
+        ...(props.extensions || []),
+      ],
     });
     const view = new EditorView({ state, parent: editorContainer.current });
     viewRef.current = view;
     return () => view.destroy();
-  }, [editorContainer, props.extensions]);
+  }, [editorContainer, props.extensions, props.lang, theme]);
 
   const { current: view } = viewRef;
   React.useEffect(() => {

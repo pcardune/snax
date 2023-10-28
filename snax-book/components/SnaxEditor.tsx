@@ -1,10 +1,25 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { SNAXParser } from '@pcardune/snax/dist/snax/snax-parser.js';
 import { compileStr } from '@pcardune/snax/dist/snax/wat-compiler.js';
 import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import styled from 'styled-components';
 import Editor, { ViewRef } from './editor/Editor.jsx';
 import { EditorView, ViewUpdate } from '@codemirror/view';
+import { ModuleCompilerOptions } from '@pcardune/snax/dist/snax/ast-compiler.js';
+
+const editorTheme = EditorView.theme({
+  '&': {
+    backgroundColor: '#fafafa',
+    border: '1px solid #ddd',
+    fontSize: '14px',
+  },
+  '&.cm-focused': {
+    outline: 'none',
+  },
+  '.cm-scroller': {
+    lineHeight: 'normal',
+  },
+});
 
 type Instance = WebAssembly.Instance & {
   exports: WebAssembly.Exports & {
@@ -32,10 +47,8 @@ function useCodeRunner(
       (window as any).wasm = modInstance.exports;
       try {
         const result = wasi.start(modInstance);
-        console.log('Run Result:', result);
-        if (typeof result === 'number') {
-          return result;
-        }
+        console.log('Run Result:', typeof result, result);
+        return result;
       } catch (e) {
         console.error('Failed:', e);
       }
@@ -45,87 +58,105 @@ function useCodeRunner(
   return { runCode, instance };
 }
 
-function useCompiler() {
+type CompilerOptions = Pick<ModuleCompilerOptions, 'includeRuntime'>;
+
+function useCompiler({ includeRuntime = true }: CompilerOptions = {}) {
   const wasmModuleRef = React.useRef<WebAssembly.Module>();
   const [wat, setWAT] = useState<string | null>(null);
   const [error, setError] = useState<null | Error>(null);
-  const compile = useCallback(async (input: string) => {
-    wasmModuleRef.current = undefined;
-    setError(null);
-    const result = await compileStr(input, {
-      includeRuntime: true,
-      importResolver: async (sourcePath, fromCanonicalUrl) => {
-        if (!sourcePath.startsWith('snax/')) {
-          throw new Error(
-            "Importing non standard library modules isn't supported yet."
+  const compile = useCallback(
+    async (input: string) => {
+      wasmModuleRef.current = undefined;
+      setError(null);
+      const result = await compileStr(input, {
+        includeRuntime,
+        importResolver: async (sourcePath, fromCanonicalUrl) => {
+          if (!sourcePath.startsWith('snax/')) {
+            throw new Error(
+              "Importing non standard library modules isn't supported yet."
+            );
+          }
+          const resp = await fetch(
+            // 'https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/' +
+            '/snax/stdlib/' + sourcePath
           );
-        }
-        const resp = await fetch(
-          // 'https://raw.githubusercontent.com/pcardune/snax/main/snax/stdlib/' +
-          '/snax/stdlib/' + sourcePath
-        );
 
-        if (!resp.ok) {
-          throw new Error('Failed to load module: ' + sourcePath);
-        }
-        const content = await resp.text();
-        const result = SNAXParser.parseStr(content, 'start', {
-          grammarSource: resp.url,
-        });
-        if (!result.isOk()) {
-          setError(
-            new Error(
-              'Failed to parse module: ' + sourcePath + ' ' + result.error
-            )
-          );
-          throw new Error('Failed to parse module: ' + sourcePath);
-        }
-        if (result.value.rootNode.name !== 'File') {
-          setError(new Error('Failed to parse module: ' + sourcePath));
-          throw new Error('Failed to parse module: ' + sourcePath);
-        }
-        return { ast: result.value.rootNode, canonicalUrl: resp.url };
-      },
-    });
-    if (result.isErr()) {
-      console.error(result.error);
-      setError(result.error);
+          if (!resp.ok) {
+            throw new Error('Failed to load module: ' + sourcePath);
+          }
+          const content = await resp.text();
+          const result = SNAXParser.parseStr(content, 'start', {
+            grammarSource: resp.url,
+          });
+          if (!result.isOk()) {
+            setError(
+              new Error(
+                'Failed to parse module: ' + sourcePath + ' ' + result.error
+              )
+            );
+            throw new Error('Failed to parse module: ' + sourcePath);
+          }
+          if (result.value.rootNode.name !== 'File') {
+            setError(new Error('Failed to parse module: ' + sourcePath));
+            throw new Error('Failed to parse module: ' + sourcePath);
+          }
+          return { ast: result.value.rootNode, canonicalUrl: resp.url };
+        },
+      });
+      if (result.isErr()) {
+        console.error(result.error);
+        setError(result.error);
+        return;
+      }
+      const binaryenModule = result.value;
+      const validates = binaryenModule.validate();
+      if (validates) {
+        // now optimize it...
+        const sourceMapUrl = 'script.map';
+        let { binary, sourceMap } = binaryenModule.emitBinary(sourceMapUrl);
+
+        wasmModuleRef.current = await WebAssembly.compile(binary.buffer);
+        setWAT(binaryenModule.emitText());
+        binaryenModule.dispose();
+        return {
+          binary,
+          sourceMap: { url: sourceMapUrl, content: sourceMap },
+        };
+      } else {
+        alert('Failed to validate');
+      }
       return;
-    }
-    const binaryenModule = result.value;
-    const validates = binaryenModule.validate();
-    if (validates) {
-      // now optimize it...
-      const sourceMapUrl = 'script.map';
-      let { binary, sourceMap } = binaryenModule.emitBinary(sourceMapUrl);
-
-      wasmModuleRef.current = await WebAssembly.compile(binary.buffer);
-      setWAT(binaryenModule.emitText());
-      binaryenModule.dispose();
-      return {
-        binary,
-        sourceMap: { url: sourceMapUrl, content: sourceMap },
-      };
-    } else {
-      alert('Failed to validate');
-    }
-    return;
-    // TODO: this got deprecated... maybe this whole file should disappear
-    // setWAT(await compileStr(text));
-  }, []);
+      // TODO: this got deprecated... maybe this whole file should disappear
+      // setWAT(await compileStr(text));
+    },
+    [includeRuntime]
+  );
   const runner = useCodeRunner(wasmModuleRef);
   return { compile, runner, wat, error };
 }
 
-export function SnaxEditor({ children }: { children: string }) {
+export function SnaxEditor({
+  children,
+  showWAT = false,
+  compilerOptions,
+  runOnMount = false,
+  showRunResult = true,
+}: {
+  children: string;
+  showWAT?: boolean;
+  showRunResult?: boolean;
+  runOnMount?: boolean;
+  compilerOptions?: CompilerOptions;
+}) {
   const [editedText, setText] = useState(() => children.trim());
+  const [showWATOutput, setShowWATOutput] = useState(showWAT);
   const [wasEdited, setWasEdited] = useState(false);
   const [stdout, setStdout] = useState('');
-  const compiler = useCompiler();
+  const compiler = useCompiler(compilerOptions);
 
   const text = wasEdited ? editedText : children.trim();
 
-  const onClickRun = async () => {
+  const onClickRun = useCallback(async () => {
     process.env.DEBUG = 'true';
     setStdout('Compiling...');
     await compiler.compile(text);
@@ -141,12 +172,13 @@ export function SnaxEditor({ children }: { children: string }) {
     } else {
       setStdout(buffer.join(''));
     }
-  };
+  }, [compiler, text]);
 
-  const onChangeText = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setWasEdited(true);
-    setText(e.target.value);
-  };
+  useEffect(() => {
+    if (runOnMount && !compiler.wat) {
+      compiler.compile(text);
+    }
+  }, [compiler, runOnMount, text]);
 
   let output = stdout;
   if (compiler.error) {
@@ -160,28 +192,24 @@ export function SnaxEditor({ children }: { children: string }) {
           setText(update.state.doc.sliceString(0));
         }
       }),
-      EditorView.theme({
-        '&': {
-          backgroundColor: '#fafafa',
-          border: '1px solid #ddd',
-          fontSize: '14px',
-        },
-        '&.cm-focused': {
-          outline: 'none',
-        },
-        '.cm-scroller': {
-          lineHeight: 'normal',
-        },
-      }),
     ],
     []
   );
+
   const cmViewRef = React.useRef<ViewRef>();
   return (
     <Container>
-      <Editor value={text} extensions={extensions} ref={cmViewRef} />
+      <Editor
+        value={text}
+        extensions={extensions}
+        theme={editorTheme}
+        ref={cmViewRef}
+      />
       <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
-      {output && <Output>{output}</Output>}
+      {showWATOutput && compiler.wat && (
+        <Editor value={compiler.wat} lang="wat" theme={editorTheme} />
+      )}
+      {showRunResult && output && <Output>{output}</Output>}
     </Container>
   );
 }

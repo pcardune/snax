@@ -1,0 +1,124 @@
+# Compiling
+
+## An Empty Program
+
+Let's start with something simple: an empty program. This will demonstrate
+the bare bones layout of the generated web assembly.
+
+```snax-wat
+// This program intentionally left blank
+```
+
+Every snax program is encapsulated into a [webassembly module](https://webassembly.github.io/spec/core/text/modules.html).
+
+Web assembly modules consist of a series of declarations for various things that your program might need to run.
+
+Let's look at each line in the output.
+
+```wat
+(global $g0:#SP (mut i32) (i32.const 0))
+```
+
+This declares a global variable, called `$g0:#SP`. The `SP` stands for "Stack Pointer". We'll learn more about how this stack pointer variable is used when we get to functions.
+
+```wat
+(memory $0 100 100)
+```
+
+This line declares a linear memory buffer with id `$0`, with an initial size of 100 pages and a maximum size of 100 pages. 1 page of memory is 64 KB, so by default snax programs have 6.4MB of
+memory to work with.
+
+The next two lines,
+
+```wat
+(export "stackPointer" (global $g0:#SP))
+(export "memory" (memory $0))
+```
+
+Make the stack pointer and the memory accessible to the host environment in which the web assembly is
+being executed. So for example, when running the compiled web assembly in a javascript environment,
+the javascript would be able to access the stack pointer, and the raw linear memory used by snax.
+This is useful for inspecting the state of a snax program at runtime.
+
+## A Simple Program
+
+Ok, now let's look at a program that actually does something:
+
+```snax-wat
+func main() {
+  return 1+2;
+}
+```
+
+Things get a lot more complicated!
+
+### The _start function
+
+WebAssembly itself is unopinionated about how web assembly programs are executed. Any function in web assembly can be exported to the host environment, allowing the host environment to call it whenever it wants. For libraries compiled to web assembly, the library will export a bunch of functions that
+can be called as needed. While snax can be used to make libraries, it can also be used like a script
+that just runs.
+
+For the script scenario, there is a convention to export a function named _start which the host
+environment will call. This "convention" is actually part of the WASI (Web Assembly System Interface) standard. [See here for documentation about _start.](https://nodejs.org/api/wasi.html#wasistartinstance)
+
+```wat
+(export "_start" (func $_start))
+(func $_start (result i32)
+ (global.set $g0:#SP
+  (i32.const 6553600)
+ )
+ (return
+  (call $<<root>::main>f0)
+ )
+)
+```
+
+This `_start` function initializes the stack pointer to 6553600, which is the end of our linear memory space. When functions are called, the stack will grow from the end.
+
+### The main function
+
+Functions in snax get compiled directly to functions in web assembly, with name mangling to handle
+namespaces, which are not part of web assembly. The naming convention is `<${snaxNamespace}${snaxFuncName}>f${funcOffset}`. Since these examples are all being compiled in your web browser, where there is
+no concept of file paths (which would normally be part of the namespace), the namespace is `<root>::`. Since this is the 0th function that's been declared, the `funcOffset` is 0, resulting in a function name `$<<root>::main>f0`.
+
+```wat
+(func $<<root>::main>f0 (result i32)
+ (local $0 i32)
+ (local.set $0
+  (global.get $g0:#SP)
+ )
+ ;;@ :2:3
+ (return
+  ;;@ :2:10
+  (i32.add
+   ;;@ :2:10
+   (i32.const 1)
+   ;;@ :2:12
+   (i32.const 2)
+  )
+ )
+)
+```
+
+At the beginning of every snax function, you'll see this code:
+
+```wat
+(local $0 i32)
+(local.set $0
+ (global.get $g0:#SP)
+)
+```
+
+Here we are creating a "local" variable in web assembly where we store
+the current value of the stack pointer. This will come in handy when we
+want to access snax variables that are stored on the stack.
+
+## Arithmetic
+
+In the last program, we saw that `1+2;` turned into `(i32.add (i32.const 1) (i32.const 2))`, which
+makes sense because integer literals in snax default to being typed as i32. But what about
+other types?
+
+```snax-wat
+1_u64 + 3;
+```

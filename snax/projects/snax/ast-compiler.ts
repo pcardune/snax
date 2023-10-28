@@ -694,7 +694,12 @@ class RegStatementCompiler extends StmtCompiler<AST.RegStatement> {
         );
       }
     }
-    return this.context.module.nop();
+    const type = this.context.typeCache.get(this.root);
+    const valueType = type.toValueTypeOrThrow();
+    return this.context.module.local.set(
+      location.offset,
+      this.context.module[valueType].const(0, 0)
+    );
   }
 }
 

@@ -16,7 +16,9 @@ exports[`assignment operator compiles assignments to registers 1`] = `
    (global.get $g0:#SP)
   )
   ;;@ :2:7
-  (nop)
+  (local.set $1
+   (i32.const 0)
+  )
   ;;@ :3:7
   (drop
    (local.tee $1
@@ -570,11 +572,17 @@ exports[`reg statements compiles reg statements into function local allocations 
    (global.get $g0:#SP)
   )
   ;;@ :2:7
-  (nop)
+  (local.set $1
+   (i32.const 0)
+  )
   ;;@ :3:7
-  (nop)
+  (local.set $2
+   (i32.const 0)
+  )
   ;;@ :4:7
-  (nop)
+  (local.set $3
+   (f64.const 0)
+  )
  )
  (func $_start
   (global.set $g0:#SP

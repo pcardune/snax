@@ -282,6 +282,23 @@ describe('reg statements', () => {
     expect(wat).toMatchSnapshot();
     expect(exports._start()).toBe(3);
   });
+
+  it('initializes reg values to 0 if there is no expression', async () => {
+    expect(
+      await exec(`
+      reg a:i32 = 1;
+      {
+        reg b:i32 = 2;
+      }
+      {
+        reg c:i32;
+        a = a+c;
+      }
+      a;
+    `)
+    ).toBe(1);
+  });
+
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   xit('it does not allow storing values that do not fit into a register', () => {});
 });

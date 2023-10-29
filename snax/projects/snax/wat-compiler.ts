@@ -12,7 +12,12 @@ export interface HasWAT {
 export async function compileStr(
   input: string,
   options: ASTCompiler.ModuleCompilerOptions
-): Promise<Result<binaryen.Module, any>> {
+): Promise<
+  Result<
+    { binaryenModule: binaryen.Module; compiler: ASTCompiler.FileCompiler },
+    any
+  >
+> {
   const maybeAST = SNAXParser.parseStr(input);
   if (maybeAST.isOk()) {
     const ast = maybeAST.value.rootNode;
@@ -20,8 +25,11 @@ export async function compileStr(
       return err(new Error('parsed input did not yield a file...'));
     }
     try {
-      const { binaryenModule: module } = await compileAST(ast, options);
-      return ok(module);
+      const { binaryenModule: module, compiler } = await compileAST(
+        ast,
+        options
+      );
+      return ok({ binaryenModule: module, compiler });
     } catch (e) {
       return err(e);
     }

@@ -113,12 +113,210 @@ Here we are creating a "local" variable in web assembly where we store
 the current value of the stack pointer. This will come in handy when we
 want to access snax variables that are stored on the stack.
 
-## Arithmetic
+## Local Variable Allocation
 
-In the last program, we saw that `1+2;` turned into `(i32.add (i32.const 1) (i32.const 2))`, which
-makes sense because integer literals in snax default to being typed as i32. But what about
-other types?
+Snax supports definining local variables in your function. Local variables
+come in two flavors: `reg` and `let` variables. `reg` variables are limited
+to data types that can fit into 64 bits (numbers, booleans), while `let`
+variables can store larger values (arrays and structs for example).
+
+### `reg` Variables
+
+Let's look at how `reg` variables get translated into web assembly. In
+the below code, we have 5 `reg` variables, two of which are inside blocks.
 
 ```snax-wat
-1_u64 + 3;
+func main() {
+  reg a:i64;
+  reg b:u32;
+  reg c:bool;
+  {
+    reg d:f64;
+  }
+  {
+    reg e:f64;
+  }
+}
 ```
+
+You'll notice that the function in web assembly gained 4 local declarations:
+
+```wat
+(local $1 i64) ;; reg a:i64;
+(local $2 i32) ;; reg b:u32;
+(local $3 i32) ;; reg c:bool;
+(local $4 f64) ;; reg d:f64; AND reg e:f64;
+```
+
+**TODO:** insert link to webassembly documentation regarding local declarations
+
+These map exactly to the `reg` declarations. Because blocks in snax create
+new scopes, it's impossible to access `d` and `e` outside of their respective
+blocks. The snax compiler keeps track of the lifetime of these `reg` variables
+and will map them onto the same `(local)` in web assembly if their types
+match and their lifetimes don't overlap. In this case, the lifetimes of
+`d` and `e` do not overlap, and they are the same type, so we'll reuse local `$4` for both.
+
+You'll also see a bunch of calls to `local.set`:
+
+```wat
+(local.set $1
+ (i64.const 0)
+)
+```
+
+Every `reg` declaration will initialize it's corresponding local to 0. This 
+prevents possible garbage results when the same local is used for multiple 
+different `reg` declarations. So while `d` and `e` both use local `$4`, we 
+can reset assured that `e` won't accidentally take on the last value of `d`.
+
+### `let` Variables
+
+`let` variables allow storing values that can't fit in a web assembly local,
+like arrays and structs. This is achieved by storing the values of `let`
+variables in linear memory. Using linear memory also means that all `let`
+variables have an address in memory, and can therefore be passed around
+with pointers.
+
+Let's look at a simple example where we declare a couple of arrays.
+
+```snax-wat
+func main() {
+    let a:[i32:3]; // takes up 4*3=12 bytes of space
+    let b:[i64:5]; // takes up 8*5=40 bytes of space
+}
+```
+
+There are two important bits that got added. The first is some code to
+update the stack pointer:
+
+```wat
+;; Decrement the stack pointer (SP) by 52.
+(global.set $g0:#SP
+ (i32.sub
+  (global.get $g0:#SP)
+  (i32.const 52)
+ )
+)
+;; store the updated stack pointer (SP) into local $0 for future use
+(local.set $0
+ (global.get $g0:#SP)
+)
+```
+
+Remember as mentioned earlier that the stack grows from the _end_ of linear
+memory. Before we do anything else in our function, we have to allocate
+all the space on the stack we'll need for the function's `let` variables
+and other values we might need to store in linear memory. We do this by
+_decrementing_ the stack pointer. We decrement by 52 _bytes_ because we have
+the `a` variable takes up 12 bytes and the `b` variable takes up 40 bytes,
+which totals to 52 bytes.
+
+The second interesting bit of code is:
+
+```wat
+;; initialize a: starting at $0, fill 12 bytes with the value 0
+(memory.fill
+ (local.get $0)
+ (i32.const 0)
+ (i32.const 12)
+)
+;; initialize b: starting at $0+12, fill 40 bytes with the value 0
+(memory.fill
+ (i32.add
+  (i32.const 12)
+  (local.get $0)
+ )
+ (i32.const 0)
+ (i32.const 40)
+)
+```
+
+Just like when we initialized all of our `reg` variables with
+`(local.set $1(i64.const 0))`, we also initialize all of our stack
+variables. In this case we use the `memory.fill` instruction to
+bulk write 0s to the range of bytes that we've set aside for each
+of our `let` variables.
+
+## Function Calls And Function Arguments
+
+Web assembly provides the abstract for passing arguments to functions,
+so long as those arguments can fit into the limited numeric data types
+that web assembly supports (i32,i64,f32,f64). Let's look at a simple
+program with an add function that takes two arguments:
+
+```snax-wat
+func add(a:i32, b:i32) {
+  return a+b;
+}
+func main() {
+  return add(1, 2);
+}
+```
+
+First let's look at the `add` function. Here is the web assembly:
+
+```wat
+(func $<<root>::add>f0 (param $0 i32) (param $1 i32) (result i32)
+ (local $2 i32)
+ (local.set $2
+  (global.get $g0:#SP)
+ )
+ (return
+  (i32.add
+   (local.get $0)
+   (local.get $1)
+  )
+ )
+)
+```
+
+Note that our function declaration has been augmented with
+`(param $0 i32) (param $1 i32) (result i32)`. This specifies the
+two parameter types and the return type of the function. The
+parameters have ids `$0` and `$1`, and it's important to note that
+these are in the same namespace as `local` variables. That's why
+the local we use to save the stack pointer has id `$2` in this
+function.
+
+Next let's look at the function call:
+
+```wat
+(block (result i32)
+ (local.set $1 ;; Step 2
+  (call $<<root>::add>f0 ;; Step 1
+   (i32.const 1)
+   (i32.const 2)
+  )
+ )
+ (global.set $g0:#SP ;; Step 3
+  (local.get $0)
+ )
+ (local.get $1) ;; Step 4
+)
+```
+
+Every function call is encapsulated inside a `(block)` instruction because
+there are several steps, read from inside out:
+
+1. call the `add()` function with our two parameters `1` and `2`:
+   ```wat
+   (call $<<root>::add>f0 (i32.const 1) (i32.const 2))
+   ```
+2. store the function's return value in a temporary variable
+   ```wat
+   (local.set $1 ...)
+   ```
+3. reset the stack pointer (remember that the stack pointer gets modified
+   at the beginning of every function definition). This effectively reclaims stack space that was used by the `add()` function:
+   ```wat
+   (global.set $g0:#SP (local.get $0))
+   ```
+4. do something with the returned result
+   ```wat
+   (local.get $1)
+   ```
+
+It's important that the steps happen in this sequence, particularly
+resetting the stack pointer, because it's possible that the thing we
+do with the return value is immediately passed to another function!

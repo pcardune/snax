@@ -67,7 +67,10 @@ const links: Section[] = [
   {
     title: 'The Snax Compiler',
     path: '/compiler',
-    children: [{ title: 'Parsing', path: '/compiler/parsing' }],
+    children: [
+      { title: 'Parsing', path: '/compiler/parsing' },
+      { title: 'Compiling', path: '/compiler/compiling' },
+    ],
   },
 ];
 

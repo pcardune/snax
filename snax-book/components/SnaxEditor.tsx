@@ -5,7 +5,13 @@ import { WASI } from '@pcardune/snax/dist/snax/wasi';
 import styled from 'styled-components';
 import Editor, { ViewRef } from './editor/Editor.jsx';
 import { EditorView, ViewUpdate } from '@codemirror/view';
-import { ModuleCompilerOptions } from '@pcardune/snax/dist/snax/ast-compiler.js';
+import {
+  FileCompiler,
+  ModuleCompilerOptions,
+  WASM_FEATURE_FLAGS,
+} from '@pcardune/snax/dist/snax/ast-compiler.js';
+import { AllocationTables } from './AllocationTables.jsx';
+import binaryen from 'binaryen';
 
 const editorTheme = EditorView.theme({
   '&': {
@@ -58,12 +64,19 @@ function useCodeRunner(
   return { runCode, instance };
 }
 
-type CompilerOptions = Pick<ModuleCompilerOptions, 'includeRuntime'>;
+type CompilerOptions = Pick<ModuleCompilerOptions, 'includeRuntime'> & {
+  shouldOptimize?: boolean;
+};
 
-function useCompiler({ includeRuntime = true }: CompilerOptions = {}) {
+function useCompiler({
+  includeRuntime = true,
+  shouldOptimize = false,
+}: CompilerOptions = {}) {
   const wasmModuleRef = React.useRef<WebAssembly.Module>();
   const [wat, setWAT] = useState<string | null>(null);
+  const [optimizedWat, setOptimizedWAT] = useState<string | null>(null);
   const [error, setError] = useState<null | Error>(null);
+  const [fileCompiler, setFileCompiler] = useState<null | FileCompiler>(null);
   const compile = useCallback(
     async (input: string) => {
       wasmModuleRef.current = undefined;
@@ -108,12 +121,21 @@ function useCompiler({ includeRuntime = true }: CompilerOptions = {}) {
         setError(result.error);
         return;
       }
-      const binaryenModule = result.value;
+      const { binaryenModule, compiler } = result.value;
+      setFileCompiler(compiler);
       const validates = binaryenModule.validate();
       if (validates) {
-        // now optimize it...
         const sourceMapUrl = 'script.map';
         let { binary, sourceMap } = binaryenModule.emitBinary(sourceMapUrl);
+
+        if (shouldOptimize) {
+          const newModule = binaryen.readBinary(binary);
+          binaryen.setOptimizeLevel(2);
+          newModule.setFeatures(WASM_FEATURE_FLAGS);
+          newModule.optimize();
+          setOptimizedWAT(newModule.emitText());
+          newModule.dispose();
+        }
 
         wasmModuleRef.current = await WebAssembly.compile(binary.buffer);
         setWAT(binaryenModule.emitText());
@@ -129,10 +151,10 @@ function useCompiler({ includeRuntime = true }: CompilerOptions = {}) {
       // TODO: this got deprecated... maybe this whole file should disappear
       // setWAT(await compileStr(text));
     },
-    [includeRuntime]
+    [includeRuntime, shouldOptimize]
   );
   const runner = useCodeRunner(wasmModuleRef);
-  return { compile, runner, wat, error };
+  return { compile, runner, wat, optimizedWat, error, fileCompiler };
 }
 
 export function SnaxEditor({
@@ -150,9 +172,12 @@ export function SnaxEditor({
 }) {
   const [editedText, setText] = useState(() => children.trim());
   const [showWATOutput, setShowWATOutput] = useState(showWAT);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [shouldOptimize, setShouldOptimize] = useState(false);
+  const [showAllocationTables, setShowAllocationTables] = useState(false);
   const [wasEdited, setWasEdited] = useState(false);
   const [stdout, setStdout] = useState('');
-  const compiler = useCompiler(compilerOptions);
+  const compiler = useCompiler({ ...compilerOptions, shouldOptimize });
 
   const text = wasEdited ? editedText : children.trim();
 
@@ -178,7 +203,8 @@ export function SnaxEditor({
     if (runOnMount && !compiler.wat) {
       compiler.compile(text);
     }
-  }, [compiler, runOnMount, text]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   let output = stdout;
   if (compiler.error) {
@@ -205,27 +231,107 @@ export function SnaxEditor({
         theme={editorTheme}
         ref={cmViewRef}
       />
-      <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
-      {showWATOutput && compiler.wat && (
+      <ButtonContainer>
+        <RunButton onClick={onClickRun}>&#x25BA; Run</RunButton>
+        <Button
+          title="Toggle Controls"
+          onClick={() => setShowConfigPanel((prev) => !prev)}
+        >
+          &middot;&middot;&middot;
+        </Button>
+      </ButtonContainer>
+      {showConfigPanel && (
+        <div>
+          <Checkbox
+            checked={showRunResult}
+            // onChange={(checked) => setShowWATOutput(checked)}
+            label="Show Run Result"
+          />
+          <Checkbox
+            checked={showWATOutput}
+            onChange={(checked) => setShowWATOutput(checked)}
+            label="Show Web Assembly Output"
+          />
+          <Checkbox
+            checked={shouldOptimize}
+            onChange={(checked) => setShouldOptimize(checked)}
+            label="Run Optimization Pass"
+          />
+          <Checkbox
+            checked={showAllocationTables}
+            onChange={(checked) => setShowAllocationTables(checked)}
+            label="Show Allocation Tables"
+          />
+        </div>
+      )}
+      {showWATOutput && !shouldOptimize && compiler.wat && (
         <Editor value={compiler.wat} lang="wat" theme={editorTheme} />
+      )}
+      {showWATOutput && shouldOptimize && compiler.optimizedWat && (
+        <Editor value={compiler.optimizedWat} lang="wat" theme={editorTheme} />
+      )}
+      {showAllocationTables && compiler.fileCompiler && (
+        <AllocationTables compiler={compiler.fileCompiler} />
       )}
       {showRunResult && output && <Output>{output}</Output>}
     </Container>
   );
 }
 
-const RunButton = styled.button`
-  border: 1px solid #ddd;
+function Checkbox({
+  checked,
+  onChange,
+  label,
+}: {
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
+  label?: React.ReactNode;
+}) {
+  const id = React.useId();
+  return (
+    <FormField>
+      <input
+        type="checkbox"
+        id={id}
+        checked={checked}
+        onChange={(e) => onChange && onChange(e.target.checked)}
+      />
+      {label && <label htmlFor={id}>{label}</label>}
+    </FormField>
+  );
+}
+
+const FormField = styled.div`
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  label {
+    font-size: 14px;
+  }
+`;
+
+const Button = styled.button`
   cursor: pointer;
   padding: 4px 8px;
+`;
+
+const RunButton = styled(Button)`
+  border: 1px solid #bcd0f5;
   background-color: #bcd0f5;
 `;
 
+const ButtonContainer = styled.div`
+  display: flex;
+  gap: 4px;
+`;
+
 const Container = styled.div`
+  font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  ${RunButton} {
+  ${ButtonContainer} {
     position: absolute;
     align-self: flex-end;
   }

@@ -20,6 +20,16 @@ used by a value. This is computed at compile time.
 $size_of([1,2,3]);
 ```
 
+You can also pass in the name of a type to get it's size:
+
+```snax
+struct Vector {
+  x: f64;
+  y: f64;
+}
+$size_of(Vector);
+```
+
 ## Bulk Memory Operations
 
 ### $memory_copy

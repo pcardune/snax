@@ -20,7 +20,6 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
                 showWAT
                 runOnMount
                 compilerOptions={{ includeRuntime: false }}
-                // showRunResult={false}
               >
                 {props.children as string}
               </SnaxEditor>

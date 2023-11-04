@@ -1,3 +1,4 @@
+/* eslint-disable no-fallthrough */
 import * as AST from './spec-gen.js';
 import {
   ArrayType,
@@ -70,6 +71,10 @@ type FuncDeclContext = {
   module: binaryen.Module;
 };
 
+function assertUnreachable(x: never): never {
+  throw new Error("Didn't expect to get here");
+}
+
 export type IRCompilerContext = FuncDeclContext & {
   setDebugLocation: (expr: number, node: AST.ASTNode) => void;
 };
@@ -123,6 +128,10 @@ function lvalueDynamic(ptr: binaryen.ExpressionRef, offset: number = 0) {
   return { kind: 'dynamic' as const, ptr, offset };
 }
 
+/**
+ * Represents a value that is stored directly in the web assembly execution stack
+ * as one of the primary web assembly value types (i32, i64, f32, f64).
+ */
 class DirectRValue {
   readonly kind = 'direct' as const;
   readonly type: BaseType;
@@ -142,6 +151,9 @@ class DirectRValue {
   }
 }
 
+/**
+ * Represents a value that is stored in memory, and is accessed via a pointer.
+ */
 class AddressRValue {
   readonly kind = 'address' as const;
   readonly type: BaseType;
@@ -162,9 +174,15 @@ class AddressRValue {
 }
 type RValue = DirectRValue | AddressRValue;
 
+/**
+ * Wrapper around `new DirectRValue(type, valueExpr)`
+ */
 function rvalueDirect(type: BaseType, valueExpr: binaryen.ExpressionRef) {
   return new DirectRValue(type, valueExpr);
 }
+/**
+ * Wrapper around `new AddressRValue(type, valuePtrExpr)`
+ */
 function rvalueAddress(type: BaseType, valuePtrExpr: binaryen.ExpressionRef) {
   return new AddressRValue(type, valuePtrExpr);
 }
@@ -987,6 +1005,9 @@ export abstract class ExprCompiler<
     }
   }
 
+  /**
+   * Copies the value from `rvalue` to the location at `lvalue`.
+   */
   copy(
     lvalue: LValue,
     rvalue: RValue,
@@ -1000,14 +1021,14 @@ export abstract class ExprCompiler<
       case 'static': {
         const { location } = lvalue;
         switch (location.area) {
-          case 'locals':
+          case Area.LOCALS:
             if (rvalue.kind === 'address') {
               throw this.error(
                 `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
               );
             }
             return ltee(module, location, rvalue.valueExpr);
-          case 'globals':
+          case Area.GLOBALS:
             if (rvalue.kind === 'address') {
               throw this.error(
                 `Can't fit a ${rvalue.type} in an ${location.area} ${location.valueType}`
@@ -1021,21 +1042,22 @@ export abstract class ExprCompiler<
               ],
               binaryen[location.valueType]
             );
-          case 'stack': {
+          case Area.STACK: {
             const ptr = lget(module, funcAllocs.arp);
             return this.copy(
               lvalueDynamic(ptr, location.offset),
               rvalue,
               tempLocation
             );
-            break;
           }
-          default:
+          case Area.DATA:
+          case Area.FUNCS:
             throw this.error(
               `ASSIGN: don't know how to compile assignment to symbol located in ${location.area}`
             );
+          default:
+            assertUnreachable(location);
         }
-        break;
       }
       case 'dynamic': {
         const { ptr } = lvalue;
@@ -1716,23 +1738,28 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
   }
 
   getRValue() {
-    const { left, right } = this.root.fields;
+    const { left, right: argList } = this.root.fields;
     const { module } = this.context;
 
     const location = this.getFuncLocation();
 
     const { returnType } = location.funcType;
 
+    // Generate code to reset the stack pointer after the call completes
     const resetStackPointer = gset(
       module,
       this.context.runtime.stackPointer,
       lget(module, this.context.funcAllocs.arp)
     );
-    const args = right.fields.args.map(
+
+    // Generate code to calculate the values of the arguments
+    const args = argList.fields.args.map(
       (arg) => this.getChildRValue(arg).ptrOrValueExpr
     );
 
     if (returnType.equals(Intrinsics.void)) {
+      // for void functions, we can just call them directly and then
+      // reset the stack pointer. The result of the call is undefined
       return rvalueDirect(
         returnType,
         module.block(
@@ -1741,43 +1768,56 @@ class CallExprCompiler extends ExprCompiler<AST.CallExpr> {
           binaryen.none
         )
       );
-    } else {
-      const valueType = returnType.toValueType();
-      const returnValueType = valueType ? binaryen[valueType] : binaryen.i32;
-      const tempLocation = this.context.allocationMap.getLocalOrThrow(
-        this.root,
-        'function calls need a temp local'
-      );
-      const block = module.block(
-        '',
-        [
-          lset(
-            module,
-            tempLocation,
-            module.call(location.id, args, returnValueType)
-          ),
-          resetStackPointer,
-          lget(module, tempLocation),
-        ],
-        returnValueType
-      );
+    }
 
-      if (valueType) {
-        return rvalueDirect(returnType, block);
-      } else {
-        // copy the return value into the current function's stack space
-        const stackLocation = this.context.allocationMap.getStackOrThrow(
-          this.root
-        );
-        return rvalueAddress(
-          returnType,
-          this.copy(
-            lvalueStatic(stackLocation),
-            rvalueAddress(returnType, block),
-            tempLocation
-          )
-        );
-      }
+    // If the return type has a corresponding value type (i32, i64, f32, f64),
+    // then lets use that. Otherwise, the value cannot fit into a wasm local
+    // and the function will just return a pointer to it (i32).
+    const valueType = returnType.toValueType();
+    // TODO: for 64 bit wasm (if that ever happens), the pointer value type
+    // will end up being an i64. We should extract this to some "POINTER_TYPE" constant.
+    const returnValueType = valueType ? binaryen[valueType] : binaryen.i32;
+
+    // Regardless of whether the function is returning a value or a pointer to a value,
+    // we'll store it in a temporary local, which should already be in our allocation table.
+    const tempLocation = this.context.allocationMap.getLocalOrThrow(
+      this.root,
+      'function calls need a temp local'
+    );
+
+    // Generate code to call the function, store the result in the temporary local,
+    // reset the stack pointer, and then load the value from the temporary local.
+    const block = module.block(
+      '',
+      [
+        lset(
+          module,
+          tempLocation,
+          module.call(location.id, args, returnValueType)
+        ),
+        resetStackPointer,
+        lget(module, tempLocation),
+      ],
+      returnValueType
+    );
+
+    if (valueType) {
+      // This is the case where the function is returning a value that fits into
+      // a wasm local. We can just return the value directly.
+      return rvalueDirect(returnType, block);
+    } else {
+      // copy the return value into the current function's stack space
+      const stackLocation = this.context.allocationMap.getStackOrThrow(
+        this.root
+      );
+      return rvalueAddress(
+        returnType,
+        this.copy(
+          lvalueStatic(stackLocation),
+          rvalueAddress(returnType, block),
+          tempLocation
+        )
+      );
     }
   }
 }
@@ -2063,6 +2103,11 @@ function gget(module: binaryen.Module, location: GlobalStorageLocation) {
   return module.global.get(location.id, binaryen[location.valueType]);
 }
 
+/**
+ * Wrapper around module.global.set that takes a GlobalStorageLocation.
+ *
+ * Used to set the value of a global.
+ */
 function gset(
   module: binaryen.Module,
   location: GlobalStorageLocation,
@@ -2071,6 +2116,9 @@ function gset(
   return module.global.set(location.id, value);
 }
 
+/**
+ * Wrapper around module.local.get that takes a LocalStorageLocation
+ */
 function lget(module: binaryen.Module, location: LocalStorageLocation) {
   return module.local.get(location.offset, binaryen[location.valueType]);
 }
@@ -2083,6 +2131,9 @@ function ltee(
   return module.local.tee(location.offset, value, binaryen[location.valueType]);
 }
 
+/**
+ * Wrapper around module.local.set that takes a LocalStorageLocation
+ */
 function lset(
   module: binaryen.Module,
   location: LocalStorageLocation,

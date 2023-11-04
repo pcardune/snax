@@ -240,7 +240,7 @@ of our `let` variables.
 
 ## Function Calls And Function Arguments
 
-Web assembly provides the abstract for passing arguments to functions,
+Web assembly provides the abstraction for passing arguments to functions,
 so long as those arguments can fit into the limited numeric data types
 that web assembly supports (i32,i64,f32,f64). Let's look at a simple
 program with an add function that takes two arguments:
@@ -320,3 +320,28 @@ there are several steps, read from inside out:
 It's important that the steps happen in this sequence, particularly
 resetting the stack pointer, because it's possible that the thing we
 do with the return value is immediately passed to another function!
+
+### Passing Large Values as Function Arguments
+
+So what happens if we want to pass a larger value to a function, such as a
+struct or an array? In this scenario, we'll still be using the simple integer
+arguments that web assembly provides, but we'll be passing a pointer to the
+larger value instead of the value itself.
+
+Let's look at an example:
+
+```snax-wat
+struct Point {
+  x:i32;
+  y:i32;
+}
+func addPoints(a:&Point) {
+  return a.x+a.y;
+}
+func main() {
+  let a:Point;
+  a.x = 1;
+  a.y = 2;
+  return addPoints(@a);
+}
+```

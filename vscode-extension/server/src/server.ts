@@ -64,8 +64,66 @@ async function fetchStdlib(url: string): Promise<string | null> {
   return responseCache.get(url)!;
 }
 
-const astCache = new Map<string, ReturnType<(typeof SNAXParser)['parseStr']>>();
-const compilerCache = new Map<string, FileCompiler>();
+const astCache = new Map<
+  string,
+  { version: number; ast: ReturnType<(typeof SNAXParser)['parseStr']> }
+>();
+
+function getDocumentAST(doc: TextDocument) {
+  const existing = astCache.get(doc.uri);
+  if (existing && existing.version == doc.version) {
+    return existing.ast;
+  }
+  const result = SNAXParser.parseStr(doc.getText(), 'start', {
+    grammarSource: doc.uri,
+  });
+  astCache.set(doc.uri, { version: doc.version, ast: result });
+  return result;
+}
+const compilerCache = new Map<
+  string,
+  { version: number; compiler: FileCompiler }
+>();
+function getDocumentCompiler(doc: TextDocument) {
+  const existing = compilerCache.get(doc.uri);
+  if (existing && existing.version == doc.version) {
+    return existing.compiler;
+  }
+  const result = getDocumentAST(doc);
+  if (!result.isOk()) {
+    return null;
+  }
+  if (result.value.rootNode.name !== 'File') {
+    return null;
+  }
+  const compiler = new FileCompiler(result.value.rootNode, {
+    includeRuntime: true,
+    importResolver: async (sourcePath, fromCanonicalUrl) => {
+      if (!sourcePath.startsWith('snax/')) {
+        throw new Error(
+          "Importing non standard library modules isn't supported yet."
+        );
+      }
+      const url = globalSettings.stdlibLocation + sourcePath;
+      const content = await fetchStdlib(url);
+      if (!content) {
+        throw new Error('Failed to load module: ' + sourcePath);
+      }
+      const result = SNAXParser.parseStr(content, 'start', {
+        grammarSource: url,
+      });
+      if (!result.isOk()) {
+        throw new Error('Failed to parse module: ' + sourcePath);
+      }
+      if (result.value.rootNode.name !== 'File') {
+        throw new Error('Failed to parse module: ' + sourcePath);
+      }
+      return { ast: result.value.rootNode, canonicalUrl: url };
+    },
+  });
+  compilerCache.set(doc.uri, { version: doc.version, compiler });
+  return compiler;
+}
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -136,8 +194,11 @@ connection.onInitialized(() => {
 });
 
 connection.onHover(async (params, token, workDoneProgress, resultProgress) => {
-  const astResult = astCache.get(params.textDocument.uri);
-  const compiler = compilerCache.get(params.textDocument.uri);
+  const doc = documents.get(params.textDocument.uri);
+  if (doc == null) {
+    return { contents: { kind: 'plaintext', value: 'No document found' } };
+  }
+  const astResult = getDocumentAST(doc);
   if (astResult == null) {
     return { contents: { kind: 'plaintext', value: 'No AST found' } };
   }
@@ -146,14 +207,17 @@ connection.onHover(async (params, token, workDoneProgress, resultProgress) => {
       contents: { kind: 'plaintext', value: 'Cannot parse file' },
     };
   }
-  const doc = documents.get(params.textDocument.uri);
-  if (doc == null) {
-    return { contents: { kind: 'plaintext', value: 'No document found' } };
-  }
-  const node = astResult.value.getNodeAtOffset(doc.offsetAt(params.position));
+
+  const node = astResult.value.getNodeAtOffset(doc.offsetAt(params.position), {
+    source: doc.uri,
+  });
   if (node == null)
     return { contents: { kind: 'plaintext', value: 'No node found' } };
 
+  const compiler = getDocumentCompiler(doc);
+  if (compiler != null && compiler.typeCache == null) {
+    compiler.compile();
+  }
   const typeInfo = compiler?.typeCache?.get(node);
   return {
     contents: {
@@ -233,8 +297,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 
   // The validator creates diagnostics for all uppercase words length 2 and more
   const diagnostics: Diagnostic[] = [];
-  const result = SNAXParser.parseStr(textDocument.getText());
-  astCache.set(textDocument.uri, result);
+  const result = getDocumentAST(textDocument);
   if (!result.isOk()) {
     if (result.error instanceof SyntaxError) {
       const diagnostic: Diagnostic = {
@@ -301,7 +364,10 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
         return { ast: result.value.rootNode, canonicalUrl: url };
       },
     });
-    compilerCache.set(textDocument.uri, compiler);
+    compilerCache.set(textDocument.uri, {
+      version: textDocument.version,
+      compiler,
+    });
 
     try {
       await compiler.compile();

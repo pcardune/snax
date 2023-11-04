@@ -21,9 +21,12 @@ class AST {
     this.rootNode = rootNode;
   }
 
-  getNodeAtOffset(offset: number) {
+  getNodeAtOffset(offset: number, { source }: { source?: string } = {}) {
     for (const node of depthFirstIter(this.rootNode)) {
-      if (!node.location) {
+      if (
+        !node.location ||
+        (source != null && node.location.source !== source)
+      ) {
         continue;
       }
       if (
